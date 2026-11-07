@@ -30,7 +30,6 @@ import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.WeakReferenceHandler;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.TextEventInterpreter;
-import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -146,8 +145,6 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
     if (event == null) {
       return;
     }
-    LogUtils.d(TAG, "Processing event: %s", event);
-
     eventProcessor.accept(event, eventId);
   }
 

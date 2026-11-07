@@ -74,7 +74,11 @@ public final class ActivationReminder {
               stopCountdown();
               serviceRef.clear();
               try {
-                service.turnOff();
+                if (service instanceof TalkBackService talkBack) {
+                  talkBack.turnOff();
+                } else {
+                  service.disableSelf();
+                }
               } catch (RuntimeException e) {
                 Log.e(TAG, "Could not disable accessibility service", e);
               }
