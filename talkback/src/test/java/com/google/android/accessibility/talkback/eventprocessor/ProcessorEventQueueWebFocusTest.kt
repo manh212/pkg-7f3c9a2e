@@ -80,7 +80,8 @@ class ProcessorEventQueueWebFocusTest {
 
     runQueue()
 
-    assertEquals((0 until 50).map { "content-$it" }, handled.drop(20))
+    val retainedContentChanges = EventQueue.maximumQualifyingEvents()
+    assertEquals(((50 - retainedContentChanges) until 50).map { "content-$it" }, handled.drop(20))
   }
 
   @Test
@@ -120,7 +121,7 @@ class ProcessorEventQueueWebFocusTest {
     val slowQueue =
       ProcessorEventQueue { event, _ ->
         slowHandled.add(event.contentDescription.toString())
-        ShadowSystemClock.advanceBy(Duration.ofMillis(10))
+        ShadowSystemClock.advanceBy(Duration.ofMillis(EventQueue.processingSliceMs()))
       }
     repeat(6) { slowQueue.onAccessibilityEvent(event(TYPE_VIEW_CLICKED, "clicked-$it"), null) }
     slowQueue.onAccessibilityEvent(focus("web", web = true), null)
@@ -128,7 +129,9 @@ class ProcessorEventQueueWebFocusTest {
 
     shadowOf(Looper.getMainLooper()).runOneTask()
 
-    assertEquals(listOf("web", "clicked-0", "clicked-1"), slowHandled)
+    assertEquals(listOf("web", "clicked-0"), slowHandled)
+    runQueue()
+    assertEquals(listOf("web") + (0 until 6).map { "clicked-$it" }, slowHandled)
   }
 
   @Test

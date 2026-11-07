@@ -288,7 +288,8 @@ public class AccessibilityFocusInterpreter
 
     AccessibilityNodeInfoCompat currentA11yFocusedNode =
         accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
-    if (!FormFactorUtils.isAndroidWear()
+    if (actorState != null
+        && !FormFactorUtils.isAndroidWear()
         && startWebFocusRecovery(interpretation, currentA11yFocusedNode, stripScrolled)) {
       return;
     }
@@ -301,7 +302,10 @@ public class AccessibilityFocusInterpreter
     if (!shouldMoveFocus(currentA11yFocusedNode, interpretation.direction())) {
       return;
     }
-    if (!FormFactorUtils.isAndroidWear()) {
+    if (!FormFactorUtils.isAndroidWear() && currentA11yFocusedNode != null) {
+      if (actorState == null) {
+        return;
+      }
       AccessibilityNodeInfoCompat scrolled =
           AccessibilityEventUtils.sourceCompat(interpretation.event());
       if (scrolled != null && !BuildVersionUtils.isAtLeastOMR1()) {

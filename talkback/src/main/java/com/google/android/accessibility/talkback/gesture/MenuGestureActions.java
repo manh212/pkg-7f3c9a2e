@@ -48,6 +48,7 @@ public final class MenuGestureActions {
       new Entry(R.id.disable_dimming, R.string.menu_gesture_disable_dimming, "disable_dimming", R.string.shortcut_value_show_hide_screen),
       new Entry(R.id.voice_commands, R.string.menu_gesture_voice_commands, "voice_commands", R.string.shortcut_value_voice_commands),
       new Entry(R.id.pause_backtalk, R.string.menu_gesture_pause_backtalk, "pause_backtalk", R.string.shortcut_value_pause_backtalk),
+      new Entry(R.id.turn_off_sandfly, R.string.turn_off_talkback, "turn_off_sandfly", R.string.shortcut_value_turn_off_sandfly),
       new Entry(R.id.show_keyboard_shortcuts, R.string.menu_gesture_show_keyboard_shortcuts, "show_keyboard_shortcuts", 0),
       new Entry(R.id.talkback_settings, R.string.menu_gesture_talkback_settings, "talkback_settings", 0),
       new Entry(R.id.tts_settings, R.string.menu_gesture_tts_settings, "tts_settings", 0),

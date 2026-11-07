@@ -39,7 +39,7 @@ public class ActionsSettingTest {
     prefs = SharedPreferencesUtils.getSharedPreferences(context);
     prefs.edit().clear().commit();
     NodeMenuRuleCreator nodeMenuRuleCreator =
-        new NodeMenuRuleCreator(null, null, null, null) {
+        new NodeMenuRuleCreator(feedback -> false, null, null, null) {
           @Override
           public List<ContextMenuItem> getNodeMenuByRule(
               @NonNull MenuRules rule,

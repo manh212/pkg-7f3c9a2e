@@ -59,6 +59,7 @@ class WebNavigationFirstTest {
   private inner class Pivot(web: Boolean = true, webView: Boolean = false) :
     AccessibilityNodeInfoCompat(AccessibilityNodeInfo.obtain()) {
     var exists = true
+    var allowKeyboardWindowCheck = false
 
     init {
       className = if (webView) "android.webkit.WebView" else "android.view.View"
@@ -76,6 +77,10 @@ class WebNavigationFirstTest {
     }
 
     override fun getWindow(): AccessibilityWindowInfoCompat? {
+      if (allowKeyboardWindowCheck) {
+        allowKeyboardWindowCheck = false
+        return null
+      }
       requests.add("window")
       throw WindowRead()
     }
@@ -230,7 +235,10 @@ class WebNavigationFirstTest {
 
   @Test
   fun accessibilityFocusIsNotCheckedWithTheAppAgain() {
-    val pivot = Pivot().apply { isAccessibilityFocused = true }
+    val pivot = Pivot().apply {
+      isAccessibilityFocused = true
+      allowKeyboardWindowCheck = true
+    }
     processor = processor(monitorReturning(pivot))
     assertTrue(processor.onNavigationAction(action(SEARCH_FOCUS_FORWARD), EVENT_ID_UNTRACKED))
     assertEquals(listOf("html"), requests)
@@ -238,7 +246,7 @@ class WebNavigationFirstTest {
 
   @Test
   fun inputFocusIsCheckedWithTheApp() {
-    val pivot = Pivot()
+    val pivot = Pivot().apply { allowKeyboardWindowCheck = true }
     processor = processor(monitorReturning(pivot))
     assertTrue(processor.onNavigationAction(action(SEARCH_FOCUS_FORWARD), EVENT_ID_UNTRACKED))
     assertEquals(listOf("refresh", "html"), requests)
