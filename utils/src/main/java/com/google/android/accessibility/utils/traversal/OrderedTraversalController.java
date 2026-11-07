@@ -39,6 +39,7 @@ public class OrderedTraversalController {
   private final Map<AccessibilityNodeInfoCompat, WorkingTree> nodeTreeMap;
   private @Nullable AccessibilityNodeInfoCompat initialFocusNode;
   private final boolean makeFabFirst;
+  private boolean missesChildren;
 
   public OrderedTraversalController() {
     this(false);
@@ -111,6 +112,9 @@ public class OrderedTraversalController {
 
     ReorderedChildrenIterator iterator =
         ReorderedChildrenIterator.createAscendingIterator(rootNode, boundsCalculator);
+    if (iterator.missedAllChildren()) {
+      missesChildren = true;
+    }
     while (iterator.hasNext()) {
       TraversalBudget.check();
       AccessibilityNodeInfoCompat child = iterator.next();
@@ -121,6 +125,10 @@ public class OrderedTraversalController {
       }
     }
     return tree;
+  }
+
+  public boolean missesChildren() {
+    return missesChildren;
   }
 
   /**

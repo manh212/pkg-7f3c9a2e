@@ -224,7 +224,9 @@ public final class Mappers {
       boolean powerConnected = variables.powerConnected(depth);
       int batteryPercent = variables.batteryPercent(depth);
       @Nullable String announcement = null;
-      if (powerConnected) {
+      if (((Interpretation.Power) interpretation).fullyCharged) {
+        announcement = context.getString(R.string.battery_fully_charged);
+      } else if (powerConnected) {
         if (batteryPercent == BatteryMonitor.UNKNOWN_LEVEL) {
           announcement =
               context.getString(
@@ -420,6 +422,15 @@ public final class Mappers {
           "scrollDirection",
           TraversalStrategyUtils.directionToString(directionID));
       return directionID;
+    }
+
+    public @Nullable AccessibilityNodeInfoCompat webItemInView(int depth) {
+      AccessibilityNodeInfoCompat item =
+          (interpretation instanceof Interpretation.ManualScroll)
+              ? ((Interpretation.ManualScroll) interpretation).webItemInView()
+              : null;
+      LogDepth.logVar(LOG_TAG, ++depth, "webItemInView", item);
+      return item;
     }
 
     public @Nullable AccessibilityNodeInfoCompat currentNode(int depth) {

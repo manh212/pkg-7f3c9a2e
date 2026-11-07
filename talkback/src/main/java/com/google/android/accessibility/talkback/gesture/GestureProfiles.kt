@@ -62,6 +62,9 @@ object GestureProfiles {
     return active?.get(gestureKey)
   }
 
+  @JvmStatic
+  fun usesGesture(gestureKey: String): Boolean = profiles.any { gestureKey in it.gestures }
+
   @JvmStatic fun hasProfiles(): Boolean = profiles.isNotEmpty()
 
   @JvmStatic fun isActive(): Boolean = active != null

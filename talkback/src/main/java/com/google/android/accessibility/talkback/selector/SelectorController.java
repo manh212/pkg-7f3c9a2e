@@ -101,6 +101,7 @@ import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.GestureProfiles;
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator;
+import com.google.android.accessibility.talkback.menurules.TextEntityMenu;
 import com.google.android.accessibility.talkback.monitor.VolumeMonitor;
 import com.google.android.accessibility.talkback.monitor.VolumeMonitor.VolumeChangedListener;
 import com.google.android.accessibility.talkback.recognition.LiveRecognition;
@@ -162,6 +163,8 @@ public class SelectorController implements UserInputEventListener {
 
   private static final long SWITCH_AFTER_TOUCH_MS = 200;
   private final Runnable switchAfterTouch = this::applyPendingSwitch;
+  private AccessibilityNodeInfo classifyingNode = null;
+  private final Runnable switchAfterClassifying = this::switchAfterClassifying;
 
   /** Audial feedback announce types. */
   public enum AnnounceType {
@@ -848,6 +851,7 @@ public class SelectorController implements UserInputEventListener {
     if (SelectorGroupManager.isSupported()) {
       ensureCurrentGroupSelection();
     }
+    TextEntityMenu.setClassifiedListener(() -> handler.post(switchAfterClassifying));
   }
 
   /** Gets the Setting for by granularity resources ID. */
@@ -1435,6 +1439,7 @@ public class SelectorController implements UserInputEventListener {
       return;
     }
     lastFocusedNode = null;
+    classifyingNode = null;
     if (keepsReadingControlInWebContent(context, prefs, nodeInfo)) {
       // The user's reading control is kept in web content: focus changes within a web page
       // must not replace it with a contextual setting, or restore a cached one, either.
@@ -1493,11 +1498,32 @@ public class SelectorController implements UserInputEventListener {
       return;
     }
     if (isContextualSettingNotSupported(currentSetting, focusedNode)) {
+      if (currentSetting == ACTIONS && TextEntityMenu.isClassifying()) {
+        classifyingNode = nodeInfo;
+        return;
+      }
       // If the current setting is a contextual setting and no longer allowed by the new focused
       // node, then restore to the cached setting or move the setting to the first available
       // item if the cached setting is also unavailable.
       restoreSetting();
     }
+    if (autoSwitch && TextEntityMenu.isClassifying()) {
+      classifyingNode = nodeInfo;
+    }
+  }
+
+  private void switchAfterClassifying() {
+    AccessibilityNodeInfo node = classifyingNode;
+    if (node == null || touchActive) {
+      return;
+    }
+    AccessibilityNodeInfoCompat focus =
+        accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
+    if (focus == null || !node.equals(focus.unwrap())) {
+      classifyingNode = null;
+      return;
+    }
+    switchCurrentSetting(node);
   }
 
   @Override
@@ -1521,7 +1547,10 @@ public class SelectorController implements UserInputEventListener {
 
   public void shutdown() {
     handler.removeCallbacks(switchAfterTouch);
+    handler.removeCallbacks(switchAfterClassifying);
+    TextEntityMenu.setClassifiedListener(null);
     lastFocusedNode = null;
+    classifyingNode = null;
   }
 
   /** Selects the previous or next setting. For selecting setting via gesture. */

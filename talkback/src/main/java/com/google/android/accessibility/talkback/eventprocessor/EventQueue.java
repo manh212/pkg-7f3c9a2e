@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.IdentityHashMap;
 import java.util.Locale;
+import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * This class is a queue that tracks events that TalkBack will process. This queue coalesces
@@ -228,6 +230,36 @@ class EventQueue {
       }
     }
     return -1;
+  }
+
+  public List<AccessibilityEvent> latestOfType(int eventType, int max) {
+    List<AccessibilityEvent> latest = new ArrayList<>();
+    for (int i = eventQueue.size() - 1; i >= 0 && latest.size() < max; i--) {
+      AccessibilityEvent event = eventQueue.get(i);
+      if (event.getEventType() == eventType) {
+        latest.add(event);
+      }
+    }
+    return latest;
+  }
+
+  public List<AccessibilityEvent> removeMatching(Predicate<AccessibilityEvent> filter) {
+    List<AccessibilityEvent> removed = new ArrayList<>();
+    final Iterator<AccessibilityEvent> iterator = eventQueue.iterator();
+    while (iterator.hasNext()) {
+      final AccessibilityEvent next = iterator.next();
+      if (!filter.test(next)) {
+        continue;
+      }
+      iterator.remove();
+      removed.add(next);
+      enqueueTimes.remove(next);
+      if (AccessibilityEventUtils.eventMatchesAnyType(next, MASK_COALESCIBLE_EVENT_TYPES)) {
+        final int eventType = next.getEventType();
+        qualifyingEvents.put(eventType, qualifyingEvents.get(eventType, 0) - 1);
+      }
+    }
+    return removed;
   }
 
   /** Clears the event queue and discards all events waiting for processing. */

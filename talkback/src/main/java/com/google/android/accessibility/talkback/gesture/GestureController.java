@@ -813,6 +813,9 @@ public class GestureController {
       selectorController.changeVoiceProfile(eventId, /* isNext= */ false);
     } else if (action.equals(service.getString(R.string.shortcut_value_next_voice_profile))) {
       selectorController.changeVoiceProfile(eventId, /* isNext= */ true);
+    } else if (action.equals(service.getString(R.string.shortcut_value_turn_off_sandfly))) {
+      service.showDisableTalkBackDialog();
+      result = true;
     } else if (action.equals(service.getString(R.string.shortcut_value_gesture_profiles))) {
       result = menuManager.showMenu(GESTURE_PROFILE, eventId, R.string.no_gesture_profiles);
     } else if (action.equals(service.getString(R.string.shortcut_value_previous_gesture_profile))) {
@@ -1362,6 +1365,17 @@ public class GestureController {
     // Compares resource ID with all child nodes on the active window if navigate-up arrow is
     // shown because the first child node is the navigate-up arrow which is no resource ID.
     return WindowUtils.rootChildMatchesResId(service, TrainingActivity.ROOT_RES_ID);
+  }
+
+  public void onBackTap(String key, EventId eventId) {
+    String unassigned = service.getString(R.string.shortcut_value_unassigned);
+    String action = gestureShortcutMapping.getActionKeyFromPrefKey(key, unassigned);
+    LogUtils.v(LOG_TAG, "Back tap [%s], action: [%s]", key, action);
+    if (TextUtils.isEmpty(action) || action.equals(unassigned)) {
+      return;
+    }
+    pipeline.returnFeedback(eventId, Feedback.part().setInterruptGentle(true));
+    performAction(action, eventId);
   }
 
   /**

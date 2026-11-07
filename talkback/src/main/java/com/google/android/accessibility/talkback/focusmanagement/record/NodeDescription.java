@@ -20,6 +20,7 @@ import android.text.TextUtils;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.CollectionItemInfoCompat;
+import com.google.android.accessibility.talkback.focusmanagement.record.NodePathDescription.Deadline;
 import com.google.android.accessibility.utils.AccessibilityNode;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Filter;
@@ -110,21 +111,65 @@ public class NodeDescription {
     this.nextSiblingText = original.nextSiblingText;
   }
 
-  public NodeDescription(@NonNull AccessibilityNodeInfoCompat node, boolean isPathEnd) {
-    this.savedNode = AccessibilityNode.takeOwnership(node);
-    this.nodeInfoHashCode = node.hashCode();
-    this.text = getText(this.savedNode, isPathEnd);
-    this.className = node.getClassName();
-    this.viewIdResourceName = node.getViewIdResourceName();
+  NodeDescription(
+      @NonNull AccessibilityNodeInfoCompat node,
+      boolean isPathEnd,
+      @Nullable AccessibilityNode parent) {
+    this(
+        withoutSiblingContext(node, isPathEnd),
+        parent,
+        isPathEnd,
+        Integer.MAX_VALUE,
+        /* deadline= */ null);
+  }
 
+  static NodeDescription withoutSiblingContext(
+      @NonNull AccessibilityNodeInfoCompat node, boolean isPathEnd) {
+    @NonNull AccessibilityNode savedNode = AccessibilityNode.takeOwnership(node);
     // Get position data from collection-data.
     CollectionItemInfoCompat itemInfo = node.getCollectionItemInfo();
-    this.rowIndex = itemInfo == null ? UNDEFINED_INDEX : itemInfo.getRowIndex();
-    this.columnIndex = itemInfo == null ? UNDEFINED_INDEX : itemInfo.getColumnIndex();
+    return new NodeDescription(
+        savedNode,
+        node.hashCode(),
+        getText(savedNode, isPathEnd),
+        node.getClassName(),
+        node.getViewIdResourceName(),
+        itemInfo == null ? UNDEFINED_INDEX : itemInfo.getRowIndex(),
+        itemInfo == null ? UNDEFINED_INDEX : itemInfo.getColumnIndex(),
+        UNDEFINED_INDEX,
+        /* previousSiblingText= */ null,
+        /* nextSiblingText= */ null);
+  }
+
+  NodeDescription withSiblingContext(
+      @Nullable AccessibilityNode parent, boolean isPathEnd, @NonNull Deadline deadline) {
+    return new NodeDescription(this, parent, isPathEnd, Integer.MAX_VALUE, deadline);
+  }
+
+  NodeDescription withSiblingContext(
+      @Nullable AccessibilityNode parent, boolean isPathEnd, int maxChildrenRead) {
+    return new NodeDescription(this, parent, isPathEnd, maxChildrenRead, /* deadline= */ null);
+  }
+
+  private NodeDescription(
+      @NonNull NodeDescription original,
+      @Nullable AccessibilityNode parent,
+      boolean isPathEnd,
+      int maxChildrenRead,
+      @Nullable Deadline deadline) {
+    this.savedNode = original.savedNode;
+    this.nodeInfoHashCode = original.nodeInfoHashCode;
+    this.text = original.text;
+    this.className = original.className;
+    this.viewIdResourceName = original.viewIdResourceName;
+    this.rowIndex = original.rowIndex;
+    this.columnIndex = original.columnIndex;
 
     // Get data from node's position within parent-node.
-    @Nullable AccessibilityNode parent = this.savedNode.getParent();
-    this.rawIndexInParent = getRawIndexInParent(this.savedNode, parent);
+    this.rawIndexInParent =
+        (savedNode == null)
+            ? UNDEFINED_INDEX
+            : getRawIndexInParent(savedNode, parent, maxChildrenRead, deadline);
     if (rawIndexInParent == UNDEFINED_INDEX) {
       this.previousSiblingText = null;
       this.nextSiblingText = null;
@@ -132,6 +177,29 @@ public class NodeDescription {
       this.previousSiblingText = getChildText(parent, rawIndexInParent - 1, isPathEnd);
       this.nextSiblingText = getChildText(parent, rawIndexInParent + 1, isPathEnd);
     }
+  }
+
+  private NodeDescription(
+      @Nullable AccessibilityNode savedNode,
+      int nodeInfoHashCode,
+      @Nullable CharSequence text,
+      CharSequence className,
+      String viewIdResourceName,
+      int rowIndex,
+      int columnIndex,
+      int rawIndexInParent,
+      @Nullable CharSequence previousSiblingText,
+      @Nullable CharSequence nextSiblingText) {
+    this.savedNode = savedNode;
+    this.nodeInfoHashCode = nodeInfoHashCode;
+    this.text = text;
+    this.className = className;
+    this.viewIdResourceName = viewIdResourceName;
+    this.rowIndex = rowIndex;
+    this.columnIndex = columnIndex;
+    this.rawIndexInParent = rawIndexInParent;
+    this.previousSiblingText = previousSiblingText;
+    this.nextSiblingText = nextSiblingText;
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -278,7 +346,17 @@ public class NodeDescription {
   }
 
   static int getRawIndexInParent(
-      @NonNull AccessibilityNode node, @Nullable AccessibilityNode parent) {
+      @NonNull AccessibilityNode node,
+      @Nullable AccessibilityNode parent,
+      @NonNull Deadline deadline) {
+    return getRawIndexInParent(node, parent, Integer.MAX_VALUE, deadline);
+  }
+
+  private static int getRawIndexInParent(
+      @NonNull AccessibilityNode node,
+      @Nullable AccessibilityNode parent,
+      int maxChildrenRead,
+      @Nullable Deadline deadline) {
     if (parent == null) {
       return UNDEFINED_INDEX;
     }
@@ -292,7 +370,11 @@ public class NodeDescription {
       }
     }
 
-    for (int i = 0; i < parent.getChildCount(); i++) {
+    int childrenRead = Math.min(parent.getChildCount(), maxChildrenRead);
+    for (int i = 0; i < childrenRead; i++) {
+      if ((deadline != null) && deadline.shouldStop()) {
+        return UNDEFINED_INDEX;
+      }
       AccessibilityNode child = parent.getChild(i);
       if (node.equals(child)) {
         return i;

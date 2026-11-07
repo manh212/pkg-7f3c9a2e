@@ -208,6 +208,8 @@ object TraversalTreeCache {
   private val gracedChangeRegions = ArrayList<Pair<Int, Rect>>()
   private var gracedChangeUnknown = false
 
+  private var rereadWindowId = NO_WINDOW_ID
+
   /** Where the last navigation started, so a removed node does not send the user to the top. */
   private var lastPivotTop = Int.MIN_VALUE
   private var lastPivotWindowId = NO_WINDOW_ID
@@ -414,6 +416,15 @@ object TraversalTreeCache {
     orderClearedListener = listener
   }
 
+  @JvmStatic
+  fun startReread(windowId: Int): Boolean {
+    if (windowId == rereadWindowId) {
+      return false
+    }
+    rereadWindowId = windowId
+    return true
+  }
+
   /** Throws away the saved order. */
   @JvmStatic
   fun clear(reason: String) {
@@ -422,6 +433,7 @@ object TraversalTreeCache {
 
   private fun clear(reason: String, notifyListener: Boolean) {
     revisionCounter.incrementAndGet()
+    rereadWindowId = NO_WINDOW_ID
     if (strategy == null) {
       return
     }
@@ -499,17 +511,16 @@ object TraversalTreeCache {
     val type = event.eventType
     if (type and IGNORED_EVENT_TYPES != 0) return false
     advanceRevision(event, cacheOnly)
+    if (rereadWindowId != NO_WINDOW_ID &&
+      affectsWindow(event, rereadWindowId) && !isNonStructural(event)) {
+      rereadWindowId = NO_WINDOW_ID
+    }
     val savedRoot = root ?: return false
     val windowId = event.windowId
     if (WindowCachePolicy.isForeignContentChange(event, savedRoot.windowId)) return false
     if ((cacheOnly || LatencyExperiments.Feature.SCOPED_CACHE.enabled()) &&
       !WindowCachePolicy.affectsOrder(event, savedRoot.windowId)) return false
-    if (
-      type == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
-        type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-        windowId == NO_WINDOW_ID ||
-        windowId == savedRoot.windowId
-    ) {
+    if (affectsWindow(event, savedRoot.windowId)) {
       val changes = event.contentChangeTypes
       val nonStructuralChanges =
         if (regionGraceEnabled) NON_STRUCTURAL_CHANGES_WITH_DESCRIPTION
@@ -532,7 +543,9 @@ object TraversalTreeCache {
       }
       clear(
         if (LogUtils.shouldLog(Log.DEBUG)) {
-          AccessibilityEvent.eventTypeToString(type) + " 0x" + Integer.toHexString(changes)
+          AccessibilityEvent.eventTypeToString(type) +
+            " 0x" +
+            Integer.toHexString(event.contentChangeTypes)
         } else {
           ""
         },
@@ -541,5 +554,20 @@ object TraversalTreeCache {
       return true
     }
     return false
+  }
+
+  private fun affectsWindow(event: AccessibilityEvent, windowId: Int): Boolean {
+    val type = event.eventType
+    return type == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
+      type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+      event.windowId == NO_WINDOW_ID ||
+      event.windowId == windowId
+  }
+
+  private fun isNonStructural(event: AccessibilityEvent): Boolean {
+    val changes = event.contentChangeTypes
+    return event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+      changes != 0 &&
+      changes and NON_STRUCTURAL_CHANGES.inv() == 0
   }
 }

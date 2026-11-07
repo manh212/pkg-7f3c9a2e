@@ -1819,4 +1819,32 @@
     <string name="shortcut_switch_speech_stream">Chuyển kênh giọng nói</string>
     <string name="keyboard_editing_active">Đang chỉnh sửa</string>
   <string name="editor_action_correct_text">Hiệu chỉnh văn bản</string>
+    <string name="title_pref_announce_full_charge">Thông báo khi pin đầy</string>
+    <string name="battery_fully_charged">Pin đã đầy</string>
+    <string name="title_pref_speech_equalizer">Bộ cân bằng giọng nói</string>
+    <string name="title_pref_speech_equalizer_preset">Cấu hình sẵn</string>
+    <string name="title_pref_speech_equalizer_on">Bật bộ cân bằng giọng nói</string>
+    <string name="speech_equalizer_off">Đã tắt</string>
+    <string name="summary_speech_equalizer_needs_low_latency">Cần bật âm thanh độ trễ thấp</string>
+    <string name="speech_equalizer_flat">Cân bằng</string>
+    <string name="speech_equalizer_clarity">Giọng rõ hơn</string>
+    <string name="speech_equalizer_bass_boost">Tăng âm trầm</string>
+    <string name="speech_equalizer_bass_cut">Giảm âm trầm</string>
+    <string name="speech_equalizer_treble_boost">Tăng âm cao</string>
+    <string name="speech_equalizer_treble_cut">Giảm âm cao</string>
+    <string name="speech_equalizer_warm">Giọng ấm</string>
+    <string name="speech_equalizer_reduce_harshness">Giảm âm chói</string>
+    <string name="speech_equalizer_reduce_sibilance">Giảm âm xì</string>
+    <string name="speech_equalizer_small_speaker">Loa nhỏ</string>
+    <string name="speech_equalizer_custom">Tùy chỉnh</string>
+    <string name="speech_equalizer_band_hz"><xliff:g id="frequency">%1$s</xliff:g> Hz</string>
+    <string name="speech_equalizer_band_khz"><xliff:g id="frequency">%1$s</xliff:g> kHz</string>
+    <string name="speech_equalizer_gain_db"><xliff:g id="gain">%1$s</xliff:g> dB</string>
+    <string name="title_pref_category_back_tap">Gõ mặt lưng</string>
+    <string name="title_go_to_quoted_message">Đi đến tin nhắn được trích dẫn</string>
+    <string name="title_pref_shortcut_back_tap_double">Gõ hai lần mặt lưng</string>
+    <string name="title_pref_shortcut_back_tap_triple">Gõ ba lần mặt lưng</string>
+    <string name="title_pref_back_tap_sensitivity">Độ nhạy khi gõ mặt lưng</string>
+  <string name="menu_item_call_number">Gọi <xliff:g id="number" example="020 7946 0018">%1$s</xliff:g></string>
+  <string name="menu_item_copy_code">Sao chép mã <xliff:g id="code" example="482916">%1$s</xliff:g></string>
 </resources>

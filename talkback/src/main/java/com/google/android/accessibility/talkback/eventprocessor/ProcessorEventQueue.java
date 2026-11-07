@@ -19,14 +19,20 @@ package com.google.android.accessibility.talkback.eventprocessor;
 import android.os.Message;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
+import androidx.annotation.VisibleForTesting;
 import com.google.android.accessibility.talkback.compositor.Compositor;
 import com.google.android.accessibility.talkback.compositor.EventFilter;
 import com.google.android.accessibility.utils.AccessibilityEventListener;
+import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.WeakReferenceHandler;
+import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.TextEventInterpreter;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * Manages the event feedback queue. Queued events are run through the {@link Compositor} to
@@ -41,6 +47,12 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
   private static final int MASK_EVENTS_HANDLED_BY_PROCESSOR_EVENT_QUEUE =
       AccessibilityEvent.TYPES_ALL_MASK;
 
+  private static final int MASK_SPOKEN_BEFORE_WEB_FOCUS =
+      AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+          | AccessibilityEvent.TYPE_ANNOUNCEMENT
+          | AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED
+          | AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED;
+
   /**
    * We keep the accessibility events to be processed. If a received event is the same type as the
    * previous one it replaces the latter, otherwise it is added to the queue. All events in this
@@ -49,12 +61,14 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
    */
   private final EventQueue eventQueue = new EventQueue();
 
-  private EventFilter eventFilter;
-  private TextEventInterpreter textEventInterpreter;
+  private final BiConsumer<AccessibilityEvent, EventId> eventProcessor;
 
   public ProcessorEventQueue(EventFilter eventFilter, TextEventInterpreter textEventInterpreter) {
-    this.eventFilter = eventFilter;
-    this.textEventInterpreter = textEventInterpreter;
+    this(
+        (event, eventId) -> {
+          eventFilter.sendEvent(event, eventId);
+          textEventInterpreter.interpret(event, eventId);
+        });
     textEventInterpreter.addListener(eventFilter::accept);
   }
 
@@ -72,6 +86,11 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
     return EventQueue.processingLevel();
   }
 
+  @VisibleForTesting
+  ProcessorEventQueue(BiConsumer<AccessibilityEvent, EventId> eventProcessor) {
+    this.eventProcessor = eventProcessor;
+  }
+
   @Override
   public int getEventTypes() {
     return MASK_EVENTS_HANDLED_BY_PROCESSOR_EVENT_QUEUE;
@@ -79,11 +98,35 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
 
   @Override
   public void onAccessibilityEvent(AccessibilityEvent event, EventId eventId) {
+    if (isWebFocus(event)) {
+      processWebFocus(event, eventId);
+      return;
+    }
 
     synchronized (eventQueue) {
       eventQueue.enqueue(event);
       handler.postSpeak();
     }
+  }
+
+  private static boolean isWebFocus(AccessibilityEvent event) {
+    return event.getEventType() == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+        && WebInterfaceUtils.supportsWebActions(AccessibilityEventUtils.sourceCompat(event));
+  }
+
+  private void processWebFocus(AccessibilityEvent event, EventId eventId) {
+    List<AccessibilityEvent> earlier;
+    synchronized (eventQueue) {
+      earlier =
+          eventQueue.removeMatching(
+              queued ->
+                  AccessibilityEventUtils.eventMatchesAnyType(
+                      queued, MASK_SPOKEN_BEFORE_WEB_FOCUS));
+    }
+    for (AccessibilityEvent earlierEvent : earlier) {
+      processEvent(earlierEvent, Performance.getInstance().toEventId(earlierEvent));
+    }
+    processEvent(AccessibilityEvent.obtain(event), eventId);
   }
 
   public void clearQueue() {
@@ -103,8 +146,9 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
     if (event == null) {
       return;
     }
-    eventFilter.sendEvent(event, eventId);
-    textEventInterpreter.interpret(event, eventId);
+    LogUtils.d(TAG, "Processing event: %s", event);
+
+    eventProcessor.accept(event, eventId);
   }
 
   private static final int WHAT_SPEAK = 1;

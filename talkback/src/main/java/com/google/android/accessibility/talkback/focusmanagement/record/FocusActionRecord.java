@@ -19,10 +19,12 @@ package com.google.android.accessibility.talkback.focusmanagement.record;
 import static com.google.android.accessibility.utils.AccessibilityNodeInfoUtils.toStringShort;
 
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import com.google.android.accessibility.talkback.focusmanagement.record.NodePathDescription.Deadline;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.FocusFinder;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -42,8 +44,8 @@ public class FocusActionRecord {
   private final long actionTime;
   /** Node being accessibility focused. */
   private final @NonNull AccessibilityNodeInfoCompat focusedNode;
-  /** Describes how to find focused node from root node. */
   private final @NonNull NodePathDescription nodePathDescription;
+  private final @Nullable PathWithSiblingContext siblingContext;
   /** Extra information about source focus action. */
   private final @NonNull FocusActionInfo extraInfo;
   /** Unique id for the node */
@@ -60,7 +62,13 @@ public class FocusActionRecord {
       long actionTime,
       @Nullable EventId originEventId) {
     this.focusedNode = focusedNode;
-    nodePathDescription = NodePathDescription.obtain(focusedNode);
+    if (WebInterfaceUtils.supportsWebActions(focusedNode)) {
+      nodePathDescription = NodePathDescription.obtainWithoutSiblingContext(focusedNode);
+      siblingContext = new PathWithSiblingContext(nodePathDescription);
+    } else {
+      nodePathDescription = NodePathDescription.obtain(focusedNode);
+      siblingContext = null;
+    }
     this.extraInfo = extraInfo;
     this.actionTime = actionTime;
     this.uniqueId = compoundPackageNameAndUniqueId(focusedNode);
@@ -97,12 +105,14 @@ public class FocusActionRecord {
   private FocusActionRecord(
       @NonNull AccessibilityNodeInfoCompat focusedNode,
       @NonNull NodePathDescription nodePathDescription,
+      @Nullable PathWithSiblingContext siblingContext,
       @NonNull FocusActionInfo extraInfo,
       long actionTime,
       String uniqueId,
       @Nullable EventId originEventId) {
     this.focusedNode = focusedNode;
     this.nodePathDescription = new NodePathDescription(nodePathDescription);
+    this.siblingContext = siblingContext;
     this.extraInfo = extraInfo;
     this.actionTime = actionTime;
     this.uniqueId = uniqueId;
@@ -114,8 +124,15 @@ public class FocusActionRecord {
     return focusedNode;
   }
 
-  /** Returns reference to node-path. */
   public @NonNull NodePathDescription getNodePathDescription() {
+    return getNodePathDescription(Deadline.afterSearchTimeLimit());
+  }
+
+  private @NonNull NodePathDescription getNodePathDescription(@NonNull Deadline deadline) {
+    return (siblingContext == null) ? nodePathDescription : siblingContext.get(deadline);
+  }
+
+  public @NonNull NodePathDescription getAncestorIdentityPath() {
     return nodePathDescription;
   }
 
@@ -145,6 +162,7 @@ public class FocusActionRecord {
     return new FocusActionRecord(
         record.focusedNode,
         record.nodePathDescription,
+        record.siblingContext,
         record.extraInfo,
         record.actionTime,
         record.uniqueId,
@@ -209,13 +227,14 @@ public class FocusActionRecord {
     if (root == null) {
       return null;
     }
+    Deadline deadline = Deadline.afterSearchTimeLimit();
     @Nullable NodePathDescription nodePath =
-        focusActionRecord.getNodePathDescription(); // Not owner
+        focusActionRecord.getNodePathDescription(deadline); // Not owner
     if (nodePath == null) {
       return null;
     }
     @Nullable AccessibilityNodeInfoCompat nodeAtSamePosition =
-        nodePath.findNodeToRefocus(root, focusFinder);
+        nodePath.findNodeToRefocus(root, focusFinder, deadline);
     if ((nodeAtSamePosition != null)
         && AccessibilityNodeInfoUtils.shouldFocusNode(nodeAtSamePosition)) {
       LogUtils.d(
@@ -223,6 +242,27 @@ public class FocusActionRecord {
       return nodeAtSamePosition;
     }
     return null;
+  }
+
+  private static final class PathWithSiblingContext {
+    private final @NonNull NodePathDescription withoutSiblingContext;
+    private @Nullable NodePathDescription completed;
+
+    PathWithSiblingContext(@NonNull NodePathDescription withoutSiblingContext) {
+      this.withoutSiblingContext = withoutSiblingContext;
+    }
+
+    synchronized @NonNull NodePathDescription get(@NonNull Deadline deadline) {
+      if (completed == null) {
+        try {
+          completed = withoutSiblingContext.withSiblingContext(deadline);
+        } catch (RuntimeException e) {
+          LogUtils.w(TAG, "Cannot read the siblings of the focus path: %s", e);
+          completed = withoutSiblingContext;
+        }
+      }
+      return completed;
+    }
   }
 
   @Override
@@ -243,7 +283,7 @@ public class FocusActionRecord {
         && (nodePathDescription.equals(otherRecord.nodePathDescription))
         && (extraInfo.equals(otherRecord.extraInfo))
         && (actionTime == otherRecord.actionTime)
-        && Objects.equals(uniqueId, ((FocusActionRecord) other).uniqueId);
+        && Objects.equals(uniqueId, otherRecord.uniqueId);
   }
 
   public boolean focusedNodeEquals(AccessibilityNodeInfoCompat targetNode) {

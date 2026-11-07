@@ -23,7 +23,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
  * The quote of the message a Telegram message replies to. Telegram and its forks expose it as a
  * child of the message, "Reply, name, text", with no class name, which a swipe lands on after the
  * message, or not when the quote is scrolled off the screen. It is read at the end of the message
- * instead, and isn't focused on its own.
+ * instead, and isn't focused on its own; the Go to quoted message action clicks it.
  */
 object TelegramReplyQuote {
   /** The sender and text of a quote. */
@@ -66,6 +66,32 @@ object TelegramReplyQuote {
       if (looksLikeQuote(child)) return parse(child.contentDescription)?.let { whole(message, it) }
     }
     return null
+  }
+
+  @JvmStatic
+  fun quoteNodeOf(message: AccessibilityNodeInfoCompat): AccessibilityNodeInfoCompat? {
+    if (!isTelegram(message.packageName) || !isMessage(message)) return null
+    for (i in 0 until minOf(message.childCount, MAX_CHILDREN)) {
+      val child = message.getChild(i) ?: continue
+      if (looksLikeQuote(child)) return child
+    }
+    return null
+  }
+
+  @JvmStatic
+  fun quotedMessageIn(
+    list: AccessibilityNodeInfoCompat,
+    reply: AccessibilityNodeInfoCompat,
+    quote: Quote,
+  ): AccessibilityNodeInfoCompat? {
+    val start = normalize(quote.text.toString().trimEnd().removeSuffix(ELLIPSIS.toString())).trim()
+    if (start.isEmpty()) return null
+    val messages =
+      (0 until minOf(list.childCount, MAX_MESSAGES)).mapNotNull { i ->
+        list.getChild(i)?.takeIf { it != reply && isMessage(it) }
+      }
+    val matching = messages.filter { fullText(it.text.toString(), start) != null }
+    return matching.firstOrNull { it.text.toString().startsWith(quote.name) } ?: matching.firstOrNull()
   }
 
   /** [quote] with the whole quoted text, when it was cut and the quoted message is loaded. */

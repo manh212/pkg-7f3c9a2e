@@ -44,7 +44,7 @@ class HandOverReceiver : BroadcastReceiver() {
       return
     }
     LogUtils.i(TAG, "Meridian is on, so SandFly turns itself off")
-    service.disableSelf()
+    service.turnOff()
   }
 
   private fun isSandFlyOn(context: Context): Boolean {

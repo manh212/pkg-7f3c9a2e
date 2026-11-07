@@ -209,6 +209,7 @@ public class TalkbackMenuProcessor {
     addDimOrBrightenScreen(menu);
     // Pause Backtalk
     addPauseBacktalk(menu);
+    addTurnOff(menu);
     // Tell time
     addTellingTimeActionMenu(menu, prefs);
     // Language
@@ -250,6 +251,9 @@ public class TalkbackMenuProcessor {
     // Pause once the menu has closed, so closing it does not move focus or speak after the pause.
     setMenuItemDeferredType(menu, R.id.pause_backtalk, DeferredType.WINDOWS_STABLE);
     setSkipRefocusAndWindowAnnounce(menu, R.id.pause_backtalk, true);
+
+    setMenuItemShowsDialog(menu, R.id.turn_off_sandfly, true);
+    setMenuItemDeferredType(menu, R.id.turn_off_sandfly, DeferredType.WINDOWS_STABLE);
 
     setMenuItemShowsDialog(
         menu,
@@ -404,6 +408,7 @@ public class TalkbackMenuProcessor {
     },
     {R.string.pref_show_context_menu_voice_commands_setting_key, R.id.voice_commands},
     {R.string.pref_show_context_menu_pause_backtalk_setting_key, R.id.pause_backtalk},
+    {R.string.pref_show_context_menu_turn_off_setting_key, R.id.turn_off_sandfly},
     {
       R.string.pref_show_context_menu_show_keyboard_shortcuts_setting_key,
       R.id.show_keyboard_shortcuts
@@ -1033,6 +1038,17 @@ public class TalkbackMenuProcessor {
 
     menu.add(
         /* groupId= */ 0, R.id.pause_backtalk, ORDER_PAUSE_BACKTALK, R.string.title_pause_backtalk);
+  }
+
+  private void addTurnOff(ContextMenu menu) {
+    menu.removeItem(R.id.turn_off_sandfly);
+    if (!showMenuItem(
+        R.string.pref_show_context_menu_turn_off_setting_key,
+        R.bool.pref_show_context_menu_turn_off_default)) {
+      return;
+    }
+    menu.add(
+        /* groupId= */ 0, R.id.turn_off_sandfly, ORDER_PAUSE_BACKTALK, R.string.turn_off_talkback);
   }
 
   private void addTellingTimeActionMenu(ContextMenu menu, SharedPreferences prefs) {

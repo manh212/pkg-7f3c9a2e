@@ -22,9 +22,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.annotation.MainThread
@@ -40,8 +42,7 @@ import java.util.TimeZone
 
 /**
  * Speech at set times: the time, every so often, and a summary of the notifications once a day.
- * The alarms are set again after each one and when the settings change. Every time is a system
- * alarm clock, so it still fires on time while the phone rests. A day's summary whose alarm is
+ * The alarms are set again after each one and when the settings change. A day's summary whose alarm is
  * lost — SandFly restarting across it, for one — is read when the engine next runs that day,
  * once, instead of being dropped.
  */
@@ -53,13 +54,23 @@ class SpokenSchedules(
 ) {
   private val alarms = context.getSystemService(AlarmManager::class.java)
   private val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+  private val clockWakeLock =
+    context.getSystemService(PowerManager::class.java)
+      ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Meridian:SpokenClock")
+      ?.apply { setReferenceCounted(false) }
 
   /** Receives a clock or summary time when its alarm clock fires, and runs it. */
   private val alarmReceiver =
     object : BroadcastReceiver() {
       override fun onReceive(receiverContext: Context, intent: Intent) {
+        if (!started) return
         when (intent.action) {
-          AlarmClockIntents.action(context, AlarmClockIntents.ACTION_SPOKEN_CLOCK) -> onClock()
+          AlarmClockIntents.action(context, AlarmClockIntents.ACTION_SPOKEN_CLOCK) -> {
+            clockWakeLock?.acquire(CLOCK_WAKE_MS)
+            onClock()
+          }
+          Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
+          AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> schedule()
           AlarmClockIntents.action(context, AlarmClockIntents.ACTION_SPOKEN_SUMMARY) -> onSummary()
         }
       }
@@ -82,6 +93,11 @@ class SpokenSchedules(
       IntentFilter().apply {
         addAction(AlarmClockIntents.action(context, AlarmClockIntents.ACTION_SPOKEN_CLOCK))
         addAction(AlarmClockIntents.action(context, AlarmClockIntents.ACTION_SPOKEN_SUMMARY))
+        addAction(Intent.ACTION_TIME_CHANGED)
+        addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          addAction(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)
+        }
       },
       ContextCompat.RECEIVER_NOT_EXPORTED,
     )
@@ -96,6 +112,7 @@ class SpokenSchedules(
     started = false
     prefs.unregisterOnSharedPreferenceChangeListener(settingsListener)
     runCatching { context.unregisterReceiver(alarmReceiver) }
+    clockWakeLock?.takeIf { it.isHeld }?.release()
     alarms?.let {
       cancelAlarm(it, AlarmClockIntents.ACTION_SPOKEN_CLOCK)
       cancelAlarm(it, AlarmClockIntents.ACTION_SPOKEN_SUMMARY)
@@ -118,6 +135,14 @@ class SpokenSchedules(
 
   private fun set(alarms: AlarmManager, at: Long, actionSuffix: String) {
     val pending = AlarmClockIntents.alarm(context, actionSuffix)
+    if (actionSuffix == AlarmClockIntents.ACTION_SPOKEN_CLOCK &&
+      (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms())) {
+      try {
+        alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+        return
+      } catch (_: SecurityException) {
+      }
+    }
     try {
       alarms.setAlarmClock(AlarmManager.AlarmClockInfo(at, AlarmClockIntents.showSettings(context)), pending)
     } catch (e: SecurityException) {
@@ -180,6 +205,7 @@ class SpokenSchedules(
   }
 
   companion object {
+    private const val CLOCK_WAKE_MS = 15_000L
     private const val TAG = "SpokenSchedules"
     private const val MINUTE_MS = 60_000L
     private const val MINUTES_PER_DAY = 24 * 60

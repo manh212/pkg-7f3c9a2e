@@ -441,8 +441,10 @@ public class FocusProcessorForLogicalNavigation {
 
     // The focus monitor can return Android's cached copy of a node that was just removed, so check
     // with the app that the pivot is still there. Skip that round trip when the saved reading order
-    // holds the pivot: nothing that could remove a node has happened since it was saved.
-    if (pivot != null && !TraversalTreeCache.holds(pivot) && !pivot.refresh()) {
+    if (pivot != null
+        && !pivot.isAccessibilityFocused()
+        && !TraversalTreeCache.holds(pivot)
+        && !pivot.refresh()) {
       pivot = null;
     }
 
@@ -1366,6 +1368,26 @@ public class FocusProcessorForLogicalNavigation {
         || targetType == NavigationTarget.TARGET_LINK;
   }
 
+  private @Nullable OrderedTraversalStrategy rereadIncompleteOrder(
+      AccessibilityNodeInfoCompat root) {
+    if (!TraversalTreeCache.startReread(root.getWindowId())) {
+      return null;
+    }
+    @Nullable AccessibilityNodeInfoCompat activeRoot =
+        AccessibilityServiceCompatUtils.getRootInActiveWindow(service);
+    if (activeRoot == null || activeRoot.getWindowId() != root.getWindowId()) {
+      return null;
+    }
+    WindowNodePrefetcher.prefetch(root, service.getPackageName());
+    OrderedTraversalStrategy reread = new OrderedTraversalStrategy(root);
+    LogUtils.i(
+        TAG,
+        "Order of window %d missed children; read again, %s",
+        root.getWindowId(),
+        reread.missesChildren() ? "still incomplete" : "complete");
+    return reread;
+  }
+
   /** The app node whose recognised screen elements a swipe has just left, going forward. */
   private @Nullable AccessibilityNodeInfoCompat leavingScreenElementsOf;
   /**
@@ -1474,6 +1496,16 @@ public class FocusProcessorForLogicalNavigation {
       boolean ignoreDescendantsOfPivot,
       NavigationAction navigationAction,
       EventId eventId) {
+    return navigateToDefaultOrMacroGranularityTarget(
+        pivot, ignoreDescendantsOfPivot, navigationAction, /* htmlActionFailed= */ false, eventId);
+  }
+
+  private boolean navigateToDefaultOrMacroGranularityTarget(
+      @NonNull AccessibilityNodeInfoCompat pivot,
+      boolean ignoreDescendantsOfPivot,
+      NavigationAction navigationAction,
+      boolean htmlActionFailed,
+      EventId eventId) {
     int searchDirection = navigationAction.searchDirection;
     int logicalDirection =
         TraversalStrategyUtils.getLogicalDirection(
@@ -1518,6 +1550,20 @@ public class FocusProcessorForLogicalNavigation {
       }
     }
 
+    if (!htmlActionFailed
+        && !ignoreDescendantsOfPivot
+        && navigationAction.actionType == NavigationAction.DIRECTIONAL_NAVIGATION
+        && TraversalStrategyUtils.isLogicalDirection(searchDirection)
+        && WebInterfaceUtils.supportsWebActions(pivot)
+        && Role.getRole(pivot) != Role.ROLE_WEB_VIEW) {
+      TraversalTreeCache.rememberPivot(pivot);
+      if (navigateToHtmlTargetExpectingFocus(pivot, navigationAction, eventId)) {
+        reachEdge = false;
+        return true;
+      }
+      htmlActionFailed = true;
+    }
+
     // Asking the window for its root waits for the app on every swipe, so take the root of the
     // saved reading order when that holds the pivot.
     long[] rootWork = Performance.getInstance().beginNavigationWork();
@@ -1556,6 +1602,7 @@ public class FocusProcessorForLogicalNavigation {
         && TraversalTreeCache.getEnabled() && !NodeOverrides.hasSource()
         && TraversalStrategyUtils.isLogicalDirection(searchDirection) && !resumingOrder) {
       orderPending = true;
+      boolean attemptedWebAction = htmlActionFailed;
       AccessibilityNodeInfoCompat savedPivot = AccessibilityNodeInfoCompat.obtain(pivot);
       AsyncTraversalOrder.request(rootNode, eventId, result -> {
         orderPending = false;
@@ -1569,7 +1616,8 @@ public class FocusProcessorForLogicalNavigation {
           AccessibilityNodeInfoCompat resumePivot = result == AsyncTraversalOrder.Result.READY
               ? savedPivot : getPivotNodeForNavigationAction(navigationAction);
           if (resumePivot == null || !navigateToDefaultOrMacroGranularityTarget(
-              resumePivot, ignoreDescendantsOfPivot, navigationAction, eventId)) {
+              resumePivot, ignoreDescendantsOfPivot, navigationAction,
+              attemptedWebAction && resumePivot.equals(savedPivot), eventId)) {
             Performance.getInstance().onNavigationFailed(eventId, "no_target_after_order");
           }
         } finally {
@@ -1620,7 +1668,15 @@ public class FocusProcessorForLogicalNavigation {
             }
           }
         }
-        if (traversalStrategy instanceof OrderedTraversalStrategy orderedStrategy) {
+        if (traversalStrategy instanceof OrderedTraversalStrategy orderedStrategy
+            && orderedStrategy.missesChildren()) {
+          OrderedTraversalStrategy reread = rereadIncompleteOrder(rootNode);
+          if (reread != null) {
+            traversalStrategy = reread;
+          }
+        }
+        if (traversalStrategy instanceof OrderedTraversalStrategy orderedStrategy
+            && !orderedStrategy.missesChildren()) {
           TraversalTreeCache.put(rootNode, orderedStrategy);
         }
       }
@@ -1640,7 +1696,7 @@ public class FocusProcessorForLogicalNavigation {
         revealingOffscreen = true;
         try {
           return navigateToDefaultOrMacroGranularityTarget(
-              pivot, ignoreDescendantsOfPivot, navigationAction, eventId);
+              pivot, ignoreDescendantsOfPivot, navigationAction, htmlActionFailed, eventId);
         } finally {
           revealingOffscreen = false;
         }
@@ -1674,7 +1730,10 @@ public class FocusProcessorForLogicalNavigation {
     // case which is out of the scope.
     if (WebInterfaceUtils.supportsWebActions(pivot)) {
       navigationResult =
-          findTargetFromWebElement(pivot, navigationAction, nodeFilter, traversalStrategy, eventId);
+          htmlActionFailed
+              ? findTargetOutsideWebView(pivot, navigationAction, nodeFilter, traversalStrategy)
+              : findTargetFromWebElement(
+                  pivot, navigationAction, nodeFilter, traversalStrategy, eventId);
     } else if (navigationAction.targetType == TARGET_CONTAINER) {
       navigationResult = NavigationResult.create(findContainerTarget(pivot, navigationAction));
     } else {
@@ -1831,7 +1890,7 @@ public class FocusProcessorForLogicalNavigation {
           // again with a new tree.
           TraversalTreeCache.clear("focus failed");
           return navigateToDefaultOrMacroGranularityTarget(
-              pivot, ignoreDescendantsOfPivot, navigationAction, eventId);
+              pivot, ignoreDescendantsOfPivot, navigationAction, htmlActionFailed, eventId);
         }
         return focused;
       }
@@ -2138,22 +2197,39 @@ public class FocusProcessorForLogicalNavigation {
       Filter<AccessibilityNodeInfoCompat> nodeFilter,
       TraversalStrategy traversalStrategy,
       EventId eventId) {
-    if (navigateToHtmlTarget(webPivot, navigationAction, eventId)) {
-      if (isMoveToNextOrPreviousItem(navigationAction)) {
-        // The page moves the focus, so its focus event shows where it went.
-        boolean rtl = WindowUtils.isScreenLayoutRTL(service);
-        ColumnWrap.expectWebFocus(
-            webPivot,
-            TraversalStrategyUtils.getLogicalDirection(navigationAction.searchDirection, rtl)
-                == TraversalStrategy.SEARCH_FOCUS_FORWARD,
-            rtl);
-      }
+    if (navigateToHtmlTargetExpectingFocus(webPivot, navigationAction, eventId)) {
       return NavigationResult.create(NavigationResult.Type.WEB_ELEMENT);
     }
-    // Navigate out of WebView with normal navigation
+    return findTargetOutsideWebView(webPivot, navigationAction, nodeFilter, traversalStrategy);
+  }
+
+  private boolean navigateToHtmlTargetExpectingFocus(
+      AccessibilityNodeInfoCompat webPivot, NavigationAction navigationAction, EventId eventId) {
+    if (!navigateToHtmlTarget(webPivot, navigationAction, eventId)) {
+      return false;
+    }
+    if (isMoveToNextOrPreviousItem(navigationAction)) {
+      boolean rtl = WindowUtils.isScreenLayoutRTL(service);
+      ColumnWrap.expectWebFocus(
+          webPivot,
+          TraversalStrategyUtils.getLogicalDirection(navigationAction.searchDirection, rtl)
+              == TraversalStrategy.SEARCH_FOCUS_FORWARD,
+          rtl);
+    }
+    return true;
+  }
+
+  private NavigationResult findTargetOutsideWebView(
+      AccessibilityNodeInfoCompat webPivot,
+      NavigationAction navigationAction,
+      Filter<AccessibilityNodeInfoCompat> nodeFilter,
+      TraversalStrategy traversalStrategy) {
     AccessibilityNodeInfoCompat webContainer = webPivot;
     if (Role.getRole(webPivot) != Role.ROLE_WEB_VIEW) {
       webContainer = WebInterfaceUtils.ascendToWebView(webPivot);
+    }
+    if (webContainer == null) {
+      return NavigationResult.create(NavigationResult.Type.EMPTY);
     }
     AccessibilityNodeInfoCompat target =
         TraversalStrategyUtils.searchFocus(
@@ -3170,12 +3246,24 @@ public class FocusProcessorForLogicalNavigation {
       }
       return;
     }
-    int deltaX = pivotPresent ? pivotBefore.left - pivotAfter.left : DELTA_UNDEFINED;
-    int deltaY = pivotPresent ? pivotBefore.top - pivotAfter.top : DELTA_UNDEFINED;
+    int deltaX =
+        pivotPresent
+            ? edgeShift(pivotBefore.left, pivotAfter.left, pivotBefore.right, pivotAfter.right)
+            : DELTA_UNDEFINED;
+    int deltaY =
+        pivotPresent
+            ? edgeShift(pivotBefore.top, pivotAfter.top, pivotBefore.bottom, pivotAfter.bottom)
+            : DELTA_UNDEFINED;
     LogUtils.d(TAG, "checkScrollEarly: scrolled, deltaX=%s deltaY=%s", deltaX, deltaY);
     scrollable.refresh();
     readListAgain(scrollable);
     onAutoScrolled(scrollable, eventId, deltaX, deltaY);
+  }
+
+  @VisibleForTesting
+  static int edgeShift(int startBefore, int startAfter, int endBefore, int endAfter) {
+    int shift = startBefore - startAfter;
+    return shift != 0 ? shift : endBefore - endAfter;
   }
 
   private void readListAgain(AccessibilityNodeInfoCompat scrollable) {
@@ -3635,8 +3723,9 @@ public class FocusProcessorForLogicalNavigation {
               localTraversalStrategy, focusBeforeScroll, sourceAction.searchDirection, nodeFilter);
       if (nodeToFocus == null) {
         Rect newRect = getBoundsAfterScroll(focusBeforeScroll);
-
-        if (!previousRect.equals(newRect) && settleChecksLeft > 0 && sourceAction.shouldScroll) {
+        if ((!previousRect.equals(newRect) || fillsList(newRect, scrolledNode))
+            && settleChecksLeft > 0
+            && sourceAction.shouldScroll) {
           LogUtils.d(TAG, "List still moving; searching again on the next frame.");
           searchAgainWhenListMoves(
               scrolledNode, focusBeforeScroll, sourceAction, eventId, settleChecksLeft - 1);
@@ -3701,6 +3790,14 @@ public class FocusProcessorForLogicalNavigation {
     }
 
     setAccessibilityFocusInternal(nodeToFocus, navigationAction, eventId);
+  }
+
+  private static boolean fillsList(Rect pivotBounds, AccessibilityNodeInfoCompat list) {
+    Rect listBounds = new Rect();
+    list.getBoundsInScreen(listBounds);
+    return !listBounds.isEmpty()
+        && pivotBounds.top <= listBounds.top
+        && pivotBounds.bottom >= listBounds.bottom;
   }
 
   @VisibleForTesting

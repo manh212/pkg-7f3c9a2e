@@ -19,11 +19,14 @@ package com.google.android.accessibility.talkback.interpreters;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.ActorState;
+import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.talkback.focusmanagement.record.NodePathDescription;
 import com.google.android.accessibility.talkback.gesture.ListEdgeScroller;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.BuildVersionUtils;
+import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.ScrollEventInterpreter.ScrollEventHandler;
 import com.google.android.accessibility.utils.input.ScrollEventInterpreter.ScrollEventInterpretation;
 import com.google.android.accessibility.utils.output.ScrollActionRecord;
@@ -56,10 +59,15 @@ public class ManualScrollInterpreter implements ScrollEventHandler {
     @TraversalStrategy.SearchDirection
     public abstract int direction();
 
+    public abstract boolean scrolledHoldsFocus();
+
     public static ManualScrollInterpretation create(
-        @Nullable EventId eventId, AccessibilityEvent event, int direction) {
+        @Nullable EventId eventId,
+        AccessibilityEvent event,
+        int direction,
+        boolean scrolledHoldsFocus) {
       return new AutoValue_ManualScrollInterpreter_ManualScrollInterpretation(
-          eventId, event, direction);
+          eventId, event, direction, scrolledHoldsFocus);
     }
   }
 
@@ -99,7 +107,7 @@ public class ManualScrollInterpreter implements ScrollEventHandler {
     }
 
     NodePathDescription lastFocusNodePathDescription =
-        actorState.getFocusHistory().getLastFocusNodePathDescription();
+        actorState.getFocusHistory().getLastFocusAncestorIdentityPath();
     if (lastFocusNodePathDescription == null) {
       return;
     }
@@ -108,11 +116,22 @@ public class ManualScrollInterpreter implements ScrollEventHandler {
     if (!BuildVersionUtils.isAtLeastOMR1()) {
       scrolledNode.refresh();
     }
-    if (!lastFocusNodePathDescription.containsNodeByHashAndIdentity(scrolledNode)) {
+    boolean scrolledHoldsFocus =
+        lastFocusNodePathDescription.containsNodeByHashAndIdentity(scrolledNode);
+    if (!scrolledHoldsFocus && !isScrollAroundWebFocus(scrolledNode)) {
       return;
     }
 
     listener.onManualScroll(
-        ManualScrollInterpretation.create(eventId, event, interpretation.scrollDirection));
+        ManualScrollInterpretation.create(
+            eventId, event, interpretation.scrollDirection, scrolledHoldsFocus));
+  }
+
+  private boolean isScrollAroundWebFocus(AccessibilityNodeInfoCompat scrolledNode) {
+    if (FormFactorUtils.isAndroidWear() || !WebScrollFocus.isWebContent(scrolledNode)) {
+      return false;
+    }
+    FocusActionRecord record = actorState.getFocusHistory().getLastFocusActionRecord();
+    return record != null && WebInterfaceUtils.supportsWebActions(record.getFocusedNode());
   }
 }

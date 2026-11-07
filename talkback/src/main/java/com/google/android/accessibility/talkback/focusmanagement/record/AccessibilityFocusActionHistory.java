@@ -26,6 +26,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.FocusFinder;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.PackageManagerUtils;
 import com.google.android.accessibility.utils.Role;
@@ -92,12 +93,20 @@ public final class AccessibilityFocusActionHistory {
       return AccessibilityFocusActionHistory.this.getLastEditableFocusActionRecord();
     }
 
+    public @Nullable AccessibilityNodeInfoCompat getFocusableNodeFromFocusRecord(
+        @Nullable AccessibilityNodeInfoCompat root,
+        @NonNull FocusFinder focusFinder,
+        @NonNull FocusActionRecord record) {
+      return AccessibilityFocusActionHistory.this.getFocusableNodeFromFocusRecord(
+          root, focusFinder, record);
+    }
+
     public @Nullable FocusActionRecord getLastFocusActionRecord() {
       return AccessibilityFocusActionHistory.this.getLastFocusActionRecord();
     }
 
-    public @Nullable NodePathDescription getLastFocusNodePathDescription() {
-      return AccessibilityFocusActionHistory.this.getLastFocusNodePathDescription();
+    public @Nullable NodePathDescription getLastFocusAncestorIdentityPath() {
+      return AccessibilityFocusActionHistory.this.getLastFocusAncestorIdentityPath();
     }
 
     public boolean lastAccessibilityFocusedNodeEquals(AccessibilityNodeInfoCompat targetNode) {
@@ -176,6 +185,12 @@ public final class AccessibilityFocusActionHistory {
   private boolean focusOnTalkBackUiBeforeWindowTransition = false;
   private long pendingWebFocusActionTime = -1;
   private @Nullable EventId pendingOriginEventId;
+
+  private int refocusDepth = 0;
+
+  private @Nullable FocusActionRecord recordNotFound;
+
+  private int windowIdNotFound;
 
   //////////////////////////////////////////////////////////////////////////////////////////
   // Construction
@@ -265,6 +280,39 @@ public final class AccessibilityFocusActionHistory {
     return windowIdentifierToFocusActionRecordMap.get(windowIdentifier);
   }
 
+  public void startRefocus() {
+    refocusDepth++;
+  }
+
+  public void endRefocus() {
+    if (refocusDepth > 0) {
+      refocusDepth--;
+    }
+    if (refocusDepth == 0) {
+      recordNotFound = null;
+    }
+  }
+
+  private @Nullable AccessibilityNodeInfoCompat getFocusableNodeFromFocusRecord(
+      @Nullable AccessibilityNodeInfoCompat root,
+      @NonNull FocusFinder focusFinder,
+      @NonNull FocusActionRecord record) {
+    boolean refocusing = (refocusDepth > 0) && (root != null);
+    if (refocusing
+        && (root.getWindowId() == windowIdNotFound)
+        && record.equals(recordNotFound)) {
+      LogUtils.d(TAG, "Focus record not sought again in window %d", windowIdNotFound);
+      return null;
+    }
+    @Nullable AccessibilityNodeInfoCompat node =
+        FocusActionRecord.getFocusableNodeFromFocusRecord(root, focusFinder, record);
+    if (refocusing && (node == null)) {
+      recordNotFound = record;
+      windowIdNotFound = root.getWindowId();
+    }
+    return node;
+  }
+
   public boolean focusOnTalkBackUiBeforeWindowTransition() {
     return focusOnTalkBackUiBeforeWindowTransition;
   }
@@ -288,9 +336,9 @@ public final class AccessibilityFocusActionHistory {
     return focusActionRecordList.peekLast();
   }
 
-  @Nullable NodePathDescription getLastFocusNodePathDescription() {
+  @Nullable NodePathDescription getLastFocusAncestorIdentityPath() {
     @Nullable FocusActionRecord record = getLastFocusActionRecord();
-    return (record == null) ? null : record.getNodePathDescription();
+    return (record == null) ? null : record.getAncestorIdentityPath();
   }
 
   /** Returns the last focus action on editable node. */
@@ -392,6 +440,7 @@ public final class AccessibilityFocusActionHistory {
     // Clear editable node focus record.
     lastEditableFocusActionRecord = null;
     cachedNodeToRestoreFocus = null;
+    recordNotFound = null;
 
     clearPendingFocusAction();
   }

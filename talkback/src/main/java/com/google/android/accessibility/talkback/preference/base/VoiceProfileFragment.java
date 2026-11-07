@@ -78,12 +78,13 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   private @Nullable ListPreference voicePref;
   private @Nullable Preference moveUp;
   private @Nullable Preference moveDown;
+  private @Nullable Preference equalizer;
 
-  // The rate and pitch also change from gestures and the reading controls.
   private final OnSharedPreferenceChangeListener prefsListener =
       (sharedPrefs, key) -> {
         if (key != null && key.startsWith(VoiceProfiles.key(id, ""))) {
           updateSeekBars();
+          updateEqualizerSummary();
         }
       };
 
@@ -154,6 +155,15 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
         TextToSpeechSettingsFragment.toPercent(SpeechRateAndPitchActor.PITCH_MAXIMUM),
         TextToSpeechSettingsFragment::fromPercent);
 
+    if (!FormFactorUtils.isAndroidWear()) {
+      equalizer = new AccessibilitySuitePreference(context);
+      equalizer.setTitle(R.string.title_pref_speech_equalizer);
+      equalizer.setPersistent(false);
+      equalizer.setIconSpaceReserved(false);
+      SpeechEqualizerFragment.setUp(equalizer, id);
+      screen.addPreference(equalizer);
+    }
+
     AccessibilitySuiteSwitchPreference phrases = new AccessibilitySuiteSwitchPreference(context);
     phrases.setKey(VoiceProfiles.key(id, VoiceProfiles.PHRASES));
     phrases.setDefaultValue(false);
@@ -188,6 +198,13 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
     super.onResume();
     prefs.registerOnSharedPreferenceChangeListener(prefsListener);
     updateSeekBars();
+    updateEqualizerSummary();
+  }
+
+  private void updateEqualizerSummary() {
+    if (equalizer != null) {
+      equalizer.setSummary(SpeechEqualizerFragment.summary(requireContext(), prefs, id));
+    }
   }
 
   @Override

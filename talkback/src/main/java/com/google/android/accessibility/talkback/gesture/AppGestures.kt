@@ -96,6 +96,9 @@ object AppGestures {
     return apps[app]?.gestures?.get(gestureKey)
   }
 
+  @JvmStatic
+  fun usesGesture(gestureKey: String): Boolean = apps.values.any { gestureKey in it.gestures }
+
   fun read(prefs: SharedPreferences): Map<String, App> = fromJson(prefs.getString(KEY, null))
 
   fun write(prefs: SharedPreferences, apps: Map<String, App>) {

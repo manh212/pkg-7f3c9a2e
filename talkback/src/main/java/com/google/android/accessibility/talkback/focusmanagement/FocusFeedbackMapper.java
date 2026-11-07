@@ -160,6 +160,18 @@ public class FocusFeedbackMapper {
 
     LogDepth.logFunc(Mappers.LOG_TAG, ++depth, "onNodeManuallyScrolled");
 
+    @Nullable AccessibilityNodeInfoCompat webItem = variables.webItemInView(depth);
+    if (webItem != null) {
+      return Feedback.part()
+          .setFocus(
+              Feedback.focus(
+                      webItem,
+                      new FocusActionInfo.Builder()
+                          .setSourceAction(FocusActionInfo.MANUAL_SCROLL)
+                          .build())
+                  .build());
+    }
+
     @SearchDirectionOrUnknown int direction = variables.scrollDirection(depth);
     @Nullable AccessibilityNodeInfoCompat scrolledNode = variables.source(depth); // Not owner.
     if (scrolledNode == null) {

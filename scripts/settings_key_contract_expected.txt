@@ -154,6 +154,7 @@ pref_ai_provider_choice
 pref_ai_services
 pref_allow_frequent_content_change_announcement_key
 pref_always_interrupt_speech
+pref_announce_full_charge
 pref_app_gestures_screen
 pref_arrow_key_nav_category
 pref_audio_ducking_menu_setting_key
@@ -161,6 +162,7 @@ pref_audio_output_device
 pref_auto_enter_table_navigation_key
 pref_auto_image_captioning_key
 pref_auto_update_check
+pref_back_tap_sensitivity
 pref_backup_reset_screen
 pref_browse_mode_remember_mode
 pref_buttons_navigation_menu_setting_key
@@ -173,6 +175,7 @@ pref_category_2finger_shortcuts
 pref_category_3finger_shortcuts
 pref_category_4finger_shortcuts
 pref_category_automatic_description_summary_key
+pref_category_back_tap_key
 pref_category_developer
 pref_category_diagnostics
 pref_category_fingerprint_touch_shortcuts_key
@@ -537,6 +540,8 @@ pref_settings_group_screen_info_key
 pref_settings_group_speech_key
 pref_settings_group_system_help_key
 pref_settings_group_typing_key
+pref_shortcut_back_tap_double
+pref_shortcut_back_tap_triple
 pref_shortcut_down
 pref_shortcut_down_and_left
 pref_shortcut_down_and_right
@@ -640,6 +645,7 @@ pref_speech_category_pronunciation
 pref_speech_category_stopping
 pref_speech_category_voice
 pref_speech_dictionary_screen
+pref_speech_equalizer_screen
 pref_speech_footer
 pref_speech_pitch_seekbar_key_int
 pref_speech_rate_seekbar_key_int
@@ -711,6 +717,7 @@ pref_tts_overlay
 pref_tts_settings
 pref_tts_settings_menu_setting_key
 pref_tts_voice_profiles
+pref_turn_off_menu_setting_key
 pref_tutorial_and_help_key
 pref_tutorial_entry_point_key
 pref_two_finger_rotation

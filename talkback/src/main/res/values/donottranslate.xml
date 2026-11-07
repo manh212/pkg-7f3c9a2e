@@ -139,6 +139,7 @@
     <string name="pref_speak_system_window_titles_key">pref_speak_system_window_titles_key</string>
     <string name="pref_allow_frequent_content_change_announcement_key">pref_allow_frequent_content_change_announcement_key</string>
     <string name="pref_verbose_scroll_announcement_key">pref_verbose_scroll_announcement_key</string>
+    <string name="pref_announce_full_charge_key">pref_announce_full_charge</string>
     <string name="pref_explore_by_touch_key">pref_explore_by_touch</string>
     <string name="pref_explore_by_touch_reflect_key">pref_explore_by_touch_reflect</string>
     <string name="pref_single_tap_key">pref_single_tap</string>
@@ -470,6 +471,22 @@
     <string name="pref_shortcut_fingerprint_down_key">pref_shortcut_fingerprint_down</string>
     <string name="pref_shortcut_fingerprint_left_key">pref_shortcut_fingerprint_left</string>
     <string name="pref_shortcut_fingerprint_right_key">pref_shortcut_fingerprint_right</string>
+    <!-- Back tap keys -->
+    <string name="pref_category_back_tap_key">pref_category_back_tap_key</string>
+    <string name="pref_shortcut_back_tap_double_key">pref_shortcut_back_tap_double</string>
+    <string name="pref_shortcut_back_tap_triple_key">pref_shortcut_back_tap_triple</string>
+    <string name="pref_back_tap_sensitivity_key">pref_back_tap_sensitivity</string>
+    <string name="pref_back_tap_sensitivity_default">medium</string>
+    <string-array name="pref_back_tap_sensitivity_entries" translatable="false">
+      <item>@string/pref_verbosity_preset_entry_low</item>
+      <item>@string/notification_shake_2</item>
+      <item>@string/pref_verbosity_preset_entry_high</item>
+    </string-array>
+    <string-array name="pref_back_tap_sensitivity_values" translatable="false">
+      <item>low</item>
+      <item>medium</item>
+      <item>high</item>
+    </string-array>
 
   <!-- Keyboard preferences -->
   <string name="pref_select_keymap_key">pref_select_keymap</string>
@@ -702,6 +719,8 @@
       <item>@string/pref_extended_gesture_left_down_key</item>
       <item>@string/pref_extended_gesture_right_up_key</item>
       <item>@string/pref_extended_gesture_right_down_key</item>
+      <item>@string/pref_shortcut_back_tap_double_key</item>
+      <item>@string/pref_shortcut_back_tap_triple_key</item>
     </string-array>
 
     <!-- Array of 2-finger pass-through gesture shortcut keys -->
@@ -1362,6 +1381,7 @@
     <integer name="pref_speech_volume_min">25</integer>
     <bool name="pref_screenoff_default">false</bool>
     <bool name="pref_verbose_scroll_announcement_default">false</bool>
+    <bool name="pref_announce_full_charge_default">false</bool>
     <bool name="pref_proximity_default">false</bool>
     <bool name="pref_auto_update_check_default">true</bool>
     <bool name="pref_dev_builds_default">false</bool>
@@ -1864,6 +1884,10 @@
   <string name="pref_show_pause_confirmation_dialog">pref_show_pause_confirmation_dialog</string>
   <string name="pref_show_context_menu_pause_backtalk_setting_key" translatable="false">pref_pause_backtalk_menu_setting_key</string>
   <bool name="pref_show_context_menu_pause_backtalk_default">true</bool>
+  <string name="shortcut_value_turn_off_sandfly" translatable="false">TURN_OFF_SANDFLY</string>
+  <string name="pref_show_context_menu_turn_off_setting_key" translatable="false">pref_turn_off_menu_setting_key</string>
+  <bool name="pref_show_context_menu_turn_off_default">true</bool>
+  <item type="id" name="turn_off_sandfly" />
   <string name="pref_resume_backtalk_key" translatable="false">pref_resume_talkback</string>
   <string name="resume_screen_keyguard" translatable="false">KEYGUARD</string>
   <string name="resume_screen_off" translatable="false">SCREEN_OFF</string>

@@ -64,6 +64,10 @@ public final class VoiceProfiles {
   public static final String PITCH = "pitch";
   public static final String PHRASES = "phrases";
 
+  public static final String EQUALIZER = "equalizer";
+
+  public static final String EQUALIZER_ON = "equalizeron";
+
   public static final String DEFAULT_RATE = "1.0";
   public static final String DEFAULT_PITCH = "1.0";
   public static final String DEFAULT_VOLUME = "100";
@@ -201,11 +205,6 @@ public final class VoiceProfiles {
         getBoolean(prefs, key(id, PHRASES), false));
   }
 
-  /**
-   * Adds a profile called {@code name}, which must not be blank or another profile's (see {@link
-   * #isNameTaken}), speaking with {@code engine} and otherwise like Backtalk's default, and returns
-   * its ID.
-   */
   public static String create(
       SharedPreferences prefs,
       String name,
@@ -214,6 +213,26 @@ public final class VoiceProfiles {
       String rate,
       String pitch,
       boolean phrases) {
+    return create(prefs, name, engine, volume, rate, pitch, phrases,
+        SpeechEqualizer.format(SpeechEqualizer.read(prefs, "")), SpeechEqualizer.isOn(prefs, ""));
+  }
+
+  /**
+   * Adds a profile called {@code name}, which must not be blank or another profile's (see {@link
+   * #isNameTaken}), speaking with {@code engine} and otherwise like Backtalk's default, and returns
+   * its ID. {@code equalizer} is saved as {@link SpeechEqualizer} saves gains, and {@code
+   * equalizerOn} says whether it is on.
+   */
+  public static String create(
+      SharedPreferences prefs,
+      String name,
+      String engine,
+      String volume,
+      String rate,
+      String pitch,
+      boolean phrases,
+      String equalizer,
+      boolean equalizerOn) {
     List<String> ids = ids(prefs);
     int next = Math.max(1, parseInt(getString(prefs, PREF_NEXT_ID, "1"), 1));
     for (String id : ids) {
@@ -232,6 +251,8 @@ public final class VoiceProfiles {
         .putString(key(id, RATE), rate)
         .putString(key(id, PITCH), pitch)
         .putBoolean(key(id, PHRASES), phrases)
+        .putString(key(id, EQUALIZER), equalizer)
+        .putBoolean(key(id, EQUALIZER_ON), equalizerOn)
         .putString(PREF_IDS, String.join(",", ids))
         .apply();
     return id;
@@ -387,7 +408,7 @@ public final class VoiceProfiles {
     ids.remove(id);
     SharedPreferences.Editor editor = prefs.edit();
     for (String field :
-        new String[] {NAME, ENGINE, LANGUAGE, VOICE, VOLUME, RATE, PITCH, PHRASES}) {
+        new String[] {NAME, ENGINE, LANGUAGE, VOICE, VOLUME, RATE, PITCH, PHRASES, EQUALIZER, EQUALIZER_ON}) {
       editor.remove(key(id, field));
     }
     if (id.equals(getString(prefs, PREF_ACTIVE, ""))) {

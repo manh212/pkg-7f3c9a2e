@@ -91,11 +91,17 @@ public abstract class Interpretation {
     public final boolean connected;
     public final int percent;
     public final boolean powerSaveMode;
+    public final boolean fullyCharged;
 
     public Power(boolean connected, int percent, boolean powerSaveMode) {
+      this(connected, percent, powerSaveMode, /* fullyCharged= */ false);
+    }
+
+    public Power(boolean connected, int percent, boolean powerSaveMode, boolean fullyCharged) {
       this.connected = connected;
       this.percent = percent;
       this.powerSaveMode = powerSaveMode;
+      this.fullyCharged = fullyCharged;
     }
 
     @Override
@@ -104,12 +110,13 @@ public abstract class Interpretation {
       return (other != null)
           && (this.connected == other.connected)
           && (this.percent == other.percent)
-          && (this.powerSaveMode == other.powerSaveMode);
+          && (this.powerSaveMode == other.powerSaveMode)
+          && (this.fullyCharged == other.fullyCharged);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(connected, percent, powerSaveMode);
+      return Objects.hash(connected, percent, powerSaveMode, fullyCharged);
     }
 
     @Override
@@ -119,6 +126,7 @@ public abstract class Interpretation {
           StringBuilderUtils.optionalTag("connected", connected),
           StringBuilderUtils.optionalInt("percent", percent, BatteryMonitor.UNKNOWN_LEVEL),
           StringBuilderUtils.optionalTag("Battery Saver on", powerSaveMode),
+          StringBuilderUtils.optionalTag("fully charged", fullyCharged),
           "}");
     }
   }
@@ -453,6 +461,8 @@ public abstract class Interpretation {
 
     public abstract @Nullable ScreenState screenState();
 
+    public abstract @Nullable AccessibilityNodeInfoCompat webItemInView();
+
     /**
      * @return Builder for {@code ManualScroll}
      */
@@ -468,6 +478,7 @@ public abstract class Interpretation {
           StringBuilderUtils.optionalField(
               "direction", TraversalStrategyUtils.directionToString(direction())),
           StringBuilderUtils.optionalSubObj("screenState", screenState()),
+          StringBuilderUtils.optionalSubObj("webItemInView", webItemInView()),
           "}");
     }
 
@@ -479,6 +490,8 @@ public abstract class Interpretation {
       public abstract Builder setDirection(int direction);
 
       public abstract Builder setScreenState(ScreenState screenState);
+
+      public abstract Builder setWebItemInView(AccessibilityNodeInfoCompat webItemInView);
 
       public abstract ManualScroll build();
     }

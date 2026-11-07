@@ -24,6 +24,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator.MenuRules;
+import com.google.android.accessibility.talkback.menurules.TextEntityMenu;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 
 /**
@@ -59,9 +60,10 @@ public class ActionsSetting implements SelectorController.ContextualSetting {
             context.getResources().getBoolean(ACTIONS.defaultValueResId));
 
     return settingEnabled
-        && !nodeMenuCreator
-            .getNodeMenuByRule(MenuRules.RULE_CUSTOM_ACTION, context, node, true)
-            .isEmpty();
+        && TextEntityMenu.withoutWaiting(
+            () -> !nodeMenuCreator
+                .getNodeMenuByRule(MenuRules.RULE_CUSTOM_ACTION, context, node, true)
+                .isEmpty());
   }
 
   @Override

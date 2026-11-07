@@ -72,6 +72,7 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
   // TODO: Refactor to get RTL state.
   private static final boolean RIGHT_TO_LEFT = false;
   private final NodeCachedBoundsCalculator boundsCalculator;
+  private boolean missedAllChildren;
 
   // Avoid constantly creating and discarding Rects.
   private final Rect mTempLeftBounds = new Rect();
@@ -257,6 +258,11 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
         nodes.add(node);
       }
     }
+    missedAllChildren = count > 0 && nodes.isEmpty();
+  }
+
+  public boolean missedAllChildren() {
+    return missedAllChildren;
   }
 
   @Override

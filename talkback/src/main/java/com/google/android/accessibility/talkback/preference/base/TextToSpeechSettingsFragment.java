@@ -21,6 +21,7 @@ import com.google.android.accessibility.utils.ServiceStateListener;
 import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech;
+import com.google.android.accessibility.utils.output.SpeechEqualizer;
 import com.google.android.accessibility.utils.output.VoiceProfiles;
 import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile;
 import java.util.List;
@@ -34,6 +35,8 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
     R.string.pref_speech_pitch_seekbar_key_int,
   };
 
+  private static final String EQUALIZER_SCREEN_KEY = "pref_speech_equalizer_screen";
+
   private SharedPreferences prefs;
 
   private final OnSharedPreferenceChangeListener sharedPreferenceChangeListener =
@@ -44,6 +47,9 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
         } else if (TextUtils.equals(key, VoiceProfiles.PREF_ACTIVE)) {
           // Switched by a gesture, keyboard shortcut or the Backtalk menu.
           updateVoiceProfileSummary();
+        } else if (SpeechEqualizer.isKey(key)
+            || TextUtils.equals(key, FailoverTextToSpeech.PREF_LOW_LATENCY_AUDIO_KEY)) {
+          updateEqualizerSummary();
         } else if (TextUtils.equals(key, FailoverTextToSpeech.PREF_SPEECH_STREAM_KEY)) {
           // Switched by the reading control.
           updateSpeechStreamValue();
@@ -94,6 +100,7 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
     prefs.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
     updateSeekBarValues();
     updateVoiceProfileSummary();
+    updateEqualizerSummary();
 
     boolean serviceActive =
         TalkBackService.getServiceState() == ServiceStateListener.SERVICE_STATE_ACTIVE;
@@ -159,6 +166,18 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
             : getString(
                 R.string.voice_profile_in_use,
                 VoiceProfileNames.nameOf(requireContext(), prefs, profile.id())));
+  }
+
+  private void updateEqualizerSummary() {
+    Preference preference = findPreference(EQUALIZER_SCREEN_KEY);
+    if (preference == null) {
+      return;
+    }
+    if (FormFactorUtils.isAndroidWear()) {
+      getPreferenceScreen().removePreferenceRecursively(EQUALIZER_SCREEN_KEY);
+      return;
+    }
+    preference.setSummary(SpeechEqualizerFragment.summary(requireContext(), prefs, ""));
   }
 
   private void setUpSystemTtsSettingsPreference() {

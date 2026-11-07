@@ -40,6 +40,8 @@ public class RuleAction extends NodeMenuRule {
   private final EditingAndSelectingMenu editingAndSelectingMenu;
   private final TypoSuggestionMenu typoSuggestionMenu;
   private final LinkMenu linkMenu;
+  private final TextEntityMenu textEntityMenu;
+  private final QuotedMessageMenu quotedMessageMenu;
 
   public RuleAction(
       Pipeline.FeedbackReturner pipeline,
@@ -55,6 +57,8 @@ public class RuleAction extends NodeMenuRule {
         new EditingAndSelectingMenu(pipeline, actorState, accessibilityFocusMonitor, analytics);
     typoSuggestionMenu = new TypoSuggestionMenu(pipeline, actorState, accessibilityFocusMonitor);
     linkMenu = new LinkMenu(analytics);
+    textEntityMenu = new TextEntityMenu(pipeline);
+    quotedMessageMenu = new QuotedMessageMenu(pipeline);
   }
 
   @Override
@@ -63,7 +67,9 @@ public class RuleAction extends NodeMenuRule {
         || collapsedItemActions.accept(context, node)
         || editingAndSelectingMenu.accept(context, node)
         || typoSuggestionMenu.accept(context, node)
-        || linkMenu.accept(context, node);
+        || linkMenu.accept(context, node)
+        || textEntityMenu.accept(context, node)
+        || quotedMessageMenu.accept(context, node);
   }
 
   @Override
@@ -91,6 +97,14 @@ public class RuleAction extends NodeMenuRule {
 
     if (linkMenu.accept(context, node)) {
       actionItems.addAll(linkMenu.getMenuItemsForNode(context, node, includeAncestors));
+    }
+
+    if (textEntityMenu.accept(context, node)) {
+      actionItems.addAll(textEntityMenu.getMenuItemsForNode(context, node, includeAncestors));
+    }
+
+    if (quotedMessageMenu.accept(context, node)) {
+      actionItems.addAll(quotedMessageMenu.getMenuItemsForNode(context, node, includeAncestors));
     }
 
     return actionItems;

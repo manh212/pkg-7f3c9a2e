@@ -31,6 +31,10 @@ public class TouchMonitor {
   // Member data
 
   private boolean isUserTouchingScreen = false;
+  private long touchStartTime = -1;
+  private long touchEndTime = -1;
+  private long previousTouchStartTime = -1;
+  private long previousTouchEndTime = -1;
   private final @NonNull ArrayList<@NonNull Consumer<Boolean>> listeners = new ArrayList<>();
 
   ///////////////////////////////////////////////////////////////////////////////////
@@ -56,8 +60,12 @@ public class TouchMonitor {
       // be sent in reversed order. We might need a more reliable way to detect touch start/end
       // actions.
       isUserTouchingScreen = true;
+      previousTouchStartTime = touchStartTime;
+      previousTouchEndTime = touchEndTime;
+      touchStartTime = event.getEventTime();
     } else if (eventType == TYPE_TOUCH_INTERACTION_END) {
       isUserTouchingScreen = false;
+      touchEndTime = event.getEventTime();
     }
 
     // Notify listeners that touch-state changed.
@@ -70,5 +78,21 @@ public class TouchMonitor {
 
   public boolean isUserTouchingScreen() {
     return isUserTouchingScreen;
+  }
+
+  public long getTouchStartTime() {
+    return touchStartTime;
+  }
+
+  public long getTouchEndTime() {
+    return touchEndTime;
+  }
+
+  public long getPreviousTouchStartTime() {
+    return previousTouchStartTime;
+  }
+
+  public long getPreviousTouchEndTime() {
+    return previousTouchEndTime;
   }
 }

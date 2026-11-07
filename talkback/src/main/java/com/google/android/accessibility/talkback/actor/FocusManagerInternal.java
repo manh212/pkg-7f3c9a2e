@@ -254,6 +254,15 @@ public class FocusManagerInternal {
    * </ol>
    */
   boolean ensureAccessibilityFocusOnScreen(EventId eventId) {
+    history.startRefocus();
+    try {
+      return ensureFocusOnScreen(eventId);
+    } finally {
+      history.endRefocus();
+    }
+  }
+
+  private boolean ensureFocusOnScreen(EventId eventId) {
     final String subTag = "EnsureOnScreen";
     if (pipeline == null
         || !screenState.areMainWindowsStable()
@@ -463,7 +472,7 @@ public class FocusManagerInternal {
       if (windowIdentifierRecord != null) {
         initialFocusType.set(FocusActionInfo.RESTORED_LAST_FOCUS);
         nodeToFocus =
-            FocusActionRecord.getFocusableNodeFromFocusRecord(
+            history.getFocusableNodeFromFocusRecord(
                 windowRoot, focusFinder, windowIdentifierRecord);
       }
     }

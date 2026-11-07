@@ -97,6 +97,25 @@
     <string name="shortcut_next_voice_profile">Next voice profile</string>
     <!-- Title for the setting that chooses the voice profile in use. [CHAR LIMIT=NONE] -->
     <string name="title_pref_voice_profile_in_use">Voice profile in use</string>
+    <string name="title_pref_speech_equalizer">Bộ cân bằng giọng nói</string>
+    <string name="title_pref_speech_equalizer_preset">Cấu hình sẵn</string>
+    <string name="title_pref_speech_equalizer_on">Bật bộ cân bằng giọng nói</string>
+    <string name="speech_equalizer_off">Đã tắt</string>
+    <string name="summary_speech_equalizer_needs_low_latency">Cần bật âm thanh độ trễ thấp</string>
+    <string name="speech_equalizer_flat">Cân bằng</string>
+    <string name="speech_equalizer_clarity">Giọng rõ hơn</string>
+    <string name="speech_equalizer_bass_boost">Tăng âm trầm</string>
+    <string name="speech_equalizer_bass_cut">Giảm âm trầm</string>
+    <string name="speech_equalizer_treble_boost">Tăng âm cao</string>
+    <string name="speech_equalizer_treble_cut">Giảm âm cao</string>
+    <string name="speech_equalizer_warm">Giọng ấm</string>
+    <string name="speech_equalizer_reduce_harshness">Giảm âm chói</string>
+    <string name="speech_equalizer_reduce_sibilance">Giảm âm xì</string>
+    <string name="speech_equalizer_small_speaker">Loa nhỏ</string>
+    <string name="speech_equalizer_custom">Tùy chỉnh</string>
+    <string name="speech_equalizer_band_hz"><xliff:g id="frequency">%1$s</xliff:g> Hz</string>
+    <string name="speech_equalizer_band_khz"><xliff:g id="frequency">%1$s</xliff:g> kHz</string>
+    <string name="speech_equalizer_gain_db"><xliff:g id="gain">%1$s</xliff:g> dB</string>
     <!-- Title for the button that adds a voice profile. [CHAR LIMIT=NONE] -->
     <string name="title_pref_add_voice_profile">Add voice profile</string>
     <!-- Name given to a new voice profile, with a number to tell it apart. [CHAR LIMIT=NONE] -->
@@ -277,6 +296,8 @@
       Description: This is spoken to the user. [CHAR LIMIT=NONE]
     -->
     <string name="template_charging_lite">Charging <xliff:g id="changing_status" example="Started">%1$s</xliff:g></string>
+    <string name="title_pref_announce_full_charge">Thông báo khi pin đầy</string>
+    <string name="battery_fully_charged">Pin đã đầy</string>
     <!--
       Source: An utterance template for announcing battery/power state.
       Description: This is spoken to the user. [CHAR LIMIT=NONE]
@@ -704,6 +725,8 @@
     <string name="title_pref_show_privacy_policy">Privacy policy</string>
     <!-- Category for assigning shortcuts to fingerprint sensor gestures. [CHAR LIMIT=40] -->
     <string name="title_pref_category_fingerprint_touch_shortcuts">Fingerprint gestures</string>
+    <!-- Category for assigning commands to taps on the back of the device, detected with the accelerometer. [CHAR LIMIT=40] -->
+    <string name="title_pref_category_back_tap">Gõ mặt lưng</string>
     <!-- Category for tutorial, the tutorial page contains help and feedback. [CHAR LIMIT=60] -->
     <string name="title_pref_category_tutorial">Meridian tutorial</string>
     <!-- Category for helping page or feedback. [CHAR LIMIT=60] -->
@@ -2209,6 +2232,8 @@
       Description: Looks for keyword "Actions" to see if user has asked to see possible actions. [CHAR LIMIT=40]
     -->
     <string name="title_custom_action">Actions</string>
+    <!-- Action on a Telegram message that replies to another: shows the message it quotes. [CHAR_LIMIT=NONE] -->
+    <string name="title_go_to_quoted_message">Đi đến tin nhắn được trích dẫn</string>
     <!-- Label for the context menu containing show or hide screen. [CHAR_LIMIT=130] -->
     <string name="title_show_hide_screen">Hide or show screen</string>
     <!-- Label for the context menu that enabling or disabling telling time. [CHAR_LIMIT=100]-->
@@ -2583,6 +2608,12 @@
     <string name="title_pref_shortcut_fingerprint_left">Swipe left on fingerprint sensor</string>
     <!-- Label for the preference that assigns an action to the "swipe right" gesture on fingerprint sensor. [CHAR_LIMIT=99] -->
     <string name="title_pref_shortcut_fingerprint_right">Swipe right on fingerprint sensor</string>
+    <!-- Label for the preference that assigns a command to two quick taps on the back of the device. [CHAR_LIMIT=90] -->
+    <string name="title_pref_shortcut_back_tap_double">Gõ hai lần mặt lưng</string>
+    <!-- Label for the preference that assigns a command to three quick taps on the back of the device. [CHAR_LIMIT=90] -->
+    <string name="title_pref_shortcut_back_tap_triple">Gõ ba lần mặt lưng</string>
+    <!-- Title of the list that sets how light a tap on the back of the device can be and still count. [CHAR_LIMIT=60] -->
+    <string name="title_pref_back_tap_sensitivity">Độ nhạy khi gõ mặt lưng</string>
 
     <!-- Label for the prefernce that displays version code. [CHAR_LIMIT=99] -->
     <string name="title_pref_version_code">Version code</string>
@@ -3208,6 +3239,10 @@
     Source: An utterance template for announcing copy of text (during edit).
     Description: This is spoken to the user. [CHAR LIMIT=NONE]
   -->
+  <!-- Actions menu item: opens the phone app with this phone number, found in the item's text. -->
+  <string name="menu_item_call_number">Gọi <xliff:g id="number" example="020 7946 0018">%1$s</xliff:g></string>
+  <!-- Actions menu item: copies this code, such as a one-time code in a text message. -->
+  <string name="menu_item_copy_code">Sao chép mã <xliff:g id="code" example="482916">%1$s</xliff:g></string>
   <string name="template_text_copied">copied, <xliff:g id="text">%1$s</xliff:g></string>
 
   <!-- Names of buttons used in screen search -->

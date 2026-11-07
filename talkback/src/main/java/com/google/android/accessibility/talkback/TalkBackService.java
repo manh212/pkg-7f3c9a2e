@@ -70,6 +70,7 @@ import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Path;
+import android.graphics.Region;
 import android.content.res.Resources;
 import android.media.AudioManager;
 import android.os.Build;
@@ -179,6 +180,7 @@ import com.google.android.accessibility.talkback.focusmanagement.WindowNodePrefe
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.TouchExplorationInterpreter;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
+import com.google.android.accessibility.talkback.gesture.BackTapCommands;
 import com.google.android.accessibility.talkback.gesture.GestureController;
 import com.google.android.accessibility.talkback.gesture.GestureHistory;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
@@ -291,6 +293,7 @@ import com.google.android.accessibility.utils.ServiceKeyEventListener;
 import com.google.android.accessibility.utils.ServiceStateListener;
 import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
+import com.google.android.accessibility.utils.WindowUtils;
 import com.google.android.accessibility.utils.SpannableUtils;
 import com.google.android.accessibility.utils.SpellChecker;
 import com.google.android.accessibility.utils.Statistics;
@@ -840,6 +843,8 @@ public class TalkBackService extends AccessibilityServiceCompat
   /** "Volume keys move the cursor" setting. */
   private boolean volumeKeysMoveCursor = false;
 
+  @Nullable private BackTapCommands backTapCommands;
+
   private IpcClientCallbackImpl ipcClientCallback;
   private BootReceiver bootReceiver;
   private ClipboardHistoryCapture clipboardHistoryCapture;
@@ -931,6 +936,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   public boolean onUnbind(Intent intent) {
+    releaseTouchHandling();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
     if (otherScreenReaderMonitor != null) {
       otherScreenReaderMonitor.stop();
@@ -2118,6 +2124,9 @@ public class TalkBackService extends AccessibilityServiceCompat
         prefs, FormFactorUtils.isAndroidWear(), gestureId)) {
       return false;
     }
+    if (accessibilityFocusInterpreter != null) {
+      accessibilityFocusInterpreter.finishWebScrollFocus();
+    }
     Performance perf = Performance.getInstance();
     EventId eventId = perf.onGestureEventReceived(gestureId);
     perf.onNavigationMotionEnd(eventId, motionEnd);
@@ -2754,7 +2763,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     accessibilityFocusInterpreter =
         new AccessibilityFocusInterpreter(
-            this, accessibilityFocusMonitor, screenStateMonitor.state, analytics);
+            this, accessibilityFocusMonitor, screenStateMonitor.state, touchMonitor, analytics);
 
     inputFocusInterpreter =
         new InputFocusInterpreter(accessibilityFocusInterpreter, focusFinder, globalVariables);
@@ -3026,6 +3035,25 @@ public class TalkBackService extends AccessibilityServiceCompat
         new ProcessorVolumeStream(pipeline.getActorState(), this, touchInteractingIndicator);
     addEventListener(processorVolumeStream);
     keyEventListeners.add(processorVolumeStream);
+
+    backTapCommands =
+        new BackTapCommands(
+            this,
+            key -> {
+              if (gestureController != null
+                  && isServiceActive()
+                  && !PauseController.isPaused()) {
+                gestureController.onBackTap(key, EVENT_ID_UNTRACKED);
+              }
+              return Unit.INSTANCE;
+            });
+    addEventListener(backTapCommands);
+    ringerModeAndScreenMonitor.addScreenChangedListener(
+        (isInteractive, eventId) -> {
+          if (backTapCommands != null) {
+            backTapCommands.onScreenChanged(isInteractive);
+          }
+        });
 
     gestureController =
         new GestureController(
@@ -3507,6 +3535,9 @@ public class TalkBackService extends AccessibilityServiceCompat
         getString(R.string.selector_voice_profile));
     armPendingLiveReapply();
     reloadPreferences();
+    if (backTapCommands != null) {
+      backTapCommands.setAllowed(!PauseController.isPaused());
+    }
 
     inputFocusInterpreter.initLastEditableFocusForGlobalVariables();
 
@@ -3555,6 +3586,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
 
     setServiceState(ServiceStateListener.SERVICE_STATE_SHUTTING_DOWN);
+
+    if (backTapCommands != null) {
+      backTapCommands.setAllowed(false);
+    }
 
     if (displayMonitor != null) {
       displayMonitor.stopMonitoring();
@@ -3688,6 +3723,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     if (proximitySensorMonitor != null) {
       proximitySensorMonitor.shutdown();
+    }
+    if (backTapCommands != null) {
+      backTapCommands.shutdown();
     }
     if (feedbackController != null) {
       feedbackController.shutdown();
@@ -4112,6 +4150,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     volumeKeysMoveCursor =
         getBooleanPref(
             R.string.pref_volume_keys_move_cursor_key, R.bool.pref_volume_keys_move_cursor_default);
+    if (backTapCommands != null) {
+      backTapCommands.reload(prefs);
+    }
 
     boolean useAudioFocus =
         getBooleanPref(R.string.pref_use_audio_focus_key, R.bool.pref_use_audio_focus_default);
@@ -4470,6 +4511,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (singleTapTypingController != null) {
       singleTapTypingController.setPaused(paused);
     }
+    if (backTapCommands != null) {
+      backTapCommands.setAllowed(!paused && isServiceActive());
+    }
     if (scriptHost != null) {
       scriptHost.onPausedChanged(paused);
     }
@@ -4615,10 +4659,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   public void showDisableTalkBackDialog() {
-    disableTalkbackDialog.setOnTalkBackDisableListener(
-        () -> {
-          disableSelf();
-        });
+    disableTalkbackDialog.setOnTalkBackDisableListener(this::turnOff);
     disableTalkbackDialog.showDialog();
   }
 
@@ -4632,7 +4673,24 @@ public class TalkBackService extends AccessibilityServiceCompat
     ipcClientCallback.hasRequestDisableTalkBackFromMistrigger = true;
     analytics.sendMistriggerAndAliveTimeLog(type);
     setTrainingFinished(false);
+    turnOff();
+  }
+
+  public void turnOff() {
+    releaseTouchHandling();
     disableSelf();
+  }
+
+  private void releaseTouchHandling() {
+    if (extendedGesturesController != null) {
+      extendedGesturesController.stop();
+    }
+    if (VERSION.SDK_INT >= Build.VERSION_CODES.R && getServiceInfo() != null) {
+      for (Display display : WindowUtils.getAllDisplays(getApplicationContext())) {
+        setTouchExplorationPassthroughRegion(display.getDisplayId(), new Region());
+        setGestureDetectionPassthroughRegion(display.getDisplayId(), new Region());
+      }
+    }
   }
 
   private boolean skipShowingTutorialInLaunching() {

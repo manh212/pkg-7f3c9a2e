@@ -59,4 +59,8 @@
         android:key="pref_unlock_say_unlocked"
         android:title="@string/title_pref_say_device_unlocked" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_announce_full_charge_default"
+      android:key="@string/pref_announce_full_charge_key"
+      android:title="@string/title_pref_announce_full_charge" />
 </PreferenceScreen>

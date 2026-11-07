@@ -21,9 +21,11 @@ import static android.speech.tts.TextToSpeech.LANG_COUNTRY_AVAILABLE;
 import static android.speech.tts.TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE;
 import static android.speech.tts.TextToSpeech.QUEUE_ADD;
 import static androidx.core.content.ContextCompat.RECEIVER_EXPORTED;
+import static androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED;
 import static com.google.android.accessibility.utils.output.SpeechCacheManager.CACHE_UTTERANCE_ID_PREFIX;
 import static java.util.Locale.forLanguageTag;
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentCallbacks;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -354,6 +356,8 @@ public class FailoverTextToSpeech {
   /** Why low-latency playback was last turned off for the current engine, or null. */
   private volatile @Nullable String lowLatencyOffReason;
 
+  private volatile int @Nullable [] equalizerGains;
+
   /**
    * Returns whether low-latency audio is on when the user hasn't chosen. It's off on watches,
    * whose settings don't have the switch.
@@ -553,9 +557,12 @@ public class FailoverTextToSpeech {
           synchronized (ttsLock) {
             localeInUse = ensureSupportedLocale();
           }
+        } else if (SpeechEqualizer.isKey(key)) {
+          equalizerGains = SpeechEqualizer.inUse(sharedPrefs);
         } else if (VoiceProfiles.isProfileKey(key)) {
           readVoiceProfile(sharedPrefs);
           updateWarmEngines();
+          equalizerGains = SpeechEqualizer.inUse(sharedPrefs);
         }
       };
 
@@ -587,6 +594,19 @@ public class FailoverTextToSpeech {
   private long voiceProfileEngineWaitEnd;
 
   private final Map<String, TextToSpeech> warmEngines = new HashMap<>();
+
+  private @Nullable String previousEngine;
+
+  private boolean screenOn = true;
+
+  private final BroadcastReceiver screenReceiver =
+      new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+          screenOn = Intent.ACTION_SCREEN_ON.equals(intent.getAction());
+          updateWarmEngines();
+        }
+      };
 
   private final Set<String> warmEnginesReady = new HashSet<>();
 
@@ -662,7 +682,13 @@ public class FailoverTextToSpeech {
     alwaysInterruptSpeech = prefs.getBoolean(PREF_ALWAYS_INTERRUPT_SPEECH_KEY, false);
     readLanguageSwitches(prefs);
     VoiceProfiles.setActive(VoiceProfiles.readActive(prefs));
+    equalizerGains = SpeechEqualizer.inUse(prefs);
     prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener);
+    PowerManager power = context.getSystemService(PowerManager.class);
+    screenOn = power == null || power.isInteractive();
+    IntentFilter screenFilter = new IntentFilter(Intent.ACTION_SCREEN_ON);
+    screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
+    ContextCompat.registerReceiver(context, screenReceiver, screenFilter, RECEIVER_NOT_EXPORTED);
 
     // Updating the default engine reloads the list of installed engines and
     // the system engine. This also loads the default engine.
@@ -1116,6 +1142,7 @@ public class FailoverTextToSpeech {
     releaseLowLatencyAudio();
     allowDeviceSleep();
     context.unregisterReceiver(mediaStateMonitor);
+    context.unregisterReceiver(screenReceiver);
     unregisterGoogleTtsFixCallbacks();
     mHandler.removeCallbacksAndMessages(null);
 
@@ -1400,11 +1427,13 @@ public class FailoverTextToSpeech {
   }
 
   /**
-   * Returns the speech cache, or null if there is none or a voice profile is in use. The cache keeps
-   * speech by language, not by voice, so it could play speech made in another voice.
+   * Returns the speech cache, or null if there is none, a voice profile is in use or the equalizer
+   * is set. The cache keeps speech by language, not by voice, so it could play speech made in
+   * another voice, and plays it on its own track, which the equalizer doesn't filter.
    */
   private @Nullable SpeechCacheManager usableSpeechCache() {
-    return VoiceProfiles.isProfileActive() || hasSelectedEngineVoice() ? null : speechCacheManager;
+    return VoiceProfiles.isProfileActive() || hasSelectedEngineVoice() || equalizerGains != null
+        ? null : speechCacheManager;
   }
 
   /**
@@ -1819,7 +1848,7 @@ public class FailoverTextToSpeech {
       return tts.speak(text, queueMode, nativeParams, utteranceId);
     }
     NavigationPcmCache cache = navigationPcmCache;
-    if (cache != null && ttsEngine != null && LatencyExperiments.preparePcm() && (!VoiceProfiles.isProfileActive() && !hasSelectedEngineVoice())
+    if (equalizerGains == null && cache != null && ttsEngine != null && LatencyExperiments.preparePcm() && (!VoiceProfiles.isProfileActive() && !hasSelectedEngineVoice())
         && (!(text instanceof android.text.Spanned spanned)
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
       float[] prepared = cache.find(text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate());
@@ -1829,7 +1858,7 @@ public class FailoverTextToSpeech {
         if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();
         LowLatencyAudio.SpeechStream stream = player.openStream(utteranceId,
             floatParam(bundle, SpeechParam.VOLUME, 1f),
-            floatParam(bundle, Engine.KEY_PARAM_PAN, 0f), lowLatencyListener);
+            floatParam(bundle, Engine.KEY_PARAM_PAN, 0f), null, lowLatencyListener);
         lowLatencyStreams.put(utteranceId, stream);
         lowLatencyRequests.put(utteranceId, Pair.create(text, bundle));
         Performance.getInstance().onFeedbackAudioAvailable(utteranceId, SystemClock.uptimeMillis());
@@ -1856,6 +1885,7 @@ public class FailoverTextToSpeech {
             utteranceId,
             floatParam(bundle, SpeechParam.VOLUME, 1f),
             floatParam(bundle, Engine.KEY_PARAM_PAN, 0f),
+            equalizerGains,
             lowLatencyListener);
     lowLatencyStreams.put(utteranceId, stream);
     lowLatencyRequests.put(utteranceId, Pair.create(text, bundle));
@@ -2708,6 +2738,9 @@ public class FailoverTextToSpeech {
     final boolean isSwitchingEngines = (tts != null);
 
     if (isSwitchingEngines) {
+      if (ttsEngine != null && !ttsEngine.equals(engine)) {
+        previousEngine = ttsEngine;
+      }
       retireEngine(tts, ttsEngine, oldVoices, engine);
     }
     // Speech from an engine that is gone never finishes, so it must not hold up the new engine's.
@@ -2771,8 +2804,6 @@ public class FailoverTextToSpeech {
       return;
     }
     if (usableSpeechCache() == null) {
-      // Nothing is cached while a voice profile is in use. Reported as a failure, as when the
-      // engine isn't ready, so that it's cached again once Backtalk default is back.
       resultNotifier.onFinished(
           new SpeechInfo(text, /* utteranceId= */ null, /* locale= */ null, pitch, rate), false);
       return;
@@ -2903,16 +2934,21 @@ public class FailoverTextToSpeech {
 
   private Set<String> voiceProfileEngines() {
     Set<String> targets = new HashSet<>();
+    if (!screenOn || previousEngine == null) {
+      return targets;
+    }
     SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(context);
     List<String> ids = VoiceProfiles.ids(prefs);
     if (ids.isEmpty()) {
       return targets;
     }
+    boolean used = previousEngine.equals(engineToUse(preferredTtsEngine));
     for (String id : ids) {
-      targets.add(engineToUse(VoiceProfiles.read(prefs, id).engine()));
+      used |= previousEngine.equals(engineToUse(VoiceProfiles.read(prefs, id).engine()));
     }
-    targets.add(engineToUse(preferredTtsEngine));
-    targets.remove(null);
+    if (used) {
+      targets.add(previousEngine);
+    }
     return targets;
   }
 

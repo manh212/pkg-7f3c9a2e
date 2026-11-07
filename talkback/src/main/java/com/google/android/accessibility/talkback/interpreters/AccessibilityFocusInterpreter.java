@@ -47,6 +47,7 @@ import com.google.android.accessibility.talkback.focusmanagement.interpreter.Scr
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor.ScreenStateChangeListener;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.TouchExplorationInterpreter.TouchExplorationActionListener;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
+import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.talkback.focusmanagement.record.NodePathDescription;
 import com.google.android.accessibility.talkback.interpreters.InputFocusInterpreter.TargetViewChangeListener;
 import com.google.android.accessibility.talkback.interpreters.ManualScrollInterpreter.ManualScrollInterpretation;
@@ -59,10 +60,15 @@ import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.Role;
+import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.labeling.Label;
+import com.google.android.accessibility.utils.monitor.TouchMonitor;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy.SearchDirection;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
+import java.util.ArrayList;
+import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -90,19 +96,45 @@ public class AccessibilityFocusInterpreter
   private final FocusProcessorForScreenStateChange focusProcessorForScreenStateChange;
   private final AccessibilityFocusMonitor accessibilityFocusMonitor;
   private final ScreenStateMonitor.State screenState;
+  private final TouchMonitor touchMonitor;
   private final Context context;
 
   private Pipeline.InterpretationReceiver pipelineInterpretations;
   private ActorState actorState;
 
   private final Handler handler = new Handler(Looper.getMainLooper());
+
+  private long webScrollTouchStart = -1;
+
+  private @Nullable AccessibilityNodeInfoCompat webScrolled;
+
+  private boolean webScrolledSideways;
+
+  private @Nullable ManualScrollInterpretation webScroll;
+
+  private boolean pageScrolledFocusStrip;
+
+  private @Nullable AccessibilityNodeInfoCompat webStrip;
+
   private @Nullable ManualScrollInterpretation pendingManualScroll;
   private final Runnable handlePendingManualScroll =
-      () -> {
-        ManualScrollInterpretation interpretation = pendingManualScroll;
-        pendingManualScroll = null;
-        if (interpretation != null) {
-          handleManualScroll(interpretation);
+      new Runnable() {
+        @Override
+        public void run() {
+          ManualScrollInterpretation interpretation = pendingManualScroll;
+          if (interpretation != null
+              && interpretation == webScroll
+              && webScrolledSideways
+              && touchMonitor.isUserTouchingScreen()) {
+            handler.postDelayed(this, MANUAL_SCROLL_SETTLE_MS);
+            return;
+          }
+          boolean stripScrolled = pageScrolledFocusStrip;
+          pendingManualScroll = null;
+          pageScrolledFocusStrip = false;
+          if (interpretation != null) {
+            handleManualScroll(interpretation, stripScrolled);
+          }
         }
       };
 
@@ -113,10 +145,12 @@ public class AccessibilityFocusInterpreter
       Context context,
       AccessibilityFocusMonitor accessibilityFocusMonitor,
       ScreenStateMonitor.State screenState,
+      TouchMonitor touchMonitor,
       TalkBackAnalytics analytics) {
     this.context = context;
     this.accessibilityFocusMonitor = accessibilityFocusMonitor;
     this.screenState = screenState;
+    this.touchMonitor = touchMonitor;
     focusProcessorForTapAndTouchExploration =
         new FocusProcessorForTapAndTouchExploration(context, analytics);
     focusProcessorForScreenStateChange =
@@ -180,33 +214,69 @@ public class AccessibilityFocusInterpreter
   @Override
   public void onManualScroll(ManualScrollInterpretation interpretation) {
     if (FormFactorUtils.isAndroidWear()) {
-      handleManualScroll(interpretation);
+      handleManualScroll(interpretation, /* stripScrolled= */ false);
       return;
     }
-    // Copy the event, because the framework may recycle it after dispatch.
-    ManualScrollInterpretation newPending =
-        ManualScrollInterpretation.create(
-            interpretation.eventId(),
-            AccessibilityEvent.obtain(interpretation.event()),
-            interpretation.direction());
-    if (pendingManualScroll != null) {
-      pendingManualScroll.event().recycle();
+    if (onWebScroll(interpretation)) {
+      return;
     }
-    pendingManualScroll = newPending;
+    if (pendingManualScroll == null
+        || interpretation.scrolledHoldsFocus()
+        || !pendingManualScroll.scrolledHoldsFocus()) {
+      pendingManualScroll =
+          ManualScrollInterpretation.create(
+              interpretation.eventId(),
+              AccessibilityEvent.obtain(interpretation.event()),
+              interpretation.direction(),
+              interpretation.scrolledHoldsFocus());
+    }
+    schedulePendingManualScroll();
+  }
+
+  private void schedulePendingManualScroll() {
+    cancelWebFocusRecovery();
     handler.removeCallbacks(handlePendingManualScroll);
     handler.postDelayed(handlePendingManualScroll, MANUAL_SCROLL_SETTLE_MS);
   }
 
-  /** Cancels a scroll still settling, so it cannot fire after the service has suspended. */
-  public void onSuspendInfrastructure() {
-    handler.removeCallbacks(handlePendingManualScroll);
-    if (pendingManualScroll != null) {
-      pendingManualScroll.event().recycle();
-      pendingManualScroll = null;
+  private boolean onWebScroll(ManualScrollInterpretation interpretation) {
+    AccessibilityNodeInfoCompat scrolled =
+        AccessibilityEventUtils.sourceCompat(interpretation.event());
+    if (scrolled == null || !WebScrollFocus.isWebContent(scrolled)) {
+      return false;
     }
+    long touchStart = touchMonitor.getTouchStartTime();
+    boolean sideways = WebScrollFocus.scrollsOnlySideways(scrolled);
+    if (touchStart != webScrollTouchStart
+        || webScrolled == null
+        || (webScrolledSideways && !sideways && !scrolled.equals(webScrolled))) {
+      webScrollTouchStart = touchStart;
+      webScrolled = scrolled;
+      webScrolledSideways = sideways;
+      webScroll = null;
+    }
+    if (sideways && !webScrolledSideways && !scrolled.equals(webScrolled)) {
+      webStrip = scrolled;
+    }
+    if (scrolled.equals(webScrolled)) {
+      webScroll =
+          ManualScrollInterpretation.create(
+              interpretation.eventId(),
+              AccessibilityEvent.obtain(interpretation.event()),
+              interpretation.direction(),
+              interpretation.scrolledHoldsFocus());
+    } else if (webScroll != null && interpretation.scrolledHoldsFocus() && sideways) {
+      pageScrolledFocusStrip = true;
+    } else {
+      return true;
+    }
+    pendingManualScroll = webScroll;
+    schedulePendingManualScroll();
+    return true;
   }
 
-  private void handleManualScroll(ManualScrollInterpretation interpretation) {
+  private void handleManualScroll(
+      ManualScrollInterpretation interpretation, boolean stripScrolled) {
     if (!screenState.areMainWindowsStable()) {
       LogUtils.w(
           TAG,
@@ -217,34 +287,245 @@ public class AccessibilityFocusInterpreter
 
     AccessibilityNodeInfoCompat currentA11yFocusedNode =
         accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
-    if (shouldMoveFocus(currentA11yFocusedNode, interpretation.direction())) {
-
-      if (!FormFactorUtils.isAndroidWear() && currentA11yFocusedNode != null) {
-        if (actorState == null) return;
-        AccessibilityNodeInfoCompat scrolled =
-            AccessibilityEventUtils.sourceCompat(interpretation.event());
-
-        if (scrolled != null && !BuildVersionUtils.isAtLeastOMR1()) {
-          scrolled.refresh();
-        }
-        NodePathDescription focusPath =
-            actorState.getFocusHistory().getLastFocusNodePathDescription();
-        if (focusPath == null || !focusPath.containsNodeByHashAndIdentity(scrolled)) {
-          return;
-        }
-      }
-
-      ManualScroll.Builder builder =
-          ManualScroll.builder()
-              .setDirection(interpretation.direction())
-              .setScreenState(screenState.getStableScreenState());
-      if (FormFactorUtils.isAndroidWear()) {
-        builder.setCurrentFocusedNode(currentA11yFocusedNode);
-      }
-
-      pipelineInterpretations.input(
-          interpretation.eventId(), interpretation.event(), builder.build());
+    if (!FormFactorUtils.isAndroidWear()
+        && startWebFocusRecovery(interpretation, currentA11yFocusedNode, stripScrolled)) {
+      return;
     }
+    moveFocusFromScrolledOutNode(interpretation, currentA11yFocusedNode);
+  }
+
+  private void moveFocusFromScrolledOutNode(
+      ManualScrollInterpretation interpretation,
+      @Nullable AccessibilityNodeInfoCompat currentA11yFocusedNode) {
+    if (!shouldMoveFocus(currentA11yFocusedNode, interpretation.direction())) {
+      return;
+    }
+    if (!FormFactorUtils.isAndroidWear()) {
+      AccessibilityNodeInfoCompat scrolled =
+          AccessibilityEventUtils.sourceCompat(interpretation.event());
+      if (scrolled != null && !BuildVersionUtils.isAtLeastOMR1()) {
+        scrolled.refresh();
+      }
+      NodePathDescription focusPath =
+          actorState.getFocusHistory().getLastFocusAncestorIdentityPath();
+      if (focusPath == null || !focusPath.containsNodeByHashAndIdentity(scrolled)) {
+        return;
+      }
+    }
+
+    ManualScroll.Builder builder =
+        ManualScroll.builder()
+            .setDirection(interpretation.direction())
+            .setScreenState(screenState.getStableScreenState());
+    if (FormFactorUtils.isAndroidWear()) {
+      builder.setCurrentFocusedNode(currentA11yFocusedNode);
+    }
+
+    pipelineInterpretations.input(interpretation.eventId(), interpretation.event(), builder.build());
+  }
+
+  private static final long WEB_FOCUS_RECOVERY_SLICE_MS = 16;
+
+  private static final long WEB_FOCUS_RECOVERY_TIME_LIMIT_MS = 500;
+
+  private @Nullable WebFocusRecovery webFocusRecovery;
+
+  private @Nullable ManualScrollInterpretation webFocusRecoveryScroll;
+
+  private long webFocusRecoveryStartTime;
+
+  private long webFocusRecoveryFocusTime;
+
+  private final Runnable continueWebFocusRecovery =
+      () -> runWebFocusRecovery(/* yieldToInput= */ true);
+
+  private boolean startWebFocusRecovery(
+      ManualScrollInterpretation interpretation,
+      @Nullable AccessibilityNodeInfoCompat focus,
+      boolean stripScrolled) {
+    boolean forward = interpretation.direction() != TraversalStrategy.SEARCH_FOCUS_BACKWARD;
+    boolean focusLost = focus == null || Role.getRole(focus) == Role.ROLE_WEB_VIEW;
+    if (focusLost) {
+      if (!isUserScroll(interpretation)) {
+        return false;
+      }
+      AccessibilityNodeInfoCompat scrolled =
+          AccessibilityEventUtils.sourceCompat(interpretation.event());
+      if (scrolled == null || !WebScrollFocus.isWebContent(scrolled)) {
+        return false;
+      }
+      FocusActionRecord record = actorState.getFocusHistory().getLastFocusActionRecord();
+      AccessibilityNodeInfoCompat lastFocused =
+          (record != null && WebInterfaceUtils.supportsWebActions(record.getFocusedNode()))
+              ? record.getFocusedNode()
+              : null;
+      startWebFocusRecovery(
+          interpretation,
+          new WebFocusRecovery(
+              null,
+              lastFocused,
+              scrolled,
+              /* leftBehind= */ true,
+              forward,
+              stripIn(scrolled),
+              /* focusMoved= */ true));
+      return true;
+    }
+    if (!WebInterfaceUtils.supportsWebActions(focus) || !isUserScroll(interpretation)) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat scrolled =
+        AccessibilityEventUtils.sourceCompat(interpretation.event());
+    if (scrolled == null) {
+      return false;
+    }
+    Rect focusBounds = new Rect();
+    focus.getBoundsInScreen(focusBounds);
+    Rect scrolledBounds = new Rect();
+    scrolled.getBoundsInScreen(scrolledBounds);
+    boolean leftBehind = stripScrolled || !focus.isVisibleToUser();
+    AccessibilityNodeInfoCompat strip = stripIn(scrolled);
+    boolean focusMoved = focusMovedSinceFocused(focus, focusBounds);
+    boolean underStrip = false;
+    if (strip != null && focusMoved) {
+      Rect stripBounds = new Rect();
+      strip.getBoundsInScreen(stripBounds);
+      underStrip = WebScrollFocus.isUnderFixedStrip(focusBounds, scrolledBounds, stripBounds);
+    }
+    if (!leftBehind && !underStrip && !WebScrollFocus.isOutside(focusBounds, scrolledBounds)) {
+      return true;
+    }
+    startWebFocusRecovery(
+        interpretation,
+        new WebFocusRecovery(focus, null, scrolled, leftBehind, forward, strip, focusMoved));
+    return true;
+  }
+
+  private @Nullable AccessibilityNodeInfoCompat stripIn(AccessibilityNodeInfoCompat scrolled) {
+    return (webStrip != null && webStrip.getWindowId() == scrolled.getWindowId())
+        ? webStrip
+        : null;
+  }
+
+  private boolean focusMovedSinceFocused(AccessibilityNodeInfoCompat focus, Rect focusBounds) {
+    FocusActionRecord record = actorState.getFocusHistory().getLastFocusActionRecord();
+    if (record == null || !record.getFocusedNode().equals(focus)) {
+      return false;
+    }
+    Rect then = new Rect();
+    record.getFocusedNode().getBoundsInScreen(then);
+    return !then.equals(focusBounds);
+  }
+
+  private void startWebFocusRecovery(
+      ManualScrollInterpretation interpretation, WebFocusRecovery recovery) {
+    cancelWebFocusRecovery();
+    webFocusRecovery = recovery;
+    webFocusRecoveryScroll = interpretation;
+    webFocusRecoveryStartTime = SystemClock.uptimeMillis();
+    webFocusRecoveryFocusTime = lastFocusActionTime();
+    runWebFocusRecovery(/* yieldToInput= */ true);
+  }
+
+  private void runWebFocusRecovery(boolean yieldToInput) {
+    WebFocusRecovery recovery = webFocusRecovery;
+    ManualScrollInterpretation interpretation = webFocusRecoveryScroll;
+    if (recovery == null || interpretation == null) {
+      return;
+    }
+    handler.removeCallbacks(continueWebFocusRecovery);
+    if (lastFocusActionTime() != webFocusRecoveryFocusTime) {
+      cancelWebFocusRecovery();
+      return;
+    }
+    long sliceEnd = SystemClock.uptimeMillis() + WEB_FOCUS_RECOVERY_SLICE_MS;
+    while (!recovery.step()) {
+      long now = SystemClock.uptimeMillis();
+      if (now - webFocusRecoveryStartTime >= WEB_FOCUS_RECOVERY_TIME_LIMIT_MS) {
+        LogUtils.w(TAG, "Stopped the search for a web item in view at its time limit");
+        recovery.stop();
+        break;
+      }
+      if (yieldToInput && now >= sliceEnd) {
+        handler.post(continueWebFocusRecovery);
+        return;
+      }
+    }
+    webFocusRecovery = null;
+    webFocusRecoveryScroll = null;
+    if (!screenState.areMainWindowsStable()
+        || lastFocusActionTime() != webFocusRecoveryFocusTime) {
+      return;
+    }
+    switch (recovery.outcome()) {
+      case WebFocusRecovery.FOUND ->
+          pipelineInterpretations.input(
+              interpretation.eventId(),
+              interpretation.event(),
+              ManualScroll.builder()
+                  .setDirection(interpretation.direction())
+                  .setScreenState(screenState.getStableScreenState())
+                  .setWebItemInView(recovery.item())
+                  .build());
+      case WebFocusRecovery.NOTHING_IN_VIEW -> {
+        LogUtils.d(TAG, "Web focus is out of view, and no item is in view");
+        AccessibilityNodeInfoCompat focus =
+            accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
+        if (focus != null) {
+          moveFocusFromScrolledOutNode(interpretation, focus);
+        }
+      }
+      case WebFocusRecovery.NOT_WEB_SCROLL ->
+          moveFocusFromScrolledOutNode(
+              interpretation,
+              accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false));
+      default -> {}
+    }
+  }
+
+  private void cancelWebFocusRecovery() {
+    handler.removeCallbacks(continueWebFocusRecovery);
+    webFocusRecovery = null;
+    webFocusRecoveryScroll = null;
+  }
+
+  public void finishWebScrollFocus() {
+    if (FormFactorUtils.isAndroidWear()) {
+      return;
+    }
+    if (pendingManualScroll != null && pendingManualScroll == webScroll) {
+      handler.removeCallbacks(handlePendingManualScroll);
+      handlePendingManualScroll.run();
+    }
+    if (webFocusRecovery != null) {
+      runWebFocusRecovery(/* yieldToInput= */ false);
+    }
+  }
+
+  private long lastFocusActionTime() {
+    FocusActionRecord record = actorState.getFocusHistory().getLastFocusActionRecord();
+    return (record == null) ? -1 : record.getActionTime();
+  }
+
+  private boolean isUserScroll(ManualScrollInterpretation interpretation) {
+    return WebScrollFocus.isUserScroll(
+        interpretation.event().getEventTime(),
+        touchMonitor.getTouchStartTime(),
+        touchMonitor.getTouchEndTime(),
+        touchMonitor.isUserTouchingScreen(),
+        touchMonitor.getPreviousTouchStartTime(),
+        touchMonitor.getPreviousTouchEndTime(),
+        lastFocusActionTime());
+  }
+
+  public void onSuspendInfrastructure() {
+    handler.removeCallbacks(handlePendingManualScroll);
+    cancelWebFocusRecovery();
+    pendingManualScroll = null;
+    webScroll = null;
+    webScrolled = null;
+    webStrip = null;
+    pageScrolledFocusStrip = false;
   }
 
   private boolean shouldMoveFocus(

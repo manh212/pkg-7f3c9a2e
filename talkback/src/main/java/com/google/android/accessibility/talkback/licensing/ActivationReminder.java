@@ -74,7 +74,7 @@ public final class ActivationReminder {
               stopCountdown();
               serviceRef.clear();
               try {
-                service.disableSelf();
+                service.turnOff();
               } catch (RuntimeException e) {
                 Log.e(TAG, "Could not disable accessibility service", e);
               }

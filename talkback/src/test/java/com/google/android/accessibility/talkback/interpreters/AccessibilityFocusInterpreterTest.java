@@ -33,6 +33,7 @@ import com.google.android.accessibility.talkback.focusmanagement.interpreter.Scr
 import com.google.android.accessibility.talkback.interpreters.ManualScrollInterpreter.ManualScrollInterpretation;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.EventInterpretation;
+import com.google.android.accessibility.utils.monitor.TouchMonitor;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -93,7 +94,7 @@ public class AccessibilityFocusInterpreterTest {
     screenStateMonitor.handle(new EventInterpretation(), /* eventId= */ null);
     interpreter =
         new AccessibilityFocusInterpreter(
-            context, focusMonitor, screenStateMonitor.state, new TalkBackAnalytics() {});
+            context, focusMonitor, screenStateMonitor.state, new TouchMonitor(), new TalkBackAnalytics() {});
     receiver = new RecordingReceiver();
     interpreter.setPipeline(receiver);
   }
@@ -153,6 +154,6 @@ public class AccessibilityFocusInterpreterTest {
     AccessibilityEvent event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_SCROLLED);
     event.setPackageName(packageName);
     return ManualScrollInterpretation.create(
-        /* eventId= */ null, event, TraversalStrategy.SEARCH_FOCUS_FORWARD);
+        /* eventId= */ null, event, TraversalStrategy.SEARCH_FOCUS_FORWARD, false);
   }
 }
