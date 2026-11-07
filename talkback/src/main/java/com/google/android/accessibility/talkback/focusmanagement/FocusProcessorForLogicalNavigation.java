@@ -452,37 +452,38 @@ public class FocusProcessorForLogicalNavigation {
         navigationAction.actionType == NavigationAction.DIRECTIONAL_NAVIGATION
             && navigationAction.targetType != NavigationTarget.TARGET_WINDOW
             && TraversalStrategyUtils.isLogicalDirection(navigationAction.searchDirection);
-    if (skipKeyboard && AccessibilityNodeInfoUtils.isKeyboard(pivot)) {
+    if (pivot != null) {
+      if (!skipKeyboard || !AccessibilityNodeInfoUtils.isKeyboard(pivot)) {
+        return pivot;
+      }
       pivot = accessibilityFocusMonitor.getInputFocus();
-      if (AccessibilityNodeInfoUtils.isKeyboard(pivot)) {
-        pivot = null;
+      if (pivot != null && !AccessibilityNodeInfoUtils.isKeyboard(pivot)) {
+        return pivot;
       }
     }
 
     // If we cannot find a pivot, or the pivot is not accessible, choose the root node of the active
     // window.
-    if (pivot == null) {
-      // TODO: We might need to define our own "active window" in TalkBack side.
-      AccessibilityNodeInfoCompat root =
-          AccessibilityServiceCompatUtils.getRootInActiveWindow(service);
-      if (skipKeyboard && AccessibilityNodeInfoUtils.isKeyboard(root)) {
-        ScreenState stableScreenState = screenState.getStableScreenState();
-        root =
-            stableScreenState == null
-                ? null
-                : AccessibilityWindowInfoUtils.getRootCompat(stableScreenState.getActiveWindow());
-      }
-      // The focused node was removed from the window — an app re-laying-out its content, such as a
-      // blocked ad slot collapsing, does this. Starting from the window root would send the user
-      // back to the top of the page, so carry on from the node nearest where the last navigation
-      // started instead.
-      AccessibilityNodeInfoCompat nearest =
-          (root == null) ? null : TraversalTreeCache.pivotAfterRemoval(root);
-      if (nearest != null && nearest.refresh()) {
-        pivot = nearest;
-      } else {
-        pivot = root;
-      }
+    // TODO: We might need to define our own "active window" in TalkBack side.
+    AccessibilityNodeInfoCompat root =
+        AccessibilityServiceCompatUtils.getRootInActiveWindow(service);
+    if (skipKeyboard && AccessibilityNodeInfoUtils.isKeyboard(root)) {
+      ScreenState stableScreenState = screenState.getStableScreenState();
+      root =
+          stableScreenState == null
+              ? null
+              : AccessibilityWindowInfoUtils.getRootCompat(stableScreenState.getActiveWindow());
+    }
+    // The focused node was removed from the window — an app re-laying-out its content, such as a
+    // blocked ad slot collapsing, does this. Starting from the window root would send the user
+    // back to the top of the page, so carry on from the node nearest where the last navigation
+    // started instead.
+    AccessibilityNodeInfoCompat nearest =
+        (root == null) ? null : TraversalTreeCache.pivotAfterRemoval(root);
+    if (nearest != null && nearest.refresh()) {
+      pivot = nearest;
+    } else {
+      pivot = root;
     }
     return skipKeyboard && AccessibilityNodeInfoUtils.isKeyboard(pivot) ? null : pivot;
   }
