@@ -139,7 +139,9 @@
         <!-- Gemini 3.5 live internal audio: Activity obtains system capture consent. -->
         <activity
             android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <service
             android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService"
             android:exported="false"

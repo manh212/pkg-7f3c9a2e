@@ -19,6 +19,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.BuildConfig
+import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
+import com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity
+import com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.utils.Performance
@@ -127,12 +131,34 @@ class SubtitleController internal constructor(
   }
 
   fun toggle() {
+    // Both the gesture and the context-menu subtitle command land here.
+    if (InternalLiveRecognitionService.running) {
+      service.startService(Intent(service, InternalLiveRecognitionService::class.java)
+        .setAction(InternalLiveRecognitionService.ACTION_STOP))
+      speaker.stop()
+      announce(service.getString(R.string.subtitle_stopped))
+      return
+    }
     if (active) { stop(true); return }
     if (!canUseFeature("ocr")) {
       announce("Giấy phép hiện tại không có tính năng nhận dạng chữ OCR.")
       return
     }
     if (closed) return
+    if (SubtitleSettings.engine(prefs) == SubtitleSettings.LIVE_ENGINE) {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        announce("Dịch âm thanh nội bộ cần Android 10 trở lên.")
+        return
+      }
+      if (GeminiApiKey.effectiveKey(prefs, BuildConfig.GEMINI_API_KEY).isEmpty()) {
+        announce("Hãy nhập khóa Gemini API trong cài đặt Nhận dạng phụ đề.")
+        return
+      }
+      // Android's required projection/recording permission prompts are the only UI here.
+      service.startActivity(Intent(service, InternalLiveRecognitionActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      return
+    }
     // The special permission powers the visible overlay, NOT screenshot OCR.
     if (service is TalkBackService && !Settings.canDrawOverlays(service)) {
       announce("Hãy cấp quyền Hiển thị trên các ứng dụng khác cho lớp phủ trạng thái phụ đề, rồi bật lại tính năng.")
@@ -195,6 +221,10 @@ class SubtitleController internal constructor(
   }
 
   fun findAgain() {
+    if (InternalLiveRecognitionService.running) {
+      announce("Gemini đang dịch âm thanh trực tuyến; chế độ này không quét vùng ảnh phụ đề.")
+      return
+    }
     if (!active) { announce(service.getString(R.string.subtitle_not_running)); return }
     generation++
     tracker.reset()
@@ -232,6 +262,10 @@ class SubtitleController internal constructor(
 
   fun shutdown() {
     if (closed) return
+    if (InternalLiveRecognitionService.running) {
+      service.startService(Intent(service, InternalLiveRecognitionService::class.java)
+        .setAction(InternalLiveRecognitionService.ACTION_STOP))
+    }
     stop(false)
     closed = true
     worker.execute { recognizer?.close(); recognizer = null }

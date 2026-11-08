@@ -54,6 +54,8 @@ class InternalAudioSource(
                 .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
                 .addMatchingUsage(AudioAttributes.USAGE_GAME)
                 .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                // Gemini voice can use USAGE_MEDIA; exclude this process to prevent audio echo.
+                .excludeUid(context.applicationInfo.uid)
                 .build()
             val (audioRecord, format) = createRecorder(captureConfig)
             recorder = audioRecord

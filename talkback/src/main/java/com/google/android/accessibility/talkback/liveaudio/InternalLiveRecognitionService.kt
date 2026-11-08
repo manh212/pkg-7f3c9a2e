@@ -9,6 +9,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.os.Handler
+import android.os.Looper
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -18,6 +21,7 @@ import androidx.core.app.NotificationCompat
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
+import com.google.android.accessibility.talkback.subtitles.SubtitleSettings
 import com.google.android.accessibility.utils.Performance
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.FeedbackItem
@@ -45,6 +49,9 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class InternalLiveRecognitionService : Service() {
     private val logger = SessionLogger()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val ttsBuffer = StringBuilder()
+    private val ttsFlush = Runnable { flushTtsBuffer() }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var source: InternalAudioSource? = null
     private var projection: MediaProjection? = null
@@ -54,12 +61,10 @@ class InternalLiveRecognitionService : Service() {
     private var sendJob: Job? = null
     private var queue: LinkedBlockingDeque<ByteArray>? = null
     private val droppedInputChunks = AtomicLong(0)
-    private var mode = MODE_TRANSLATE
     private var voice = VOICE_GEMINI
     @Volatile private var active = false
     private var connectionGeneration = 0
     private var lastRawTranscript = ""
-    private var committedTranscript = ""
     private var reconnectAttempts = 0
     private var resumeHandle: String? = null
 
@@ -74,8 +79,6 @@ class InternalLiveRecognitionService : Service() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) { stopSelf(); return START_NOT_STICKY }
         if (active) return START_NOT_STICKY
 
-        mode = intent.getStringExtra(EXTRA_MODE).let { if (it == MODE_TRANSCRIBE) MODE_TRANSCRIBE else MODE_TRANSLATE }
-        voice = intent.getStringExtra(EXTRA_VOICE).let { if (it == VOICE_READER) VOICE_READER else VOICE_GEMINI }
         val code = intent.getIntExtra(EXTRA_PROJECTION_CODE, 0)
         @Suppress("DEPRECATION")
         val data = intent.getParcelableExtra<Intent>(EXTRA_PROJECTION_DATA)
@@ -83,6 +86,7 @@ class InternalLiveRecognitionService : Service() {
 
         val prefs = SharedPreferencesUtils.getSharedPreferences(this)
         val key = GeminiApiKey.effectiveKey(prefs, BuildConfig.GEMINI_API_KEY)
+        voice = SubtitleSettings.geminiVoice(prefs)
         if (key.isEmpty()) {
             announce("Chưa có khóa Gemini API. Hãy nhập trong cài đặt Nhận dạng.")
             stopSelf()
@@ -105,13 +109,14 @@ class InternalLiveRecognitionService : Service() {
         }
         active = true
         running = true
-        currentTranscript = ""
-        if (mode == MODE_TRANSLATE && voice == VOICE_GEMINI) {
+        if (voice == VOICE_GEMINI) {
             player = StreamingPcmPlayer(
                 sampleRate = 24_000,
                 bufferBytes = 48_000,
                 queueCapacity = 50,
                 initialJitterChunks = 1,
+                usage = if (SubtitleSettings.geminiChannel(prefs) == SubtitleSettings.CHANNEL_MEDIA)
+                    AudioAttributes.USAGE_MEDIA else AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY,
                 logger = logger,
                 diagnosticName = "TranslatedPlayer-accessibility",
             ).also { it.start() }
@@ -123,9 +128,8 @@ class InternalLiveRecognitionService : Service() {
     private fun connectGemini(key: String) {
         if (!active) return
         val generation = ++connectionGeneration
-        val model = if (mode == MODE_TRANSCRIBE) TRANSCRIBE_MODEL else TRANSLATE_MODEL
-        val operation = if (mode == MODE_TRANSCRIBE)
-            GeminiLiveClient.OperationMode.TRANSCRIBE else GeminiLiveClient.OperationMode.TRANSLATE
+        val model = TRANSLATE_MODEL
+        val operation = GeminiLiveClient.OperationMode.TRANSLATE
         val liveClient = GeminiLiveClient(
             apiKey = key,
             model = model,
@@ -139,42 +143,36 @@ class InternalLiveRecognitionService : Service() {
                 override fun onSetupComplete() {
                     if (!active || generation != connectionGeneration) return
                     reconnectAttempts = 0
-                    notifyStatus(if (mode == MODE_TRANSCRIBE)
-                        "Đang nhận dạng lời nói từ âm thanh nội bộ" else "Đang dịch âm thanh nội bộ")
+                    notifyStatus("Đang dịch phụ đề trực tuyến")
                     if (source == null) launchSource() else source?.resume()
                 }
 
                 override fun onText(text: String) {
                     if (!active || generation != connectionGeneration) return
-                    if (mode == MODE_TRANSLATE) appendTranslation(text)
-                    else appendTranscriptionSegment(text)
+                    appendTranslation(text)
                 }
 
                 override fun onAudio(pcm24kMono: ByteArray) {
-                    if (!active || generation != connectionGeneration || mode != MODE_TRANSLATE) return
+                    if (!active || generation != connectionGeneration) return
                     if (voice == VOICE_GEMINI) player?.enqueue(pcm24kMono)
-                }
-
-                override fun onInputTranscript(text: String) {
-                    if (!active || generation != connectionGeneration) return
-                    if (mode == MODE_TRANSCRIBE) appendTranscriptionSegment(text)
-                }
-
-                override fun onInterimTranscript(text: String) {
-                    // The source app displays interim words but does not commit them as final.
-                    if (!active || generation != connectionGeneration) return
-                    logger.log(3, "TranscribeLive", "Interim transcript chars=${text.length}")
                 }
 
                 override fun onInterrupted() {
                     if (generation != connectionGeneration) return
                     player?.flush()
-                    lastRawTranscript = ""
+                    mainHandler.post {
+                        mainHandler.removeCallbacks(ttsFlush)
+                        ttsBuffer.clear()
+                        lastRawTranscript = ""
+                    }
                 }
 
                 override fun onTurnComplete() {
                     if (generation != connectionGeneration) return
-                    lastRawTranscript = ""
+                    mainHandler.post {
+                        lastRawTranscript = ""
+                        flushTtsBuffer()
+                    }
                 }
 
                 override fun onSessionResumptionUpdate(resumable: Boolean, newHandle: String?) {
@@ -250,62 +248,58 @@ class InternalLiveRecognitionService : Service() {
         }
     }
 
+    /** Gemini emits text incrementally. Keep the source client's cumulative/delta handling,
+     * then buffer partial words for Meridian's existing subtitle utterance group. */
     private fun appendTranslation(raw: String) {
-        val cleaned = raw.trim()
-        if (cleaned.isBlank()) return
-        val previous = lastRawTranscript
-        val delta = when {
-            previous.isBlank() -> cleaned
-            cleaned.startsWith(previous) -> cleaned.removePrefix(previous).trim()
-            previous.startsWith(cleaned) -> ""
-            else -> cleaned
-        }
-        lastRawTranscript = cleaned
-        if (delta.isNotBlank()) {
-            currentTranscript = (currentTranscript + " " + delta).trim().takeLast(12_000)
-            if (voice == VOICE_READER) speakWithReader(delta)
-        }
-    }
-
-    private fun appendTranscriptionSegment(raw: String) {
-        val cleaned = raw.trim()
-        if (cleaned.isBlank()) return
-        val base = committedTranscript
-        val updated = mergeLiveTranscript(base, cleaned)
-        if (updated == base) return
-        committedTranscript = updated
-        currentTranscript = updated.takeLast(12_000)
-        val delta = updated.removePrefix(base).trim()
-        if (delta.isNotBlank()) speakWithReader(delta)
-    }
-
-    /** Adapted from TranslationService.mergeLiveTranscript in Gemini Live Translate. */
-    private fun mergeLiveTranscript(baseRaw: String, candidateRaw: String): String {
-        val base = baseRaw.trim()
-        val candidate = candidateRaw.trim()
-        if (base.isBlank()) return candidate
-        if (candidate.isBlank()) return base
-        if (candidate == base || base.endsWith(candidate)) return base
-        if (candidate.startsWith(base)) return candidate
-        if (base.startsWith(candidate)) return base
-        val maxOverlap = minOf(base.length, candidate.length)
-        for (length in maxOverlap downTo 1) {
-            if (base.regionMatches(base.length - length, candidate, 0, length, ignoreCase = false)) {
-                val suffix = candidate.substring(length).trimStart()
-                return if (suffix.isBlank()) base else "$base $suffix"
+        if (voice != VOICE_READER) return
+        mainHandler.post {
+            if (!active || voice != VOICE_READER) return@post
+            val cleaned = raw.trim()
+            if (cleaned.isBlank()) return@post
+            val previous = lastRawTranscript
+            val delta = when {
+                previous.isBlank() -> cleaned
+                cleaned.startsWith(previous) -> cleaned.removePrefix(previous).trim()
+                previous.startsWith(cleaned) -> ""
+                else -> cleaned
             }
+            lastRawTranscript = cleaned
+            if (delta.isNotBlank()) queueTts(delta)
         }
-        return "$base $candidate"
     }
 
+    /** Same buffering principle and defaults as source TranslationService.queueTts. */
+    private fun queueTts(text: String) {
+        if (text.isBlank() || voice != VOICE_READER) return
+        if (ttsBuffer.isNotEmpty()) ttsBuffer.append(' ')
+        ttsBuffer.append(text)
+        val words = ttsBuffer.toString().trim().split(Regex("\\s+")).size
+        val flush = ttsBuffer.length >= 60 || words >= 8 ||
+            text.lastOrNull() in listOf('.', '!', '?', '。', '！', '？')
+        mainHandler.removeCallbacks(ttsFlush)
+        if (flush) flushTtsBuffer() else mainHandler.postDelayed(ttsFlush, 2_200L)
+    }
+
+    private fun flushTtsBuffer() {
+        mainHandler.removeCallbacks(ttsFlush)
+        val text = ttsBuffer.toString().trim()
+        ttsBuffer.clear()
+        if (text.isNotBlank()) speakWithReader(text)
+    }
+
+    /** Use the very same speech group and flags as SubtitleController's OCR speaker. */
     private fun speakWithReader(text: String) {
         if (text.isBlank()) return
-        val speech = TalkBackService.getInstance()?.speechController ?: return
-        val options = SpeechController.SpeakOptions.create()
-            .setQueueMode(SpeechController.QUEUE_MODE_QUEUE)
-            .setUtteranceGroup(SpeechController.UTTERANCE_GROUP_SUBTITLES)
-            .setFlags(FeedbackItem.FLAG_FORCE_FEEDBACK_EVEN_IF_AUDIO_PLAYBACK_ACTIVE)
-        speech.speak(text, Performance.EVENT_ID_UNTRACKED, options)
+        mainHandler.post {
+            val speech = TalkBackService.getInstance()?.speechController ?: return@post
+            val flags = FeedbackItem.FLAG_FORCE_FEEDBACK_EVEN_IF_AUDIO_PLAYBACK_ACTIVE or
+                FeedbackItem.FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP
+            val options = SpeechController.SpeakOptions.create()
+                .setQueueMode(SpeechController.QUEUE_MODE_QUEUE)
+                .setUtteranceGroup(SpeechController.UTTERANCE_GROUP_SUBTITLES)
+                .setFlags(flags)
+            speech.speak(text, Performance.EVENT_ID_UNTRACKED, options)
+        }
     }
 
     @SuppressLint("NewApi")
@@ -336,22 +330,13 @@ class InternalLiveRecognitionService : Service() {
         )
     }
 
-    private fun notification(message: String): Notification {
-        val open = PendingIntent.getActivity(this, 0,
-            Intent(this, InternalLiveRecognitionActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val stop = PendingIntent.getService(this, 1,
-            Intent(this, InternalLiveRecognitionService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(if (mode == MODE_TRANSCRIBE) "Chép lời âm thanh nội bộ" else "Dịch âm thanh nội bộ")
+    private fun notification(message: String): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Đọc phụ đề trực tuyến bằng Gemini")
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
             .setOngoing(true)
-            .setContentIntent(open)
-            .addAction(0, "Dừng", stop)
             .build()
-    }
 
     private fun notifyStatus(text: String) {
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
@@ -363,6 +348,10 @@ class InternalLiveRecognitionService : Service() {
     override fun onDestroy() {
         active = false
         running = false
+        mainHandler.removeCallbacks(ttsFlush)
+        ttsBuffer.clear()
+        TalkBackService.getInstance()?.speechController
+            ?.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_SUBTITLES)
         connectionGeneration++
         source?.stop()
         source = null
@@ -383,21 +372,14 @@ class InternalLiveRecognitionService : Service() {
     companion object {
         const val ACTION_START = "com.google.android.accessibility.talkback.liveaudio.START"
         const val ACTION_STOP = "com.google.android.accessibility.talkback.liveaudio.STOP"
-        const val EXTRA_MODE = "mode"
-        const val EXTRA_VOICE = "voice"
         const val EXTRA_PROJECTION_CODE = "projectionResultCode"
         const val EXTRA_PROJECTION_DATA = "projectionData"
-        const val MODE_TRANSLATE = "translate"
-        const val MODE_TRANSCRIBE = "transcribe"
         const val VOICE_GEMINI = "gemini"
         const val VOICE_READER = "reader"
         private const val TRANSLATE_MODEL = "gemini-3.5-live-translate-preview"
-        private const val TRANSCRIBE_MODEL = "gemini-3.5-transcribe-live"
         private const val CHANNEL_ID = "meridian_live_audio"
         private const val NOTIFICATION_ID = 8134
         @Volatile var running = false
-            private set
-        @Volatile var currentTranscript = ""
             private set
     }
 }

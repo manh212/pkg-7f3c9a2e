@@ -133,11 +133,9 @@ class GeminiLiveClient(
                     "generationConfig",
                     JSONObject()
                         .put("responseModalities", JSONArray().put("AUDIO"))
-                        .put("translationConfig", translationConfig),
+                        .put("translationConfig", translationConfig)
+                        .put("outputAudioTranscription", JSONObject()),
                 )
-                // As in the source's AI Studio R17 setup, also request the translated text
-                // so Meridian's screen reader voice option has words to speak.
-                setup.put("outputAudioTranscription", JSONObject())
                 setup.put(
                     "contextWindowCompression",
                     JSONObject().put("slidingWindow", JSONObject()),
