@@ -20,8 +20,19 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:key="pref_subtitle_speech" android:title="@string/subtitle_speech_title"
       android:defaultValue="finish" android:entries="@array/subtitle_speech_labels" android:entryValues="@array/subtitle_speech_values" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:key="pref_subtitle_gemini_voice" android:title="@string/subtitle_gemini_voice_title"
+      android:defaultValue="gemini" android:entries="@array/subtitle_gemini_voice_labels"
+      android:entryValues="@array/subtitle_gemini_voice_values" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:key="pref_subtitle_gemini_channel" android:title="@string/subtitle_gemini_channel_title"
+      android:defaultValue="accessibility" android:entries="@array/subtitle_gemini_channel_labels"
+      android:entryValues="@array/subtitle_gemini_channel_values" />
   <Preference
-      android:key="pref_internal_live_audio"
-      android:title="Dịch và chép lời âm thanh nội bộ bằng Gemini 3.5"
-      android:summary="Thu trực tiếp âm thanh trong máy, không dùng micro hoặc OCR hình ảnh" />
+      android:key="pref_gemini_api_key" android:title="@string/title_pref_gemini_api_key"
+      android:summary="@string/ai_provider_not_set" />
+  <Preference
+      android:key="pref_subtitle_gemini_privacy" android:selectable="false"
+      android:title="@string/subtitle_gemini_privacy_title"
+      android:summary="@string/subtitle_gemini_privacy_summary" />
 </PreferenceScreen>

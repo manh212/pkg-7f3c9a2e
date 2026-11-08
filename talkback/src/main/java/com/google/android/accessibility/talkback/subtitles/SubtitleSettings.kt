@@ -5,6 +5,13 @@ import android.graphics.Rect
 
 object SubtitleSettings {
   const val ENGINE = "pref_subtitle_engine"
+  const val LIVE_ENGINE = "gemini_live"
+  const val GEMINI_VOICE = "pref_subtitle_gemini_voice"
+  const val GEMINI_CHANNEL = "pref_subtitle_gemini_channel"
+  const val VOICE_GEMINI = "gemini"
+  const val VOICE_READER = "reader"
+  const val CHANNEL_MEDIA = "media"
+  const val CHANNEL_ACCESSIBILITY = "accessibility"
   const val REGION = "pref_subtitle_region"
   const val SPEECH = "pref_subtitle_speech"
   const val INTERVAL = "pref_subtitle_interval"
@@ -14,6 +21,10 @@ object SubtitleSettings {
   const val BOTTOM = "pref_subtitle_bottom"
 
   fun engine(prefs: SharedPreferences): String = prefs.getString(ENGINE, "tesseract") ?: "tesseract"
+  fun geminiVoice(prefs: SharedPreferences): String =
+    prefs.getString(GEMINI_VOICE, VOICE_GEMINI) ?: VOICE_GEMINI
+  fun geminiChannel(prefs: SharedPreferences): String =
+    prefs.getString(GEMINI_CHANNEL, CHANNEL_ACCESSIBILITY) ?: CHANNEL_ACCESSIBILITY
   fun region(prefs: SharedPreferences): String = prefs.getString(REGION, "auto") ?: "auto"
   fun interrupt(prefs: SharedPreferences): Boolean = prefs.getString(SPEECH, "finish") == "interrupt"
   fun interval(prefs: SharedPreferences): Long =

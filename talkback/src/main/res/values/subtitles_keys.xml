@@ -7,6 +7,15 @@
   <string-array name="subtitle_engine_values" translatable="false">
     <item>tesseract</item>
     <item>mlkit</item>
+    <item>gemini_live</item>
+  </string-array>
+  <string-array name="subtitle_gemini_voice_values" translatable="false">
+    <item>gemini</item>
+    <item>reader</item>
+  </string-array>
+  <string-array name="subtitle_gemini_channel_values" translatable="false">
+    <item>media</item>
+    <item>accessibility</item>
   </string-array>
   <string-array name="subtitle_region_values" translatable="false">
     <item>auto</item>

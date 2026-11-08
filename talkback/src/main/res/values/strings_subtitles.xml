@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-  <string name="subtitle_settings_title">Đọc phụ đề bằng OCR</string>
+  <string name="subtitle_settings_title">Nhận dạng phụ đề</string>
   <string name="subtitle_toggle">Bật hoặc tắt đọc phụ đề</string>
   <string name="subtitle_find_again">Tìm lại vùng phụ đề</string>
-  <string name="subtitle_engine_title">Công cụ OCR cho phụ đề</string>
+  <string name="subtitle_engine_title">Công cụ nhận dạng phụ đề</string>
+  <string name="subtitle_gemini_voice_title">Giọng nói bản dịch trực tuyến</string>
+  <string name="subtitle_gemini_channel_title">Kênh âm lượng của giọng Gemini</string>
+  <string name="subtitle_gemini_privacy_title">Dịch trực tuyến bằng Gemini</string>
+  <string name="subtitle_gemini_privacy_summary">Dịch âm thanh đang phát trong điện thoại bằng Gemini Live 3.5. Android sẽ yêu cầu quyền thu âm thanh màn hình khi bật đọc phụ đề. Âm thanh được gửi tới dịch vụ Gemini qua Internet; không sử dụng micro.</string>
   <string name="subtitle_download_title">Tải mô hình Tesseract tiếng Việt và tiếng Anh</string>
   <string name="subtitle_region_title">Vùng nhận dạng phụ đề</string>
   <string name="subtitle_interval_title">Khoảng thời gian quét</string>
@@ -33,6 +37,15 @@
   <string-array name="subtitle_engine_labels">
     <item>Tesseract — tiếng Việt và tiếng Anh</item>
     <item>ML Kit — chữ Latin</item>
+    <item>Gemini 3.5 — dịch âm thanh nội bộ trực tuyến</item>
+  </string-array>
+  <string-array name="subtitle_gemini_voice_labels">
+    <item>Giọng nói Gemini</item>
+    <item>Giọng đọc màn hình Meridian</item>
+  </string-array>
+  <string-array name="subtitle_gemini_channel_labels">
+    <item>Âm lượng phương tiện</item>
+    <item>Âm lượng trợ năng</item>
   </string-array>
   <string-array name="subtitle_region_labels">
     <item>Tự động tìm và giữ vùng phụ đề</item>
