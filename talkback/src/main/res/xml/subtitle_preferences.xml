@@ -20,4 +20,8 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:key="pref_subtitle_speech" android:title="@string/subtitle_speech_title"
       android:defaultValue="finish" android:entries="@array/subtitle_speech_labels" android:entryValues="@array/subtitle_speech_values" />
+  <Preference
+      android:key="pref_internal_live_audio"
+      android:title="Dịch và chép lời âm thanh nội bộ bằng Gemini 3.5"
+      android:summary="Thu trực tiếp âm thanh trong máy, không dùng micro hoặc OCR hình ảnh" />
 </PreferenceScreen>
