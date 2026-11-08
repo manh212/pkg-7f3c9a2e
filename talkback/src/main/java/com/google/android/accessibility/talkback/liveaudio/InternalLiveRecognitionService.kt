@@ -135,6 +135,7 @@ class InternalLiveRecognitionService : Service() {
             resumeHandle = resumeHandle,
             operationMode = operation,
             listener = object : GeminiLiveClient.Listener {
+                @SuppressLint("NewApi")
                 override fun onSetupComplete() {
                     if (!active || generation != connectionGeneration) return
                     reconnectAttempts = 0
