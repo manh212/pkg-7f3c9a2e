@@ -69,4 +69,11 @@
   <string name="translation_error_detection_downloading">Tính năng phát hiện ngôn ngữ đang tải xuống. Hãy thử lại sau giây lát.</string>
   <string name="translation_error"><xliff:g id="service" example="DeepL">%1$s</xliff:g> không dịch được văn bản.</string>
   <string name="translation_error_details"><xliff:g id="service" example="DeepL">%1$s</xliff:g> không dịch được văn bản: <xliff:g id="details" example="Wrong endpoint">%2$s</xliff:g></string>
+  <string name="title_pref_translation_bilingual">Đọc song ngữ</string>
+  <string name="title_pref_translation_bilingual_enabled">Bật đọc song ngữ</string>
+  <string name="title_pref_translation_bilingual_original_profile">Hồ sơ giọng nói bản gốc</string>
+  <string name="title_pref_translation_bilingual_translated_profile">Hồ sơ giọng nói bản dịch</string>
+  <string name="title_pref_translation_bilingual_order">Thứ tự đọc</string>
+  <string name="translation_bilingual_original_first">Bản gốc trước</string>
+  <string name="translation_bilingual_translated_first">Bản dịch trước</string>
 </resources>
