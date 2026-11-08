@@ -29,6 +29,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.BilingualSpeechText
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
@@ -179,7 +180,7 @@ internal constructor(
     val service = TranslationSettings.autoService(prefs, engine.onDeviceAvailable)
     val to = TranslationSettings.target(prefs)
     val key = translationKey(service, from, to, text)
-    translations.get(key)?.let { return done(spoken(it, to)) }
+    translations.get(key)?.let { return done(translated(text, it, to)) }
     val downloads =
       when {
         !downloadsFor(text, detection) -> Translator.Downloads.NONE
@@ -191,7 +192,7 @@ internal constructor(
       when (result) {
         is Translator.Result.Done -> {
           translations.put(key, result.translation.text)
-          done(spoken(result.translation.text, to))
+          done(translated(text, result.translation.text, to))
         }
         is Translator.Result.Downloading -> {
           announceDownload(result.languages)
@@ -221,8 +222,21 @@ internal constructor(
     engine.translate(text, service, from, to, Translator.Downloads.NONE, {}) { result ->
       if (result !is Translator.Result.Done || lastSeen != text) return@translate
       translations.put(translationKey(service, from, to, text), result.translation.text)
-      engine.speak(spoken(result.translation.text, to), history = true)
+      engine.speak(translated(text, result.translation.text, to), history = true)
     }
+  }
+
+  private fun translated(original: String, translation: String, to: String): CharSequence {
+    if (TranslationSettings.bilingual(prefs)) {
+      return BilingualSpeechText(
+        original,
+        translation,
+        TranslationSettings.originalProfile(prefs),
+        TranslationSettings.translatedProfile(prefs),
+        TranslationSettings.originalFirst(prefs),
+      )
+    }
+    return spoken(translation, to)
   }
 
   private fun spoken(translation: String, to: String): CharSequence {
