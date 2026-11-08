@@ -44,6 +44,11 @@
         android:title="@string/title_pref_translation_untranslated" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:key="pref_translation_bilingual_settings"
+      android:persistent="false"
+      android:title="@string/title_pref_translation_bilingual" />
+
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:key="pref_translation_speech"
       android:order="100"
