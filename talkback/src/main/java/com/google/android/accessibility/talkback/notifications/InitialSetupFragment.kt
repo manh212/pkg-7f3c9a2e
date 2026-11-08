@@ -57,7 +57,10 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   override fun onResume() {
     // Before the screen is built again, so that it is built where the walk has moved to.
     val context = requireContext()
-    flow.returnToScreen(steps().count { it.applicable(context) })
+    val availableSteps = steps().filter { it.applicable(context) }
+    val current = availableSteps.getOrNull(flow.step)
+    val granted = current?.status?.invoke(context) == Status.GRANTED
+    flow.returnToScreen(availableSteps.size, granted)
     super.onResume()
   }
 
