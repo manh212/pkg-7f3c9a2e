@@ -285,7 +285,7 @@
     <!-- Step of the initial setup: the battery saving that can stop Meridian while the phone rests. -->
     <string name="timer_setup_battery_title">Android battery optimization exemption</string>
     <!-- The battery step, held: Meridian is exempt from battery saving. -->
-    <string name="timer_setup_battery_granted">Android confirms Meridian is exempt from its battery optimizations. Phone-maker background restrictions are checked separately.</string>
+    <string name="timer_setup_battery_granted">Android confirms Meridian is exempt from its battery optimizations. Phone-maker background restrictions are independent and cannot be verified here.</string>
     <!-- The battery step, not held: the phone may still restrict Meridian while it rests. -->
     <string name="timer_setup_battery_missing">Android does not report a battery optimization exemption. A phone maker\'s unrestricted battery setting does not establish Android\'s exemption.</string>
     <!-- Action of the battery step: asks the system for the exemption. -->
