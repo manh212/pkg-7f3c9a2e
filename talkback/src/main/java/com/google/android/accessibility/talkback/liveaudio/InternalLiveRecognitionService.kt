@@ -344,7 +344,10 @@ class InternalLiveRecognitionService : Service() {
     }
 
     private fun createChannel() {
-        getSystemService(NotificationManager::class.java).createNotificationChannel(
+        val manager = getSystemService(NotificationManager::class.java)
+        // Discard the obsolete provider-identifying channel left by older builds.
+        manager.deleteNotificationChannel("meridian_live_audio")
+        manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Đọc phụ đề", NotificationManager.IMPORTANCE_LOW)
         )
     }

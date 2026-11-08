@@ -33,6 +33,7 @@ class SubtitleSettingsTest {
     assertEquals(listOf("tesseract", "mlkit", "gemini_live"),
       context.resources.getStringArray(R.array.subtitle_engine_values).toList())
     assertEquals(3, context.resources.getStringArray(R.array.subtitle_engine_labels).size)
+    assertEquals("Trực tuyến", context.resources.getStringArray(R.array.subtitle_engine_labels)[2])
     assertEquals("gemini", SubtitleSettings.geminiVoice(prefs))
     assertEquals("accessibility", SubtitleSettings.geminiChannel(prefs))
     prefs.edit().putString(SubtitleSettings.ENGINE, "gemini_live")

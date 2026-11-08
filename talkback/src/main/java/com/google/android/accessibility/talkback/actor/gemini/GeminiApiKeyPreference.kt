@@ -82,7 +82,7 @@ object GeminiApiKeyPreference {
         addView(field)
       }
     AlertDialog.Builder(context)
-      .setTitle(R.string.title_pref_gemini_api_key)
+      .setTitle(preference.title)
       .setMessage(R.string.gemini_api_key_dialog_message)
       .setView(container)
       .setPositiveButton(R.string.gemini_api_key_save) { _, _ ->
