@@ -942,6 +942,11 @@ public class FailoverTextToSpeech {
 
     LogUtils.i(TAG, "Speak: %s", text);
 
+    if (flushGlobalTtsQueue
+        && !params.containsKey(SpeechControllerImpl.SPEECH_PARAM_BILINGUAL_SEGMENT)) {
+      stopBilingualSpeech();
+    }
+
     int result;
 
     volume *= calculateVolumeAdjustment();
@@ -1024,6 +1029,13 @@ public class FailoverTextToSpeech {
               () -> onBilingualEngineReady(id, created, started[0], status)),
           engineName);
       created.engine = started[0];
+      mHandler.postDelayed(
+          () -> {
+            if (bilingualEngines.get(id) == created && !created.ready) {
+              onBilingualEngineReady(id, created, created.engine, TextToSpeech.ERROR);
+            }
+          },
+          4000);
     }
     ProfileSpeechEngine profileEngine = selected;
     int generation = bilingualSpeechGeneration;
