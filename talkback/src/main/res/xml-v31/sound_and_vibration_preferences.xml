@@ -2,6 +2,15 @@
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_soundback_default"
+      android:key="@string/pref_soundback_key"
+      android:title="@string/title_pref_soundback" />
+  <com.google.android.accessibility.talkback.preference.base.PercentSeekBarPreference
+      android:dependency="@string/pref_soundback_key"
+      android:key="@string/pref_soundback_volume_seekbar_key_int"
+      android:persistent="false"
+      android:title="@string/title_pref_soundback_volume" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="true"
       android:title="@string/title_pref_low_latency_audio"
       android:summary="@string/summary_pref_low_latency_audio"
@@ -11,15 +20,6 @@
       android:key="pref_mute_screen_reader_sounds_in_silent"
       android:title="@string/silent_sounds_title"
       android:summary="@string/silent_sounds_summary" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="@bool/pref_soundback_default"
-      android:key="@string/pref_soundback_key"
-      android:title="@string/title_pref_soundback" />
-  <com.google.android.accessibility.talkback.preference.base.PercentSeekBarPreference
-      android:dependency="@string/pref_soundback_key"
-      android:key="@string/pref_soundback_volume_seekbar_key_int"
-      android:persistent="false"
-      android:title="@string/title_pref_soundback_volume" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:defaultValue="@string/pref_audio_output_device_default"
       android:dialogTitle="@string/dialog_title_audio_output_device"
