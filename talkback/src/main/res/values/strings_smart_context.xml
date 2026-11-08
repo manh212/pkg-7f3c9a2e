@@ -9,6 +9,11 @@
     <string name="smart_context_common" tools:ignore="MissingTranslation">Cử chỉ chung cho tất cả ứng dụng</string>
     <string name="smart_context_applications" tools:ignore="MissingTranslation">Cử chỉ riêng của từng ứng dụng</string>
     <string name="smart_context_current_app" tools:ignore="MissingTranslation">Ứng dụng hiện tại</string>
+    <string name="smart_context_nearest_slider" tools:ignore="MissingTranslation">Điều khiển thanh trượt gần nhất</string>
+    <string name="smart_context_nearest_slider_summary" tools:ignore="MissingTranslation">Khi bật, vuốt lên hoặc xuống trong cử chỉ thông minh để tìm và điều chỉnh thanh trượt gần tiêu điểm nhất trên màn hình. Đọc giá trị sau mỗi lần chỉnh.</string>
+    <string name="smart_context_slider_not_found" tools:ignore="MissingTranslation">Không tìm thấy thanh trượt có thể điều chỉnh trên màn hình</string>
+    <string name="smart_context_slider_value" tools:ignore="MissingTranslation">Giá trị %1$s</string>
+    <string name="smart_context_slider_value_unknown" tools:ignore="MissingTranslation">Không đọc được giá trị của thanh trượt</string>
     <string name="smart_context_integrations" tools:ignore="MissingTranslation">Chức năng ngữ cảnh tích hợp</string>
     <string name="smart_context_search" tools:ignore="MissingTranslation">Tìm kiếm và cuộn</string>
     <string name="smart_context_up" tools:ignore="MissingTranslation">Vuốt lên</string>
