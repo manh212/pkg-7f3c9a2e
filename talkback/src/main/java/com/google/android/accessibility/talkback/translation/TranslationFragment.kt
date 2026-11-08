@@ -60,6 +60,7 @@ class TranslationFragment : TalkbackBaseFragment(R.xml.translation_preferences) 
     onClick("pref_translation_swap_action") { swap() }
     onClick("pref_translation_auto_service_choice") { chooseAutoService() }
     onClick("pref_translation_untranslated_choice") { chooseUntranslated() }
+    find("pref_translation_bilingual_settings").fragment = BilingualTranslationFragment::class.java.name
     for (key in listOf(TranslationSettings.PREF_AUTO, TranslationSettings.PREF_NOTIFICATIONS)) {
       findPreference<Preference>(key)!!.setOnPreferenceChangeListener { _, _ ->
 
