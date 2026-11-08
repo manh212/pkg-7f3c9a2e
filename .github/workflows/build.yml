@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [master, feat/vietnamese-task-assistant]
+    branches: [master, feat/vietnamese-task-assistant, feature/bilingual-translation-voice-profiles]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
