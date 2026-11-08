@@ -26,3 +26,15 @@ The capture/OCR watchdog times out after 8 seconds and invalidates stale callbac
 User action: enable YouTube captions/CC and play the video; grant overlay access in Android Settings the first time; return to YouTube and enable subtitle reading again.
 
 Caveats: secure/protected video surfaces may not be capturable; not every app exposes timed captions to accessibility. Compile, run CI tests, and verify capture/overlay behavior on Android 16 before release.
+
+## Burned-in video caption OCR recovery (2026-11-08)
+
+On-screen subtitles exposed as Android accessibility text are read directly. Subtitles *burned into video pixels* require a screenshot of the video player and OCR. In automatic mode, Meridian attempts to locate the video player's accessibility bounds (for instance, YouTube's `watch_player`) and scans those bounds, falling back to the application window when the player cannot be located.
+
+The OCR tracker distinguishes an empty screenshot recognition result, OCR text outside the subtitle region, pending stability, duplicates and newly detected subtitles. Other interface words cannot reset the missing-subtitle counter. Short captions are supported after the subtitle region is identified. Subtitle-region scanning recovers from repeated absence of candidates and stale unchanged UI text; it does not stay locked on one wrong region indefinitely.
+
+Image OCR now alternates normal frames with locally contrast-enhanced and potentially 2x upscaled frames after repeated misses, preserving original pixels on alternate frames. Tesseract uses sparse-text page segmentation for caption recognition; after continued misses or technical OCR errors, Meridian occasionally tries the other installed engine (Tesseract or ML Kit). Image bounding boxes are mapped back to screen coordinates before subtitle-region filtering.
+
+Privacy-friendly debug logs include the selected video viewport, screenshot size and crop, aggregate brightness/contrast, chosen OCR engine, returned line counts and filtering outcomes. Captured images and subtitle text are **not** stored or uploaded by this diagnostic. The screenshot still relies on Android's AccessibilityService screenshot API. Android may reject screenshots of secure windows or render protected video surfaces black; Meridian cannot OCR video pixels that the OS refuses to provide. The overlay permission grants only a visual status overlay and does not change screenshot access.
+
+Compilation/CI checks and a real-device YouTube test remain separate acceptance criteria; successful CI does not prove every video surface is capturable.
