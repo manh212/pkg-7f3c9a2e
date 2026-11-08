@@ -22,6 +22,7 @@ import androidx.core.content.edit
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.Locale
 
 enum class TranslationService(
@@ -64,6 +65,12 @@ object TranslationSettings {
   const val PREF_SOURCE = "pref_offline_translation_source_language"
   const val PREF_TARGET = "pref_offline_translation_target_language"
   const val PREF_SECOND_TARGET = "pref_translation_second_target"
+  const val PREF_BILINGUAL = "pref_translation_bilingual"
+  const val PREF_BILINGUAL_ORIGINAL_PROFILE = "pref_translation_bilingual_original_profile"
+  const val PREF_BILINGUAL_TRANSLATED_PROFILE = "pref_translation_bilingual_translated_profile"
+  const val PREF_BILINGUAL_ORDER = "pref_translation_bilingual_order"
+  const val BILINGUAL_ORIGINAL_FIRST = "original"
+  const val BILINGUAL_TRANSLATED_FIRST = "translated"
   const val PREF_TARGET_VOICE = "pref_translation_target_voice"
   const val PREF_SAY_SOURCE = "pref_translation_say_source"
   const val PREF_COPY = "pref_translation_copy"
@@ -153,6 +160,24 @@ object TranslationSettings {
       putString(PREF_SOURCE, target)
       putString(PREF_TARGET, source)
     }
+  }
+
+  fun bilingual(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_BILINGUAL, false)
+
+  fun originalFirst(prefs: SharedPreferences): Boolean =
+    prefs.getString(PREF_BILINGUAL_ORDER, BILINGUAL_ORIGINAL_FIRST) != BILINGUAL_TRANSLATED_FIRST
+
+  fun originalProfile(prefs: SharedPreferences): String = profile(prefs, PREF_BILINGUAL_ORIGINAL_PROFILE)
+
+  fun translatedProfile(prefs: SharedPreferences): String = profile(prefs, PREF_BILINGUAL_TRANSLATED_PROFILE)
+
+  private fun profile(prefs: SharedPreferences, key: String): String {
+    val id = prefs.getString(key, "").orEmpty()
+    if (id.isNotEmpty() && id !in VoiceProfiles.ids(prefs)) {
+      prefs.edit { putString(key, "") }
+      return ""
+    }
+    return id
   }
 
   fun targetVoice(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_TARGET_VOICE, true)
