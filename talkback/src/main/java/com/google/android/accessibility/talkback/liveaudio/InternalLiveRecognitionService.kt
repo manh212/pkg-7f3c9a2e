@@ -1,5 +1,6 @@
 package com.google.android.accessibility.talkback.liveaudio
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -70,6 +71,7 @@ class InternalLiveRecognitionService : Service() {
             return START_NOT_STICKY
         }
         if (intent?.action != ACTION_START) return START_NOT_STICKY
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) { stopSelf(); return START_NOT_STICKY }
         if (active) return START_NOT_STICKY
 
         mode = intent.getStringExtra(EXTRA_MODE).let { if (it == MODE_TRANSCRIBE) MODE_TRANSCRIBE else MODE_TRANSLATE }
@@ -138,7 +140,7 @@ class InternalLiveRecognitionService : Service() {
                     reconnectAttempts = 0
                     notifyStatus(if (mode == MODE_TRANSCRIBE)
                         "Đang nhận dạng lời nói từ âm thanh nội bộ" else "Đang dịch âm thanh nội bộ")
-                    if (source == null) launchSource()
+                    if (source == null) launchSource() else source?.resume()
                 }
 
                 override fun onText(text: String) {
@@ -202,6 +204,8 @@ class InternalLiveRecognitionService : Service() {
         liveClient.connect()
     }
 
+    // API 29+ is enforced at the service entry and in the capture-request Activity.
+    @SuppressLint("NewApi")
     private fun launchSource() {
         val projection = projection ?: return
         val capture = InternalAudioSource(this, projection, logger)
@@ -303,6 +307,7 @@ class InternalLiveRecognitionService : Service() {
         speech.speak(text, Performance.EVENT_ID_UNTRACKED, options)
     }
 
+    @SuppressLint("NewApi")
     private fun reconnect(key: String) {
         if (!active) return
         reconnectAttempts++
@@ -319,9 +324,8 @@ class InternalLiveRecognitionService : Service() {
         scope.launch {
             delay(minOf(1_000L * reconnectAttempts, 5_000L))
             if (!active) return@launch
+            // Match the original source: resume capture only after Gemini setup completes.
             connectGemini(key)
-            // The original source drains buffered internal audio on resume.
-            source?.resume()
         }
     }
 
@@ -354,6 +358,7 @@ class InternalLiveRecognitionService : Service() {
 
     private fun announce(text: String) = speakWithReader(text)
 
+    @SuppressLint("NewApi")
     override fun onDestroy() {
         active = false
         running = false
