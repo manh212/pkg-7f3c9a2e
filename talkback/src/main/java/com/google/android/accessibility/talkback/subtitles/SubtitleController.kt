@@ -70,6 +70,8 @@ class SubtitleController internal constructor(
   private var generation = 0
   private var owner = ""
   private var viewport = Rect()
+  private var ocrViewport = Rect()
+  private var lastVideoViewportCheck = 0L
   private var focus: Rect? = null
   private var tracker = SubtitleTracker(true)
   private var accessibilityTracker = SubtitleTracker(true)
@@ -158,6 +160,9 @@ class SubtitleController internal constructor(
       focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)?.let { node ->
         try { Rect().also { node.getBoundsInScreen(it) } } finally { node.recycle() }
       }
+      ocrViewport = if (SubtitleSettings.region(prefs) == "auto")
+        SubtitleVideoViewport.find(root, viewport) ?: Rect(viewport) else Rect(viewport)
+      lastVideoViewportCheck = SystemClock.uptimeMillis()
     } finally { root.recycle() }
     if (owner.isEmpty() || viewport.isEmpty) {
       announce(service.getString(R.string.subtitle_no_window))
@@ -176,8 +181,9 @@ class SubtitleController internal constructor(
     missingWindowSince = 0L
     lastDelivered = ""
     active = true
-    LogUtils.i(TAG, "Started owner=%s engine=%s region=%s interval=%d",
-      owner, SubtitleSettings.engine(prefs), SubtitleSettings.region(prefs), SubtitleSettings.interval(prefs))
+    LogUtils.i(TAG, "Started owner=%s engine=%s region=%s interval=%d ocrViewport=%s",
+      owner, SubtitleSettings.engine(prefs), SubtitleSettings.region(prefs),
+      SubtitleSettings.interval(prefs), ocrViewport)
     setStatus("Đang tìm phụ đề")
     generation++
     failures = 0
@@ -255,6 +261,7 @@ class SubtitleController internal constructor(
     if ((event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
       event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) &&
       event.packageName?.toString() == owner) {
+      refreshVideoViewport()
       readAccessibleSubtitle(event)
     }
   }
@@ -272,6 +279,29 @@ class SubtitleController internal constructor(
       candidate.recycle()
     }
     return activeRoot
+  }
+
+  private fun refreshVideoViewport() {
+    if (!active || SubtitleSettings.region(prefs) != "auto") return
+    val now = SystemClock.uptimeMillis()
+    if (now - lastVideoViewportCheck < 3000L) return
+    lastVideoViewportCheck = now
+    val root = foregroundRoot() ?: return
+    try {
+      if (root.packageName?.toString() != owner) return
+      val next = SubtitleVideoViewport.find(root, viewport) ?: Rect(viewport)
+      if (next == ocrViewport) return
+      LogUtils.i(TAG, "Video viewport changed: %s -> %s", ocrViewport, next)
+      ocrViewport = next
+      generation++
+      capturePending = false
+      handler.removeCallbacks(captureTimeout)
+      overlay.restoreAfterCapture()
+      tracker.reset()
+      emptyFrames = 0
+      noTextAnnounced = false
+      schedule()
+    } finally { root.recycle() }
   }
 
   private fun sameApplication(): Boolean {
@@ -295,7 +325,9 @@ class SubtitleController internal constructor(
         capturePending = false
         handler.removeCallbacks(captureTimeout)
         overlay.restoreAfterCapture()
-        tracker.resize(viewport, bounds)
+        val previousOcrViewport = Rect(ocrViewport)
+        ocrViewport = SubtitleTracker.resizeBounds(ocrViewport, viewport, bounds)
+        tracker.resize(previousOcrViewport, ocrViewport)
         accessibilityTracker.resize(viewport, bounds)
         focus = focus?.let { SubtitleTracker.resizeBounds(it, viewport, bounds) }
         viewport = bounds
@@ -339,7 +371,8 @@ class SubtitleController internal constructor(
               complete(request, null)
               return
             }
-            val region = Rect(tracker.lockedBounds ?: SubtitleSettings.bounds(prefs, viewport, focus) ?: viewport)
+            val region = Rect(tracker.lockedBounds ?: if (SubtitleSettings.region(prefs) == "auto")
+              ocrViewport else (SubtitleSettings.bounds(prefs, viewport, focus) ?: viewport))
             if (!region.intersect(0, 0, bitmap.width, bitmap.height) || region.isEmpty) {
               LogUtils.w(TAG, "Invalid screenshot crop: bitmap=%dx%d", bitmap.width, bitmap.height)
               bitmap.recycle()
@@ -363,7 +396,8 @@ class SubtitleController internal constructor(
             val enhance = emptyFrames >= 3 && emptyFrames % 2 == 1
             val preferredEngine = SubtitleSettings.engine(prefs)
             val fallbackEngine = if (preferredEngine == "tesseract") "mlkit" else "tesseract"
-            val useFallback = emptyFrames >= 6 && emptyFrames % 4 == 2 &&
+            val useFallback = (failures > 0 && failures % 2 == 1 ||
+              emptyFrames >= 6 && emptyFrames % 4 == 2) &&
               (fallbackEngine != "tesseract" || TesseractOcr.isDataDownloaded(service))
             val engine = if (useFallback) fallbackEngine else preferredEngine
             LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d engine=%s enhanced=%s",
@@ -454,7 +488,7 @@ class SubtitleController internal constructor(
     if (request != generation) { schedule(); return }
     if (lines == null) { captureFailed("screenshot/recognizer"); return }
     failures = 0
-    val result = tracker.observeFrame(lines, viewport)
+    val result = tracker.observeFrame(lines, ocrViewport)
     val hasCandidate = result.candidateLines > 0
     LogUtils.d(TAG, "OCR frame: rawLines=%d candidateLines=%d state=%s locked=%s released=%s",
       lines.size, result.candidateLines, result.status, tracker.lockedBounds != null, result.regionReleased)
@@ -485,8 +519,9 @@ class SubtitleController internal constructor(
       setStatus("Chưa tìm thấy chữ phụ đề")
       announce("Chưa tìm thấy phụ đề trên màn hình. $reason")
     }
-    if (!hasCandidate && result.status == SubtitleFrameStatus.WAITING_FOR_STABILITY) {
-      setStatus("Đang xác định vùng phụ đề")
+    if (result.status == SubtitleFrameStatus.WAITING_FOR_STABILITY) {
+      setStatus(if (tracker.lockedBounds == null) "Đang xác định vùng phụ đề"
+        else "Đang xác nhận dòng phụ đề")
     }
     if (!tracker.visible && !accessibilityTracker.visible) {
       pendingText = null
