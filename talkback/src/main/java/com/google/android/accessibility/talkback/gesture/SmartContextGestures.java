@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.telephony.TelephonyManager;
@@ -17,6 +18,8 @@ import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.output.SpeechController;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +40,7 @@ public final class SmartContextGestures {
   public static final String PREF_TEXT_RULES_ENABLED = "smart_context_text_rules_enabled";
   public static final String PREF_AUTO_SWITCH = "smart_context_auto_switch";
   public static final String PREF_MAX_SCROLL = "smart_context_max_scroll";
+  public static final String PREF_NEAREST_SLIDER = "smart_context_nearest_visible_slider";
   public static final String PREF_PRIORITIES = "smart_context_priorities";
   private static final String RULE_PREFIX = "smart_context_rules_";
   private static final String MODE_PREFIX = "smart_context_mode_";
@@ -189,6 +193,10 @@ public final class SmartContextGestures {
     prefs(context).edit().putBoolean("smart_context_builtin_" + name, enabled).apply();
   }
 
+  public static boolean isNearestSliderEnabled(Context context) {
+    return prefs(context).getBoolean(PREF_NEAREST_SLIDER, false);
+  }
+
   public static List<String> priorities(Context context) {
     List<String> result = new ArrayList<>();
     String saved = prefs(context).getString(PREF_PRIORITIES, "");
@@ -246,6 +254,7 @@ public final class SmartContextGestures {
     AccessibilityNodeInfo root = service.getRootInActiveWindow();
     if (root == null || root.getPackageName() == null) return false;
     String packageName = root.getPackageName().toString();
+    if (isNearestSliderEnabled(service) && findNearestSlider(root) != null) return true;
     if (findMatch(root, getEffectiveRules(service, packageName, false)) != null
         || findMatch(root, getEffectiveRules(service, packageName, true)) != null) return true;
 
@@ -297,11 +306,17 @@ public final class SmartContextGestures {
       say(service, service.getString(R.string.smart_context_no_match));
       return;
     }
+    boolean nearestSliderEnabled = isNearestSliderEnabled(service);
+    if (nearestSliderEnabled) {
+      AccessibilityNodeInfo root = service.getRootInActiveWindow();
+      if (root != null && adjustNearestSlider(service, root, down)) return;
+    }
     boolean builtin = false;
     for (String name : BUILTINS) builtin |= isBuiltinEnabled(service, name);
     List<Rule> rules = getEffectiveRules(service, packageName, down);
     if (!builtin && rules.isEmpty()) {
-      say(service, service.getString(R.string.smart_context_not_configured));
+      say(service, service.getString(nearestSliderEnabled
+          ? R.string.smart_context_slider_not_found : R.string.smart_context_not_configured));
       return;
     }
     Search search = new Search(service, packageName, down, rules);
@@ -365,6 +380,132 @@ public final class SmartContextGestures {
       }
     }
     return nodes;
+  }
+
+
+  /** Finds the adjustable slider closest to accessibility focus on the current visible screen. */
+  static AccessibilityNodeInfo findNearestSlider(AccessibilityNodeInfo root) {
+    if (root == null) return null;
+    AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+    Rect focusBounds = new Rect();
+    if (focus != null) focus.getBoundsInScreen(focusBounds);
+    Candidate best = null;
+    int order = 0;
+    for (AccessibilityNodeInfo node : visibleNodes(root)) {
+      if (!isAdjustableSlider(node)) {
+        order++;
+        continue;
+      }
+      Rect bounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      if (bounds.isEmpty()) {
+        order++;
+        continue;
+      }
+      long proximity = focusBounds.isEmpty() ? 0 : distance(bounds, focusBounds);
+      if (best == null || proximity < best.distance) {
+        best = new Candidate(node, proximity, order);
+      }
+      order++;
+    }
+    return best == null ? null : best.node;
+  }
+
+  /** A progress indicator is not a slider unless accessibility reports adjustment actions. */
+  static boolean isAdjustableSlider(AccessibilityNodeInfo node) {
+    if (node == null || !node.isVisibleToUser() || !node.isEnabled()) return false;
+    CharSequence className = node.getClassName();
+    String type = className == null ? "" : className.toString();
+    boolean sliderType = type.contains("SeekBar") || type.contains("Slider")
+        || type.contains("RatingBar");
+    if (!sliderType && node.getRangeInfo() == null) return false;
+    return hasAction(node, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+        || hasAction(node, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+        || hasAction(node,
+            AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId());
+  }
+
+  private static boolean hasAction(AccessibilityNodeInfo node, int id) {
+    for (AccessibilityNodeInfo.AccessibilityAction action : node.getActionList()) {
+      if (action.getId() == id) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Uses the same reading-control up/down gestures to change the nearest visible slider.
+   * Focusing it first makes subsequent adjustments continue to target that very slider.
+   */
+  private static boolean adjustNearestSlider(
+      TalkBackService service, AccessibilityNodeInfo root, boolean increase) {
+    AccessibilityNodeInfo target = findNearestSlider(root);
+    if (target == null) return false;
+    if (!target.isAccessibilityFocused()) {
+      target.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);
+    }
+    int scroll = increase
+        ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD;
+    boolean adjusted = hasAction(target, scroll) && target.performAction(scroll);
+    if (!adjusted) adjusted = setSliderProgress(target, increase);
+    // Even at an end stop, report its current value instead of invoking another action.
+    MAIN.postDelayed(() -> announceSliderValue(service, target), adjusted ? 130 : 30);
+    return true;
+  }
+
+  /** Some Material sliders expose SET_PROGRESS rather than forward/backward actions. */
+  private static boolean setSliderProgress(AccessibilityNodeInfo target, boolean increase) {
+    if (!hasAction(target,
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId())) return false;
+    AccessibilityNodeInfo.RangeInfo range = target.getRangeInfo();
+    if (range == null) return false;
+    float minimum = range.getMin();
+    float maximum = range.getMax();
+    if (!(maximum > minimum)) return false;
+    float span = maximum - minimum;
+    float step = range.getType() == AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT
+        ? Math.max(1f, Math.round(span / 20f)) : span / 20f;
+    float desired = Math.max(minimum,
+        Math.min(maximum, range.getCurrent() + (increase ? step : -step)));
+    if (desired == range.getCurrent()) return false;
+    Bundle arguments = new Bundle();
+    arguments.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, desired);
+    return target.performAction(
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(), arguments);
+  }
+
+  /** Reads the refreshed value, not the value cached before the adjustment gesture. */
+  private static void announceSliderValue(TalkBackService service, AccessibilityNodeInfo target) {
+    AccessibilityNodeInfo activeRoot = service.getRootInActiveWindow();
+    AccessibilityNodeInfo node = target.refresh() ? target
+        : activeRoot == null ? null
+            : activeRoot.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+    String value = sliderValue(node);
+    String message = value.isEmpty()
+        ? service.getString(R.string.smart_context_slider_value_unknown)
+        : service.getString(R.string.smart_context_slider_value, value);
+    if (service.getSpeechController() != null) {
+      service.getSpeechController().speak(message, Performance.EVENT_ID_UNTRACKED,
+          SpeechController.SpeakOptions.create()
+              .setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT));
+    }
+  }
+
+  static String sliderValue(AccessibilityNodeInfo node) {
+    if (node == null) return "";
+    if (android.os.Build.VERSION.SDK_INT >= 30
+        && !TextUtils.isEmpty(node.getStateDescription())) {
+      return node.getStateDescription().toString();
+    }
+    AccessibilityNodeInfo.RangeInfo range = node.getRangeInfo();
+    if (range != null) {
+      String number = BigDecimal.valueOf(range.getCurrent())
+          .setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+      return range.getType() == AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_PERCENT
+          ? number + "%" : number;
+    }
+    if (!TextUtils.isEmpty(node.getText())) return node.getText().toString();
+    return asText(node.getContentDescription());
   }
 
   private static Candidate findMatch(AccessibilityNodeInfo root, List<Rule> rules) {
