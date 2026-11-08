@@ -11,6 +11,14 @@
       android:fragment="com.google.android.accessibility.talkback.preference.base.OcrSettingsFragment"
       android:title="@string/title_pref_ocr_settings" />
   <Preference
+      android:key="pref_internal_live_audio"
+      android:title="Dịch và chép lời âm thanh nội bộ bằng Gemini 3.5"
+      android:summary="Hai chế độ Gemini Live Translate và Transcribe Live; chọn giọng Gemini hoặc Meridian" />
+  <Preference
+      android:key="pref_gemini_api_key"
+      android:title="@string/title_pref_gemini_api_key"
+      android:summary="@string/ai_provider_not_set" />
+  <Preference
       android:key="screen_recognition_privacy"
       android:selectable="false"
       android:title="@string/screen_recognition_ai_privacy_title"
