@@ -105,6 +105,8 @@ class SubtitleControllerTest {
   }
 
   @Test fun emptyFramesAnnounceOnceWithoutBeingTreatedAsCaptureErrors() {
+    // Ensure the idle-no-text threshold is satisfied even with Robolectric's small uptime.
+    set("lastDeliveredAt", -10_000L)
     val request = get("generation") as Int
     repeat(8) { frameEmpty(request) }
     assertTrue(get("active") as Boolean)
