@@ -560,6 +560,7 @@ public class FailoverTextToSpeech {
         } else if (SpeechEqualizer.isKey(key)) {
           equalizerGains = SpeechEqualizer.inUse(sharedPrefs);
         } else if (VoiceProfiles.isProfileKey(key)) {
+          clearBilingualEngines();
           readVoiceProfile(sharedPrefs);
           updateWarmEngines();
           equalizerGains = SpeechEqualizer.inUse(sharedPrefs);
@@ -594,6 +595,19 @@ public class FailoverTextToSpeech {
   private long voiceProfileEngineWaitEnd;
 
   private final Map<String, TextToSpeech> warmEngines = new HashMap<>();
+  private final Map<String, ProfileSpeechEngine> bilingualEngines = new HashMap<>();
+  private int bilingualSpeechGeneration;
+
+  private static final class ProfileSpeechEngine {
+    final VoiceProfile profile;
+    final List<Runnable> pending = new ArrayList<>();
+    TextToSpeech engine;
+    boolean ready;
+
+    ProfileSpeechEngine(VoiceProfile profile) {
+      this.profile = profile;
+    }
+  }
 
   private @Nullable String previousEngine;
 
@@ -936,6 +950,16 @@ public class FailoverTextToSpeech {
       wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/);
     }
 
+    String profileId = params.get(SpeechControllerImpl.SPEECH_PARAM_VOICE_PROFILE);
+    if (profileId != null && !profileId.isEmpty()
+        && VoiceProfiles.ids(SharedPreferencesUtils.getSharedPreferences(context)).contains(profileId)) {
+      speakWithBilingualProfile(
+          profileId, text, locale, pitch, rate, new HashMap<>(params),
+          new HashMap<>(customFlags), stream, volume, preventDeviceSleep,
+          flushGlobalTtsQueue, eventId);
+      return;
+    }
+
     Exception failureException = null;
     try {
       result =
@@ -970,6 +994,138 @@ public class FailoverTextToSpeech {
 
       mHandler.onUtteranceCompleted(params.get(Engine.KEY_PARAM_UTTERANCE_ID), /* success= */ true);
     }
+  }
+
+  private void speakWithBilingualProfile(
+      String id,
+      CharSequence text,
+      @Nullable Locale locale,
+      float pitch,
+      float rate,
+      Map<String, String> params,
+      Map<String, Integer> flags,
+      int stream,
+      float volume,
+      boolean preventDeviceSleep,
+      boolean flush,
+      EventId eventId) {
+    ProfileSpeechEngine selected = bilingualEngines.get(id);
+    if (selected == null) {
+      VoiceProfile profile = VoiceProfiles.read(
+          SharedPreferencesUtils.getSharedPreferences(context), id);
+      selected = new ProfileSpeechEngine(profile);
+      bilingualEngines.put(id, selected);
+      ProfileSpeechEngine created = selected;
+      String engineName = engineToUse(profile.engine());
+      TextToSpeech[] started = new TextToSpeech[1];
+      started[0] = new TextToSpeech(
+          context,
+          status -> mHandler.post(
+              () -> onBilingualEngineReady(id, created, started[0], status)),
+          engineName);
+      created.engine = started[0];
+    }
+    ProfileSpeechEngine profileEngine = selected;
+    int generation = bilingualSpeechGeneration;
+    Runnable request = () -> {
+      if (generation != bilingualSpeechGeneration) return;
+      if (profileEngine.ready) {
+        try {
+          TextToSpeech voice = profileEngine.engine;
+          voice.setSpeechRate(rate * defaultRate);
+          voice.setPitch(pitch * defaultPitch);
+          Bundle bundle = new Bundle();
+          for (Map.Entry<String, String> param : params.entrySet()) {
+            bundle.putString(param.getKey(), param.getValue());
+          }
+          bundle.putInt(Engine.KEY_PARAM_STREAM, stream);
+          bundle.putFloat(SpeechParam.VOLUME, Math.max(0f, Math.min(1f, volume)));
+          int spoken = voice.speak(
+              text, flush ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD,
+              bundle, params.get(Engine.KEY_PARAM_UTTERANCE_ID));
+          if (spoken == TextToSpeech.SUCCESS) return;
+        } catch (RuntimeException e) {
+          LogUtils.w(TAG, "Bilingual voice profile speech failed: %s", e);
+        }
+      }
+      Map<String, String> fallbackParams = new HashMap<>(params);
+      fallbackParams.remove(SpeechControllerImpl.SPEECH_PARAM_VOICE_PROFILE);
+      speakNow(
+          text, locale, pitch, rate, fallbackParams, flags, stream, volume,
+          preventDeviceSleep, flush, eventId);
+    };
+    if (selected.ready) request.run();
+    else selected.pending.add(request);
+  }
+
+  private void onBilingualEngineReady(
+      String id, ProfileSpeechEngine selected, TextToSpeech engine, int status) {
+    if (bilingualEngines.get(id) != selected) {
+      TextToSpeechUtils.attemptTtsShutdown(engine);
+      return;
+    }
+    if (status == TextToSpeech.SUCCESS && engine != null) {
+      selected.ready = true;
+      engine.setOnUtteranceProgressListener(lowLatencyRouter);
+      engine.setAudioAttributes(
+          new AudioAttributes.Builder()
+              .setUsage(speechUsage(context))
+              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+              .build());
+      VoiceProfile profile = selected.profile;
+      boolean found = false;
+      try {
+        if (!profile.voice().isEmpty()) {
+          Set<Voice> voices = engine.getVoices();
+          if (voices != null) {
+            for (Voice voice : voices) {
+              if (profile.voice().equals(voice.getName())
+                  && engine.setVoice(voice) == TextToSpeech.SUCCESS) {
+                found = true;
+                break;
+              }
+            }
+          }
+        }
+        if (!found && !profile.language().isEmpty()) {
+          found = !isNotAvailableStatus(
+              engine.setLanguage(Locale.forLanguageTag(profile.language())));
+        }
+        if (!found && engine.getDefaultVoice() != null) {
+          engine.setVoice(engine.getDefaultVoice());
+        }
+      } catch (RuntimeException e) {
+        LogUtils.w(TAG, "Bilingual voice profile could not select voice: %s", e);
+      }
+    } else {
+      bilingualEngines.remove(id);
+      TextToSpeechUtils.attemptTtsShutdown(engine);
+    }
+    List<Runnable> waiting = new ArrayList<>(selected.pending);
+    selected.pending.clear();
+    for (Runnable speech : waiting) speech.run();
+  }
+
+  private void stopBilingualSpeech() {
+    bilingualSpeechGeneration++;
+    for (ProfileSpeechEngine profile : bilingualEngines.values()) {
+      profile.pending.clear();
+      if (profile.ready) {
+        try {
+          profile.engine.stop();
+        } catch (RuntimeException e) {
+          LogUtils.w(TAG, "Could not stop bilingual voice profile: %s", e);
+        }
+      }
+    }
+  }
+
+  private void clearBilingualEngines() {
+    stopBilingualSpeech();
+    for (ProfileSpeechEngine profile : bilingualEngines.values()) {
+      TextToSpeechUtils.attemptTtsShutdown(profile.engine);
+    }
+    bilingualEngines.clear();
   }
 
   private boolean callAudioEnding() {
@@ -1099,6 +1255,7 @@ public class FailoverTextToSpeech {
 
   /** Stops speech from all applications. No utterance callbacks will be sent. */
   public void stopAll() {
+    stopBilingualSpeech();
     dropAfterCallSpeech();
     dropHeldSpeech();
     stopLowLatencySpeech();
@@ -1114,6 +1271,7 @@ public class FailoverTextToSpeech {
 
   /** Stops all speech that originated from TalkBack. No utterance callbacks will be sent. */
   public void stopFromTalkBack() {
+    stopBilingualSpeech();
     dropAfterCallSpeech();
     if (holdLowLatencySpeech()) {
       // The engine keeps making the held speech, so it can carry on if speech is paused.
@@ -1161,6 +1319,7 @@ public class FailoverTextToSpeech {
     for (TextToSpeech warm : warmEngines.values()) {
       TextToSpeechUtils.attemptTtsShutdown(warm);
     }
+    clearBilingualEngines();
     warmEngines.clear();
     warmEnginesReady.clear();
     warmEngineVoices.clear();
