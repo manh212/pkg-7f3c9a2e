@@ -144,6 +144,7 @@ public class SpeechControllerImpl implements SpeechController {
 
   public static final String SPEECH_PARAM_RELEASED = "sandfly.released";
   public static final String SPEECH_PARAM_VOICE_PROFILE = "sandfly.voiceProfile";
+  private static final String SPEECH_PARAM_BILINGUAL_SEGMENT = "sandfly.bilingualSegment";
   private long bilingualInterruptionGeneration;
 
   private static volatile @Nullable SpeechHold speechHold;
@@ -1291,7 +1292,8 @@ public class SpeechControllerImpl implements SpeechController {
     }
 
     boolean released = speechParams != null && speechParams.containsKey(SPEECH_PARAM_RELEASED);
-    if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0 && !released) {
+    if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0
+        && (speechParams == null || !speechParams.containsKey(SPEECH_PARAM_BILINGUAL_SEGMENT))) {
       bilingualInterruptionGeneration++;
     }
     // Speech a hold released has been through the dictionary already.
@@ -1415,6 +1417,7 @@ public class SpeechControllerImpl implements SpeechController {
   private static Bundle bilingualParams(@Nullable Bundle original, String profile) {
     Bundle params = original == null ? new Bundle() : new Bundle(original);
     params.putBoolean(SPEECH_PARAM_RELEASED, true);
+    params.putBoolean(SPEECH_PARAM_BILINGUAL_SEGMENT, true);
     if (profile.isEmpty()) {
       params.remove(SPEECH_PARAM_VOICE_PROFILE);
     } else {
