@@ -80,6 +80,7 @@
     <!-- Required for calling Service.startForeground after API 28. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- Required for Primes. -->
     <uses-permission android:name="android.permission.GET_PACKAGE_SIZE" />
@@ -135,6 +136,15 @@
         android:supportsRtl="true"
         android:fullBackupContent="@xml/meridian_backup_rules"
         android:dataExtractionRules="@xml/meridian_data_extraction_rules">
+        <!-- Gemini 3.5 live internal audio: Activity obtains system capture consent. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity"
+            android:exported="false" />
+        <service
+            android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
         <activity
             android:name="com.google.android.accessibility.talkback.licensing.ForumActivity"
             android:exported="false"
