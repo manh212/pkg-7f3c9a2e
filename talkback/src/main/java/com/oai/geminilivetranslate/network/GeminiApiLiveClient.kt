@@ -93,7 +93,7 @@ internal class GeminiApiLiveClient(
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 setupComplete.set(false)
                 if (explicitlyClosed.get()) return
-                logger.log(0, "GeminiWS", "Kết nối API thất bại HTTP=${response?.code}", t)
+                logger.log(0, "GeminiWS", "Kết nối API thất bại HTTP=${response?.code()}", t)
                 deliverError(normalizeError(t, response))
             }
         })
@@ -145,8 +145,8 @@ internal class GeminiApiLiveClient(
             "Đóng API parser server=${stats.serverContentEvents} inputText=${stats.inputTranscriptEvents} outputObjects=${stats.outputTranscriptionObjects} outputText=${stats.outputTextEvents} modelText=${stats.modelTextEvents} dispatch=${stats.textDispatchEvents} audioChunks=${stats.audioChunks} audioBytes=${stats.audioBytes} turns=${stats.turnCompleteEvents}",
         )
         if (graceful) current?.close(1000, "client stop") else current?.cancel()
-        httpClient.dispatcher.executorService.shutdown()
-        httpClient.connectionPool.evictAll()
+        httpClient.dispatcher().executorService().shutdown()
+        httpClient.connectionPool().evictAll()
     }
 
     private fun sendRealtimePayload(payload: String): GeminiLiveClient.SendResult {
@@ -286,7 +286,7 @@ internal class GeminiApiLiveClient(
 
     private fun normalizeError(error: Throwable, response: Response?): Throwable {
         if (response == null) return error
-        return GeminiLiveClient.GeminiApiException(response.code, response.message.ifBlank { error.message.orEmpty() })
+        return GeminiLiveClient.GeminiApiException(response.code(), response.message().ifBlank { error.message.orEmpty() })
     }
 
     companion object {
