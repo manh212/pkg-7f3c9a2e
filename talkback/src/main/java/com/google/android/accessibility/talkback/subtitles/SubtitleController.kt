@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -14,6 +16,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
@@ -24,6 +27,7 @@ import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.screencapture.ScreenshotCapture
 import com.google.android.libraries.accessibility.utils.screencapture.ScreenCaptureController.CaptureListener
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -68,19 +72,40 @@ class SubtitleController internal constructor(
   private var viewport = Rect()
   private var focus: Rect? = null
   private var tracker = SubtitleTracker(true)
+  private var accessibilityTracker = SubtitleTracker(true)
+  private val overlay = SubtitleOverlay(service)
   private var capturePending = false
   private var failures = 0
+  private var emptyFrames = 0
+  private var noTextAnnounced = false
+  private var missingWindowSince = 0L
+  private var lastDelivered = ""
+  private var lastDeliveredAt = 0L
+  private var status = ""
+  private val captureTimeout = Runnable {
+    if (active && capturePending) {
+      LogUtils.w(TAG, "Screenshot/OCR deadline exceeded")
+      generation++
+      capturePending = false
+      overlay.restoreAfterCapture()
+      captureFailed("timeout")
+    }
+  }
   private var pendingText: String? = null
   private var pendingAt = 0L
   private var quietUntil = 0L
   private var receiverRegistered = false
   private var closed = false
   private val capture = Runnable { captureFrame() }
+  private companion object {
+    const val TAG = "SubtitleController"
+    const val CAPTURE_TIMEOUT_MS = 8_000L
+  }
   private val speakPending = object : Runnable {
     override fun run() {
       if (!active || pendingText == null) return
       val now = SystemClock.uptimeMillis()
-      if (now - pendingAt > 4000L || !tracker.visible) {
+      if (now - pendingAt > 5000L || (!tracker.visible && !accessibilityTracker.visible)) {
         pendingText = null
         return
       }
@@ -104,6 +129,17 @@ class SubtitleController internal constructor(
       return
     }
     if (closed) return
+    // The special permission powers the visible overlay, NOT screenshot OCR.
+    if (service is TalkBackService && !Settings.canDrawOverlays(service)) {
+      announce("Hãy cấp quyền Hiển thị trên các ứng dụng khác cho lớp phủ trạng thái phụ đề, rồi bật lại tính năng.")
+      try {
+        service.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+          Uri.parse("package:" + service.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      } catch (e: RuntimeException) {
+        LogUtils.w(TAG, "Cannot launch overlay permission page: %s", e.message)
+      }
+      return
+    }
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
       announce(service.getString(R.string.subtitle_requires_android))
       return
@@ -112,7 +148,7 @@ class SubtitleController internal constructor(
       announce(service.getString(R.string.subtitle_model_missing))
       return
     }
-    val root = service.rootInActiveWindow
+    val root = foregroundRoot()
     if (root == null) { announce(service.getString(R.string.subtitle_no_window)); return }
     try {
       owner = root.packageName?.toString().orEmpty()
@@ -130,7 +166,15 @@ class SubtitleController internal constructor(
       return
     }
     tracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto")
+    accessibilityTracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto")
+    emptyFrames = 0
+    noTextAnnounced = false
+    missingWindowSince = 0L
+    lastDelivered = ""
     active = true
+    LogUtils.i(TAG, "Started owner=%s engine=%s region=%s interval=%d",
+      owner, SubtitleSettings.engine(prefs), SubtitleSettings.region(prefs), SubtitleSettings.interval(prefs))
+    setStatus("Đang tìm phụ đề")
     generation++
     failures = 0
     quietUntil = SystemClock.uptimeMillis() + 1000L
@@ -144,6 +188,7 @@ class SubtitleController internal constructor(
     if (!active) { announce(service.getString(R.string.subtitle_not_running)); return }
     generation++
     tracker.reset()
+    accessibilityTracker.reset()
     pendingText = null
     handler.removeCallbacks(speakPending)
     speaker.stop()
@@ -156,9 +201,15 @@ class SubtitleController internal constructor(
     active = false
     generation++
     handler.removeCallbacks(capture)
+    handler.removeCallbacks(captureTimeout)
     handler.removeCallbacks(speakPending)
+    capturePending = false
     pendingText = null
     tracker.reset()
+    accessibilityTracker.reset()
+    overlay.dismiss()
+    status = ""
+    if (wasActive) LogUtils.i(TAG, "Stopped subtitle reading")
     if (receiverRegistered) {
       service.unregisterReceiver(screenReceiver)
       receiverRegistered = false
@@ -190,23 +241,63 @@ class SubtitleController internal constructor(
     if (event.eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START) onUserInput()
     if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
       event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
-      if (!sameApplication()) stop(false)
+      if (!sameApplication()) {
+        LogUtils.i(TAG, "Stopped: foreground application changed from %s", owner)
+        stop(false)
+        return
+      }
+    }
+    // Ignore focus navigation to avoid reading controls as subtitles.
+    if ((event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+      event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) &&
+      event.packageName?.toString() == owner) {
+      readAccessibleSubtitle(event)
     }
   }
 
-  private fun sameApplication(): Boolean {
-    val root = service.rootInActiveWindow ?: return false
-    return try {
-      if (root.packageName?.toString() != owner) false else {
-        val bounds = Rect().also { root.getBoundsInScreen(it) }
-        if (!bounds.isEmpty && bounds != viewport) {
-          generation++
-          tracker.resize(viewport, bounds)
-          focus = focus?.let { SubtitleTracker.resizeBounds(it, viewport, bounds) }
-          viewport = bounds
-        }
-        true
+  private fun foregroundRoot(): AccessibilityNodeInfo? {
+    val activeRoot = service.rootInActiveWindow
+    if (activeRoot != null && activeRoot.packageName?.toString() != service.packageName) return activeRoot
+    for (window in service.windows) {
+      if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+      val candidate = window.root ?: continue
+      if (candidate.packageName?.toString() != service.packageName) {
+        activeRoot?.recycle()
+        return candidate
       }
+      candidate.recycle()
+    }
+    return activeRoot
+  }
+
+  private fun sameApplication(): Boolean {
+    val root = foregroundRoot()
+    if (root == null) {
+      if (missingWindowSince == 0L) missingWindowSince = SystemClock.uptimeMillis()
+      return SystemClock.uptimeMillis() - missingWindowSince < 2500L
+    }
+    return try {
+      val pkg = root.packageName?.toString().orEmpty()
+      if (pkg != owner) {
+        if (pkg != service.packageName) return false
+        if (missingWindowSince == 0L) missingWindowSince = SystemClock.uptimeMillis()
+        return SystemClock.uptimeMillis() - missingWindowSince < 2500L
+      }
+      missingWindowSince = 0L
+      val bounds = Rect().also { root.getBoundsInScreen(it) }
+      if (!bounds.isEmpty && bounds != viewport) {
+        LogUtils.d(TAG, "Viewport changed; invalidating old screenshot")
+        generation++
+        capturePending = false
+        handler.removeCallbacks(captureTimeout)
+        overlay.restoreAfterCapture()
+        tracker.resize(viewport, bounds)
+        accessibilityTracker.resize(viewport, bounds)
+        focus = focus?.let { SubtitleTracker.resizeBounds(it, viewport, bounds) }
+        viewport = bounds
+        schedule()
+      }
+      true
     } finally { root.recycle() }
   }
 
@@ -216,53 +307,60 @@ class SubtitleController internal constructor(
   }
 
   private fun captureFrame() {
-    if (!canUseFeature("ocr")) {
-      stop(false)
-      return
-    }
+    if (!canUseFeature("ocr")) { stop(false); return }
     if (!active || closed || capturePending) return
     if (service.getSystemService(PowerManager::class.java)?.isInteractive != true || !sameApplication()) {
+      LogUtils.i(TAG, "Stopped: screen off or app changed")
       stop(false)
       return
     }
     val request = generation
     capturePending = true
-    try {
-      ScreenshotCapture.takeScreenshot(service, object : CaptureListener {
-        override fun onScreenCaptureFinished(bitmap: Bitmap?, isFormatSupported: Boolean) {
-          if (!active || request != generation || !sameApplication()) {
-            bitmap?.recycle()
-            capturePending = false
-            if (active && request == generation) stop(false) else schedule()
-            return
+    handler.removeCallbacks(captureTimeout)
+    handler.postDelayed(captureTimeout, CAPTURE_TIMEOUT_MS)
+    overlay.hideForCapture()
+    handler.postDelayed({
+      if (!active || request != generation || !capturePending) return@postDelayed
+      try {
+        ScreenshotCapture.takeScreenshot(service, object : CaptureListener {
+          override fun onScreenCaptureFinished(bitmap: Bitmap?, isFormatSupported: Boolean) {
+            if (!active || request != generation) { bitmap?.recycle(); return }
+            overlay.restoreAfterCapture()
+            if (!sameApplication()) { bitmap?.recycle(); stop(false); return }
+            if (request != generation) { bitmap?.recycle(); return }
+            if (bitmap == null || !isFormatSupported) {
+              bitmap?.recycle()
+              LogUtils.w(TAG, "Screenshot failed or unsupported format")
+              complete(request, null)
+              return
+            }
+            val region = Rect(tracker.lockedBounds ?: SubtitleSettings.bounds(prefs, viewport, focus) ?: viewport)
+            if (!region.intersect(0, 0, bitmap.width, bitmap.height) || region.isEmpty) {
+              LogUtils.w(TAG, "Invalid screenshot crop: bitmap=%dx%d", bitmap.width, bitmap.height)
+              bitmap.recycle()
+              complete(request, null)
+              return
+            }
+            val cropped = try {
+              Bitmap.createBitmap(bitmap, region.left, region.top, region.width(), region.height())
+            } catch (e: RuntimeException) {
+              bitmap.recycle()
+              LogUtils.w(TAG, "Screenshot crop error: %s", e.message)
+              complete(request, null)
+              return
+            }
+            if (cropped !== bitmap) bitmap.recycle()
+            val controls = if (SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds == null) controlBounds() else emptyList()
+            LogUtils.d(TAG, "Screenshot ready: %dx%d, croppedRegion=%s", cropped.width, cropped.height, region)
+            worker.execute { recognize(cropped, region, controls, request) }
           }
-          if (request != generation) {
-            bitmap?.recycle()
-            capturePending = false
-            schedule()
-            return
-          }
-          if (bitmap == null || !isFormatSupported) {
-            bitmap?.recycle()
-            complete(request, null)
-            return
-          }
-          val region = Rect(tracker.lockedBounds ?: SubtitleSettings.bounds(prefs, viewport, focus) ?: viewport)
-          if (!region.intersect(0, 0, bitmap.width, bitmap.height) || region.isEmpty) {
-            bitmap.recycle()
-            complete(request, null)
-            return
-          }
-          val cropped = try { Bitmap.createBitmap(bitmap, region.left, region.top, region.width(), region.height()) }
-            catch (e: RuntimeException) { bitmap.recycle(); complete(request, null); return }
-          if (cropped !== bitmap) bitmap.recycle()
-          val controls = if (SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds == null) controlBounds() else emptyList()
-          worker.execute { recognize(cropped, region, controls, request) }
-        }
-      })
-    } catch (e: RuntimeException) {
-      complete(request, null)
-    }
+        })
+      } catch (e: RuntimeException) {
+        overlay.restoreAfterCapture()
+        LogUtils.w(TAG, "Screenshot request error: %s", e.message)
+        complete(request, null)
+      }
+    }, 80L)
   }
 
   private fun recognize(bitmap: Bitmap, region: Rect, controls: List<Rect>, request: Int) {
@@ -291,53 +389,107 @@ class SubtitleController internal constructor(
     }
   }
 
+  private fun captureFailed(reason: String) {
+    failures++
+    LogUtils.w(TAG, "OCR failure=%s count=%d", reason, failures)
+    if (failures >= 3) {
+      stop(false)
+      announce(service.getString(R.string.subtitle_failed))
+    } else {
+      setStatus("Đang thử nhận dạng lại")
+      schedule()
+    }
+  }
+
   private fun complete(request: Int, lines: List<SubtitleLine>?) {
+    if (!active || request != generation) return
+    handler.removeCallbacks(captureTimeout)
     capturePending = false
-    if (!active || request != generation) { schedule(); return }
+    overlay.restoreAfterCapture()
     if (!sameApplication()) { stop(false); return }
     if (request != generation) { schedule(); return }
-    if (lines == null) {
-      if (++failures >= 3) {
-        stop(false)
-        announce(service.getString(R.string.subtitle_failed))
-        return
+    if (lines == null) { captureFailed("screenshot/recognizer"); return }
+    failures = 0
+    LogUtils.d(TAG, "OCR lines=%d locked=%s", lines.size, tracker.lockedBounds != null)
+    val text = tracker.observe(lines, viewport)
+    if (lines.isEmpty()) {
+      emptyFrames++
+      if (emptyFrames >= 8 && !noTextAnnounced &&
+          SystemClock.uptimeMillis() - lastDeliveredAt > 5000L) {
+        noTextAnnounced = true
+        setStatus("Không tìm thấy phụ đề")
+        announce("Chưa tìm thấy phụ đề trên màn hình. Hãy bật phụ đề YouTube hoặc đổi vùng nhận dạng.")
+        LogUtils.i(TAG, "OCR empty for %d frames", emptyFrames)
+      }
+      if (emptyFrames >= 12 && emptyFrames % 12 == 0 &&
+          SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds != null) {
+        tracker.reset()
+        LogUtils.i(TAG, "Automatically released stale subtitle region")
       }
     } else {
-      failures = 0
-      val text = tracker.observe(lines, viewport)
-      if (!tracker.visible) {
-        pendingText = null
-        if (SubtitleSettings.interrupt(prefs)) speaker.stop()
-      }
-      val pending = pendingText
-      if (pending != null && SubtitleTracker.normalize(lines.joinToString(" ") { it.text }).contains(SubtitleTracker.normalize(pending))) {
-        pendingAt = SystemClock.uptimeMillis()
-      }
-      if (text != null) {
-        pendingText = text
-        pendingAt = SystemClock.uptimeMillis()
-        handler.removeCallbacks(speakPending)
-        if (SubtitleSettings.interrupt(prefs) && SystemClock.uptimeMillis() >= quietUntil) {
-          deliverPending()
-        } else handler.post(speakPending)
-      }
+      emptyFrames = 0
+      noTextAnnounced = false
+      if (text == null && tracker.lockedBounds == null) setStatus("Đang xác định vùng phụ đề")
     }
+    if (!tracker.visible && !accessibilityTracker.visible) {
+      pendingText = null
+      if (SubtitleSettings.interrupt(prefs)) speaker.stop()
+    }
+    if (text != null) queueSubtitle(text, "ocr")
     schedule()
   }
 
+  private fun readAccessibleSubtitle(event: AccessibilityEvent) {
+    val node = event.source ?: return
+    try {
+      if (!node.isVisibleToUser || node.isClickable || node.isEditable) return
+      val text = (node.text ?: node.contentDescription)?.toString()?.trim().orEmpty()
+      if (text.length !in 5..160 || !text.any { it.isLetter() }) return
+      val box = Rect().also { node.getBoundsInScreen(it) }
+      if (box.isEmpty || !Rect.intersects(box, viewport)) return
+      val region = SubtitleSettings.bounds(prefs, viewport, focus) ?: return
+      if (!region.contains(box.centerX(), box.centerY())) return
+      if (SubtitleSettings.region(prefs) == "auto" &&
+          (kotlin.math.abs(box.centerX() - viewport.centerX()) > viewport.width() * 35 / 100 ||
+           box.centerY() < viewport.top + viewport.height() * 35 / 100)) return
+      accessibilityTracker.observe(listOf(SubtitleLine(text, box)), viewport)?.let {
+        queueSubtitle(it, "accessibility")
+      }
+    } finally { node.recycle() }
+  }
+
+  private fun queueSubtitle(text: String, source: String) {
+    val key = SubtitleTracker.normalize(text)
+    val now = SystemClock.uptimeMillis()
+    if (key.isEmpty() || (key == lastDelivered && now - lastDeliveredAt < 10_000L)) return
+    LogUtils.d(TAG, "Subtitle queued source=%s length=%d", source, text.length)
+    pendingText = text
+    pendingAt = now
+    handler.removeCallbacks(speakPending)
+    setStatus("Đang đọc phụ đề")
+    if (SubtitleSettings.interrupt(prefs) && now >= quietUntil) deliverPending()
+    else handler.post(speakPending)
+  }
+
   private fun deliverPending() {
-    if (!canUseFeature("ocr")) {
-      stop(false)
-      return
-    }
+    if (!canUseFeature("ocr")) { stop(false); return }
     val text = pendingText ?: return
     pendingText = null
     if (!active || !sameApplication()) { stop(false); return }
+    lastDelivered = SubtitleTracker.normalize(text)
+    lastDeliveredAt = SystemClock.uptimeMillis()
     speaker.speak(text, SubtitleSettings.interrupt(prefs))
   }
 
+  private fun setStatus(message: String) {
+    if (status == message) return
+    status = message
+    LogUtils.i(TAG, "State: %s", message)
+    if (Settings.canDrawOverlays(service)) overlay.show(message)
+  }
+
   private fun controlBounds(): List<Rect> {
-    val root = service.rootInActiveWindow ?: return emptyList()
+    val root = foregroundRoot() ?: return emptyList()
     val boxes = mutableListOf<Rect>()
     val queue = java.util.ArrayDeque<AccessibilityNodeInfo>()
     queue.add(root)
