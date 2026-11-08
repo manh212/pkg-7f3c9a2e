@@ -103,6 +103,7 @@ class InternalLiveRecognitionService : Service() {
         }
         active = true
         running = true
+        currentTranscript = ""
         if (mode == MODE_TRANSLATE && voice == VOICE_GEMINI) {
             player = StreamingPcmPlayer(
                 sampleRate = 24_000,
@@ -255,7 +256,10 @@ class InternalLiveRecognitionService : Service() {
             else -> cleaned
         }
         lastRawTranscript = cleaned
-        if (delta.isNotBlank() && voice == VOICE_READER) speakWithReader(delta)
+        if (delta.isNotBlank()) {
+            currentTranscript = (currentTranscript + " " + delta).trim().takeLast(12_000)
+            if (voice == VOICE_READER) speakWithReader(delta)
+        }
     }
 
     private fun appendTranscriptionSegment(raw: String) {
@@ -265,6 +269,7 @@ class InternalLiveRecognitionService : Service() {
         val updated = mergeLiveTranscript(base, cleaned)
         if (updated == base) return
         committedTranscript = updated
+        currentTranscript = updated.takeLast(12_000)
         val delta = updated.removePrefix(base).trim()
         if (delta.isNotBlank()) speakWithReader(delta)
     }
@@ -385,6 +390,8 @@ class InternalLiveRecognitionService : Service() {
         private const val CHANNEL_ID = "meridian_live_audio"
         private const val NOTIFICATION_ID = 8134
         @Volatile var running = false
+            private set
+        @Volatile var currentTranscript = ""
             private set
     }
 }
