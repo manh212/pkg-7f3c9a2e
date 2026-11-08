@@ -66,9 +66,6 @@ public class MainActivity extends Activity {
     private android.window.OnBackInvokedCallback brailleBackCallback;
 
     private static final String PREFS_NAME = "BraillePhoneBreakthroughV2Prefs";
-    private static final String ALPHABET_EXPORT_HEADER = "BRAILLE_ALPHABET_V1";
-    private static final String EMOJI_EXPORT_HEADER = "BRAILLE_EMOJI_V1";
-
     private static final long CALIBRATION_HOLD_MS = 1500L;
     private static final long DEFAULT_LETTER_DELAY_MS = BrailleSpeedSettings.DEFAULT_LETTER_DELAY_MS;
     private static final long EXPLORE_HOLD_DOT_MS = 230L;
@@ -251,10 +248,6 @@ private BraillePhoneCanvasView brailleCanvasView;
     private static final int REQUEST_PICK_SOUND = 4101;
     private static final int REQUEST_PICK_SOUND_CAPITAL = 4102;
     private static final int REQUEST_PICK_SOUND_SPACE = 4103;
-    private static final int REQUEST_EXPORT_ALPHABET_FILE = 4104;
-    private static final int REQUEST_IMPORT_ALPHABET_FILE = 4105;
-    private static final int REQUEST_EXPORT_EMOJI_FILE = 4106;
-    private static final int REQUEST_IMPORT_EMOJI_FILE = 4107;
     private static final int SOUND_SLOT_TYPING = 0;
     private static final int SOUND_SLOT_CAPITAL = 1;
     private static final int SOUND_SLOT_SPACE = 2;
@@ -818,29 +811,6 @@ editor.apply();
         btnRow.addView(btnResetEmoji, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         layout.addView(btnRow);
 
-        Button btnExportEmojiFile = new Button(this);
-        btnExportEmojiFile.setText("Xuất ra tệp (lưu vào Download)");
-        btnExportEmojiFile.setAllCaps(false);
-        btnExportEmojiFile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                exportEmojiToFile();
-            }
-        });
-
-        Button btnImportEmojiFile = new Button(this);
-        btnImportEmojiFile.setText("Nhập từ tệp");
-        btnImportEmojiFile.setAllCaps(false);
-        btnImportEmojiFile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                importEmojiFromFile();
-            }
-        });
-
-        layout.addView(btnExportEmojiFile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        layout.addView(btnImportEmojiFile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
         lvEmoji = new ListView(this);
         emojiListAdapter = new ArrayAdapter<String>(
                 this,
@@ -1008,159 +978,6 @@ editor.apply();
         });
         builder.setNegativeButton("Hủy", null);
         builder.show();
-    }
-
-    private String buildEmojiExportText() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(EMOJI_EXPORT_HEADER).append("\n");
-        for (Map.Entry<String, String> entry : emojiToDotsMap.entrySet()) {
-            String key = entry.getKey();
-            if (key == null || key.length() == 0 || key.indexOf('\n') >= 0 || key.indexOf('\r') >= 0 || key.indexOf('=') >= 0) continue;
-            String dots = normalizeDotsString(entry.getValue());
-            if (dots.length() == 0) continue;
-            sb.append(key).append("=").append(dots).append("\n");
-        }
-        return sb.toString();
-    }
-
-    private LinkedHashMap<String, String> parseEmojiExportText(String text) {
-        if (text == null) return null;
-        String[] lines = text.split("\\r?\\n");
-        LinkedHashMap<String, String> result = new LinkedHashMap<String, String>();
-        boolean headerFound = false;
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.length() == 0) continue;
-            if (!headerFound) {
-                if (line.equals(EMOJI_EXPORT_HEADER)) {
-                    headerFound = true;
-                }
-                continue;
-            }
-            int eq = line.lastIndexOf('=');
-            if (eq <= 0) continue;
-            String key = line.substring(0, eq);
-            String dots = normalizeDotsString(line.substring(eq + 1));
-            if (key.length() == 0 || dots.length() == 0) continue;
-            result.put(key, dots);
-        }
-        if (!headerFound || result.isEmpty()) return null;
-        return result;
-    }
-
-    private void exportEmojiToFile() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("text/plain");
-            intent.putExtra(Intent.EXTRA_TITLE, "BangBieuTuongBraille.txt");
-            startActivityForResult(intent, REQUEST_EXPORT_EMOJI_FILE);
-            speak("Hãy chọn thư mục Download hoặc nơi muốn lưu tệp, rồi bấm Lưu", true);
-        } catch (Throwable t) {
-            speak("Không mở được hộp thoại lưu tệp", true);
-            Toast.makeText(this, "Không mở được hộp thoại lưu tệp", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void writeEmojiToUri(Uri uri) {
-        java.io.OutputStream out = null;
-        try {
-            out = getContentResolver().openOutputStream(uri);
-            if (out == null) {
-                throw new java.io.IOException("Không mở được luồng ghi");
-            }
-            out.write(buildEmojiExportText().getBytes("UTF-8"));
-            out.flush();
-            speak("Đã lưu tệp bảng biểu tượng cảm xúc. Bạn có thể mở thư mục chứa tệp để chia sẻ.", true);
-            Toast.makeText(this, "Đã lưu tệp bảng biểu tượng cảm xúc", Toast.LENGTH_LONG).show();
-        } catch (Throwable t) {
-            speak("Không lưu được tệp", true);
-            Toast.makeText(this, "Không lưu được tệp", Toast.LENGTH_LONG).show();
-        } finally {
-            if (out != null) {
-                try {
-                    out.close();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-    }
-
-    private void importEmojiFromFile() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("*/*");
-            startActivityForResult(intent, REQUEST_IMPORT_EMOJI_FILE);
-            speak("Hãy chọn tệp bảng biểu tượng cảm xúc đã lưu", true);
-        } catch (Throwable t) {
-            speak("Không mở được hộp thoại chọn tệp", true);
-            Toast.makeText(this, "Không mở được hộp thoại chọn tệp", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void handleImportedEmojiFile(Uri uri) {
-        String text = readTextFromUri(uri);
-        if (text == null) {
-            speak("Không đọc được tệp", true);
-            Toast.makeText(this, "Không đọc được tệp", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (text.length() > 0 && text.charAt(0) == '\uFEFF') {
-            text = text.substring(1);
-        }
-        final LinkedHashMap<String, String> parsed = parseEmojiExportText(text);
-        if (parsed == null) {
-            speak("Tệp không đúng định dạng bảng biểu tượng cảm xúc", true);
-            Toast.makeText(this, "Tệp không đúng định dạng bảng biểu tượng cảm xúc!", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Nhập bảng biểu tượng từ tệp");
-        builder.setMessage("Tệp có " + parsed.size() + " biểu tượng. Chọn Gộp để giữ các biểu tượng hiện có, hoặc Thay thế toàn bộ để dùng đúng bảng trong tệp. Biểu tượng nào trùng tổ hợp chấm sẽ bị bỏ qua.");
-        builder.setPositiveButton("Gộp", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                applyImportedEmoji(parsed, false);
-            }
-        });
-        builder.setNeutralButton("Thay thế toàn bộ", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                applyImportedEmoji(parsed, true);
-            }
-        });
-        builder.setNegativeButton("Hủy", null);
-        builder.show();
-    }
-
-    private void applyImportedEmoji(LinkedHashMap<String, String> imported, boolean replaceAll) {
-        if (imported == null || imported.isEmpty()) {
-            speak("Dữ liệu bảng biểu tượng không hợp lệ", true);
-            Toast.makeText(this, "Dữ liệu không đúng định dạng bảng biểu tượng!", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (replaceAll) {
-            emojiToDotsMap.clear();
-        }
-        int added = 0;
-        int skipped = 0;
-        for (Map.Entry<String, String> entry : imported.entrySet()) {
-            if (!BrailleChordMapValidator.putIfUnique(emojiToDotsMap,
-                    entry.getKey(), entry.getValue())) {
-                skipped++;
-                continue;
-            }
-            added++;
-        }
-        saveEmojiSettings();
-        refreshEmojiListView();
-        String message = (replaceAll ? "Đã thay thế bảng biểu tượng bằng " : "Đã gộp thêm ") + added + " biểu tượng";
-        if (skipped > 0) {
-            message = message + ". Bỏ qua " + skipped + " biểu tượng vì trùng tổ hợp chấm";
-        }
-        speak(message, true);
     }
 
     private void saveAlphabetSettings() {
@@ -1844,38 +1661,6 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMPORT_ALPHABET_FILE) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                handleImportedAlphabetFile(data.getData());
-            } else {
-                speak("Đã hủy chọn tệp", true);
-            }
-            return;
-        }
-        if (requestCode == REQUEST_EXPORT_ALPHABET_FILE) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                writeAlphabetToUri(data.getData());
-            } else {
-                speak("Đã hủy lưu tệp", true);
-            }
-            return;
-        }
-        if (requestCode == REQUEST_IMPORT_EMOJI_FILE) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                handleImportedEmojiFile(data.getData());
-            } else {
-                speak("Đã hủy chọn tệp", true);
-            }
-            return;
-        }
-        if (requestCode == REQUEST_EXPORT_EMOJI_FILE) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                writeEmojiToUri(data.getData());
-            } else {
-                speak("Đã hủy lưu tệp", true);
-            }
-            return;
-        }
         if (requestCode == REQUEST_PICK_SOUND_CAPITAL) {
             handleSlotPicked(SOUND_SLOT_CAPITAL, resultCode, data);
             return;
@@ -2243,30 +2028,6 @@ finish();
         btnRow.addView(btnResetAlpha, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         layout.addView(btnRow);
 
-        Button btnExportAlphaFile = new Button(this);
-        btnExportAlphaFile.setText("Xuất ra tệp (lưu vào Download)");
-        btnExportAlphaFile.setAllCaps(false);
-        btnExportAlphaFile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                exportAlphabetToFile();
-            }
-        });
-
-        Button btnImportAlphaFile = new Button(this);
-        btnImportAlphaFile.setText("Nhập từ tệp");
-        btnImportAlphaFile.setAllCaps(false);
-        btnImportAlphaFile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                importAlphabetFromFile();
-            }
-        });
-
-        layout.addView(btnExportAlphaFile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        layout.addView(btnImportAlphaFile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-
         lvAlphabet = new ListView(this);
         alphabetListAdapter = new ArrayAdapter<String>(
                 this,
@@ -2341,193 +2102,6 @@ finish();
         });
         builder.setNegativeButton("Hủy", null);
         builder.show();
-    }
-
-    private String buildAlphabetExportText() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(ALPHABET_EXPORT_HEADER).append("\n");
-        for (Map.Entry<String, String> entry : charToDotsMap.entrySet()) {
-            String key = entry.getKey();
-            if (key == null || key.length() == 0 || key.indexOf('\n') >= 0 || key.indexOf('\r') >= 0) continue;
-            String dots = normalizeDotsString(entry.getValue());
-            if (dots.length() == 0) continue;
-            sb.append(key).append("=").append(dots).append("\n");
-        }
-        return sb.toString();
-    }
-
-    private LinkedHashMap<String, String> parseAlphabetExportText(String text) {
-        if (text == null) return null;
-        String[] lines = text.split("\\r?\\n");
-        LinkedHashMap<String, String> result = new LinkedHashMap<String, String>();
-        boolean headerFound = false;
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.length() == 0) continue;
-            if (!headerFound) {
-                if (line.equals(ALPHABET_EXPORT_HEADER)) {
-                    headerFound = true;
-                }
-                continue;
-            }
-            int eq = line.lastIndexOf('=');
-            if (eq <= 0) continue;
-            String key = line.substring(0, eq);
-            String dots = normalizeDotsString(line.substring(eq + 1));
-            if (key.length() == 0 || dots.length() == 0) continue;
-            result.put(key, dots);
-        }
-        if (!headerFound || result.isEmpty()) return null;
-        return result;
-    }
-
-    private void exportAlphabetToFile() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("text/plain");
-            intent.putExtra(Intent.EXTRA_TITLE, "BangChuCaiBraille.txt");
-            startActivityForResult(intent, REQUEST_EXPORT_ALPHABET_FILE);
-            speak("Hãy chọn thư mục Download hoặc nơi muốn lưu tệp, rồi bấm Lưu", true);
-        } catch (Throwable t) {
-            speak("Không mở được hộp thoại lưu tệp", true);
-            Toast.makeText(this, "Không mở được hộp thoại lưu tệp", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void writeAlphabetToUri(Uri uri) {
-        java.io.OutputStream out = null;
-        try {
-            out = getContentResolver().openOutputStream(uri);
-            if (out == null) {
-                throw new java.io.IOException("Không mở được luồng ghi");
-            }
-            out.write(buildAlphabetExportText().getBytes("UTF-8"));
-            out.flush();
-            speak("Đã lưu tệp bảng chữ cái. Bạn có thể mở thư mục chứa tệp để chia sẻ.", true);
-            Toast.makeText(this, "Đã lưu tệp bảng chữ cái", Toast.LENGTH_LONG).show();
-        } catch (Throwable t) {
-            speak("Không lưu được tệp", true);
-            Toast.makeText(this, "Không lưu được tệp", Toast.LENGTH_LONG).show();
-        } finally {
-            if (out != null) {
-                try {
-                    out.close();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-    }
-
-    private void importAlphabetFromFile() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("*/*");
-            startActivityForResult(intent, REQUEST_IMPORT_ALPHABET_FILE);
-            speak("Hãy chọn tệp bảng chữ cái đã lưu", true);
-        } catch (Throwable t) {
-            speak("Không mở được hộp thoại chọn tệp", true);
-            Toast.makeText(this, "Không mở được hộp thoại chọn tệp", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private String readTextFromUri(Uri uri) {
-        InputStream in = null;
-        try {
-            in = getContentResolver().openInputStream(uri);
-            if (in == null) return null;
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
-            int total = 0;
-            int n;
-            while ((n = in.read(buf)) != -1) {
-                bos.write(buf, 0, n);
-                total += n;
-                if (total > 1024 * 1024) return null;
-            }
-            return bos.toString("UTF-8");
-        } catch (Throwable t) {
-            return null;
-        } finally {
-            if (in != null) {
-                try {
-                    in.close();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-    }
-
-    private void handleImportedAlphabetFile(Uri uri) {
-        String text = readTextFromUri(uri);
-        if (text == null) {
-            speak("Không đọc được tệp", true);
-            Toast.makeText(this, "Không đọc được tệp", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (text.length() > 0 && text.charAt(0) == '\uFEFF') {
-            text = text.substring(1);
-        }
-        final LinkedHashMap<String, String> parsed = parseAlphabetExportText(text);
-        if (parsed == null) {
-            speak("Tệp không đúng định dạng bảng chữ cái", true);
-            Toast.makeText(this, "Tệp không đúng định dạng bảng chữ cái!", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Nhập bảng chữ cái từ tệp");
-        builder.setMessage("Tệp có " + parsed.size() + " ký tự. Chọn Gộp để giữ các chữ hiện có, hoặc Thay thế toàn bộ để dùng đúng bảng chữ trong tệp.");
-        builder.setPositiveButton("Gộp", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                applyImportedAlphabet(parsed, false);
-            }
-        });
-        builder.setNeutralButton("Thay thế toàn bộ", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                applyImportedAlphabet(parsed, true);
-            }
-        });
-        builder.setNegativeButton("Hủy", null);
-        builder.show();
-    }
-
-    private void applyImportedAlphabet(LinkedHashMap<String, String> imported, boolean replaceAll) {
-        if (imported == null || imported.isEmpty()) {
-            speak("Dữ liệu bảng chữ cái không hợp lệ", true);
-            Toast.makeText(this, "Dữ liệu không đúng định dạng bảng chữ cái!", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (replaceAll) {
-            charToDotsMap.clear();
-        }
-        int added = 0;
-        int skipped = 0;
-        String firstConflict = null;
-        for (Map.Entry<String, String> entry : imported.entrySet()) {
-            String owner = findDotsConflict(entry.getValue(), entry.getKey());
-            if (!BrailleChordMapValidator.putIfUnique(charToDotsMap, entry.getKey(), entry.getValue())) {
-                skipped++;
-                if (firstConflict == null && owner != null) {
-                    firstConflict = describeCharacterConflict(owner);
-                }
-                continue;
-            }
-            added++;
-        }
-        saveAlphabetSettings();
-        refreshAlphabetListView();
-        String message = (replaceAll ? "Đã thay thế bảng chữ cái bằng " : "Đã gộp thêm ")
-                + added + " ký tự";
-        if (skipped > 0) {
-            message += ". Bỏ qua " + skipped + " tổ hợp trùng hoặc không hợp lệ";
-            if (firstConflict != null) message += ", đã dùng cho " + firstConflict;
-        }
-        speak(message, true);
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     private void showEditCharacterDotsDialog(final String charKey) {

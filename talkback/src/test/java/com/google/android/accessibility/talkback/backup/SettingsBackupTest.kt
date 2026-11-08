@@ -255,6 +255,66 @@ class SettingsBackupTest {
   }
 
   @Test
+  fun brailleKeyboardSettingsRoundTripWhilePhoneSettingsStayOnThePhone() {
+    val braillePrefs =
+      context.getSharedPreferences("BraillePhoneBreakthroughV2Prefs", Context.MODE_PRIVATE)
+    braillePrefs
+      .edit()
+      .clear()
+      .putBoolean("auto_capitalize", false)
+      .putString("char_dots_a", "1")
+      .putString("emoji_dots_x", "12")
+      .putInt("letter_delay_ms", 80)
+      .putBoolean("use_custom_sound", true)
+      .putString("custom_sound_uri", "file:///source-phone/sound")
+      .putBoolean("use_calibrated_points", true)
+      .putFloat("cal_x_1", 12.5f)
+      .commit()
+    val json = SettingsBackup.export(context)
+
+    assertTrue(json.contains("char_dots_a"))
+    assertFalse(json.contains("custom_sound_uri"))
+    assertFalse(json.contains("source-phone"))
+    assertFalse(json.contains("use_custom_sound"))
+    assertFalse(json.contains("use_calibrated_points"))
+    assertFalse(json.contains("cal_x_1"))
+
+    braillePrefs
+      .edit()
+      .clear()
+      .putString("stale_braille_setting", "x")
+      .putBoolean("use_custom_sound", true)
+      .putString("custom_sound_uri", "file:///this-phone/sound")
+      .putBoolean("use_calibrated_points", true)
+      .putFloat("cal_x_1", 99f)
+      .commit()
+    assertTrue(SettingsBackup.import(context, json))
+
+    assertEquals(false, braillePrefs.getBoolean("auto_capitalize", true))
+    assertEquals("1", braillePrefs.getString("char_dots_a", null))
+    assertEquals("12", braillePrefs.getString("emoji_dots_x", null))
+    assertEquals(80, braillePrefs.getInt("letter_delay_ms", 0))
+    assertFalse(braillePrefs.contains("stale_braille_setting"))
+    assertTrue(braillePrefs.getBoolean("use_custom_sound", false))
+    assertEquals("file:///this-phone/sound", braillePrefs.getString("custom_sound_uri", null))
+    assertTrue(braillePrefs.getBoolean("use_calibrated_points", false))
+    assertEquals(99f, braillePrefs.getFloat("cal_x_1", 0f))
+  }
+
+  @Test
+  fun aBackupWithoutBrailleKeyboardSettingsLeavesThemAlone() {
+    val braillePrefs =
+      context.getSharedPreferences("BraillePhoneBreakthroughV2Prefs", Context.MODE_PRIVATE)
+    braillePrefs.edit().clear().putString("char_dots_a", "1").commit()
+    val withoutBraille =
+      """{"format":"sandfly-settings","version":1,"files":{"device":{"default":{"a_switch":{"type":"boolean","value":true}}}}}"""
+
+    assertTrue(SettingsBackup.import(context, withoutBraille))
+
+    assertEquals("1", braillePrefs.getString("char_dots_a", null))
+  }
+
+  @Test
   fun apiKeysAndTheUpdaterStateStayOnThePhone() {
     prefs
       .edit()

@@ -51,6 +51,9 @@ import org.json.JSONObject
  *
  * Custom labels, installed scripts and sound themes are files of their own, and are not in it.
  *
+ * The Braille keyboard's settings are in it too, except its custom sound choices and its
+ * touch calibration, which belong to the phone they were set on.
+ *
  * A settings file exported from Backtalk can be imported too.
  */
 object SettingsBackup {
@@ -77,6 +80,17 @@ object SettingsBackup {
   val SECRET_KEYS = setOf("pref_gemini_api_key", "pref_ai_service_api_key")
 
   private val SKIPPED_FILES = setOf(MigrationFiles.STATE_PREFS, "meridian_enrollment", "meridian_support_private")
+
+  private const val BRAILLE_PREFS = "BraillePhoneBreakthroughV2Prefs"
+
+  private val BRAILLE_PHONE_KEYS =
+    setOf(
+      "use_custom_sound",
+      "custom_sound_uri",
+      "custom_sound_capital_uri",
+      "custom_sound_space_uri",
+      "use_calibrated_points",
+    ) + (1..6).flatMap { listOf("cal_x_$it", "cal_y_$it") }
 
   /** Files of libraries, such as Google Play services and WebView, which hold their own state. */
   private val LIBRARY_PREFIXES = listOf("com.google.", "androidx.", "WebView", "Firebase")
@@ -198,6 +212,7 @@ object SettingsBackup {
         val values = JSONObject()
         for ((key, value) in prefs.all) {
           if (isSecretKey(key) || isSkipped(context, name, key)) continue
+          if (isBraillePhoneKey(name, key)) continue
           encode(value)?.let { values.put(key, it) }
         }
         storageFiles.put(exportedName(context, name), values)
@@ -241,9 +256,15 @@ object SettingsBackup {
         val decoded = mutableMapOf<String, Any>()
         for (key in values.keys()) {
           if (isSecretKey(key) || isSkipped(context, name, key)) continue
+          if (isBraillePhoneKey(name, key)) continue
           val value = decode(values.optJSONObject(key)) ?: return false
           // A value that doesn't fit keeps the phone's own.
           decoded[key] = if (fits(context, prefs, key, value)) value else prefs.all[key] ?: continue
+        }
+        if (name == BRAILLE_PREFS) {
+          for (key in BRAILLE_PHONE_KEYS) {
+            prefs.all[key]?.let { decoded[key] = it }
+          }
         }
         edits += prefs to decoded
       }
@@ -478,6 +499,9 @@ object SettingsBackup {
   private fun isSkipped(context: Context, name: String?, key: String) =
     (name == null || name == defaultName(context)) &&
       (key in MigrationFiles.SKIPPED_PREF_KEYS || key == "pref_gesture_profile")
+
+  private fun isBraillePhoneKey(name: String?, key: String) =
+    name == BRAILLE_PREFS && key in BRAILLE_PHONE_KEYS
 
   private fun isSecretKey(key: String) = key.contains("api_key", ignoreCase = true)
 
