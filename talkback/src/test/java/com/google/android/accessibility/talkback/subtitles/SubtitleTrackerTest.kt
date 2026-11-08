@@ -50,18 +50,60 @@ class SubtitleTrackerTest {
     assertEquals("Xin chào tất cả mọi người", tracker.observe(text, screen))
   }
 
-  @Test fun locksTheSubtitleRegionAndNeverMovesToOtherTextAfterAGap() {
+  @Test fun reacquiresRegionAfterProlongedMissingCaption() {
     val tracker = SubtitleTracker(true)
     val caption = listOf(line("Đây là phụ đề của video"))
     repeat(3) { tracker.observe(caption, screen) }
-    val locked = Rect(tracker.lockedBounds!!)
-    repeat(30) { tracker.observe(emptyList(), screen) }
-    repeat(5) { assertNull(tracker.observe(listOf(line("Bình luận không phải phụ đề", 100)), screen)) }
-    assertEquals(locked, tracker.lockedBounds)
-    assertFalse(tracker.visible)
-    tracker.reset()
+    assertNotNull(tracker.lockedBounds)
+    repeat(8) { tracker.observe(emptyList(), screen) }
+    assertNull(tracker.lockedBounds)
     repeat(3) { tracker.observe(listOf(line("Phụ đề mới ở phía trên", 100)), screen) }
     assertTrue(tracker.lockedBounds!!.centerY() < 300)
+  }
+
+  @Test fun irrelevantRawTextIsNotMistakenForCaptionPresence() {
+    val tracker = SubtitleTracker(true, fastOcr = true)
+    val textInVideoInterface = SubtitleLine("Nút điều khiển video",
+      Rect(0, 0, 1000, 800))
+    val outcome = tracker.observeFrame(listOf(textInVideoInterface), screen)
+    assertEquals(SubtitleFrameStatus.NO_SUBTITLE_CANDIDATE, outcome.status)
+    assertEquals(0, outcome.candidateLines)
+    assertNull(outcome.text)
+  }
+
+  @Test fun fastOcrCanReadBurnedInBottomCaptionOnFirstFrame() {
+    val tracker = SubtitleTracker(true, fastOcr = true)
+    val first = tracker.observeFrame(listOf(line("Phụ đề xuất hiện rất nhanh")), screen)
+    assertEquals(SubtitleFrameStatus.READY, first.status)
+    assertEquals("Phụ đề xuất hiện rất nhanh", first.text)
+    assertEquals(SubtitleFrameStatus.DUPLICATE,
+      tracker.observeFrame(listOf(line("Phụ đề xuất hiện rất nhanh")), screen).status)
+    val shortText = tracker.observeFrame(listOf(line("Ừ")), screen)
+    assertEquals("Ừ", shortText.text)
+  }
+
+  @Test fun wrongLockedRegionIsReleasedEvenIfOcrSeesOtherText() {
+    val tracker = SubtitleTracker(true, fastOcr = true)
+    tracker.observeFrame(listOf(line("Lời thoại dưới video")), screen)
+    assertNotNull(tracker.lockedBounds)
+    val unrelated = listOf(line("Chữ ở giao diện khác", 120))
+    repeat(7) {
+      assertEquals(SubtitleFrameStatus.NO_SUBTITLE_CANDIDATE,
+        tracker.observeFrame(unrelated, screen).status)
+    }
+    val last = tracker.observeFrame(unrelated, screen)
+    assertTrue(last.regionReleased)
+    assertNull(tracker.lockedBounds)
+  }
+
+  @Test fun staticTextIsReleasedInsteadOfBeingLockedForever() {
+    val tracker = SubtitleTracker(true, fastOcr = true)
+    val staticLabel = listOf(line("Phần mô tả cố định"))
+    tracker.observeFrame(staticLabel, screen)
+    repeat(14) { tracker.observeFrame(staticLabel, screen) }
+    assertNull(tracker.lockedBounds)
+    val next = tracker.observeFrame(staticLabel, screen)
+    assertEquals(SubtitleFrameStatus.NO_SUBTITLE_CANDIDATE, next.status)
   }
 
   @Test fun keepsTheRegionThroughScreenRotation() {
