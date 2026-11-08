@@ -1271,6 +1271,16 @@ public class SpeechControllerImpl implements SpeechController {
       return;
     }
 
+    if (text instanceof BilingualSpeechText bilingual) {
+      if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0) {
+        bilingualInterruptionGeneration++;
+      }
+      speakBilingual(
+          bilingual, queueMode, flags, utteranceGroup, speechParams, nonSpeechParams,
+          startAction, rangeStartCallback, completedAction, eventId);
+      return;
+    }
+
     @Nullable SpeechFilter filter = speechFilter;
     boolean fromScript = speechParams != null && speechParams.containsKey(SPEECH_PARAM_FROM_SCRIPT);
     if (filter != null && !fromScript && !TextUtils.isEmpty(text)) {
@@ -1281,8 +1291,7 @@ public class SpeechControllerImpl implements SpeechController {
     }
 
     boolean released = speechParams != null && speechParams.containsKey(SPEECH_PARAM_RELEASED);
-    if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0
-        && (!released || text instanceof BilingualSpeechText)) {
+    if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0 && !released) {
       bilingualInterruptionGeneration++;
     }
     // Speech a hold released has been through the dictionary already.
@@ -1331,13 +1340,6 @@ public class SpeechControllerImpl implements SpeechController {
         playEarconsAndHaptics(earcons, haptics, nonSpeechParams, eventId);
         return;
       }
-    }
-
-    if (text instanceof BilingualSpeechText bilingual) {
-      speakBilingual(
-          bilingual, queueMode, flags, utteranceGroup, speechParams, nonSpeechParams,
-          startAction, rangeStartCallback, completedAction, eventId);
-      return;
     }
 
     if (TextUtils.isEmpty(text)
@@ -2050,6 +2052,7 @@ public class SpeechControllerImpl implements SpeechController {
       // Clear all current and queued utterances.
       clearCurrentAndQueuedUtterances(notifyObserver);
     }
+    bilingualInterruptionGeneration++;
     LogUtils.v(TAG, "interruptInternal, stopTtsSpeechCompletely=" + stopTtsSpeechCompletely);
 
     clearUtteranceRangeStartCallbacks();
@@ -2115,6 +2118,7 @@ public class SpeechControllerImpl implements SpeechController {
 
   /** Stops the item being spoken and starts the next. */
   private void stopCurrentItem() {
+    bilingualInterruptionGeneration++;
     notifyItemInterrupted(currentFeedbackItem);
     currentFragmentIterator = null;
     // Stopped before the next item starts, which would otherwise queue behind it.
@@ -2141,6 +2145,7 @@ public class SpeechControllerImpl implements SpeechController {
   /** Check the last request status and then stop or resume utterance. */
   public void pauseOrResumeUtterance(boolean doPause) {
     if (doPause) {
+      bilingualInterruptionGeneration++;
       if (currentFeedbackItem != null) {
         // Save and clear the current speech, as an interrupt at touch start would have.
         clearCurrentAndQueuedUtterances(/* notifyObserver= */ true);
