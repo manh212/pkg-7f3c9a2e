@@ -61,6 +61,9 @@ class GeminiLiveClient(
     )
 
 
+    // Exception type used by the original GeminiApiLiveClient parser.
+    class GeminiApiException(val code: Int, message: String) : Exception("Gemini API $code: $message")
+
     private val closed = AtomicBoolean(false)
     @Volatile private var apiBackend: GeminiApiLiveClient? = null
 
