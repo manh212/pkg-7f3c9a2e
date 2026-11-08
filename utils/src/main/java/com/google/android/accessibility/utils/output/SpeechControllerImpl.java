@@ -144,7 +144,7 @@ public class SpeechControllerImpl implements SpeechController {
 
   public static final String SPEECH_PARAM_RELEASED = "sandfly.released";
   public static final String SPEECH_PARAM_VOICE_PROFILE = "sandfly.voiceProfile";
-  private static final String SPEECH_PARAM_BILINGUAL_SEGMENT = "sandfly.bilingualSegment";
+  public static final String SPEECH_PARAM_BILINGUAL_SEGMENT = "sandfly.bilingualSegment";
   private long bilingualInterruptionGeneration;
 
   private static volatile @Nullable SpeechHold speechHold;
