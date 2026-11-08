@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -27,6 +29,18 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
     private lateinit var modeSpinner: Spinner
     private lateinit var voiceSpinner: Spinner
     private lateinit var startButton: Button
+    private lateinit var transcriptView: TextView
+    private val handler = Handler(Looper.getMainLooper())
+    private val updateTranscript = object : Runnable {
+        override fun run() {
+            if (::transcriptView.isInitialized) {
+                val text = InternalLiveRecognitionService.currentTranscript
+                transcriptView.text = if (text.isBlank()) "Chưa có kết quả nhận dạng"
+                    else text
+            }
+            handler.postDelayed(this, 800L)
+        }
+    }
 
     private val projectionPermission =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -100,6 +114,14 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
         label(if (GeminiApiKey.effectiveKey(prefs, BuildConfig.GEMINI_API_KEY).isNotBlank())
             "Đã có Gemini API Key. Có thể bắt đầu."
         else "Chưa có Gemini API Key. Hãy cài đặt khóa API trong Nhận dạng/OCR.")
+        label("Văn bản nhận dạng hoặc bản dịch")
+        transcriptView = TextView(this).apply {
+            text = InternalLiveRecognitionService.currentTranscript
+                .ifBlank { "Chưa có kết quả nhận dạng" }
+            textSize = 17f
+            setTextIsSelectable(true)
+            stack.addView(this)
+        }
         startButton = Button(this).apply {
             text = if (InternalLiveRecognitionService.running) "Dừng nhận dạng âm thanh nội bộ"
                 else "Bắt đầu nhận dạng âm thanh nội bộ"
@@ -147,10 +169,17 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        handler.removeCallbacks(updateTranscript)
+        handler.post(updateTranscript)
         if (::startButton.isInitialized) {
             startButton.text = if (InternalLiveRecognitionService.running)
                 "Dừng nhận dạng âm thanh nội bộ" else "Bắt đầu nhận dạng âm thanh nội bộ"
         }
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(updateTranscript)
+        super.onPause()
     }
 
     private fun requestProjection() {
