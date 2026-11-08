@@ -29,6 +29,20 @@ class SubtitleSettingsTest {
     assertTrue(SubtitleSettings.interrupt(prefs))
   }
 
+  @Test fun offersThreeSubtitleEnginesAndGeminiAudioChoices() {
+    assertEquals(listOf("tesseract", "mlkit", "gemini_live"),
+      context.resources.getStringArray(R.array.subtitle_engine_values).toList())
+    assertEquals(3, context.resources.getStringArray(R.array.subtitle_engine_labels).size)
+    assertEquals("gemini", SubtitleSettings.geminiVoice(prefs))
+    assertEquals("accessibility", SubtitleSettings.geminiChannel(prefs))
+    prefs.edit().putString(SubtitleSettings.ENGINE, "gemini_live")
+      .putString(SubtitleSettings.GEMINI_VOICE, "reader")
+      .putString(SubtitleSettings.GEMINI_CHANNEL, "media").commit()
+    assertEquals(SubtitleSettings.LIVE_ENGINE, SubtitleSettings.engine(prefs))
+    assertEquals("reader", SubtitleSettings.geminiVoice(prefs))
+    assertEquals("media", SubtitleSettings.geminiChannel(prefs))
+  }
+
   @Test fun allSevenRegionChoicesHaveMatchingValues() {
     val labels = context.resources.getStringArray(R.array.subtitle_region_labels)
     val values = context.resources.getStringArray(R.array.subtitle_region_values)

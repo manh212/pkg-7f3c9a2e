@@ -25,7 +25,9 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
         setOnPreferenceChangeListener { _, value ->
           val engine = if (key == SubtitleSettings.ENGINE) value.toString() else null
           val voice = if (key == SubtitleSettings.GEMINI_VOICE) value.toString() else null
-          refresh(engine, voice)
+          if (engine != null || voice != null) refresh(engine, voice)
+          // REGION and other values are persisted after this callback.
+          view?.post { refresh() }
           true
         }
       }
