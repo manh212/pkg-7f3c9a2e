@@ -194,4 +194,62 @@ public final class SmartContextGesturesTest {
     assertFalse(SmartContextGestures.matchesBuiltinLabel("Speak now", "Speaker"));
   }
 
+
+  @Test
+  public void nearestVisibleSliderIgnoresNonAdjustableProgress() {
+    AccessibilityNodeInfo root = AccessibilityNodeInfo.obtain();
+    root.setVisibleToUser(true);
+    AccessibilityNodeInfo progress = AccessibilityNodeInfo.obtain();
+    progress.setVisibleToUser(true);
+    progress.setEnabled(true);
+    progress.setClassName("android.widget.ProgressBar");
+    progress.setRangeInfo(AccessibilityNodeInfo.RangeInfo.obtain(
+        AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT, 0, 100, 20));
+    progress.setBoundsInScreen(new Rect(0, 0, 150, 30));
+    AccessibilityNodeInfo slider = AccessibilityNodeInfo.obtain();
+    slider.setVisibleToUser(true);
+    slider.setEnabled(true);
+    slider.setClassName("android.widget.SeekBar");
+    slider.setRangeInfo(AccessibilityNodeInfo.RangeInfo.obtain(
+        AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT, 0, 100, 40));
+    slider.addAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
+    slider.setBoundsInScreen(new Rect(0, 100, 150, 150));
+    Shadows.shadowOf(root).addChild(progress);
+    Shadows.shadowOf(root).addChild(slider);
+    ReflectionHelpers.callInstanceMethod(
+        root, "setSealed", ClassParameter.from(boolean.class, true));
+    ReflectionHelpers.callInstanceMethod(
+        progress, "setSealed", ClassParameter.from(boolean.class, true));
+    ReflectionHelpers.callInstanceMethod(
+        slider, "setSealed", ClassParameter.from(boolean.class, true));
+    assertFalse(SmartContextGestures.isAdjustableSlider(progress));
+    assertTrue(SmartContextGestures.isAdjustableSlider(slider));
+    assertEquals(slider, SmartContextGestures.findNearestSlider(root));
+  }
+
+  @Test
+  public void sliderValueReadsExactRangeValue() {
+    AccessibilityNodeInfo slider = AccessibilityNodeInfo.obtain();
+    slider.setRangeInfo(AccessibilityNodeInfo.RangeInfo.obtain(
+        AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT, 0, 100, 41));
+    assertEquals("41", SmartContextGestures.sliderValue(slider));
+    slider.setRangeInfo(AccessibilityNodeInfo.RangeInfo.obtain(
+        AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_PERCENT, 0, 100, 55));
+    assertEquals("55%", SmartContextGestures.sliderValue(slider));
+  }
+
+  @Test
+  public void nearestSliderOptionDefaultsOff() {
+    android.content.Context context = org.robolectric.RuntimeEnvironment.getApplication();
+    android.content.SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(context);
+    prefs.edit().remove(SmartContextGestures.PREF_NEAREST_SLIDER).commit();
+    try {
+      assertFalse(SmartContextGestures.isNearestSliderEnabled(context));
+      prefs.edit().putBoolean(SmartContextGestures.PREF_NEAREST_SLIDER, true).commit();
+      assertTrue(SmartContextGestures.isNearestSliderEnabled(context));
+    } finally {
+      prefs.edit().remove(SmartContextGestures.PREF_NEAREST_SLIDER).commit();
+    }
+  }
+
 }
