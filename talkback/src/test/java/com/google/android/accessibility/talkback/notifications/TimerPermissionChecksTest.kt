@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.notifications
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.AppOpsManager
 import android.app.Application
 import android.app.NotificationManager
@@ -34,6 +35,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
+import org.robolectric.shadows.ShadowAlarmManager
 import org.robolectric.annotation.Config
 
 /** The initial setup's readings: each permission's state is the system's own answer. */
@@ -44,6 +46,7 @@ class TimerPermissionChecksTest {
 
   @Before
   fun setUp() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(false)
     Shadows.shadowOf(context.getSystemService(PowerManager::class.java))
       .setIgnoringBatteryOptimizations(context.packageName, false)
     Shadows.shadowOf(context.getSystemService(NotificationManager::class.java))
@@ -68,6 +71,36 @@ class TimerPermissionChecksTest {
       .setIgnoringBatteryOptimizations(context.packageName, true)
 
     assertEquals(Status.GRANTED, TimerPermissionChecks.batteryStatus(context))
+  }
+
+  @Test
+  fun exactAlarm_followsTheSystemsPermissionAndDoesNotGuessFromBattery() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.exactAlarmStatus(context))
+
+    // The two system checks are independent; never infer exact-alarm access from a
+    // power optimization exemption or from an OEM's background-running setting.
+    Shadows.shadowOf(context.getSystemService(PowerManager::class.java))
+      .setIgnoringBatteryOptimizations(context.packageName, true)
+    assertEquals(Status.GRANTED, TimerPermissionChecks.batteryStatus(context))
+    assertEquals(Status.MISSING, TimerPermissionChecks.exactAlarmStatus(context))
+
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    assertEquals(Status.GRANTED, TimerPermissionChecks.exactAlarmStatus(context))
+  }
+
+  @Test
+  fun exactAlarmRequest_opensTheDedicatedSystemPermissionFromSetup() {
+    TimerPermissionChecks.openExactAlarmSettings(context)
+    val opened = Shadows.shadowOf(context as Application).nextStartedActivity
+    assertEquals(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, opened.action)
+    assertEquals("package:" + context.packageName, opened.data.toString())
+  }
+
+  @Test
+  fun grantedExactAlarm_doesNotOpenPermissionPageAgain() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    TimerPermissionChecks.openExactAlarmSettings(context)
+    assertEquals(null, Shadows.shadowOf(context as Application).nextStartedActivity)
   }
 
   @Test
