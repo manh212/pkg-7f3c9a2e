@@ -9,6 +9,11 @@
     <string name="smart_context_common">Cử chỉ chung cho tất cả ứng dụng</string>
     <string name="smart_context_applications">Cử chỉ riêng của từng ứng dụng</string>
     <string name="smart_context_current_app">Ứng dụng hiện tại</string>
+    <string name="smart_context_nearest_slider">Điều khiển thanh trượt gần nhất</string>
+    <string name="smart_context_nearest_slider_summary">Khi bật, vuốt lên hoặc xuống trong cử chỉ thông minh để tìm và điều chỉnh thanh trượt gần tiêu điểm nhất trên màn hình. Đọc giá trị sau mỗi lần chỉnh.</string>
+    <string name="smart_context_slider_not_found">Không tìm thấy thanh trượt có thể điều chỉnh trên màn hình</string>
+    <string name="smart_context_slider_value">Giá trị %1$s</string>
+    <string name="smart_context_slider_value_unknown">Không đọc được giá trị của thanh trượt</string>
     <string name="smart_context_integrations">Chức năng ngữ cảnh tích hợp</string>
     <string name="smart_context_search">Tìm kiếm và cuộn</string>
     <string name="smart_context_up">Vuốt lên</string>
