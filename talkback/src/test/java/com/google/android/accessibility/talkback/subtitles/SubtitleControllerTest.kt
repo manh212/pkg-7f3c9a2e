@@ -104,6 +104,26 @@ class SubtitleControllerTest {
     assertTrue(get("active") as Boolean)
   }
 
+  @Test fun emptyFramesAnnounceOnceWithoutBeingTreatedAsCaptureErrors() {
+    val request = get("generation") as Int
+    repeat(8) { frameEmpty(request) }
+    assertTrue(get("active") as Boolean)
+    assertEquals(0, get("failures") as Int)
+    assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
+    repeat(8) { frameEmpty(request) }
+    assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
+  }
+
+  @Test fun lateOcrResultDoesNotResetNewCaptureAfterTimeout() {
+    val oldGeneration = get("generation") as Int
+    set("capturePending", true)
+    (get("captureTimeout") as Runnable).run()
+    assertTrue((get("generation") as Int) > oldGeneration)
+    set("capturePending", true)
+    frame(oldGeneration, "Kết quả cũ không được đọc")
+    assertTrue(get("capturePending") as Boolean)
+  }
+
   @Test fun screenOffStopsTheSession() {
     service.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF))
     shadowOf(Looper.getMainLooper()).idle()
@@ -114,6 +134,11 @@ class SubtitleControllerTest {
     val method = SubtitleController::class.java.getDeclaredMethod("complete", Int::class.javaPrimitiveType, List::class.java)
     method.isAccessible = true
     method.invoke(controller, request, listOf(SubtitleLine(text, Rect(100, 800, 900, 850))))
+  }
+  private fun frameEmpty(request: Int) {
+    val method = SubtitleController::class.java.getDeclaredMethod("complete", Int::class.javaPrimitiveType, List::class.java)
+    method.isAccessible = true
+    method.invoke(controller, request, emptyList<SubtitleLine>())
   }
   private fun get(name: String): Any? = SubtitleController::class.java.getDeclaredField(name).apply { isAccessible = true }.get(controller)
   private fun set(name: String, value: Any) { SubtitleController::class.java.getDeclaredField(name).apply { isAccessible = true }.set(controller, value) }
