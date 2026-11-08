@@ -78,6 +78,8 @@ class SubtitleController internal constructor(
   private var failures = 0
   private var emptyFrames = 0
   private var noTextAnnounced = false
+  private var captureWasDark = false
+  private var nearDarkFrames = 0
   private var missingWindowSince = 0L
   private var lastDelivered = ""
   private var lastDeliveredAt = 0L
@@ -165,10 +167,12 @@ class SubtitleController internal constructor(
       announce(service.getString(R.string.subtitle_no_focus))
       return
     }
-    tracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto")
+    tracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto", fastOcr = true)
     accessibilityTracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto")
     emptyFrames = 0
     noTextAnnounced = false
+    nearDarkFrames = 0
+    captureWasDark = false
     missingWindowSince = 0L
     lastDelivered = ""
     active = true
@@ -316,6 +320,7 @@ class SubtitleController internal constructor(
     }
     val request = generation
     capturePending = true
+    captureWasDark = false
     handler.removeCallbacks(captureTimeout)
     handler.postDelayed(captureTimeout, CAPTURE_TIMEOUT_MS)
     overlay.hideForCapture()
@@ -350,9 +355,26 @@ class SubtitleController internal constructor(
               return
             }
             if (cropped !== bitmap) bitmap.recycle()
+            val stats = SubtitleImageProcessor.inspect(cropped)
+            captureWasDark = stats.nearlyUniformDark
             val controls = if (SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds == null) controlBounds() else emptyList()
-            LogUtils.d(TAG, "Screenshot ready: %dx%d, croppedRegion=%s", cropped.width, cropped.height, region)
-            worker.execute { recognize(cropped, region, controls, request) }
+            // Rotate enhancement and OCR engines only after repeated frames with NO caption candidates.
+            // A screenshot containing unrelated interface text must not disable this fallback.
+            val enhance = emptyFrames >= 3 && emptyFrames % 2 == 1
+            val preferredEngine = SubtitleSettings.engine(prefs)
+            val fallbackEngine = if (preferredEngine == "tesseract") "mlkit" else "tesseract"
+            val useFallback = emptyFrames >= 6 && emptyFrames % 4 == 2 &&
+              (fallbackEngine != "tesseract" || TesseractOcr.isDataDownloaded(service))
+            val engine = if (useFallback) fallbackEngine else preferredEngine
+            LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d engine=%s enhanced=%s",
+              cropped.width, cropped.height, region, stats.darkPercent, stats.contrastRange, engine, enhance)
+            try {
+              worker.execute { recognize(cropped, region, controls, request, engine, enhance) }
+            } catch (e: RuntimeException) {
+              cropped.recycle()
+              LogUtils.w(TAG, "OCR worker unavailable: %s", e.message)
+              complete(request, null)
+            }
           }
         })
       } catch (e: RuntimeException) {
@@ -363,27 +385,49 @@ class SubtitleController internal constructor(
     }, 80L)
   }
 
-  private fun recognize(bitmap: Bitmap, region: Rect, controls: List<Rect>, request: Int) {
-    if (SubtitleSettings.engine(prefs) == "tesseract") {
+  private fun recognize(
+    bitmap: Bitmap, region: Rect, controls: List<Rect>, request: Int,
+    engineName: String, enhanced: Boolean,
+  ) {
+    val prepared = SubtitleImageProcessor.prepare(bitmap, enhanced)
+    val image = prepared.bitmap
+    if (engineName == "tesseract") {
       val lines = try {
-        TesseractOcr.recognizeSegments(service, bitmap)?.map { SubtitleLine(it.text, Rect(it.bounds).apply { offset(region.left, region.top) }) }
-      } catch (e: RuntimeException) { null }
-      finally { bitmap.recycle() }
-      handler.post { complete(request, lines?.filterNot { line -> controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) } }) }
+        TesseractOcr.recognizeSegments(service, image)?.map {
+          SubtitleLine(it.text, prepared.screenBounds(it.bounds, region))
+        }
+      } catch (e: RuntimeException) {
+        LogUtils.w(TAG, "Tesseract failure: %s", e.message)
+        null
+      } finally { image.recycle() }
+      handler.post {
+        complete(request, lines?.filterNot { line ->
+          controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) }
+        })
+      }
     } else {
       try {
-        val engine = recognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also { recognizer = it }
-        engine.process(InputImage.fromBitmap(bitmap, 0))
+        val engine = recognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+          .also { recognizer = it }
+        engine.process(InputImage.fromBitmap(image, 0))
           .addOnSuccessListener { text ->
             val lines = text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
-              line.boundingBox?.let { SubtitleLine(line.text, Rect(it).apply { offset(region.left, region.top) }) }
-            }.filterNot { line -> controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) } }
+              line.boundingBox?.let {
+                SubtitleLine(line.text, prepared.screenBounds(it, region))
+              }
+            }.filterNot { line ->
+              controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) }
+            }
             complete(request, lines)
           }
-          .addOnFailureListener { complete(request, null) }
-          .addOnCompleteListener { bitmap.recycle() }
+          .addOnFailureListener { error ->
+            LogUtils.w(TAG, "ML Kit subtitle recognition failed: %s", error.message)
+            complete(request, null)
+          }
+          .addOnCompleteListener { image.recycle() }
       } catch (e: RuntimeException) {
-        bitmap.recycle()
+        image.recycle()
+        LogUtils.w(TAG, "ML Kit invocation failed: %s", e.message)
         handler.post { complete(request, null) }
       }
     }
@@ -410,32 +454,45 @@ class SubtitleController internal constructor(
     if (request != generation) { schedule(); return }
     if (lines == null) { captureFailed("screenshot/recognizer"); return }
     failures = 0
-    LogUtils.d(TAG, "OCR lines=%d locked=%s", lines.size, tracker.lockedBounds != null)
-    val text = tracker.observe(lines, viewport)
-    if (lines.isEmpty()) {
+    val result = tracker.observeFrame(lines, viewport)
+    val hasCandidate = result.candidateLines > 0
+    LogUtils.d(TAG, "OCR frame: rawLines=%d candidateLines=%d state=%s locked=%s released=%s",
+      lines.size, result.candidateLines, result.status, tracker.lockedBounds != null, result.regionReleased)
+    // Important: unrelated OCR text must NOT reset the missing-caption watchdog.
+    if (result.status == SubtitleFrameStatus.NO_TEXT ||
+        result.status == SubtitleFrameStatus.NO_SUBTITLE_CANDIDATE) {
       emptyFrames++
-      if (emptyFrames >= 8 && !noTextAnnounced &&
-          SystemClock.uptimeMillis() - lastDeliveredAt > 5000L) {
-        noTextAnnounced = true
-        setStatus("Không tìm thấy phụ đề")
-        announce("Chưa tìm thấy phụ đề trên màn hình. Hãy bật phụ đề YouTube hoặc đổi vùng nhận dạng.")
-        LogUtils.i(TAG, "OCR empty for %d frames", emptyFrames)
-      }
-      if (emptyFrames >= 12 && emptyFrames % 12 == 0 &&
-          SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds != null) {
-        tracker.reset()
-        LogUtils.i(TAG, "Automatically released stale subtitle region")
-      }
+      nearDarkFrames = if (captureWasDark) nearDarkFrames + 1 else 0
     } else {
       emptyFrames = 0
+      nearDarkFrames = 0
       noTextAnnounced = false
-      if (text == null && tracker.lockedBounds == null) setStatus("Đang xác định vùng phụ đề")
+    }
+    if (result.regionReleased) {
+      LogUtils.i(TAG, "Automatically reacquiring subtitle region after irrelevant or stale text")
+      setStatus("Đang tìm lại vùng phụ đề")
+    }
+    if (emptyFrames >= 8 && !noTextAnnounced &&
+        SystemClock.uptimeMillis() - lastDeliveredAt > 5000L) {
+      noTextAnnounced = true
+      val reason = when {
+        nearDarkFrames >= 4 -> "Vùng ảnh chụp gần như tối. Hãy kiểm tra video có hiển thị trong ảnh chụp hay không."
+        lines.isNotEmpty() -> "OCR chỉ tìm được chữ ngoài vùng phụ đề. Meridian đang thử tìm lại vùng và đổi cách nhận dạng."
+        else -> "OCR không thấy chữ trong ảnh video. Hãy kiểm tra phụ đề đang hiển thị."
+      }
+      LogUtils.i(TAG, "Subtitle candidates missing for %d frames; rawLines=%d darkFrames=%d",
+        emptyFrames, lines.size, nearDarkFrames)
+      setStatus("Chưa tìm thấy chữ phụ đề")
+      announce("Chưa tìm thấy phụ đề trên màn hình. $reason")
+    }
+    if (!hasCandidate && result.status == SubtitleFrameStatus.WAITING_FOR_STABILITY) {
+      setStatus("Đang xác định vùng phụ đề")
     }
     if (!tracker.visible && !accessibilityTracker.visible) {
       pendingText = null
       if (SubtitleSettings.interrupt(prefs)) speaker.stop()
     }
-    if (text != null) queueSubtitle(text, "ocr")
+    result.text?.let { queueSubtitle(it, "ocr") }
     schedule()
   }
 
