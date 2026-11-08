@@ -21,7 +21,9 @@ import android.text.Spanned
 import android.text.style.LocaleSpan
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.BilingualSpeechText
 import com.google.android.accessibility.utils.output.SpeechController
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -118,6 +120,7 @@ class AutomaticTranslationTest {
 
   @Before
   fun setUp() {
+    prefs.edit().putBoolean(TranslationSettings.PREF_BILINGUAL, false).commit()
     TranslationSettings.setTarget(prefs, "en")
     TranslationSettings.setService(prefs, TranslationService.ON_DEVICE)
     engine.languages["Guten Morgen"] = "de"
@@ -138,6 +141,40 @@ class AutomaticTranslationTest {
     assertEquals("Good morning", texts.single().toString())
     val span = (texts.single() as Spanned).getSpans(0, 12, LocaleSpan::class.java).single()
     assertEquals("en", span.locale?.language)
+  }
+
+  @Test
+  fun bilingualAutomaticTranslation_keepsBothTextsAndSelectedProfiles() {
+    prefs.edit()
+      .putBoolean(TranslationSettings.PREF_BILINGUAL, true)
+      .putString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, "1")
+      .putString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, "2")
+      .putString(TranslationSettings.PREF_BILINGUAL_ORDER, TranslationSettings.BILINGUAL_TRANSLATED_FIRST)
+      .putString(VoiceProfiles.PREF_IDS, "1,2")
+      .commit()
+    val results = mutableListOf<CharSequence?>()
+    assertTrue(auto.hold("Guten Morgen", SpeechController.QUEUE_MODE_QUEUE, 0) { results += it })
+    val pair = results.single() as BilingualSpeechText
+    assertEquals("Good morning", pair.first().toString())
+    assertEquals("Guten Morgen", pair.second().toString())
+    assertEquals("2", pair.firstProfile())
+    assertEquals("1", pair.secondProfile())
+  }
+
+  @Test
+  fun bilingualNotificationTranslation_keepsTheOriginal() {
+    prefs.edit()
+      .putBoolean(TranslationSettings.PREF_BILINGUAL, true)
+      .putString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, "")
+      .putString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, "")
+      .putString(VoiceProfiles.PREF_IDS, "")
+      .commit()
+    val results = mutableListOf<CharSequence>()
+    auto.translateNotification("Guten Morgen") { results += it }
+    val pair = results.single() as BilingualSpeechText
+    assertEquals("Guten Morgen", pair.first().toString())
+    assertEquals("Good morning", pair.second().toString())
+    assertEquals("", pair.firstProfile())
   }
 
   @Test
