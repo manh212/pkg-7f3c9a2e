@@ -67,6 +67,15 @@ public final class SmartContextGestureSettingsFragmentTest {
     autoSwitch.setChecked(false);
     assertFalse(device.getBoolean(SmartContextGestures.PREF_AUTO_SWITCH, true));
 
+    SwitchPreferenceCompat nearestSlider =
+        fragment.findPreference(SmartContextGestures.PREF_NEAREST_SLIDER);
+    assertTrue(nearestSlider != null);
+    assertFalse(nearestSlider.isChecked());
+    nearestSlider.setChecked(true);
+    assertTrue(SmartContextGestures.isNearestSliderEnabled(activity));
+    nearestSlider.setChecked(false);
+    assertFalse(SmartContextGestures.isNearestSliderEnabled(activity));
+
     SwitchPreferenceCompat textRules =
         fragment.findPreference(SmartContextGestures.PREF_TEXT_RULES_ENABLED);
     assertTrue(textRules != null);
@@ -75,7 +84,8 @@ public final class SmartContextGestureSettingsFragmentTest {
     textRules.setChecked(true);
     assertTrue(device.getBoolean(SmartContextGestures.PREF_TEXT_RULES_ENABLED, false));
 
-    device.edit().remove(SmartContextGestures.PREF_AUTO_SWITCH)
+    device.edit().remove(SmartContextGestures.PREF_NEAREST_SLIDER)
+        .remove(SmartContextGestures.PREF_AUTO_SWITCH)
         .remove(SmartContextGestures.PREF_TEXT_RULES_ENABLED).commit();
     controller.pause().stop().destroy();
   }
