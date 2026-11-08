@@ -124,6 +124,13 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
       toggle.setDefaultValue(false);
       builtins.addPreference(toggle);
     }
+    SwitchPreferenceCompat nearestSlider = new SwitchPreferenceCompat(context);
+    nearestSlider.setKey(SmartContextGestures.PREF_NEAREST_SLIDER);
+    nearestSlider.setTitle(R.string.smart_context_nearest_slider);
+    nearestSlider.setSummary(R.string.smart_context_nearest_slider_summary);
+    nearestSlider.setDefaultValue(false);
+    builtins.addPreference(nearestSlider);
+
     SwitchPreferenceCompat textRules = new SwitchPreferenceCompat(context);
     textRules.setKey(SmartContextGestures.PREF_TEXT_RULES_ENABLED);
     textRules.setTitle(R.string.smart_context_text_rules_enabled);
