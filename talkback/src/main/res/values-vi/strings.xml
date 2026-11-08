@@ -1331,7 +1331,7 @@
     <string name="title_pref_speak_in_phrases">Gửi văn bản dài theo từng câu</string>
     <string name="summary_pref_speak_in_phrases">Dành cho những công cụ lời nói dừng chậm, chẳng hạn như Gryphon, để khi vuốt đi thì văn bản dài dừng ngay. Nhiều công cụ ngắt quãng lâu hơn giữa các câu được gửi riêng, vì vậy hãy tắt tuỳ chọn này nếu công cụ của bạn dừng nhanh.</string>
     <string name="battery_optimization_notification_title">Tính năng tối ưu hoá pin có thể dừng Meridian</string>
-    <string name="battery_optimization_notification_text">Trên điện thoại này, trình tiết kiệm pin có thể dừng Meridian sau khi màn hình tắt, khiến Meridian im lặng cho đến khi được khởi động lại. Nhấn để mở mục tối ưu hoá pin, chọn Tất cả ứng dụng, tìm Meridian rồi chọn Không tối ưu hoá.</string>
+    <string name="battery_optimization_notification_text">Trên điện thoại này, tối ưu pin có thể dừng Meridian khi màn hình tắt. Nhấn để mở Thiết lập ban đầu, kiểm tra quyền miễn trừ pin Android và xem riêng giới hạn chạy nền của Xiaomi nếu có.</string>
     <string name="title_pref_mute_speech_while_recording">Im lặng khi ghi âm</string>
     <string name="summary_pref_mute_speech_while_recording">Khi một ứng dụng ghi âm mà không kết nối tai nghe, Meridian chỉ đọc để phản hồi cử chỉ, phím và nội dung nhập của bạn, và im lặng với những nội dung như thông báo, để chúng không bị ghi lại.</string>
     <string name="title_pref_switch_languages">Tự động chuyển ngôn ngữ</string>

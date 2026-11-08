@@ -99,14 +99,6 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
         SpokenSchedules.KEY_SUMMARY_DAILY -> {
           NotificationListService.rebind(requireContext())
           updateAccess()
-          if (key == SpokenSchedules.KEY_SUMMARY_DAILY && prefs.getBoolean(key, false)) {
-            askForSummaryPermissions()
-          }
-        }
-        SpokenSchedules.KEY_CLOCK_HOURS -> {
-          if (SpokenSchedules.selectedHours(prefs).isNotEmpty()) {
-            TimerPermissionChecks.promptForBatteryExemption(requireContext())
-          }
         }
       }
     }
@@ -155,10 +147,8 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
       key == NotificationSettings.Companion.Keys.QUIET_START ||
         key == NotificationSettings.Companion.Keys.QUIET_END ||
         key == SpokenSchedules.KEY_SUMMARY_TIME -> setUpTime(preference, key)
-      key == KEY_ACCESS -> preference.setOnPreferenceClickListener {
-        openAccessSettings(context)
-        true
-      }
+      // Any missing notification access is requested through Initial setup, not here.
+      key == KEY_ACCESS -> preference.fragment = InitialSetupFragment::class.java.name
       key == KEY_SUMMARY_NOW -> preference.setOnPreferenceClickListener {
         if (!NotificationReader.readSummary()) {
           android.widget.Toast.makeText(context, R.string.notification_summary_needs_sandfly, android.widget.Toast.LENGTH_SHORT).show()
@@ -231,20 +221,6 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
     val access = findPreference<Preference>(KEY_ACCESS) ?: return
     access.isVisible = !NotificationList.isAccessGranted(requireContext())
     access.summary = getString(R.string.notification_access_summary)
-  }
-
-  /**
-   * The summary is read from the notifications and kept by an alarm clock, so turning it on asks
-   * at once for the one it cannot read without, and then for the battery exemption that keeps
-   * SandFly running to read it.
-   */
-  private fun askForSummaryPermissions() {
-    val context = requireContext()
-    if (!NotificationListService.isAccessGranted(context)) {
-      openAccessSettings(context)
-    } else {
-      TimerPermissionChecks.promptForBatteryExemption(context)
-    }
   }
 
   companion object {

@@ -24,6 +24,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.calls.CallLimitController
 import com.google.android.accessibility.talkback.calls.CallPermissions
 import com.google.android.accessibility.talkback.notifications.TimerPermissionChecks.Status
+import java.util.Locale
 
 /**
  * Initial setup: every permission SandFly stands on, one at a time. A step the phone already
@@ -56,7 +57,10 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   override fun onResume() {
     // Before the screen is built again, so that it is built where the walk has moved to.
     val context = requireContext()
-    flow.returnToScreen(steps().count { it.applicable(context) })
+    val availableSteps = steps().filter { it.applicable(context) }
+    val current = availableSteps.getOrNull(flow.step)
+    val granted = current?.status?.invoke(context) == Status.GRANTED
+    flow.returnToScreen(availableSteps.size, granted)
     super.onResume()
   }
 
@@ -85,6 +89,12 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
       if (status == Status.UNKNOWN) null else getString(detailText(current, status)),
     ) {
       rebuild()
+    }
+    if (current.title == R.string.timer_setup_battery_title && isXiaomiFamily()) {
+      category.information(
+        getString(R.string.timer_setup_xiaomi_title),
+        getString(R.string.timer_setup_xiaomi_unverified),
+      )
     }
     if (status != Status.GRANTED) {
       category.action(getString(current.openLabel)) {
@@ -123,6 +133,12 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         rebuild()
       }
     }
+    if (isXiaomiFamily()) {
+      category.information(
+        getString(R.string.timer_setup_xiaomi_title),
+        getString(R.string.timer_setup_xiaomi_unverified),
+      )
+    }
     category.action(getString(R.string.timer_setup_done)) { leave() }
   }
 
@@ -141,6 +157,9 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   private fun detailText(step: Step, status: Status): Int =
     if (status == Status.GRANTED) step.grantedText else step.missingText
 
+  private fun isXiaomiFamily(): Boolean =
+    Build.MANUFACTURER.lowercase(Locale.ROOT).trim() in setOf("xiaomi", "redmi", "poco")
+
   private fun steps(): List<Step> =
     listOf(
       Step(
@@ -158,6 +177,15 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         R.string.timer_setup_battery_open,
         { TimerPermissionChecks.batteryStatus(it) },
         { TimerPermissionChecks.promptForBatteryExemption(it) },
+      ),
+      Step(
+        R.string.timer_setup_exact_alarm_title,
+        R.string.timer_setup_exact_alarm_granted,
+        R.string.timer_setup_exact_alarm_missing,
+        R.string.timer_setup_exact_alarm_open,
+        { TimerPermissionChecks.exactAlarmStatus(it) },
+        { TimerPermissionChecks.openExactAlarmSettings(it) },
+        { Build.VERSION.SDK_INT >= Build.VERSION_CODES.S },
       ),
       Step(
         R.string.timer_setup_microphone_title,

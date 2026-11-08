@@ -283,13 +283,19 @@
     <!-- State of a permission of the initial setup: its state could not be read. -->
     <string name="timer_setup_status_unknown">Could not be checked</string>
     <!-- Step of the initial setup: the battery saving that can stop Meridian while the phone rests. -->
-    <string name="timer_setup_battery_title">Battery saving</string>
+    <string name="timer_setup_battery_title">Android battery optimization exemption</string>
     <!-- The battery step, held: Meridian is exempt from battery saving. -->
-    <string name="timer_setup_battery_granted">Meridian is exempt: the phone does not restrict it while it rests.</string>
+    <string name="timer_setup_battery_granted">Android confirms Meridian is exempt from its battery optimizations. Phone-maker background restrictions are independent and cannot be verified here.</string>
     <!-- The battery step, not held: the phone may still restrict Meridian while it rests. -->
-    <string name="timer_setup_battery_missing">Not exempt: the phone may still restrict Meridian while it rests, and timer announcements can be missed.</string>
+    <string name="timer_setup_battery_missing">Android does not report a battery optimization exemption. A phone maker\'s unrestricted battery setting does not establish Android\'s exemption.</string>
     <!-- Action of the battery step: asks the system for the exemption. -->
-    <string name="timer_setup_battery_open">Ask for the exemption</string>
+    <string name="timer_setup_battery_open">Request Android battery exemption</string>
+    <string name="timer_setup_xiaomi_title">Xiaomi background restrictions (not checked)</string>
+    <string name="timer_setup_xiaomi_unverified">Meridian cannot verify HyperOS\'s separate No restrictions setting. Check it in Xiaomi\'s app battery settings; it does not confirm Android\'s battery exemption.</string>
+    <string name="timer_setup_exact_alarm_title">Alarms &amp; reminders</string>
+    <string name="timer_setup_exact_alarm_granted">Android currently allows exact alarms for spoken time, reminders and timers.</string>
+    <string name="timer_setup_exact_alarm_missing">Exact alarms are not allowed. Spoken time and reminders may run late until Alarms &amp; reminders access is granted.</string>
+    <string name="timer_setup_exact_alarm_open">Open Alarms &amp; reminders access</string>
     <!-- Step of the initial setup: Meridian's access to the notifications. -->
     <string name="timer_setup_access_title">Notification access</string>
     <!-- The access step, held. -->

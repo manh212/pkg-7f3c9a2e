@@ -23,19 +23,21 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.PowerManager
-import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.notifications.InitialSetupFragment
+import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity
 import com.google.android.accessibility.talkback.utils.NotificationUtils
 import com.google.android.accessibility.utils.FormFactorUtils
+import com.google.android.accessibility.utils.preference.BasePreferencesActivity
 import java.util.Locale
 
 /**
  * Tells the user, once, when battery optimization could stop Backtalk. Android leaves accessibility
  * services running, but some phone makers' own battery savers stop them anyway, so Backtalk falls
  * silent after the phone sleeps until it's restarted. Only on those phones, and only while Backtalk
- * isn't exempt, a notification opens the system list where the user can exempt it.
+ * isn't exempt, a notification directs the user to Initial setup to check that access.
  */
 object BatteryOptimizationCheck {
   private const val PREF_DONE = "battery_optimization_check_done"
@@ -82,7 +84,8 @@ object BatteryOptimizationCheck {
       return
     }
     val intent =
-      Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+      Intent(context, TalkBackPreferencesActivity::class.java)
+        .putExtra(BasePreferencesActivity.FRAGMENT_NAME, InitialSetupFragment::class.java.name)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     // Until notifications are allowed, try again at the next start.
     if (

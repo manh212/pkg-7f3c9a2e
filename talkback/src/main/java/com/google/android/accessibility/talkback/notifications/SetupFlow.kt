@@ -21,8 +21,8 @@ import com.google.android.accessibility.talkback.notifications.TimerPermissionCh
 /**
  * Where the initial setup stands in its walk, kept apart from the screen so the walk itself
  * can be tested. There is no button between one permission and the next: dealing with a step
- * moves the walk on by itself when the screen comes back, steps the phone already grants are
- * passed over, and the end of the walk is the summary.
+ * advances only after the system confirms a grant; denied steps remain visible until explicitly
+ * skipped. Steps already granted are passed over, and the end of the walk is the summary.
  */
 class SetupFlow {
   /** The step showing, or the number of steps when the walk stands at its summary. */
@@ -64,13 +64,11 @@ class SetupFlow {
   }
 
   /**
-   * The screen is showing again. If a step was opened and the screen really went away, the
-   * walk moves on — to the next step, or back to the summary for a step opened out of it. A
-   * tap that never took the screen anywhere (the phone has no page for it) moves nothing,
-   * and the half-made move is dropped either way.
+   * Returning from system settings only advances when the permission is actually granted.
+   * A denied request leaves the step visible for another try or an explicit Skip.
    */
-  fun returnToScreen(stepCount: Int) {
-    val advance = openTapped && wentAway
+  fun returnToScreen(stepCount: Int, granted: Boolean) {
+    val advance = openTapped && wentAway && granted
     openTapped = false
     wentAway = false
     if (!advance) return

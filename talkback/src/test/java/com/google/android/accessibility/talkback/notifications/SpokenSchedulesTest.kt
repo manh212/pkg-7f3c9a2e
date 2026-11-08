@@ -1,5 +1,6 @@
 package com.google.android.accessibility.talkback.notifications
 
+import android.app.AlarmManager
 import android.content.Context
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.time.Instant
@@ -12,6 +13,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
+import org.robolectric.shadows.ShadowAlarmManager
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -22,7 +25,27 @@ class SpokenSchedulesTest {
   private val prefs = SharedPreferencesUtils.getSharedPreferences(context)
   private fun utc(text: String) = Instant.parse(text).toEpochMilli()
 
-  @Before fun reset() { prefs.edit().clear().commit() }
+  @Before fun reset() {
+    prefs.edit().clear().commit()
+    ShadowAlarmManager.setCanScheduleExactAlarms(false)
+  }
+
+  @Test
+  fun deniedExactAlarmAccess_usesInexactFallbackWithoutPrompting() {
+    prefs.edit().putString(SpokenSchedules.KEY_CLOCK_INTERVAL, "60").commit()
+    val alarmManager = context.getSystemService(AlarmManager::class.java)
+    val schedules = SpokenSchedules(context, say = { _, _ -> })
+    try {
+      schedules.start()
+
+      // A denied exact-alarm grant must not reach setAlarmClock().
+      assertNull(alarmManager.nextAlarmClock)
+      assertTrue(Shadows.shadowOf(alarmManager).scheduledAlarms.isNotEmpty())
+      assertNull(Shadows.shadowOf(context as android.app.Application).nextStartedActivity)
+    } finally {
+      schedules.stop()
+    }
+  }
 
   @Test
   fun legacyDisabledClockStaysDisabled() {

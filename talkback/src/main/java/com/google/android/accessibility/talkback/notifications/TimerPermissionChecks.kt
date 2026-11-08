@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.notifications
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -37,8 +38,9 @@ import com.google.android.accessibility.talkback.shizuku.ShizukuShell
 /**
  * The permissions SandFly stands on, checked and asked for in the open: enabling a feature
  * checks what it needs right then, and the initial setup walks through all of them one by one.
- * A spoken time is a system alarm clock, which needs no permission of its own; what can still
- * lose it is the phone restricting SandFly while it rests, so the battery exemption is here.
+ * On Android 12+, exact spoken alarms need special access unless the system exempts the app.
+ * Initial setup checks that access separately from Android battery optimization exemptions;
+ * phone-maker background restrictions, such as Xiaomi's, are another independent setting.
  * The rest are what the features stand on: reading notifications, posting SandFly's own, the
  * microphone dictation listens with, the phone state that following calls reads, installing
  * the updates the updater downloads, and writing the system settings the brightness control
@@ -57,6 +59,13 @@ object TimerPermissionChecks {
     val power = context.getSystemService(PowerManager::class.java) ?: return Status.UNKNOWN
     return if (power.isIgnoringBatteryOptimizations(context.packageName)) Status.GRANTED
     else Status.MISSING
+  }
+
+  /** Whether Android currently allows exact alarms. This also accounts for system exemptions. */
+  fun exactAlarmStatus(context: Context): Status {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return Status.GRANTED
+    val alarms = context.getSystemService(AlarmManager::class.java) ?: return Status.UNKNOWN
+    return if (alarms.canScheduleExactAlarms()) Status.GRANTED else Status.MISSING
   }
 
   /** Whether SandFly may read notifications, which the daily summary is read from. */
@@ -116,6 +125,41 @@ object TimerPermissionChecks {
       )
     } catch (e: ActivityNotFoundException) {
       // Nowhere to ask; the initial setup will say the state it found.
+    }
+  }
+
+  /** Opens the system's exact alarm special-access screen, only from initial setup. */
+  fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+      exactAlarmStatus(context) != Status.MISSING) return
+
+    try {
+      context.startActivity(
+        Intent(
+            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+            Uri.parse("package:" + context.packageName),
+          )
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+      return
+    } catch (_: ActivityNotFoundException) {
+      // Fall back to app details if the device has no dedicated page.
+    } catch (_: SecurityException) {
+      // A device-specific settings app may refuse the direct request.
+    }
+
+    try {
+      context.startActivity(
+        Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:" + context.packageName),
+          )
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+    } catch (_: ActivityNotFoundException) {
+      // Initial setup will continue to report the actual system state.
+    } catch (_: SecurityException) {
+      // Initial setup will continue to report the actual system state.
     }
   }
 
