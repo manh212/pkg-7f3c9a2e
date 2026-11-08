@@ -336,7 +336,7 @@ class InternalLiveRecognitionService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(if (mode == MODE_TRANSCRIBE) "Chép lời âm thanh nội bộ" else "Dịch âm thanh nội bộ")
             .setContentText(message)
-            .setSmallIcon(com.google.android.accessibility.talkback.R.drawable.ic_launcher)
+            .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
             .setOngoing(true)
             .setContentIntent(open)
             .addAction(0, "Dừng", stop)
