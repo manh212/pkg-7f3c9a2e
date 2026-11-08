@@ -143,6 +143,8 @@ public class SpeechControllerImpl implements SpeechController {
   }
 
   public static final String SPEECH_PARAM_RELEASED = "sandfly.released";
+  public static final String SPEECH_PARAM_VOICE_PROFILE = "sandfly.voiceProfile";
+  private long bilingualInterruptionGeneration;
 
   private static volatile @Nullable SpeechHold speechHold;
 
@@ -1279,6 +1281,10 @@ public class SpeechControllerImpl implements SpeechController {
     }
 
     boolean released = speechParams != null && speechParams.containsKey(SPEECH_PARAM_RELEASED);
+    if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0
+        && (!released || text instanceof BilingualSpeechText)) {
+      bilingualInterruptionGeneration++;
+    }
     // Speech a hold released has been through the dictionary already.
     @Nullable SpeechFilter dictionary = dictionaryFilter;
     if (dictionary != null && !released && !TextUtils.isEmpty(text)) {
@@ -1327,6 +1333,13 @@ public class SpeechControllerImpl implements SpeechController {
       }
     }
 
+    if (text instanceof BilingualSpeechText bilingual) {
+      speakBilingual(
+          bilingual, queueMode, flags, utteranceGroup, speechParams, nonSpeechParams,
+          startAction, rangeStartCallback, completedAction, eventId);
+      return;
+    }
+
     if (TextUtils.isEmpty(text)
         && (earcons == null || earcons.isEmpty())
         && (haptics == null || haptics.isEmpty())) {
@@ -1358,6 +1371,54 @@ public class SpeechControllerImpl implements SpeechController {
     updateInlineFormattingHistory(text, flags);
     makeSpeakablePunctuation(pendingItem);
     speak(pendingItem, queueMode, startAction, rangeStartCallback, completedAction);
+  }
+
+  private void speakBilingual(
+      BilingualSpeechText bilingual,
+      int queueMode,
+      int flags,
+      int utteranceGroup,
+      @Nullable Bundle speechParams,
+      @Nullable Bundle nonSpeechParams,
+      @Nullable UtteranceStartRunnable startAction,
+      @Nullable UtteranceRangeStartCallback rangeStartCallback,
+      @Nullable UtteranceCompleteRunnable completedAction,
+      @Nullable EventId eventId) {
+    long generation = bilingualInterruptionGeneration;
+    Bundle firstParams = bilingualParams(speechParams, bilingual.firstProfile());
+    speak(
+        bilingual.first(), null, null, queueMode, flags, utteranceGroup,
+        firstParams, nonSpeechParams, startAction, rangeStartCallback,
+        status -> {
+          if (status != STATUS_SPOKEN) {
+            if (completedAction != null) completedAction.run(status);
+            return;
+          }
+          mHandler.postDelayed(
+              () -> {
+                if (generation != bilingualInterruptionGeneration) {
+                  if (completedAction != null) completedAction.run(STATUS_INTERRUPTED);
+                  return;
+                }
+                Bundle secondParams = bilingualParams(speechParams, bilingual.secondProfile());
+                speak(
+                    bilingual.second(), null, null, QUEUE_MODE_QUEUE, flags, utteranceGroup,
+                    secondParams, null, null, null, completedAction, eventId);
+              },
+              750);
+        },
+        eventId);
+  }
+
+  private static Bundle bilingualParams(@Nullable Bundle original, String profile) {
+    Bundle params = original == null ? new Bundle() : new Bundle(original);
+    params.putBoolean(SPEECH_PARAM_RELEASED, true);
+    if (profile.isEmpty()) {
+      params.remove(SPEECH_PARAM_VOICE_PROFILE);
+    } else {
+      params.putString(SPEECH_PARAM_VOICE_PROFILE, profile);
+    }
+    return params;
   }
 
   private void makeSpeakablePunctuation(FeedbackItem item) {
@@ -2398,7 +2459,7 @@ public class SpeechControllerImpl implements SpeechController {
           params.get("com.google.android.tts:SubapplicationIdentifierId"));
     }
 
-    final float volume = speechVolume * parseFloatParam(params, SpeechParam.VOLUME, 1);
+    float volume = speechVolume * parseFloatParam(params, SpeechParam.VOLUME, 1);
 
     // Utterance ID, stream, and volume override item params.
     final int stream = FailoverTextToSpeech.getSpeechAudioStream(mContext);
@@ -2417,8 +2478,18 @@ public class SpeechControllerImpl implements SpeechController {
 
     boolean applyParams = mUseIntonation || params.containsKey(SPEECH_PARAM_FROM_SCRIPT);
     float pitch = speechPitch * (applyParams ? parseFloatParam(params, SpeechParam.PITCH, 1) : 1);
-    final float rate =
+    float rate =
         speechRate * (applyParams ? parseFloatParam(params, SpeechParam.RATE, 1) : 1);
+    String profileId = params.get(SPEECH_PARAM_VOICE_PROFILE);
+    if (profileId != null && !profileId.isEmpty()) {
+      android.content.SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(mContext);
+      if (VoiceProfiles.ids(prefs).contains(profileId)) {
+        VoiceProfiles.VoiceProfile profile = VoiceProfiles.read(prefs, profileId);
+        pitch = profile.pitch();
+        rate = profile.rate();
+        volume = profile.volume() / 100f;
+      }
+    }
     CharSequence text;
 
     final boolean shouldSilenceFragment = shouldSilenceSpeech(feedbackItem);
