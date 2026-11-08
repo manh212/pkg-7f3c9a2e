@@ -116,6 +116,16 @@ class SubtitleControllerTest {
     assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
   }
 
+  @Test fun unrelatedOcrTextDoesNotHideTheMissingCaptionWarning() {
+    set("lastDeliveredAt", -10_000L)
+    val request = get("generation") as Int
+    val unrelated = SubtitleLine("Thanh điều khiển lớn", Rect(0, 0, 1000, 900))
+    repeat(8) { frameLines(request, listOf(unrelated)) }
+    assertEquals(0, get("failures") as Int)
+    assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
+    assertTrue(get("active") as Boolean)
+  }
+
   @Test fun lateOcrResultDoesNotResetNewCaptureAfterTimeout() {
     val oldGeneration = get("generation") as Int
     set("capturePending", true)
@@ -137,10 +147,11 @@ class SubtitleControllerTest {
     method.isAccessible = true
     method.invoke(controller, request, listOf(SubtitleLine(text, Rect(100, 800, 900, 850))))
   }
-  private fun frameEmpty(request: Int) {
+  private fun frameEmpty(request: Int) = frameLines(request, emptyList())
+  private fun frameLines(request: Int, lines: List<SubtitleLine>) {
     val method = SubtitleController::class.java.getDeclaredMethod("complete", Int::class.javaPrimitiveType, List::class.java)
     method.isAccessible = true
-    method.invoke(controller, request, emptyList<SubtitleLine>())
+    method.invoke(controller, request, lines)
   }
   private fun get(name: String): Any? = SubtitleController::class.java.getDeclaredField(name).apply { isAccessible = true }.get(controller)
   private fun set(name: String, value: Any) { SubtitleController::class.java.getDeclaredField(name).apply { isAccessible = true }.set(controller, value) }
