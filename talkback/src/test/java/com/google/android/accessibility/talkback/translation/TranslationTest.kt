@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.translation
 
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
@@ -165,6 +166,31 @@ class TranslationTest {
     assertNull(TranslationSettings.secondTarget(prefs))
     assertEquals(TranslationService.ON_DEVICE, TranslationSettings.service(prefs, onDeviceAvailable = true))
     assertEquals(TranslationService.AI, TranslationSettings.service(prefs, onDeviceAvailable = false))
+  }
+
+  @Test
+  fun bilingualSettings_keepTheirDefaultsAndRecoverDeletedProfiles() {
+    prefs.edit()
+      .remove(TranslationSettings.PREF_BILINGUAL)
+      .remove(TranslationSettings.PREF_BILINGUAL_ORDER)
+      .putString(VoiceProfiles.PREF_IDS, "1,2")
+      .putString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, "1")
+      .putString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, "2")
+      .commit()
+    assertFalse(TranslationSettings.bilingual(prefs))
+    assertTrue(TranslationSettings.originalFirst(prefs))
+    assertEquals("1", TranslationSettings.originalProfile(prefs))
+    assertEquals("2", TranslationSettings.translatedProfile(prefs))
+    prefs.edit()
+      .putBoolean(TranslationSettings.PREF_BILINGUAL, true)
+      .putString(TranslationSettings.PREF_BILINGUAL_ORDER, TranslationSettings.BILINGUAL_TRANSLATED_FIRST)
+      .putString(VoiceProfiles.PREF_IDS, "2")
+      .commit()
+    assertTrue(TranslationSettings.bilingual(prefs))
+    assertFalse(TranslationSettings.originalFirst(prefs))
+    assertEquals("", TranslationSettings.originalProfile(prefs))
+    assertEquals("2", TranslationSettings.translatedProfile(prefs))
+    assertEquals("", prefs.getString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, null))
   }
 
   @Test
