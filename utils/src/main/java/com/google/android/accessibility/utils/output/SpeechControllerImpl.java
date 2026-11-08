@@ -59,6 +59,7 @@ import com.google.android.accessibility.utils.Logger;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.monitor.RecentUserInput;
 import com.google.android.accessibility.utils.R;
 import com.google.android.accessibility.utils.SpannableUtils;
@@ -1389,6 +1390,9 @@ public class SpeechControllerImpl implements SpeechController {
       @Nullable UtteranceCompleteRunnable completedAction,
       @Nullable EventId eventId) {
     long generation = bilingualInterruptionGeneration;
+    if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0) {
+      failoverTts.interruptBilingualProfiles();
+    }
     Bundle firstParams = bilingualParams(speechParams, bilingual.firstProfile());
     speak(
         bilingual.first(), null, null, queueMode, flags, utteranceGroup,
