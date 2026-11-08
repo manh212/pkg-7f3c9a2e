@@ -67,7 +67,7 @@ internal class GeminiApiLiveClient(
         socket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 val mode = if (resumeHandle.isNullOrBlank()) "phiên mới" else "khôi phục phiên"
-                logger.log(2, "GeminiWS", "WebSocket API đã mở; gửi setup model=$model ($mode)")
+                logger.log(2, "SubtitleRemote", "Đã kết nối phiên")
                 listener.onOpen()
                 if (!webSocket.send(GeminiLiveClient.createSetupMessage(model, targetLanguage, echoTargetLanguage, resumeHandle, operationMode))) {
                     deliverError(IllegalStateException("Không gửi được cấu hình setup"))
@@ -78,22 +78,22 @@ internal class GeminiApiLiveClient(
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) = parseMessage(bytes.utf8())
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                logger.log(1, "GeminiWS", "WebSocket API đang đóng code=$code reason=${reason.take(200)}")
+                logger.log(1, "SubtitleRemote", "Đang đóng kết nối code=$code")
                 webSocket.close(code, reason)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 setupComplete.set(false)
-                logger.log(if (explicitlyClosed.get()) 2 else 1, "GeminiWS", "WebSocket API đã đóng code=$code reason=${reason.take(200)} explicit=${explicitlyClosed.get()}")
+                logger.log(if (explicitlyClosed.get()) 2 else 1, "SubtitleRemote", "Kết nối đã đóng code=$code")
                 if (!explicitlyClosed.get() && terminalDelivered.compareAndSet(false, true)) {
-                    listener.onClosed("$code: $reason")
+                    listener.onClosed("code=$code")
                 }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 setupComplete.set(false)
                 if (explicitlyClosed.get()) return
-                logger.log(0, "GeminiWS", "Kết nối API thất bại HTTP=${response?.code()}", t)
+                logger.log(0, "SubtitleRemote", "Kết nối thất bại HTTP=${response?.code()} type=${t.javaClass.simpleName}")
                 deliverError(normalizeError(t, response))
             }
         })

@@ -216,9 +216,7 @@ class SubtitleController internal constructor(
     missingWindowSince = 0L
     lastDelivered = ""
     active = true
-    LogUtils.i(TAG, "Started owner=%s engine=%s region=%s interval=%d ocrViewport=%s",
-      owner, SubtitleSettings.engine(prefs), SubtitleSettings.region(prefs),
-      SubtitleSettings.interval(prefs), ocrViewport)
+    LogUtils.i(TAG, "Subtitle reading started; interval=%d", SubtitleSettings.interval(prefs))
     setStatus("Đang tìm phụ đề")
     generation++
     failures = 0
@@ -301,7 +299,7 @@ class SubtitleController internal constructor(
     if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
       event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
       if (!sameApplication()) {
-        LogUtils.i(TAG, "Stopped: foreground application changed from %s", owner)
+        LogUtils.i(TAG, "Stopped: foreground application changed")
         stop(false)
         return
       }

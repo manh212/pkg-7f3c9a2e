@@ -206,13 +206,13 @@ class InternalLiveRecognitionService : Service() {
 
                 override fun onError(error: Throwable) {
                     if (generation != connectionGeneration) return
-                    logger.log(0, "Gemini", "Phiên Gemini Live gặp lỗi", error)
+                    logger.log(0, "SubtitleSession", "Phiên đọc phụ đề lỗi: ${error.javaClass.simpleName}")
                     reconnect(key)
                 }
 
                 override fun onClosed(reason: String) {
                     if (generation == connectionGeneration && active) {
-                        logger.log(1, "Gemini", "Mất kết nối: $reason")
+                        logger.log(1, "SubtitleSession", "Mất kết nối")
                         reconnect(key)
                     }
                 }
