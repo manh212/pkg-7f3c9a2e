@@ -120,7 +120,12 @@ class AutomaticTranslationTest {
 
   @Before
   fun setUp() {
-    prefs.edit().putBoolean(TranslationSettings.PREF_BILINGUAL, false).commit()
+    prefs.edit()
+      .putBoolean(TranslationSettings.PREF_BILINGUAL, false)
+      .remove(TranslationSettings.PREF_BILINGUAL_ORDER)
+      .remove(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE)
+      .remove(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE)
+      .commit()
     TranslationSettings.setTarget(prefs, "en")
     TranslationSettings.setService(prefs, TranslationService.ON_DEVICE)
     engine.languages["Guten Morgen"] = "de"
