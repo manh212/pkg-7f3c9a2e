@@ -16,3 +16,13 @@ The update dialog's Save to Downloads switch is off by default and remembered. W
 - `UpdateDownloadsTest`: saving disabled by default, scoped storage publication, persistence after cache cleanup, incomplete-copy rollback and legacy storage permissions.
 
 Run these tests in GitHub Actions only. Shared speech-group, resource and manifest changes allow the automatic CI selector to broaden coverage to the affected modules. Device testing remains necessary for real subtitle accuracy, speech timing, accessibility focus and OEM screen-capture behavior.
+
+## Subtitle status overlay and recovery (2026-11-08)
+
+Subtitle mode requests Android's **Display over other apps** special access to show a small non-interactive status overlay. This permission is **only** for the status overlay, not screenshot OCR. The screenshot is captured with `AccessibilityService.takeScreenshot()`; Android 11+ service resource configurations declare `android:canTakeScreenshot="true"`. The overlay is hidden during capture so it does not contaminate the image submitted to OCR.
+
+The capture/OCR watchdog times out after 8 seconds and invalidates stale callbacks. UI transitions involving Meridian's menu or briefly missing application roots are handled with a 2.5-second grace period. The OCR pipeline tracks empty results separately from failures, explains missing subtitles after repeated empty frames, and releases stale automatically discovered regions. Certain content-change events from the video application can supply eligible accessibility text directly, without screenshot OCR. The debug log records selected engine, region, screen geometry, frame line count, and failure reason without full subtitle text.
+
+User action: enable YouTube captions/CC and play the video; grant overlay access in Android Settings the first time; return to YouTube and enable subtitle reading again.
+
+Caveats: secure/protected video surfaces may not be capturable; not every app exposes timed captions to accessibility. Compile, run CI tests, and verify capture/overlay behavior on Android 16 before release.
