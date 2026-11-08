@@ -73,10 +73,18 @@ class InternalLiveRecognitionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             clearPendingStart()
+            TalkBackService.getInstance()?.speechController
+                ?.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_SUBTITLES)
             stopSelf()
             return START_NOT_STICKY
         }
         if (intent?.action != ACTION_START) return START_NOT_STICKY
+        // If the user cancelled through the subtitle gesture during consent, discard
+        // a late start request rather than silently starting a new session.
+        if (!hasPendingStart()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             clearPendingStart()
             stopSelf()
@@ -362,8 +370,8 @@ class InternalLiveRecognitionService : Service() {
         clearPendingStart()
         mainHandler.removeCallbacks(ttsFlush)
         ttsBuffer.clear()
-        TalkBackService.getInstance()?.speechController
-            ?.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_SUBTITLES)
+        // Do not erase a spoken startup/revocation error from the accessibility
+        // queue. Explicit user STOP clears it in onStartCommand above.
         connectionGeneration++
         source?.stop()
         source = null
@@ -406,7 +414,7 @@ class InternalLiveRecognitionService : Service() {
         fun hasPendingStart(): Boolean {
             val started = pendingStartAt
             return started > 0L &&
-                SystemClock.elapsedRealtime() - started in 0L..60_000L
+                SystemClock.elapsedRealtime() - started in 0L..600_000L
         }
     }
 }
