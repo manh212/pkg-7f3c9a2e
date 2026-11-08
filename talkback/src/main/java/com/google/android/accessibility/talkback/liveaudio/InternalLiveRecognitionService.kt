@@ -31,6 +31,7 @@ import com.oai.geminilivetranslate.audio.InternalAudioSource
 import com.oai.geminilivetranslate.audio.StreamingPcmPlayer
 import com.oai.geminilivetranslate.core.SessionLogger
 import com.oai.geminilivetranslate.network.GeminiLiveClient
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,6 +67,9 @@ class InternalLiveRecognitionService : Service() {
     private var connectionGeneration = 0
     private var lastRawTranscript = ""
     private var reconnectAttempts = 0
+    private var setupFailures = 0
+    private var setupCompleted = false
+    private var transcriptPlacement = GeminiLiveClient.TranscriptPlacement.LEGACY
     private var resumeHandle: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -147,6 +151,7 @@ class InternalLiveRecognitionService : Service() {
     private fun connectGemini(key: String) {
         if (!active) return
         val generation = ++connectionGeneration
+        setupCompleted = false
         val model = TRANSLATE_MODEL
         val operation = GeminiLiveClient.OperationMode.TRANSLATE
         val liveClient = GeminiLiveClient(
@@ -157,11 +162,20 @@ class InternalLiveRecognitionService : Service() {
             logger = logger,
             resumeHandle = resumeHandle,
             operationMode = operation,
+            transcriptPlacement = transcriptPlacement,
             listener = object : GeminiLiveClient.Listener {
+                override fun onOpen() {
+                    if (active && generation == connectionGeneration) {
+                        LogUtils.i("SubtitleFlow", "Session socket opened; retry=%d", reconnectAttempts)
+                    }
+                }
                 @SuppressLint("NewApi")
                 override fun onSetupComplete() {
                     if (!active || generation != connectionGeneration) return
+                    setupCompleted = true
+                    setupFailures = 0
                     reconnectAttempts = 0
+                    LogUtils.i("SubtitleFlow", "Session setup complete")
                     notifyStatus("Đang đọc phụ đề")
                     if (source == null) launchSource() else source?.resume()
                 }
@@ -206,13 +220,15 @@ class InternalLiveRecognitionService : Service() {
 
                 override fun onError(error: Throwable) {
                     if (generation != connectionGeneration) return
-                    logger.log(0, "SubtitleSession", "Phiên đọc phụ đề lỗi: ${error.javaClass.simpleName}")
+                    val code = (error as? GeminiLiveClient.GeminiApiException)?.code ?: 0
+                    recordConnectionFailure("error", code, error.javaClass.simpleName)
                     reconnect(key)
                 }
 
                 override fun onClosed(reason: String) {
                     if (generation == connectionGeneration && active) {
-                        logger.log(1, "SubtitleSession", "Mất kết nối")
+                        val code = reason.substringAfter("code=", "").toIntOrNull() ?: 0
+                        recordConnectionFailure("closed", code, "WebSocket")
                         reconnect(key)
                     }
                 }
@@ -220,6 +236,21 @@ class InternalLiveRecognitionService : Service() {
         )
         client = liveClient
         liveClient.connect()
+    }
+
+    private fun recordConnectionFailure(stage: String, code: Int, type: String) {
+        if (!setupCompleted) {
+            setupFailures++
+            // Before subtitles were unified, the wire setup placed the optional
+            // transcription field at top level. First retry the official format
+            // only if that historical setup is rejected.
+            if (transcriptPlacement == GeminiLiveClient.TranscriptPlacement.LEGACY) {
+                transcriptPlacement = GeminiLiveClient.TranscriptPlacement.GENERATION_CONFIG
+            }
+        }
+        LogUtils.w("SubtitleFlow",
+            "Session %s; setupCompleted=%s code=%d type=%s attempt=%d",
+            stage, setupCompleted, code, type, reconnectAttempts + 1)
     }
 
     // API 29+ is enforced at the service entry and in the capture-request Activity.
@@ -326,6 +357,7 @@ class InternalLiveRecognitionService : Service() {
         if (!active) return
         reconnectAttempts++
         if (reconnectAttempts > 5) {
+            LogUtils.w("SubtitleFlow", "Session stopped after retries; setupFailures=%d", setupFailures)
             announce("Không thể tiếp tục đọc phụ đề.")
             stopSelf()
             return

@@ -16,7 +16,10 @@ class GeminiLiveClient(
     private val resumeHandle: String? = null,
     private val maxQueuedWireBytes: Long = 512L * 1024L,
     private val operationMode: OperationMode = OperationMode.TRANSLATE,
+    private val transcriptPlacement: TranscriptPlacement = TranscriptPlacement.LEGACY,
 ) {
+    /** LEGACY is the exact wire layout used by the original standalone integration. */
+    enum class TranscriptPlacement { LEGACY, GENERATION_CONFIG }
     enum class OperationMode { TRANSLATE, TRANSCRIBE }
 
     interface Listener {
@@ -83,6 +86,7 @@ class GeminiLiveClient(
             resumeHandle = resumeHandle,
             maxQueuedWireBytes = maxQueuedWireBytes,
             operationMode = operationMode,
+            transcriptPlacement = transcriptPlacement,
         )
         apiBackend = backend
         backend.connect()
@@ -113,6 +117,7 @@ class GeminiLiveClient(
             echoTargetLanguage: Boolean,
             resumeHandle: String? = null,
             operationMode: OperationMode = OperationMode.TRANSLATE,
+            transcriptPlacement: TranscriptPlacement = TranscriptPlacement.LEGACY,
         ): String {
             val setup = JSONObject()
                 .put("model", "models/${model.trim().removePrefix("models/")}")
@@ -134,8 +139,16 @@ class GeminiLiveClient(
                     JSONObject()
                         .put("responseModalities", JSONArray().put("AUDIO"))
                         .put("translationConfig", translationConfig)
-                        .put("outputAudioTranscription", JSONObject()),
+                        .apply {
+                            if (transcriptPlacement == TranscriptPlacement.GENERATION_CONFIG) {
+                                put("outputAudioTranscription", JSONObject())
+                            }
+                        },
                 )
+                if (transcriptPlacement == TranscriptPlacement.LEGACY) {
+                    // Preserve the layout previously used by the working standalone feature.
+                    setup.put("outputAudioTranscription", JSONObject())
+                }
                 setup.put(
                     "contextWindowCompression",
                     JSONObject().put("slidingWindow", JSONObject()),

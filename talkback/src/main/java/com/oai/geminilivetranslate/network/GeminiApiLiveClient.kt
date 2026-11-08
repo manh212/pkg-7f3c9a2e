@@ -26,6 +26,7 @@ internal class GeminiApiLiveClient(
     private val resumeHandle: String? = null,
     private val maxQueuedWireBytes: Long,
     private val operationMode: GeminiLiveClient.OperationMode,
+    private val transcriptPlacement: GeminiLiveClient.TranscriptPlacement,
 ) {
     private val explicitlyClosed = AtomicBoolean(false)
     private val terminalDelivered = AtomicBoolean(false)
@@ -69,7 +70,7 @@ internal class GeminiApiLiveClient(
                 val mode = if (resumeHandle.isNullOrBlank()) "phiên mới" else "khôi phục phiên"
                 logger.log(2, "SubtitleRemote", "Đã kết nối phiên")
                 listener.onOpen()
-                if (!webSocket.send(GeminiLiveClient.createSetupMessage(model, targetLanguage, echoTargetLanguage, resumeHandle, operationMode))) {
+                if (!webSocket.send(GeminiLiveClient.createSetupMessage(model, targetLanguage, echoTargetLanguage, resumeHandle, operationMode, transcriptPlacement))) {
                     deliverError(IllegalStateException("Không gửi được cấu hình setup"))
                 }
             }
