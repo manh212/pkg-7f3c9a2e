@@ -28,6 +28,7 @@ import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.translation.TranslationFailure.Kind
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.BilingualSpeechText
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
@@ -79,6 +80,25 @@ class TranslateCommand(private val context: Context, private val speaker: Speech
     if (TranslationLanguages.same(translation.from, translation.to) && translation.text == source) {
       return status(context.getString(R.string.translation_already_in, TranslationLanguages.name(translation.to)))
     }
+    original = source
+    spoken = translation.text
+    if (TranslationSettings.copy(prefs)) {
+      ClipboardHistory.copy(context, translation.text)
+    }
+    if (TranslationSettings.bilingual(prefs)) {
+      speaker.speak(
+        BilingualSpeechText(
+          source,
+          translation.text,
+          TranslationSettings.originalProfile(prefs),
+          TranslationSettings.translatedProfile(prefs),
+          TranslationSettings.originalFirst(prefs),
+        ),
+        EVENT_ID_UNTRACKED,
+        options(FeedbackItem.FLAG_FORCE_FEEDBACK_ALL),
+      )
+      return
+    }
     val text = SpannableString(translation.text)
     if (TranslationSettings.targetVoice(prefs)) {
       text.setSpan(LocaleSpan(Locale.forLanguageTag(translation.to)), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -89,12 +109,7 @@ class TranslateCommand(private val context: Context, private val speaker: Speech
       speech.append(context.getString(R.string.translation_from, TranslationLanguages.name(from))).append(' ')
     }
     speech.append(text)
-    original = source
     spoken = speech.toString()
-    if (TranslationSettings.copy(prefs)) {
-      ClipboardHistory.copy(context, translation.text)
-    }
-
     speaker.speak(speech, EVENT_ID_UNTRACKED, options(FeedbackItem.FLAG_FORCE_FEEDBACK_ALL))
   }
 
