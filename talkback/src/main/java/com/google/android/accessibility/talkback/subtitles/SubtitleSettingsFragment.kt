@@ -1,6 +1,8 @@
 package com.google.android.accessibility.talkback.subtitles
 
 import android.os.Bundle
+import android.content.Intent
+import com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity
 import android.widget.Toast
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -14,6 +16,10 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
+    findPreference<Preference>("pref_internal_live_audio")?.setOnPreferenceClickListener {
+      startActivity(Intent(requireContext(), InternalLiveRecognitionActivity::class.java))
+      true
+    }
     for (
       key in
         listOf(
