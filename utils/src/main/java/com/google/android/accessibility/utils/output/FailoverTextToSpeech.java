@@ -1118,6 +1118,10 @@ public class FailoverTextToSpeech {
     for (Runnable speech : waiting) speech.run();
   }
 
+  public void interruptBilingualProfiles() {
+    stopBilingualSpeech();
+  }
+
   private void stopBilingualSpeech() {
     bilingualSpeechGeneration++;
     for (ProfileSpeechEngine profile : bilingualEngines.values()) {
