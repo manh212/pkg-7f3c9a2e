@@ -202,6 +202,7 @@ public final class TesseractOcr {
             return null;
           }
         }
+        engine.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO);
         engine.setImage(bitmap);
         String text = engine.getUTF8Text();
         lastUsedMs = SystemClock.elapsedRealtime();
@@ -228,6 +229,8 @@ public final class TesseractOcr {
             return null;
           }
         }
+        // Burned-in video captions are sparse, not a continuous page of text.
+        engine.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SPARSE_TEXT);
         engine.setImage(bitmap);
         if (engine.getUTF8Text() == null) {
           return null;
