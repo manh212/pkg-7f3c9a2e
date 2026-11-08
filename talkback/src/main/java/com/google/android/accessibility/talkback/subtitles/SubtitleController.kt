@@ -237,7 +237,14 @@ class SubtitleController internal constructor(
   }
 
   fun stop(speak: Boolean) {
-    val wasActive = active
+    // GestureController calls stop(false) when TalkBack is paused. It must also
+    // stop the selected Gemini subtitle engine, not only the OCR capture loop.
+    val liveWasActive = InternalLiveRecognitionService.running
+    if (liveWasActive) {
+      service.startService(Intent(service, InternalLiveRecognitionService::class.java)
+        .setAction(InternalLiveRecognitionService.ACTION_STOP))
+    }
+    val wasActive = active || liveWasActive
     active = false
     generation++
     handler.removeCallbacks(capture)
@@ -262,10 +269,6 @@ class SubtitleController internal constructor(
 
   fun shutdown() {
     if (closed) return
-    if (InternalLiveRecognitionService.running) {
-      service.startService(Intent(service, InternalLiveRecognitionService::class.java)
-        .setAction(InternalLiveRecognitionService.ACTION_STOP))
-    }
     stop(false)
     closed = true
     worker.execute { recognizer?.close(); recognizer = null }
