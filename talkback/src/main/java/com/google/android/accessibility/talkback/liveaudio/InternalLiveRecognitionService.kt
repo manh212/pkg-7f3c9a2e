@@ -72,56 +72,67 @@ class InternalLiveRecognitionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            clearPendingStart()
             stopSelf()
             return START_NOT_STICKY
         }
         if (intent?.action != ACTION_START) return START_NOT_STICKY
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) { stopSelf(); return START_NOT_STICKY }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            clearPendingStart()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (active) return START_NOT_STICKY
 
         val code = intent.getIntExtra(EXTRA_PROJECTION_CODE, 0)
         @Suppress("DEPRECATION")
         val data = intent.getParcelableExtra<Intent>(EXTRA_PROJECTION_DATA)
-        if (code == 0 || data == null) { stopSelf(); return START_NOT_STICKY }
+        if (code == 0 || data == null) {
+            clearPendingStart()
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         val prefs = SharedPreferencesUtils.getSharedPreferences(this)
         val key = GeminiApiKey.effectiveKey(prefs, BuildConfig.GEMINI_API_KEY)
         voice = SubtitleSettings.geminiVoice(prefs)
         if (key.isEmpty()) {
-            announce("Chưa có khóa Gemini API. Hãy nhập trong cài đặt Nhận dạng.")
+            announce("Chưa thiết lập khóa truy cập.")
+            clearPendingStart()
             stopSelf()
             return START_NOT_STICKY
-        }
-        createChannel()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification("Đang khởi động dịch âm thanh nội bộ"),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification("Đang khởi động dịch âm thanh nội bộ"))
         }
         try {
+            createChannel()
+            startForeground(NOTIFICATION_ID, notification("Đang đọc phụ đề"),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
             projection = getSystemService(MediaProjectionManager::class.java)
                 .getMediaProjection(code, data)
+                ?: throw IllegalStateException("Projection result rejected")
+            active = true
+            running = true
+            clearPendingStart()
+            if (voice == VOICE_GEMINI) {
+                player = StreamingPcmPlayer(
+                    sampleRate = 24_000,
+                    bufferBytes = 48_000,
+                    queueCapacity = 50,
+                    initialJitterChunks = 1,
+                    usage = if (SubtitleSettings.geminiChannel(prefs) == SubtitleSettings.CHANNEL_MEDIA)
+                        AudioAttributes.USAGE_MEDIA else AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY,
+                    logger = logger,
+                    diagnosticName = "SubtitleAudio",
+                ).also { it.start() }
+            }
+            connectGemini(key)
         } catch (e: RuntimeException) {
-            logger.log(0, "MediaProjection", "Không khởi tạo được phiên thu", e)
+            logger.log(0, "SubtitleSession", "Capture start failed", e)
+            clearPendingStart()
+            active = false
+            running = false
+            announce("Không bật được đọc phụ đề. Vui lòng kiểm tra quyền thu âm thanh.")
             stopSelf()
-            return START_NOT_STICKY
         }
-        active = true
-        running = true
-        if (voice == VOICE_GEMINI) {
-            player = StreamingPcmPlayer(
-                sampleRate = 24_000,
-                bufferBytes = 48_000,
-                queueCapacity = 50,
-                initialJitterChunks = 1,
-                usage = if (SubtitleSettings.geminiChannel(prefs) == SubtitleSettings.CHANNEL_MEDIA)
-                    AudioAttributes.USAGE_MEDIA else AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY,
-                logger = logger,
-                diagnosticName = "TranslatedPlayer-accessibility",
-            ).also { it.start() }
-        }
-        connectGemini(key)
         return START_NOT_STICKY
     }
 
@@ -143,7 +154,7 @@ class InternalLiveRecognitionService : Service() {
                 override fun onSetupComplete() {
                     if (!active || generation != connectionGeneration) return
                     reconnectAttempts = 0
-                    notifyStatus("Đang dịch phụ đề trực tuyến")
+                    notifyStatus("Đang đọc phụ đề")
                     if (source == null) launchSource() else source?.resume()
                 }
 
@@ -307,7 +318,7 @@ class InternalLiveRecognitionService : Service() {
         if (!active) return
         reconnectAttempts++
         if (reconnectAttempts > 5) {
-            announce("Không thể tiếp tục phiên Gemini Live.")
+            announce("Không thể tiếp tục đọc phụ đề.")
             stopSelf()
             return
         }
@@ -326,13 +337,13 @@ class InternalLiveRecognitionService : Service() {
 
     private fun createChannel() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Nhận dạng âm thanh nội bộ", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL_ID, "Đọc phụ đề", NotificationManager.IMPORTANCE_LOW)
         )
     }
 
     private fun notification(message: String): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Đọc phụ đề trực tuyến bằng Gemini")
+            .setContentTitle("Đọc phụ đề")
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
             .setOngoing(true)
@@ -348,6 +359,7 @@ class InternalLiveRecognitionService : Service() {
     override fun onDestroy() {
         active = false
         running = false
+        clearPendingStart()
         mainHandler.removeCallbacks(ttsFlush)
         ttsBuffer.clear()
         TalkBackService.getInstance()?.speechController
@@ -377,9 +389,24 @@ class InternalLiveRecognitionService : Service() {
         const val VOICE_GEMINI = "gemini"
         const val VOICE_READER = "reader"
         private const val TRANSLATE_MODEL = "gemini-3.5-live-translate-preview"
-        private const val CHANNEL_ID = "meridian_live_audio"
+        private const val CHANNEL_ID = "meridian_subtitle_reader"
         private const val NOTIFICATION_ID = 8134
         @Volatile var running = false
             private set
+        @Volatile private var pendingStartAt = 0L
+
+        fun markPendingStart() {
+            pendingStartAt = SystemClock.elapsedRealtime().coerceAtLeast(1L)
+        }
+
+        fun clearPendingStart() {
+            pendingStartAt = 0L
+        }
+
+        fun hasPendingStart(): Boolean {
+            val started = pendingStartAt
+            return started > 0L &&
+                SystemClock.elapsedRealtime() - started in 0L..60_000L
+        }
     }
 }

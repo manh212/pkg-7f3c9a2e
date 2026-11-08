@@ -82,6 +82,5 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
     findPreference<Preference>(SubtitleSettings.GEMINI_CHANNEL)?.isVisible =
       gemini && voice == SubtitleSettings.VOICE_GEMINI
     findPreference<Preference>(com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey.PREF_KEY)?.isVisible = gemini
-    findPreference<Preference>("pref_subtitle_gemini_privacy")?.isVisible = gemini
   }
 }

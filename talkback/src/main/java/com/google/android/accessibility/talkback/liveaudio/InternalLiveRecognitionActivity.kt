@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
+import android.media.projection.MediaProjectionConfig
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -23,14 +24,25 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
     private val projectionPermission =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val permission = result.data
+            if (!InternalLiveRecognitionService.hasPendingStart()) {
+                finish()
+                return@registerForActivityResult
+            }
             if (result.resultCode == Activity.RESULT_OK && permission != null) {
-                ContextCompat.startForegroundService(this,
+                try {
+                    ContextCompat.startForegroundService(this,
                     Intent(this, InternalLiveRecognitionService::class.java).apply {
                         action = InternalLiveRecognitionService.ACTION_START
                         putExtra(InternalLiveRecognitionService.EXTRA_PROJECTION_CODE, result.resultCode)
                         putExtra(InternalLiveRecognitionService.EXTRA_PROJECTION_DATA, permission)
                     })
+                } catch (e: RuntimeException) {
+                    InternalLiveRecognitionService.clearPendingStart()
+                    android.util.Log.e("SubtitleSession", "Could not start foreground service", e)
+                    Toast.makeText(this, "Không khởi động được đọc phụ đề", Toast.LENGTH_LONG).show()
+                }
             } else {
+                InternalLiveRecognitionService.clearPendingStart()
                 Toast.makeText(this, "Chưa cấp quyền thu âm thanh nội bộ", Toast.LENGTH_LONG).show()
             }
             finish()
@@ -40,6 +52,7 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) requestProjection()
             else {
+                InternalLiveRecognitionService.clearPendingStart()
                 Toast.makeText(this, "Cần quyền ghi âm để thu âm thanh nội bộ", Toast.LENGTH_LONG).show()
                 finish()
             }
@@ -49,14 +62,17 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Restore ActivityResult callbacks after Android recreates the consent Activity.
         if (savedInstanceState != null) return
+        if (!InternalLiveRecognitionService.hasPendingStart()) { finish(); return }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            InternalLiveRecognitionService.clearPendingStart()
             Toast.makeText(this, "Thu âm thanh nội bộ cần Android 10", Toast.LENGTH_LONG).show()
             finish()
             return
         }
         val prefs = SharedPreferencesUtils.getSharedPreferences(this)
         if (GeminiApiKey.effectiveKey(prefs, BuildConfig.GEMINI_API_KEY).isBlank()) {
-            Toast.makeText(this, "Hãy nhập Gemini API Key trong cài đặt phụ đề",
+            InternalLiveRecognitionService.clearPendingStart()
+            Toast.makeText(this, "Hãy thiết lập khóa truy cập trong cài đặt phụ đề",
                 Toast.LENGTH_LONG).show()
             finish()
             return
@@ -70,6 +86,11 @@ class InternalLiveRecognitionActivity : ComponentActivity() {
     private fun requestProjection() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) { finish(); return }
         val manager = getSystemService(MediaProjectionManager::class.java)
-        projectionPermission.launch(manager.createScreenCaptureIntent())
+        // Audio capture needs a device-wide session. A single-app projection can die
+        // when this ephemeral consent Activity closes on Android 14 and later.
+        val capture = if (Build.VERSION.SDK_INT >= 34)
+            manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+        else manager.createScreenCaptureIntent()
+        projectionPermission.launch(capture)
     }
 }

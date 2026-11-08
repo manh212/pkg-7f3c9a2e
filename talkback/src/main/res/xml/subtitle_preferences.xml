@@ -31,8 +31,4 @@
   <Preference
       android:key="pref_gemini_api_key" android:title="@string/title_pref_gemini_api_key"
       android:summary="@string/ai_provider_not_set" />
-  <Preference
-      android:key="pref_subtitle_gemini_privacy" android:selectable="false"
-      android:title="@string/subtitle_gemini_privacy_title"
-      android:summary="@string/subtitle_gemini_privacy_summary" />
 </PreferenceScreen>

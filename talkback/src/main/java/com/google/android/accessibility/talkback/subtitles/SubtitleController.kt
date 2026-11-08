@@ -132,8 +132,10 @@ class SubtitleController internal constructor(
 
   fun toggle() {
     // Both the gesture and the context-menu subtitle command land here.
-    if (InternalLiveRecognitionService.running) {
-      service.startService(Intent(service, InternalLiveRecognitionService::class.java)
+    if (InternalLiveRecognitionService.running ||
+        InternalLiveRecognitionService.hasPendingStart()) {
+      InternalLiveRecognitionService.clearPendingStart()
+      if (InternalLiveRecognitionService.running) service.startService(Intent(service, InternalLiveRecognitionService::class.java)
         .setAction(InternalLiveRecognitionService.ACTION_STOP))
       speaker.stop()
       announce(service.getString(R.string.subtitle_stopped))
@@ -151,12 +153,19 @@ class SubtitleController internal constructor(
         return
       }
       if (GeminiApiKey.effectiveKey(prefs, BuildConfig.GEMINI_API_KEY).isEmpty()) {
-        announce("Hãy nhập khóa Gemini API trong cài đặt Nhận dạng phụ đề.")
+        announce("Hãy thiết lập khóa truy cập trong cài đặt nhận dạng phụ đề.")
         return
       }
       // Android's required projection/recording permission prompts are the only UI here.
-      service.startActivity(Intent(service, InternalLiveRecognitionActivity::class.java)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      InternalLiveRecognitionService.markPendingStart()
+      try {
+        service.startActivity(Intent(service, InternalLiveRecognitionActivity::class.java)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      } catch (e: RuntimeException) {
+        InternalLiveRecognitionService.clearPendingStart()
+        LogUtils.w(TAG, "Consent Activity failed: %s", e.message)
+        announce("Không mở được yêu cầu cấp quyền đọc phụ đề.")
+      }
       return
     }
     // The special permission powers the visible overlay, NOT screenshot OCR.
@@ -221,8 +230,9 @@ class SubtitleController internal constructor(
   }
 
   fun findAgain() {
-    if (InternalLiveRecognitionService.running) {
-      announce("Gemini đang dịch âm thanh trực tuyến; chế độ này không quét vùng ảnh phụ đề.")
+    if (InternalLiveRecognitionService.running ||
+        InternalLiveRecognitionService.hasPendingStart()) {
+      announce("Đang đọc phụ đề; không có vùng ảnh cần tìm lại.")
       return
     }
     if (!active) { announce(service.getString(R.string.subtitle_not_running)); return }
@@ -239,8 +249,10 @@ class SubtitleController internal constructor(
   fun stop(speak: Boolean) {
     // GestureController calls stop(false) when TalkBack is paused. It must also
     // stop the selected Gemini subtitle engine, not only the OCR capture loop.
-    val liveWasActive = InternalLiveRecognitionService.running
-    if (liveWasActive) {
+    val liveWasActive = InternalLiveRecognitionService.running ||
+      InternalLiveRecognitionService.hasPendingStart()
+    if (liveWasActive) InternalLiveRecognitionService.clearPendingStart()
+    if (InternalLiveRecognitionService.running) {
       service.startService(Intent(service, InternalLiveRecognitionService::class.java)
         .setAction(InternalLiveRecognitionService.ACTION_STOP))
     }
