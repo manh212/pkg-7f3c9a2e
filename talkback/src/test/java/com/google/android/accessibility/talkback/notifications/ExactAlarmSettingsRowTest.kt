@@ -21,6 +21,8 @@ import android.provider.Settings
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -35,16 +37,13 @@ class ExactAlarmSettingsRowTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun granted_showsTheGrantedSummary() {
+  fun granted_hidesTheRow() {
     ShadowAlarmManager.setCanScheduleExactAlarms(true)
     val preference = Preference(context)
 
     ExactAlarmSettingsRow.bind(preference, context)
 
-    assertEquals(
-      context.getString(R.string.timer_setup_exact_alarm_granted),
-      preference.summary?.toString(),
-    )
+    assertFalse(preference.isVisible)
   }
 
   @Test
@@ -54,6 +53,7 @@ class ExactAlarmSettingsRowTest {
 
     ExactAlarmSettingsRow.bind(preference, context)
 
+    assertTrue(preference.isVisible)
     assertEquals(
       context.getString(R.string.timer_setup_exact_alarm_missing),
       preference.summary?.toString(),
@@ -68,10 +68,12 @@ class ExactAlarmSettingsRowTest {
     ShadowAlarmManager.setCanScheduleExactAlarms(true)
     val preference = Preference(context)
     ExactAlarmSettingsRow.bind(preference, context)
+    assertFalse(preference.isVisible)
 
     ShadowAlarmManager.setCanScheduleExactAlarms(false)
     ExactAlarmSettingsRow.refresh(preference, context)
 
+    assertTrue(preference.isVisible)
     assertEquals(
       context.getString(R.string.timer_setup_exact_alarm_missing),
       preference.summary?.toString(),
