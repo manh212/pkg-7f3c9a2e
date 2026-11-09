@@ -11,6 +11,10 @@ public final class DistributionEndpoints {
     return EndpointCodec.decode("Eev4k-qaKFlgGaXT", 97);
   }
 
+  public static String dataRepositoryName() {
+    return EndpointCodec.decode("UDkJ892xlngYMBLm0A", 61);
+  }
+
   public static String apiOrigin() {
     return EndpointCodec.decode("y7aVcGwEclP6yrDWcF8hHObQ_5NgQw", 163);
   }
@@ -27,4 +31,6 @@ public final class DistributionEndpoints {
   public static String apiRepository() { return apiOrigin() + "/repos/" + repository(); }
   public static String webRepository() { return webOrigin() + "/" + repository(); }
   public static String catalogRoot() { return rawOrigin() + "/" + repository() + "/master/"; }
+  public static String dataRepository() { return owner() + "/" + dataRepositoryName(); }
+  public static String dataCatalogRoot() { return rawOrigin() + "/" + dataRepository() + "/master/"; }
 }
