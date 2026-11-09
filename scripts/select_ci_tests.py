@@ -166,8 +166,9 @@ def plan_tests(changed, files, previous=None, force_all=None):
             else:
                 whole_modules |= broader_scope(module)
                 reasons.append(path + ": test helper or removed test; entire module")
-        elif info and (feature := feature_for(info)):
-            groups = FEATURES[feature]
+        elif info:
+            feature = feature_for(info)
+            groups = FEATURES[feature] if feature else set()
             group_sources = [
                 value for value in sources.values()
                 if feature_for(value) in groups and not value["test_source"]
@@ -179,13 +180,16 @@ def plan_tests(changed, files, previous=None, force_all=None):
             }
             if matches:
                 selected |= matches
-                reasons.append(path + ": feature groups " + ", ".join(sorted(groups)) + " and referencing tests")
+                if groups:
+                    reasons.append(path + ": feature groups " + ", ".join(sorted(groups)) + " and referencing tests")
+                else:
+                    reasons.append(path + ": referencing tests")
             else:
                 whole_modules |= broader_scope(module)
-                reasons.append(path + ": no mapped tests; module and dependents")
+                reasons.append(path + ": no referencing tests; module and dependents")
         else:
             whole_modules |= broader_scope(module)
-            reasons.append(path + ": shared, resource or unclassified change; module and dependents")
+            reasons.append(path + ": resource or unclassified change; module and dependents")
     whole_modules &= all_modules
     selected |= {path for path, info in tests.items() if info["module"] in whole_modules}
     commands = []
@@ -211,6 +215,8 @@ def plan_tests(changed, files, previous=None, force_all=None):
 
 
 def comparison_base(root, event, event_name, ref, published_name=None):
+    if event_name == "schedule":
+        return None, "Scheduled validation covers all test modules"
     if ref.startswith("refs/tags/v"):
         return None, "Release validation covers all test modules"
     if event_name == "pull_request":
