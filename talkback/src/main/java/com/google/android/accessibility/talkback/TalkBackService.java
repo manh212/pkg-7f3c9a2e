@@ -3413,6 +3413,18 @@ public class TalkBackService extends AccessibilityServiceCompat
     return flags;
   }
 
+  private void applyServiceInfoWithTouchExplorationToggle() {
+    AccessibilityServiceInfo info = getServiceInfo();
+    if (info == null
+        || (info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) == 0) {
+      applyServiceInfo();
+      return;
+    }
+    info.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
+    setServiceInfo(info);
+    applyServiceInfo();
+  }
+
   /**
    * Registers listeners, sets service info, loads preferences. This should be called from {@link
    * #onServiceConnected} and when TalkBack resumes from a suspended state.
@@ -4798,7 +4810,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   private void onLockedBootCompletedInternal() {
-    applyServiceInfo();
+    applyServiceInfoWithTouchExplorationToggle();
     // Update TTS quietly.
     // If the TTS changes here, it is probably a non-FBE TTS that didn't appear in the TTS
     // engine list when TalkBack initialized during system boot, so we want the change to be
