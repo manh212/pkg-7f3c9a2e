@@ -66,8 +66,9 @@ public class GitHubAppProtocolTest {
     assertEquals("http://127.0.0.1:12345/random/created", manifest.getString("redirect_url"));
     assertEquals("http://127.0.0.1:12345/random/installed", manifest.getString("setup_url"));
     JSONObject token = GitHubAppProtocol.tokenRequest();
-    assertEquals(1, token.getJSONArray("repositories").length());
+    assertEquals(2, token.getJSONArray("repositories").length());
     assertEquals("pkg-7f3c9a2e", token.getJSONArray("repositories").getString(0));
+    assertEquals("meridian-data", token.getJSONArray("repositories").getString(1));
     assertEquals(1, token.getJSONObject("permissions").length());
   }
 

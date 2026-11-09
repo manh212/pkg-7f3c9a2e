@@ -82,7 +82,9 @@ final class GitHubAppProtocol {
   }
 
   static JSONObject tokenRequest() throws Exception {
-    return new JSONObject().put("repositories", new JSONArray().put(io.meridian.licensing.DistributionEndpoints.repositoryName()))
+    return new JSONObject().put("repositories", new JSONArray()
+        .put(io.meridian.licensing.DistributionEndpoints.repositoryName())
+        .put(io.meridian.licensing.DistributionEndpoints.dataRepositoryName()))
         .put("permissions", new JSONObject().put("contents", "write"));
   }
 
