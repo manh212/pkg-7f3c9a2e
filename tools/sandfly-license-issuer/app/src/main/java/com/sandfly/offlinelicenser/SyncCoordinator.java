@@ -43,8 +43,9 @@ final class SyncCoordinator {
         firebasePending |= !entry.optBoolean("privateSynced") || entry.optInt("eventVersion") < 1;
       }
       if (!githubPending && !firebasePending) return false;
+      String token = GitHubConnection.token(store);
       CatalogPublisher publisher = githubPending
-          ? new CatalogPublisher(CatalogPublisher.github(GitHubConnection.token(store))) : null;
+          ? new CatalogPublisher(CatalogPublisher.dual(CatalogPublisher.githubData(token), CatalogPublisher.github(token))) : null;
       String publicKey = IssuerKeys.publicKey();
       Iterator<String> ids = records.keys();
       while (ids.hasNext()) {
