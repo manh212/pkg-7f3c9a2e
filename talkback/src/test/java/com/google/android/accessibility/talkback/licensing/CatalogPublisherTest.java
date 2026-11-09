@@ -40,6 +40,33 @@ public final class CatalogPublisherTest {
     }
   }
 
+    @Test public void dualGetPrefersFirstAndFallsBackToSecond() throws Exception {
+    FakeClient first = new FakeClient();
+    FakeClient second = new FakeClient();
+    String path = "docs/catalog/test.json";
+    first.files.put(path, new CatalogPublisher.RemoteFile("first", "sha-first"));
+    second.files.put(path, new CatalogPublisher.RemoteFile("second", "sha-second"));
+    CatalogPublisher.Client dual = CatalogPublisher.dual(first, second);
+    assertEquals("first", dual.get(path).content);
+    first.files.remove(path);
+    assertEquals("second", dual.get(path).content);
+    assertNull(dual.get("docs/catalog/missing.json"));
+  }
+
+  @Test public void dualPutWritesToBothClientsWithEachClientsOwnSha() throws Exception {
+    FakeClient first = new FakeClient();
+    FakeClient second = new FakeClient();
+    String path = "docs/catalog/test.json";
+    first.files.put(path, new CatalogPublisher.RemoteFile("old-first", "sha-first"));
+    second.files.put(path, new CatalogPublisher.RemoteFile("old-second", "sha-second"));
+    CatalogPublisher.Client dual = CatalogPublisher.dual(first, second);
+    dual.put(path, "new-content", "stale-sha");
+    assertEquals("new-content", first.files.get(path).content);
+    assertEquals("new-content", second.files.get(path).content);
+    assertEquals(1, first.writes);
+    assertEquals(1, second.writes);
+  }
+
   @Test public void bootstrapPinsTheKeyAndNeverReplacesAnotherIssuersKey() throws Exception {
     FakeClient client = new FakeClient();
     client.files.put(CatalogPublisher.PROFILE_PATH,
