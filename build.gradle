@@ -62,6 +62,7 @@ android {
     }
     buildTypes {
         release {
+            vcsInfo.include false
             minifyEnabled = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'meridian-activation-r8.pro'
         }
@@ -69,6 +70,7 @@ android {
         // debuggable app without compiling it, which makes navigation several times slower on
         // a watch, so they are not debuggable. Debug logging in the libraries stays on.
         debug {
+            vcsInfo.include false
             debuggable = false
             minifyEnabled = true
             shrinkResources = false
