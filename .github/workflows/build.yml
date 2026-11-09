@@ -549,3 +549,40 @@ jobs:
           else
             gh release create "$tag" meridian.apk --prerelease --latest=false --target "$GITHUB_SHA" --title "$title" --notes-file release-notes.md
           fi
+
+      - name: Mirror release to data repo
+        env:
+          GH_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          base=$(sed -n 's/^def buildNumberBase = "\([0-9a-f]*\)"/\1/p' version.gradle)
+          count=$(git rev-list --count "$base..HEAD")
+          hash=$(git rev-parse HEAD)
+          short=${hash:0:7}
+          apk=$(find apks -name "meridian-phone-debug.apk" | head -n 1)
+          cp "$apk" meridian.apk
+          repo="manh212/meridian-data"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag=$GITHUB_REF_NAME
+            title="Meridian ${tag#v}"
+            if gh release view "$tag" --repo "$repo" > /dev/null 2>&1; then
+              gh release upload "$tag" meridian.apk --clobber --repo "$repo"
+              gh release edit "$tag" --title "$title" --notes-file release-notes.md --repo "$repo"
+            else
+              gh release create "$tag" meridian.apk --repo "$repo" --latest --title "$title" --notes-file release-notes.md
+            fi
+            exit 0
+          fi
+          {
+            echo "build: $count"
+            echo
+            echo "Khắc phục các lỗi được người dùng báo cáo và cải thiện hiệu suất, độ ổn định."
+          } > release-notes.md
+          title="Development build $count ($short)"
+          tag=dev
+          if gh release view "$tag" --repo "$repo" > /dev/null 2>&1; then
+            gh release upload "$tag" meridian.apk --clobber --repo "$repo"
+            gh release edit "$tag" --title "$title" --notes-file release-notes.md --prerelease --latest=false --repo "$repo"
+          else
+            gh release create "$tag" meridian.apk --repo "$repo" --prerelease --latest=false --title "$title" --notes-file release-notes.md
+          fi
