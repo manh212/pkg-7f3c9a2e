@@ -48,7 +48,8 @@ Android 11 and later bind authentication to the individual signing operation.
 Android 8–10 require a fresh credential confirmation in the interface and use
 a ten-second Keystore authentication validity window.
 
-The signed registration is stored locally before any upload. Its public record
+The signed registration is stored locally before any upload.
+Catalog records are published to both `manh212/meridian-data` and the source repository, with the data repository first. Its public record
 is `docs/catalog/<device-hash>.json`, with only a format number and the signed
 SFLIC3 policy. Recipient names are absent from both the public file and signed
 payload. The tool uses the GitHub contents API, existing blob SHA values,
@@ -71,7 +72,7 @@ not automatically converted and never authorize a new Meridian build.
 ## Restore on the phone
 
 When activation settings open or the service starts while unlocked, Meridian
-looks up the device's public catalog record over HTTPS. It uses no GitHub token.
+looks up the device's public catalog record over HTTPS, reading the data repository (`manh212/meridian-data`) first and falling back to the source repository. It uses no GitHub token.
 It checks bounded response size, protocol format, the pinned public key,
 signature, device hash and official APK signing identity before saving the
 registration. It never trusts a public key supplied by the downloaded record.
