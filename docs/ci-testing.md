@@ -18,7 +18,9 @@ same accumulated diff until publication succeeds.
 For a pull request, use the merge base with its target commit. Stable release
 tags require every test module. Missing or unrelated release metadata broadens
 coverage to every test module. A manual run with no narrower change set also
-validates every test module.
+validates every test module. A scheduled run (nightly, 02:00 Asia/Saigon)
+always validates every test module, so breakage that per-change selection
+cannot see is still caught within a day; it never builds a release.
 
 ## Selection rules
 
@@ -29,7 +31,8 @@ validates every test module.
 | Test-only resources, instrumentation tests or test-selection tests | Related module tests (or all test modules for CI selector tests); do not build or publish an APK for test-only changes. |
 | A test helper or removed test | Its module and dependent modules. |
 | Source in a recognized feature package | Tests in its feature groups plus tests elsewhere that reference symbols from those groups. |
-| Shared code, resources, manifests, native code or an unclassified feature | The owning module and modules that depend on it. |
+| Any other source file (core code, shared library code, unclassified packages) | Tests that reference the changed file's symbols; if no test references it, the owning module and modules that depend on it. |
+| Resources, manifests, native code or other non-source files | The owning module and modules that depend on it. |
 | Shared build files, CI configuration or test-selection scripts | Every test module. |
 | A module without discoverable test coverage or known tested consumers | Broaden to every test module. |
 
@@ -38,8 +41,9 @@ direct touch, granular editing, individual feedback, keyboard echo, labels,
 migration, notifications, quick settings, diagnostics, scripts, sound themes,
 stuck-touch handling, timers and updates. Timer and notification tests run
 together, as do scripts and collapse, and sound themes and individual feedback.
-Unknown packages use the broader module scope until their test boundaries are
-explicitly added to the selector.
+Source files outside the recognized packages use the same reference-based
+selection without the feature groups: only tests that mention the changed
+symbols run.
 
 The selector reads both current and removed source files. Renames contribute
 both the old and new paths. Gradle project dependencies determine which modules
@@ -55,10 +59,10 @@ with an empty test plan. Gradle's failure when a class filter matches no tests
 is retained.
 
 The validation job runs repository checks, the settings key contract and selected
-unit tests before any APK assembly. If only tests change, this validation job runs
+unit tests. If only tests change, this validation job runs
 without APK assembly, lint or publication. Application changes start APK assembly
-and lint in separate, parallel GitHub Actions jobs only after validation succeeds.
-Publication waits for both jobs to pass, and the APK signature is checked before
+and lint in separate GitHub Actions jobs in parallel with validation.
+Publication waits for validation, assembly and lint all to pass, and the APK signature is checked before
 publication. The selector's own Python tests run in CI when its scripts or
 workflow change. Gradle caches are restored separately on each runner, so
 parallelization can trade more runner usage for a shorter elapsed build time.
@@ -71,11 +75,12 @@ application change.
 
 ## Limits and maintenance
 
-This is a conservative package and source-reference heuristic, not a complete
+This is a source-reference heuristic, not a complete
 runtime dependency analysis. Reflection, script dispatch and indirect behavior
-can require additional integration groups. When introducing such a dependency,
+can break tests that per-change selection does not run; the nightly scheduled
+run covers every test module to catch that breakage. When introducing such a dependency,
 extend the feature groups and their CI tests, or retain the module fallback.
-Shared infrastructure and resource changes deliberately use wider coverage.
+Resource, manifest and native changes deliberately use wider coverage.
 
 The class counts in the plan describe discovered classes, not executed test
 methods. Use the actual test logs and reports when reporting test results.
