@@ -41,7 +41,7 @@ import android.view.accessibility.AccessibilityManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 import android.widget.Toast;
-
+import androidx.core.os.UserManagerCompat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -332,9 +332,7 @@ public class BrailleKeyboardService extends InputMethodService {
         boolean selected =
                 new ComponentName(context, BrailleKeyboardService.class)
                         .equals(selectedComponent);
-        boolean userDismissed =
-                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                        .getBoolean(BrailleImeInputPolicy.PREF_USER_DISMISSED, false);
+        boolean userDismissed = readUserDismissed(context);
         BrailleKeyboardService keyboard = activeService;
         return "Selected as Android keyboard: " + selected + "\n"
                 + "Keyboard service running: " + (keyboard != null) + "\n"
@@ -344,6 +342,18 @@ public class BrailleKeyboardService extends InputMethodService {
                 + (keyboard != null && keyboard.getCurrentInputConnection() != null) + "\n"
                 + "Manual show pending: " + (keyboard != null && keyboard.manualShowPending) + "\n"
                 + "Last user show: " + lastUserShowOutcome + "\n";
+    }
+
+    private static boolean readUserDismissed(Context context) {
+        if (!UserManagerCompat.isUserUnlocked(context)) {
+            return false;
+        }
+        try {
+            return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .getBoolean(BrailleImeInputPolicy.PREF_USER_DISMISSED, false);
+        } catch (IllegalStateException e) {
+            return false;
+        }
     }
 
     protected void showInputForUserActivation() {

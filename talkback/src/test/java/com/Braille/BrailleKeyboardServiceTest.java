@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.Selection;
@@ -173,6 +174,24 @@ public class BrailleKeyboardServiceTest {
     assertEquals(2, keyboard.userShowRequests);
     assertTrue(BrailleKeyboardService.diagnosticStatus(keyboard)
         .contains("no keyboard window after show retry"));
+  }
+
+  @Test
+  public void diagnosticStatusWhileUserLockedSkipsCredentialStorage() {
+    SharedPreferences prefs = keyboard.getSharedPreferences(
+        BrailleImeInputPolicy.PREFS_NAME, Context.MODE_PRIVATE);
+    prefs.edit().putBoolean(BrailleImeInputPolicy.PREF_USER_DISMISSED, true).commit();
+    assertTrue(BrailleKeyboardService.diagnosticStatus(keyboard)
+        .contains("Manually dismissed: true"));
+
+    UserManager users = keyboard.getSystemService(UserManager.class);
+    shadowOf(users).setUserUnlocked(false);
+    try {
+      assertTrue(BrailleKeyboardService.diagnosticStatus(keyboard)
+          .contains("Manually dismissed: false"));
+    } finally {
+      shadowOf(users).setUserUnlocked(true);
+    }
   }
 
   @Test
