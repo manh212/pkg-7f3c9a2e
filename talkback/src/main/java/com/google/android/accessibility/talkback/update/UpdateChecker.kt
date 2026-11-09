@@ -66,7 +66,7 @@ object UpdateChecker {
       io.meridian.licensing.DistributionEndpoints.apiDataRepository() + "/releases/"
     private val DATA_STABLE_RELEASE_URL = DATA_RELEASES_URL + "latest"
     private val DATA_DEV_RELEASE_URL = DATA_RELEASES_URL + "tags/dev"
-  
+ 
 
   /** The latest stable release. */
   private val STABLE_RELEASE_URL = RELEASES_URL + "latest"
