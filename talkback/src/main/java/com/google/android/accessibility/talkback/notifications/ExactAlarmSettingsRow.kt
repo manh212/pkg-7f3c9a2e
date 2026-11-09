@@ -32,9 +32,11 @@ object ExactAlarmSettingsRow {
   }
 
   fun refresh(preference: Preference, context: Context) {
+    val status = TimerPermissionChecks.exactAlarmStatus(context)
+    preference.isVisible = status != TimerPermissionChecks.Status.GRANTED
     preference.summary =
       context.getString(
-        when (TimerPermissionChecks.exactAlarmStatus(context)) {
+        when (status) {
           TimerPermissionChecks.Status.GRANTED -> R.string.timer_setup_exact_alarm_granted
           TimerPermissionChecks.Status.MISSING -> R.string.timer_setup_exact_alarm_missing
           TimerPermissionChecks.Status.UNKNOWN -> R.string.timer_setup_status_unknown
