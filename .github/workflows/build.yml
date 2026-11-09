@@ -6,6 +6,9 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+  schedule:
+    # Nightly full validation at 02:00 Asia/Saigon (19:00 UTC).
+    - cron: '0 19 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -157,7 +160,7 @@ jobs:
           if-no-files-found: ignore
 
   build:
-    needs: [plan, tests]
+    needs: plan
     if: needs.plan.outputs.application == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -417,7 +420,7 @@ jobs:
   # <subject>" line is a change, newest first. A stable release also gets the notes in
   # release-notes/<version>.md, whose list items must start with "* ", not "- ".
   lint:
-    needs: [plan, tests]
+    needs: plan
     if: needs.plan.outputs.application == 'true'
     runs-on: ubuntu-latest
     permissions:
