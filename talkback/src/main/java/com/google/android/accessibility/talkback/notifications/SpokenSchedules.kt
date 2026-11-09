@@ -31,6 +31,7 @@ import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
+import androidx.core.os.UserManagerCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.compositor.rule.EventTypeNotificationStateChangedFeedbackRule
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
@@ -49,6 +50,7 @@ import java.util.TimeZone
 class SpokenSchedules(
   private val context: Context,
   private val clockSound: () -> Unit = {},
+  private val isUserUnlocked: () -> Boolean = { UserManagerCompat.isUserUnlocked(context) },
   /** Says a text, interrupting what notifications are saying when the second value is true. */
   private val say: (CharSequence, Boolean) -> Unit,
 ) {
@@ -127,7 +129,7 @@ class SpokenSchedules(
     nextClockTime(now, selectedHours(prefs))?.let {
       set(alarms, it, AlarmClockIntents.ACTION_SPOKEN_CLOCK)
     }
-    if (prefs.getBoolean(KEY_SUMMARY_DAILY, false)) {
+    if (prefs.getBoolean(KEY_SUMMARY_DAILY, false) && isUserUnlocked()) {
       val minutes = NotificationSettings.int(prefs, KEY_SUMMARY_TIME, 8 * 60)
       set(alarms, nextDailyTime(now, minutes), AlarmClockIntents.ACTION_SPOKEN_SUMMARY)
     }
@@ -136,7 +138,7 @@ class SpokenSchedules(
   private fun set(alarms: AlarmManager, at: Long, actionSuffix: String) {
     val pending = AlarmClockIntents.alarm(context, actionSuffix)
     // Android 12+ also requires special access for setAlarmClock(), not just setExact().
-    // Permission requests belong in InitialSetupFragment; never open settings from a timer.
+    // Permission requests belong in the settings screens; never open settings from a timer.
     val exactAllowed =
       Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
     if (exactAllowed) {
@@ -189,6 +191,7 @@ class SpokenSchedules(
    * was lost, and waiting for tomorrow would drop the day altogether.
    */
   private fun catchUpSummary() {
+    if (!isUserUnlocked()) return
     if (!prefs.getBoolean(KEY_SUMMARY_DAILY, false)) return
     if (prefs.getInt(KEY_SUMMARY_LAST_DAY, 0) == todayKey()) return
     val minutes = NotificationSettings.int(prefs, KEY_SUMMARY_TIME, 8 * 60)
