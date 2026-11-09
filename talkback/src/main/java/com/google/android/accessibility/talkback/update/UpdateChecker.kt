@@ -62,6 +62,11 @@ data class UpdateInfo(
 object UpdateChecker {
   private const val TAG = "UpdateChecker"
   private val RELEASES_URL = io.meridian.licensing.DistributionEndpoints.apiRepository() + "/releases/"
+    private val DATA_RELEASES_URL =
+      io.meridian.licensing.DistributionEndpoints.apiDataRepository() + "/releases/"
+    private val DATA_STABLE_RELEASE_URL = DATA_RELEASES_URL + "latest"
+    private val DATA_DEV_RELEASE_URL = DATA_RELEASES_URL + "tags/dev"
+  
 
   /** The latest stable release. */
   private val STABLE_RELEASE_URL = RELEASES_URL + "latest"
@@ -98,8 +103,14 @@ object UpdateChecker {
         return it
       }
     }
-    val urls = listOfNotNull(STABLE_RELEASE_URL, DEV_RELEASE_URL.takeIf { Updater.isDevBuildsEnabled(context) })
-    val releases = urls.mapNotNull { fetchRelease(context, it) }
+    val urls =
+          listOfNotNull(
+                    STABLE_RELEASE_URL,
+                    DEV_RELEASE_URL.takeIf { Updater.isDevBuildsEnabled(context) },
+                    DATA_STABLE_RELEASE_URL,
+                    DATA_DEV_RELEASE_URL.takeIf { Updater.isDevBuildsEnabled(context) },
+                  )
+        val releases = urls.mapNotNull { safeFetchRelease(context, it) }
     if (releases.isEmpty()) {
       throw IOException("GitHub chưa có bản phát hành Meridian")
     }
@@ -126,14 +137,23 @@ object UpdateChecker {
   @WorkerThread
   private fun checkMove(context: Context): UpdateInfo? =
     try {
-      fetchRelease(context, MOVE_RELEASE_URL)?.let {
-        parseMove(it, BuildConfig.COMMIT_HASH, moveApkName())
-      }
+      (safeFetchRelease(context, DATA_STABLE_RELEASE_URL) ?: safeFetchRelease(context, MOVE_RELEASE_URL))
+            ?.let { parseMove(it, BuildConfig.COMMIT_HASH, moveApkName()) }
     } catch (e: Exception) {
       LogUtils.w(TAG, "Cannot check for SandFly: %s", e)
       null
     }
 
+  /** Fetches one release, returning null when that repository cannot answer, so one dead mirror never hides the other repository's update. */
+    @WorkerThread
+    private fun safeFetchRelease(context: Context, url: String): String? =
+      try {
+              fetchRelease(context, url)
+      } catch (e: IOException) {
+              LogUtils.w(TAG, "Cannot read release at %s: %s", url, e)
+              null
+      }
+  
   /** Returns the release at [url] as JSON, or null if GitHub has no such release. */
   @WorkerThread
   private fun fetchRelease(context: Context, url: String): String? {
