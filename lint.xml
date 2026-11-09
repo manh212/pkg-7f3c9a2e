@@ -157,5 +157,11 @@
             <ignore regexp="clipboard_history_paste_failed" />
             <ignore regexp="clipboard_history_deleted" />
             <ignore regexp="clipboard_history_cleared" />
+        <ignore regexp="timer_setup_xiaomi_title" />
+        <ignore regexp="timer_setup_xiaomi_unverified" />
+        <ignore regexp="timer_setup_exact_alarm_title" />
+        <ignore regexp="timer_setup_exact_alarm_granted" />
+        <ignore regexp="timer_setup_exact_alarm_missing" />
+        <ignore regexp="timer_setup_exact_alarm_open" />
     </issue>
 </lint>
