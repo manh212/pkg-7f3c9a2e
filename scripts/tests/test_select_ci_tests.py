@@ -41,6 +41,10 @@ def fixture():
         TEST_PREFIX + "timer/TimerTest.kt": source("talkback.timer", "TimerTest", True),
         TEST_PREFIX + "notifications/NotificationsTest.kt": source("talkback.notifications", "NotificationsTest", True),
         TEST_PREFIX + "update/UpdaterTest.kt": source("talkback.update", "UpdaterTest", True),
+        PREFIX + "CoreEngine.kt": source("talkback", "CoreEngine"),
+        TEST_PREFIX + "CoreEngineTest.kt": source("talkback", "CoreEngineTest", True, "val engine = CoreEngine()"),
+        "utils/src/main/java/com/google/android/accessibility/utils/Shared.java": source("utils", "Shared"),
+        TEST_PREFIX + "actor/SharedUsageTest.kt": source("talkback.actor", "SharedUsageTest", True, "val shared = Shared()"),
         "utils/src/test/java/com/google/android/accessibility/utils/UtilityTest.kt": source("utils", "UtilityTest", True),
     }
 
@@ -124,8 +128,22 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(["talkback"], [command["module"] for command in plan["commands"]])
         self.assertEqual("module", plan["commands"][0]["scope"])
 
-    def test_shared_utility_changes_include_dependent_modules(self):
+    def test_core_source_selects_only_referencing_tests(self):
+        plan = self.plan(PREFIX + "CoreEngine.kt")
+        self.assertEqual(
+            {"com.google.android.accessibility.talkback.CoreEngineTest"}, self.classes(plan))
+        self.assertEqual("classes", plan["commands"][0]["scope"])
+
+    def test_shared_utility_changes_select_referencing_tests(self):
         plan = self.plan("utils/src/main/java/com/google/android/accessibility/utils/Shared.java")
+        self.assertEqual(
+            {"com.google.android.accessibility.talkback.actor.SharedUsageTest"}, self.classes(plan))
+        self.assertEqual("classes", plan["commands"][0]["scope"])
+
+    def test_unreferenced_shared_source_broadens_to_dependent_modules(self):
+        path = "utils/src/main/java/com/google/android/accessibility/utils/Unreferenced.java"
+        self.files[path] = source("utils", "Unreferenced")
+        plan = self.plan(path)
         self.assertEqual({"talkback", "utils"}, {command["module"] for command in plan["commands"]})
         self.assertTrue(all(command["scope"] == "module" for command in plan["commands"]))
 
@@ -260,6 +278,11 @@ class BaselineTests(unittest.TestCase):
         base, reason = selector.comparison_base(self.root, event, "pull_request", "refs/pull/1/merge", self.published_name)
         self.assertEqual(self.base, base)
         self.assertIsNone(reason)
+
+    def test_scheduled_run_covers_all_modules(self):
+        base, reason = selector.comparison_base(self.root, {}, "schedule", "refs/heads/master", self.published_name)
+        self.assertIsNone(base)
+        self.assertIn("Scheduled", reason)
 
     def test_stable_tag_covers_all_modules(self):
         base, reason = selector.comparison_base(self.root, {}, "push", "refs/tags/v1.2", self.published_name)
