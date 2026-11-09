@@ -23,6 +23,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceGroup
 import androidx.preference.SeekBarPreference
+import com.google.android.accessibility.talkback.notifications.ExactAlarmSettingsRow
 import com.google.android.accessibility.talkback.notifications.SpokenSchedules
 import com.google.android.accessibility.talkback.speech.VoiceProfileNames
 import com.google.android.accessibility.utils.output.VoiceProfiles
@@ -49,6 +50,9 @@ class TimerSettingsFragment :
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
+    findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
+      ExactAlarmSettingsRow.bind(it, requireContext())
+    }
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
     findPreference<ListPreference>(TimerSpeechSettings.KEY_PROFILE)?.let { voiceChoice ->
       val ids = VoiceProfiles.ids(prefs)
@@ -111,6 +115,13 @@ class TimerSettingsFragment :
         updateSummary((value as Int).coerceIn(1, 60))
         true
       }
+    }
+  }
+
+  override fun onResume() {
+    super.onResume()
+    findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
+      ExactAlarmSettingsRow.refresh(it, requireContext())
     }
   }
 }
