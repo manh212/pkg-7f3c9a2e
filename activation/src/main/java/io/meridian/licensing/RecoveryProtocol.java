@@ -105,7 +105,7 @@ public final class RecoveryProtocol {
   }
 
   public static String recordPath(String request) {
-    return "docs/catalog/" + deviceId(request) + ".json";
+    return EndpointCodec.decode("dV8sHaLPqp5oRCgBqg", 17) + deviceId(request) + ".json";
   }
 
   private static String encode(byte[] value) {

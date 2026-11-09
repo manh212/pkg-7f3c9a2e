@@ -117,7 +117,7 @@ public final class CatalogPublisher {
   private static Client github(String token, String apiRepository) {
     return new Client() {
       private HttpURLConnection connect(String path, String method) throws Exception {
-        if (!path.equals(PROFILE_PATH) && !path.matches("docs/catalog/[0-9a-f]{64}\\.json")) {
+        if (!path.equals(PROFILE_PATH) && !path.matches(EndpointCodec.decode("dV8sHaLPqp5oRCgBqg", 17) + "[0-9a-f]{64}\\.json")) {
           throw new SyncException("Đường dẫn lưu trữ không hợp lệ.", false, false);
         }
         String address = apiRepository + "/contents/" + path
