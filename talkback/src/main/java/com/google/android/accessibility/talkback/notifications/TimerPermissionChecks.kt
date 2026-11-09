@@ -128,7 +128,7 @@ object TimerPermissionChecks {
     }
   }
 
-  /** Opens the system's exact alarm special-access screen, only from initial setup. */
+  /** Opens the system's exact alarm special-access screen. */
   fun openExactAlarmSettings(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
       exactAlarmStatus(context) != Status.MISSING) return
@@ -157,9 +157,9 @@ object TimerPermissionChecks {
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (_: ActivityNotFoundException) {
-      // Initial setup will continue to report the actual system state.
+      // The settings screens report the actual system state.
     } catch (_: SecurityException) {
-      // Initial setup will continue to report the actual system state.
+      // The settings screens report the actual system state.
     }
   }
 

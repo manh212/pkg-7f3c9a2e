@@ -298,4 +298,19 @@ class NotificationStopFragment :
   NotificationXmlFragment(R.xml.notification_stop_preferences, R.string.notification_stop_title)
 
 class NotificationSchedulesFragment :
-  NotificationXmlFragment(R.xml.notification_schedules_preferences, R.string.notification_schedules_title)
+  NotificationXmlFragment(R.xml.notification_schedules_preferences, R.string.notification_schedules_title) {
+
+  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    super.onCreatePreferences(savedInstanceState, rootKey)
+    findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
+      ExactAlarmSettingsRow.bind(it, requireContext())
+    }
+  }
+
+  override fun onResume() {
+    super.onResume()
+    findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
+      ExactAlarmSettingsRow.refresh(it, requireContext())
+    }
+  }
+}
