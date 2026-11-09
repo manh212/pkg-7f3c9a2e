@@ -7,6 +7,10 @@
         android:key="pref_notification_access"
         android:title="@string/notification_list_grant_access" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="pref_timer_exact_alarm"
+        android:persistent="false"
+        android:title="@string/timer_setup_exact_alarm_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="pref_notification_summary_now"
         android:title="@string/notification_summary_now_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
