@@ -16,71 +16,101 @@
 
 package com.google.android.accessibility.talkback;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.content.SharedPreferences;
-import com.google.android.accessibility.utils.SharedPreferencesUtils;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.Robolectric;
-import org.robolectric.RobolectricTestRunner;
-import org.robolectric.annotation.Config;
-import org.robolectric.util.ReflectionHelpers;
+import org.junit.runners.JUnit4;
 
 /**
- * The service info applied when the service connects is applied again at locked boot
+ * The service info applied when the service connects is computed again at locked boot
  * completion, so the framework re-registers the service's requests (such as touch
- * exploration) once the keyguard is up. The locked-boot call itself needs a live pipeline
- * and is covered by inspection; these tests cover the re-applied info.
+ * exploration) once the keyguard is up. A service that was never connected cannot read
+ * its info back from the framework in a unit test, so these tests cover the flag
+ * computation that both applications share.
  */
-@RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34)
+@RunWith(JUnit4.class)
 public class TalkBackServiceLockedBootTest {
 
-  private TalkBackService service;
-  private SharedPreferences prefs;
-
-  @Before
-  public void setUp() {
-    service = Robolectric.buildService(TalkBackService.class).create().get();
-    prefs = SharedPreferencesUtils.getSharedPreferences(service);
-    prefs.edit().clear().commit();
-    ReflectionHelpers.setField(service, "prefs", prefs);
-    service.setServiceInfo(new AccessibilityServiceInfo());
-  }
-
-  @After
-  public void tearDown() {
-    prefs.edit().clear().commit();
+  private static int flags(
+      boolean multiFingerGestureSupported,
+      boolean supportsTouchScreen,
+      boolean exploreByTouch,
+      boolean competingScreenReaderEnabled) {
+    return TalkBackService.computeServiceFlags(
+        0,
+        0,
+        multiFingerGestureSupported,
+        false,
+        supportsTouchScreen,
+        exploreByTouch,
+        competingScreenReaderEnabled,
+        false);
   }
 
   @Test
-  public void applyServiceInfo_requestsTouchExplorationWhenPreferenceEnabled() {
-    ReflectionHelpers.callInstanceMethod(service, "applyServiceInfo");
+  public void computeServiceFlags_requestsTouchExplorationWhenPreferenceEnabled() {
+    int flags = flags(true, true, true, false);
 
-    AccessibilityServiceInfo info = service.getServiceInfo();
-    assertNotNull(info);
     assertTrue(
-        (info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+        (flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+    assertTrue((flags & AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES) != 0);
+    assertTrue((flags & AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH) != 0);
   }
 
   @Test
-  public void applyServiceInfo_clearsTouchExplorationWhenPreferenceDisabled() {
-    prefs
-        .edit()
-        .putBoolean(service.getString(R.string.pref_explore_by_touch_key), false)
-        .commit();
+  public void computeServiceFlags_clearsTouchExplorationWhenPreferenceDisabled() {
+    int flags =
+        TalkBackService.computeServiceFlags(
+            AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE,
+            0,
+            true,
+            false,
+            true,
+            false,
+            false,
+            false);
 
-    ReflectionHelpers.callInstanceMethod(service, "applyServiceInfo");
-
-    AccessibilityServiceInfo info = service.getServiceInfo();
-    assertNotNull(info);
     assertFalse(
-        (info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+        (flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+  }
+
+  @Test
+  public void computeServiceFlags_clearsTouchExplorationWhenCompetingReaderEnabled() {
+    int flags = flags(true, true, true, true);
+
+    assertFalse(
+        (flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+  }
+
+  @Test
+  public void computeServiceFlags_clearsTouchExplorationWithoutTouchScreen() {
+    int flags = flags(true, false, true, false);
+
+    assertFalse(
+        (flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+  }
+
+  @Test
+  public void computeServiceFlags_clearsMultiFingerFlagsWhenUnsupported() {
+    int flags = flags(false, true, true, false);
+
+    assertFalse((flags & AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES) != 0);
+    assertFalse((flags & AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH) != 0);
+    assertTrue(
+        (flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0);
+  }
+
+  @Test
+  public void computeServiceFlags_keepsAdditionalAndReadUrlFlags() {
+    int flags =
+        TalkBackService.computeServiceFlags(
+            0, 0x40, false, false, true, true, false, true);
+
+    assertEquals(0x40, flags & 0x40);
+    assertTrue((flags & AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS) != 0);
   }
 }
