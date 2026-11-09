@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <lint>
     <!--
-      These BackTalk-specific strings are intentionally translated incrementally by the community.
-      Czech now provides them, while many of the inherited TalkBack locales do not yet do so.
-      Keep MissingTranslation enabled globally and suppress it only for these exact resources.
+      Only the Vietnamese translation is required (owner decision, 2026-11-09). Every other
+      locale is translated incrementally by the community, so a string missing in any locale
+      other than Vietnamese must never fail a check: MissingTranslation is ignored as a whole.
+      The per-resource suppressions below predate that decision and are kept for reference.
     -->
-    <issue id="MissingTranslation">
+    <issue id="MissingTranslation" severity="ignore">
         <ignore regexp="title_pref_mute_speech_while_recording" />
         <ignore regexp="summary_pref_mute_speech_while_recording" />
         <ignore regexp="title_pref_category_feedback" />
