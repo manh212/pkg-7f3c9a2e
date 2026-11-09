@@ -94,13 +94,33 @@ public final class CatalogPublisher {
     return new SyncException("Khóa công khai trên GitHub khác khóa của công cụ này. Không tự ghi đè.", false, false);
   }
 
-  public static Client github(String token) {
+  public static Client github(String token) { return github(token, DistributionEndpoints.apiRepository()); }
+
+  public static Client githubData(String token) { return github(token, DistributionEndpoints.apiDataRepository()); }
+
+  public static Client dual(Client first, Client second) {
+    return new Client() {
+      @Override public RemoteFile get(String path) throws Exception {
+        RemoteFile file = first.get(path);
+        return file != null ? file : second.get(path);
+      }
+
+      @Override public void put(String path, String content, String sha) throws Exception {
+        for (Client client : new Client[] {first, second}) {
+          RemoteFile existing = client.get(path);
+          client.put(path, content, existing == null ? null : existing.sha);
+        }
+      }
+    };
+  }
+
+  private static Client github(String token, String apiRepository) {
     return new Client() {
       private HttpURLConnection connect(String path, String method) throws Exception {
         if (!path.equals(PROFILE_PATH) && !path.matches("docs/catalog/[0-9a-f]{64}\\.json")) {
           throw new SyncException("Đường dẫn lưu trữ không hợp lệ.", false, false);
         }
-        String address = DistributionEndpoints.apiRepository() + "/contents/" + path
+        String address = apiRepository + "/contents/" + path
             + (method.equals("GET") ? "?ref=master" : "");
         HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
         connection.setConnectTimeout(8_000);
