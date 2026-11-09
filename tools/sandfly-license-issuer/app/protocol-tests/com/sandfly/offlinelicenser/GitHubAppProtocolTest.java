@@ -150,7 +150,8 @@ public class GitHubAppProtocolTest {
       assertEquals("POST", method);
       assertEquals("/app/installations/456/access_tokens", path);
       assertEquals("pkg-7f3c9a2e", body.getJSONArray("repositories").getString(0));
-      assertEquals(1, body.getJSONArray("repositories").length());
+      assertEquals("meridian-data", body.getJSONArray("repositories").getString(1));
+      assertEquals(2, body.getJSONArray("repositories").length());
       assertEquals("write", body.getJSONObject("permissions").getString("contents"));
       return new JSONObject().put("token", "ghs_example_installation_token");
     });
