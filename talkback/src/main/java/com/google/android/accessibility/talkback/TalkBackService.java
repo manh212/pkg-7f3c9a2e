@@ -4816,6 +4816,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     // engine list when TalkBack initialized during system boot, so we want the change to be
     // invisible to the user.
     pipeline.onBoot(/* quiet= */ true);
+    startNotificationReader();
     checkUnlockedBoot();
   }
 
@@ -4882,28 +4883,35 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
+  private void startNotificationReader() {
+    if (pipeline == null || speechController == null) {
+      return;
+    }
+    NotificationReader.attach(
+        this,
+        pipeline.getFeedbackReturner(),
+        () -> speechController.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_NOTIFICATIONS),
+        completedAction -> {
+          speechController.stopItem(completedAction);
+          return kotlin.Unit.INSTANCE;
+        },
+        () -> speechController.isSpeaking(),
+        // What silences SandFly's own speech silences the notification voice too, and nothing is
+        // said while SandFly is paused.
+        (overMedia, duringCalls) ->
+            speechController.isMute()
+                || speechController.getShouldSilentSpeech()
+                || PauseController.isPaused()
+                || (!duringCalls && isPhoneCallActive())
+                || isMicrophoneActiveAndHeadphoneOff()
+                || isSsbActive()
+                || (!overMedia && isAudioPlaybackActive()),
+        this::isTouchInteracting);
+  }
+
   private void startScripts() {
     if (pipeline != null && speechController != null) {
-      NotificationReader.attach(
-          this,
-          pipeline.getFeedbackReturner(),
-          () -> speechController.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_NOTIFICATIONS),
-          completedAction -> {
-            speechController.stopItem(completedAction);
-            return kotlin.Unit.INSTANCE;
-          },
-          () -> speechController.isSpeaking(),
-          // What silences SandFly's own speech silences the notification voice too, and nothing is
-          // said while SandFly is paused.
-          (overMedia, duringCalls) ->
-              speechController.isMute()
-                  || speechController.getShouldSilentSpeech()
-                  || PauseController.isPaused()
-                  || (!duringCalls && isPhoneCallActive())
-                  || isMicrophoneActiveAndHeadphoneOff()
-                  || isSsbActive()
-                  || (!overMedia && isAudioPlaybackActive()),
-          this::isTouchInteracting);
+      startNotificationReader();
       CallLimitController.attach(this, () -> {
         CallAnnouncements.stopSpeech();
         pipeline.getFeedbackReturner().returnFeedback(
