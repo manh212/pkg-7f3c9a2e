@@ -3350,48 +3350,67 @@ public class TalkBackService extends AccessibilityServiceCompat
     AccessibilityServiceInfo info = getServiceInfo();
     if (info == null) {
       LogUtils.e(TAG, "Fail to get service flag!");
-    } else {
-      info.flags |= ExperimentalUtils.getAdditionalTalkBackServiceFlags();
-      if (FeatureSupport.isMultiFingerGestureSupported()) {
-        info.flags |=
-            AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
-                | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH;
-        resetTouchExplorePassThrough();
-      } else {
-        info.flags &=
-            ~(AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
-                | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH);
-      }
-      if (GestureReporter.ENABLED) {
-        info.flags |= AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
-      }
-      info.notificationTimeout = 0;
-      if (BuildVersionUtils.isAtLeastQ()) {
-        info.setInteractiveUiTimeoutMillis(DEFAULT_INTERACTIVE_UI_TIMEOUT_MILLIS);
-      }
-
-      // Ensure the initial touch exploration request mode is correct.
-      if (supportsTouchScreen
-          && getBooleanPref(
-              R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default)
-          && !OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this)) {
-        info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
-      } else {
-        info.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
-      }
-
-      // Required for the "read current URL" keyboard shortcut. It uses getViewIdResourceName() in
-      // its implementation, which requires this flag to be set.
-      if (FeatureFlagReader.enableReadCurrentUrl(this)) {
-        info.flags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
-      }
-
-      // The framework detects gestures and handles double tap itself.
-      info.flags &= ~FLAG_SERVICE_HANDLES_DOUBLE_TAP;
-
-      LogUtils.v(TAG, "Accessibility Service flag set: 0x%X", info.flags);
-      setServiceInfo(info);
+      return;
     }
+    if (FeatureSupport.isMultiFingerGestureSupported()) {
+      resetTouchExplorePassThrough();
+    }
+    info.flags =
+        computeServiceFlags(
+            info.flags,
+            ExperimentalUtils.getAdditionalTalkBackServiceFlags(),
+            FeatureSupport.isMultiFingerGestureSupported(),
+            GestureReporter.ENABLED,
+            supportsTouchScreen,
+            getBooleanPref(
+                R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default),
+            OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this),
+            FeatureFlagReader.enableReadCurrentUrl(this));
+    info.notificationTimeout = 0;
+    if (BuildVersionUtils.isAtLeastQ()) {
+      info.setInteractiveUiTimeoutMillis(DEFAULT_INTERACTIVE_UI_TIMEOUT_MILLIS);
+    }
+    LogUtils.v(TAG, "Accessibility Service flag set: 0x%X", info.flags);
+    setServiceInfo(info);
+  }
+
+  @VisibleForTesting
+  static int computeServiceFlags(
+      int flags,
+      int additionalFlags,
+      boolean multiFingerGestureSupported,
+      boolean sendMotionEvents,
+      boolean supportsTouchScreen,
+      boolean exploreByTouch,
+      boolean competingScreenReaderEnabled,
+      boolean readCurrentUrlEnabled) {
+    flags |= additionalFlags;
+    if (multiFingerGestureSupported) {
+      flags |=
+          AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
+              | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH;
+    } else {
+      flags &=
+          ~(AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
+              | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH);
+    }
+    if (sendMotionEvents) {
+      flags |= AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
+    }
+    // Ensure the initial touch exploration request mode is correct.
+    if (supportsTouchScreen && exploreByTouch && !competingScreenReaderEnabled) {
+      flags |= AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
+    } else {
+      flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
+    }
+    // Required for the "read current URL" keyboard shortcut. It uses getViewIdResourceName() in
+    // its implementation, which requires this flag to be set.
+    if (readCurrentUrlEnabled) {
+      flags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+    }
+    // The framework detects gestures and handles double tap itself.
+    flags &= ~FLAG_SERVICE_HANDLES_DOUBLE_TAP;
+    return flags;
   }
 
   /**
