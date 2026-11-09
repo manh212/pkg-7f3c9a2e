@@ -39,6 +39,7 @@ class TimerSettingsStructureTest {
 
     assertEquals(
       listOf(
+        "pref_timer_exact_alarm",
         "pref_notification_clock_hours_screen",
         "pref_notification_clock_format",
         "pref_timer_voice_profile",
