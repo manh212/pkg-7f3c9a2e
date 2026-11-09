@@ -3346,44 +3346,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     return menuManager;
   }
 
-  /**
-   * Registers listeners, sets service info, loads preferences. This should be called from {@link
-   * #onServiceConnected} and when TalkBack resumes from a suspended state.
-   */
-  private void resumeInfrastructure() {
-
-    LogUtils.setLogFile(LogUtils.defaultLogFile(this));
-    // Load debug-log preference early, so that we can log it and use it during startup.
-    reloadDebugLog();
-    // Log meta-data about service, disregarding debug-log pref, in 1 line for easy log filtering.
-    if (Log.isLoggable(TAG, Log.INFO)) {
-      Log.i(
-          TAG,
-          "resumeInfrastructure() android Build.VERSION.SDK_INT="
-              + Build.VERSION.SDK_INT
-              + " talkback getVersionName="
-              + PackageManagerUtils.getVersionName(this)
-              + " debugLog="
-              + getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default)
-              + " System preload="
-              + com.google.android.accessibility.utils.BuildConfig.IS_SYSTEM_PRELOAD
-              + " utils.BuildConfig.DEBUG="
-              + com.google.android.accessibility.utils.BuildConfig.DEBUG);
-    }
-
-    LogUtils.i(
-        TAG,
-        "System preload=%s",
-        com.google.android.accessibility.utils.BuildConfig.IS_SYSTEM_PRELOAD);
-
-    if (isServiceActive()) {
-      LogUtils.e(TAG, "Attempted to resume while not suspended");
-      return;
-    }
-
-    setServiceState(ServiceStateListener.SERVICE_STATE_ACTIVE);
-    stopForeground(true);
-
+  private void applyServiceInfo() {
     AccessibilityServiceInfo info = getServiceInfo();
     if (info == null) {
       LogUtils.e(TAG, "Fail to get service flag!");
@@ -3429,6 +3392,47 @@ public class TalkBackService extends AccessibilityServiceCompat
       LogUtils.v(TAG, "Accessibility Service flag set: 0x%X", info.flags);
       setServiceInfo(info);
     }
+  }
+
+  /**
+   * Registers listeners, sets service info, loads preferences. This should be called from {@link
+   * #onServiceConnected} and when TalkBack resumes from a suspended state.
+   */
+  private void resumeInfrastructure() {
+
+    LogUtils.setLogFile(LogUtils.defaultLogFile(this));
+    // Load debug-log preference early, so that we can log it and use it during startup.
+    reloadDebugLog();
+    // Log meta-data about service, disregarding debug-log pref, in 1 line for easy log filtering.
+    if (Log.isLoggable(TAG, Log.INFO)) {
+      Log.i(
+          TAG,
+          "resumeInfrastructure() android Build.VERSION.SDK_INT="
+              + Build.VERSION.SDK_INT
+              + " talkback getVersionName="
+              + PackageManagerUtils.getVersionName(this)
+              + " debugLog="
+              + getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default)
+              + " System preload="
+              + com.google.android.accessibility.utils.BuildConfig.IS_SYSTEM_PRELOAD
+              + " utils.BuildConfig.DEBUG="
+              + com.google.android.accessibility.utils.BuildConfig.DEBUG);
+    }
+
+    LogUtils.i(
+        TAG,
+        "System preload=%s",
+        com.google.android.accessibility.utils.BuildConfig.IS_SYSTEM_PRELOAD);
+
+    if (isServiceActive()) {
+      LogUtils.e(TAG, "Attempted to resume while not suspended");
+      return;
+    }
+
+    setServiceState(ServiceStateListener.SERVICE_STATE_ACTIVE);
+    stopForeground(true);
+
+    applyServiceInfo();
     updateExtendedGestures();
 
     if (callStateMonitor != null) {
@@ -4775,6 +4779,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   private void onLockedBootCompletedInternal() {
+    applyServiceInfo();
     // Update TTS quietly.
     // If the TTS changes here, it is probably a non-FBE TTS that didn't appear in the TTS
     // engine list when TalkBack initialized during system boot, so we want the change to be
@@ -5083,7 +5088,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   private void resetTouchExplorePassThrough() {
-    if (FeatureSupport.supportPassthrough()) {
+    if (pipeline != null && FeatureSupport.supportPassthrough()) {
       pipeline
           .getFeedbackReturner()
           .returnFeedback(
