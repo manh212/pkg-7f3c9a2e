@@ -84,11 +84,20 @@ final class LicenseRecovery {
         && record.optString("value", "").startsWith("SFLIC3.");
   }
 
-  private static Result recover(Context context) {
+private static Result recover(Context context) {
+  Result result = recoverFrom(context,
+        io.meridian.licensing.DistributionEndpoints.dataCatalogRoot());
+      if (result == Result.NOT_FOUND) {
+        result = recoverFrom(context, io.meridian.licensing.DistributionEndpoints.catalogRoot());
+      }
+      return result;
+}
+  
+    private static Result recoverFrom(Context context, String catalogRoot) {
     HttpURLConnection connection = null;
     try {
       String request = DeviceLicenseManager.recoveryRequest(context);
-      URL url = new URL(io.meridian.licensing.DistributionEndpoints.catalogRoot()
+      URL url = new URL(catalogRoot
           + RecoveryProtocol.recordPath(request) + "?v=" + System.currentTimeMillis());
       connection = (HttpURLConnection) url.openConnection();
       connection.setConnectTimeout(8_000);
