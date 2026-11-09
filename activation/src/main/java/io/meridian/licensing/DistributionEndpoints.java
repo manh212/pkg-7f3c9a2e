@@ -29,6 +29,7 @@ public final class DistributionEndpoints {
 
   public static String repository() { return owner() + "/" + repositoryName(); }
   public static String apiRepository() { return apiOrigin() + "/repos/" + repository(); }
+  public static String apiDataRepository() { return apiOrigin() + "/repos/" + dataRepository(); }
   public static String webRepository() { return webOrigin() + "/" + repository(); }
   public static String catalogRoot() { return rawOrigin() + "/" + repository() + "/master/"; }
   public static String dataRepository() { return owner() + "/" + dataRepositoryName(); }
