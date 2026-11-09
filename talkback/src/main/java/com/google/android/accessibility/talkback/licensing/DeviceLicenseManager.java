@@ -1,15 +1,21 @@
 package com.google.android.accessibility.talkback.licensing;
 import android.content.Context;
 import android.content.SharedPreferences;
-import com.google.android.accessibility.talkback.BuildConfig;
+import android.os.SystemClock;
 import android.provider.Settings;
-import io.meridian.licensing.RecoveryProtocol;
-import io.meridian.licensing.LicensePolicy;
+import androidx.core.os.UserManagerCompat;
+import com.google.android.accessibility.talkback.BuildConfig;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import io.meridian.licensing.LicenseClock;
 import io.meridian.licensing.LicenseLease;
-import android.os.SystemClock;
+import io.meridian.licensing.LicensePolicy;
+import io.meridian.licensing.RecoveryProtocol;
 
 public final class DeviceLicenseManager {
+  private static final String POLICY_PREFS = "sandfly_offline_license";
+  private static final String VERIFICATION_PREFS = "meridian_license_verification";
+  private static final String STORAGE_MIGRATED = "license_storage_migrated";
+
   private static volatile CachedPolicy verifiedPolicy;
   private static final class CachedPolicy {
     final String token, request;
@@ -29,13 +35,46 @@ public final class DeviceLicenseManager {
     return RecoveryProtocol.request(context.getPackageName(),
         Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID));
   }
-  private static SharedPreferences prefs(Context context) {
-    SharedPreferences saved = context.getSharedPreferences("sandfly_offline_license", Context.MODE_PRIVATE);
-    if (saved.contains("license")) saved.edit().remove("license").apply();
-    return saved;
+  public static void prepareDirectBoot(Context context) {
+    if (!UserManagerCompat.isUserUnlocked(context)) return;
+    try {
+      licenseStorage(context);
+    } catch (IllegalStateException error) {
+      LogUtils.w("DeviceLicenseManager", "Could not prepare license storage for Direct Boot");
+    }
   }
+
+  private static synchronized Context licenseStorage(Context context) {
+    Context storage = context.createDeviceProtectedStorageContext();
+    if (storage.getSharedPreferences(VERIFICATION_PREFS, Context.MODE_PRIVATE)
+        .getBoolean(STORAGE_MIGRATED, false)) {
+      return storage;
+    }
+    if (!UserManagerCompat.isUserUnlocked(context)) {
+      throw new IllegalStateException("License storage has not been migrated");
+    }
+    SharedPreferences legacy = context.getSharedPreferences(POLICY_PREFS, Context.MODE_PRIVATE);
+    if ((legacy.contains("license") && !legacy.edit().remove("license").commit())
+        || !storage.moveSharedPreferencesFrom(context, POLICY_PREFS)
+        || !storage.moveSharedPreferencesFrom(context, VERIFICATION_PREFS)) {
+      throw new IllegalStateException("Could not move license preferences");
+    }
+    SharedPreferences verification =
+        storage.getSharedPreferences(VERIFICATION_PREFS, Context.MODE_PRIVATE);
+    if (!verification.edit().putBoolean(STORAGE_MIGRATED, true).commit()) {
+      verification.edit().remove(STORAGE_MIGRATED).apply();
+      throw new IllegalStateException("Could not record license storage migration");
+    }
+    lastRestrictionCheck = -1;
+    return storage;
+  }
+
+  private static SharedPreferences prefs(Context context) {
+    return licenseStorage(context).getSharedPreferences(POLICY_PREFS, Context.MODE_PRIVATE);
+  }
+
   private static SharedPreferences verification(Context context) {
-    return context.getSharedPreferences("meridian_license_verification", Context.MODE_PRIVATE);
+    return licenseStorage(context).getSharedPreferences(VERIFICATION_PREFS, Context.MODE_PRIVATE);
   }
 
   private static boolean recentlyVerified(Context context) {
@@ -62,8 +101,9 @@ public final class DeviceLicenseManager {
   }
 
   public static boolean offlineLocked(Context context) {
-    if (!configured() || recentlyVerified(context)) return false;
+    if (!configured()) return false;
     try {
+      if (recentlyVerified(context)) return false;
       String token = prefs(context).getString("policy", "");
       if (!token.isEmpty()) {
         LicensePolicy policy = policy(context);

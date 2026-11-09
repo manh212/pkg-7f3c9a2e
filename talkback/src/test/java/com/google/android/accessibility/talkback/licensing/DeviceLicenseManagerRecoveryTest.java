@@ -1,8 +1,13 @@
 package com.google.android.accessibility.talkback.licensing;
 
 import static org.junit.Assert.*;
+import static org.robolectric.Shadows.shadowOf;
 
+import android.app.Application;
 import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.SharedPreferences;
+import android.os.UserManager;
 import android.provider.Settings;
 import io.meridian.licensing.RecoveryProtocol;
 import java.security.KeyPair;
@@ -14,9 +19,11 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
+import org.robolectric.util.ReflectionHelpers;
+import org.robolectric.util.ReflectionHelpers.ClassParameter;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34)
+@Config(sdk = 34, application = Application.class)
 public final class DeviceLicenseManagerRecoveryTest {
   private static KeyPair keyPair() throws Exception {
     KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
@@ -37,6 +44,54 @@ public final class DeviceLicenseManagerRecoveryTest {
     assertFalse(context.getSharedPreferences("sandfly_offline_license", Context.MODE_PRIVATE)
         .contains("license"));
     assertEquals(request, DeviceLicenseManager.recoveryRequest(context));
+  }
+
+  @Test public void lockedBootReadsMigratedPolicyAndVerification() {
+    Context context = RuntimeEnvironment.getApplication();
+    UserManager users = context.getSystemService(UserManager.class);
+    shadowOf(users).setUserUnlocked(true);
+    context.getSharedPreferences("sandfly_offline_license", Context.MODE_PRIVATE)
+        .edit().putString("policy", "SFLIC3.sample").putLong("time_floor", 1234L)
+        .putString("license", "legacy").commit();
+    context.getSharedPreferences("meridian_license_verification", Context.MODE_PRIVATE)
+        .edit().putLong("server", 1234567L).putInt("boot", 5).commit();
+
+    DeviceLicenseManager.prepareDirectBoot(context);
+    Context lockedContext = new ContextWrapper(context) {
+      @Override
+      public SharedPreferences getSharedPreferences(String name, int mode) {
+        throw new IllegalStateException("Credential storage unavailable");
+      }
+    };
+    shadowOf(users).setUserUnlocked(false);
+    try {
+      SharedPreferences policy = ReflectionHelpers.callStaticMethod(
+          DeviceLicenseManager.class, "prefs", ClassParameter.from(Context.class, lockedContext));
+      SharedPreferences verification = ReflectionHelpers.callStaticMethod(
+          DeviceLicenseManager.class, "verification",
+          ClassParameter.from(Context.class, lockedContext));
+      assertEquals("SFLIC3.sample", policy.getString("policy", ""));
+      assertEquals(1234L, policy.getLong("time_floor", 0L));
+      assertFalse(policy.contains("license"));
+      assertEquals(1234567L, verification.getLong("server", 0L));
+      assertEquals(5, verification.getInt("boot", -1));
+    } finally {
+      shadowOf(users).setUserUnlocked(true);
+    }
+  }
+
+  @Test public void lockedBootWithPendingMigrationDoesNotTreatLegacyPolicyAsAbsent() {
+    Context context = RuntimeEnvironment.getApplication();
+    UserManager users = context.getSystemService(UserManager.class);
+    shadowOf(users).setUserUnlocked(true);
+    context.getSharedPreferences("sandfly_offline_license", Context.MODE_PRIVATE)
+        .edit().putString("policy", "SFLIC3.sample").commit();
+    shadowOf(users).setUserUnlocked(false);
+    try {
+      assertTrue(DeviceLicenseManager.restricted(context));
+    } finally {
+      shadowOf(users).setUserUnlocked(true);
+    }
   }
 
   @Test public void onlineCatalogRejectsLegacyFormatEvenWithValidIssuerSignature() throws Exception {

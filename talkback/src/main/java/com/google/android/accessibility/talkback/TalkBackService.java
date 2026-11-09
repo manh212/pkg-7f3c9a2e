@@ -4844,6 +4844,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     unlockedBootCompleted = true;
     unlockedBootHandler.removeCallbacks(checkUnlockedBoot);
+    com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.prepareDirectBoot(this);
     com.google.android.accessibility.talkback.licensing.ActivationReminder.startService(this);
     initializeClipboardHistory();
     // Update TTS and allow announcement.
