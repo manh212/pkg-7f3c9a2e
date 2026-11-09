@@ -188,6 +188,33 @@ class SpokenSchedulesAlarmClockTest {
   }
 
   @Test
+  fun whileLocked_dailySummaryIsNotScheduledButTheClockIs() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    val minutes = minuteOfDay(System.currentTimeMillis()) + 2
+    startSchedules(unlocked = false) {
+      putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet())
+      putBoolean(SpokenSchedules.KEY_SUMMARY_DAILY, true)
+      putString(SpokenSchedules.KEY_SUMMARY_TIME, minutes.toString())
+    }
+
+    assertNull(alarmManager.nextAlarmClock)
+    assertEquals(1, shadowAlarms.scheduledAlarms.size)
+    assertEquals(0, said.size)
+  }
+
+  @Test
+  fun whileLocked_missedSummaryIsNotRead() {
+    val minutes = minuteOfDay(System.currentTimeMillis()) - 30
+    startSchedules(unlocked = false) {
+      putBoolean(SpokenSchedules.KEY_SUMMARY_DAILY, true)
+      putString(SpokenSchedules.KEY_SUMMARY_TIME, minutes.toString())
+    }
+
+    assertEquals(0, said.size)
+    assertEquals(0, prefs.getInt(SpokenSchedules.KEY_SUMMARY_LAST_DAY, 0))
+  }
+
+  @Test
   fun theTwoEngines_neverCancelEachOthersAlarm() {
     val before = System.currentTimeMillis()
     startSchedules { putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet()) }
@@ -213,9 +240,12 @@ class SpokenSchedulesAlarmClockTest {
     assertNull(alarmManager.nextAlarmClock)
   }
 
-  private fun startSchedules(seed: android.content.SharedPreferences.Editor.() -> Unit): SpokenSchedules {
+  private fun startSchedules(
+    unlocked: Boolean = true,
+    seed: android.content.SharedPreferences.Editor.() -> Unit,
+  ): SpokenSchedules {
     prefs.edit().apply { seed() }.commit()
-    return SpokenSchedules(context, { playedClockSounds++ }) { text, _ -> said += text }
+    return SpokenSchedules(context, { playedClockSounds++ }, { unlocked }) { text, _ -> said += text }
       .also {
         it.start()
         stoppers += { it.stop() }
