@@ -16,13 +16,14 @@
 
 package com.google.android.accessibility.talkback.timer
 
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.format.DateFormat
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceGroup
-import androidx.preference.SeekBarPreference
+import androidx.preference.SwitchPreferenceCompat
 import com.google.android.accessibility.talkback.notifications.ExactAlarmSettingsRow
 import com.google.android.accessibility.talkback.notifications.SpokenSchedules
 import com.google.android.accessibility.talkback.speech.VoiceProfileNames
@@ -34,42 +35,41 @@ import com.google.android.accessibility.talkback.notifications.NotificationXmlFr
 import java.util.Date
 
 /**
- * Timer settings on one screen: the time announcements, which keep their keys and values from
- * the notification schedules screen they were on, and the stopwatch below them.
+ * The timers' door: the exact-alarm warning while that access is missing, and the way into
+ * the speaking clock's settings and the stopwatch's, which are separate from each other.
  */
 class TimerSettingsFragment :
   NotificationXmlFragment(R.xml.timer_preferences, R.string.title_pref_clock_stopwatch) {
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
-    if (!prefs.contains(Stopwatch.KEY_INTERVAL_SLIDER)) {
-      prefs.edit().putInt(Stopwatch.KEY_INTERVAL_SLIDER, Stopwatch.intervalMinutes(requireContext())).apply()
-    }
-    super.onCreate(savedInstanceState)
-  }
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
     findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
       ExactAlarmSettingsRow.bind(it, requireContext())
     }
-    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
-    findPreference<ListPreference>(TimerSpeechSettings.KEY_PROFILE)?.let { voiceChoice ->
-      val ids = VoiceProfiles.ids(prefs)
-      voiceChoice.entries =
-        (listOf(getString(R.string.timer_voice_default)) +
-          ids.map { VoiceProfileNames.nameOf(requireContext(), prefs, it) }).toTypedArray()
-      voiceChoice.entryValues = (listOf("") + ids).toTypedArray()
-      voiceChoice.value = TimerSpeechSettings.profileId(prefs)
-      voiceChoice.summary = voiceChoice.entry ?: getString(R.string.timer_voice_default)
-      voiceChoice.setOnPreferenceChangeListener { preference, value ->
-        val id = value as String
-        preference.summary =
-          if (id.isEmpty()) getString(R.string.timer_voice_default)
-          else VoiceProfileNames.nameOf(requireContext(), prefs, id)
-        true
-      }
+  }
+
+  override fun onResume() {
+    super.onResume()
+    findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
+      ExactAlarmSettingsRow.refresh(it, requireContext())
     }
+  }
+}
+
+/** The speaking clock: when it speaks, what it says, and the voice it says it with. */
+class SpokenClockSettingsFragment :
+  NotificationXmlFragment(R.xml.spoken_clock_preferences, R.string.spoken_clock_title) {
+
+  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    super.onCreatePreferences(savedInstanceState, rootKey)
+    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    findPreference<SwitchPreferenceCompat>(SpokenSchedules.KEY_CLOCK_ENABLED)?.let {
+      it.isChecked = SpokenSchedules.clockEnabled(prefs)
+    }
+    findPreference<ListPreference>(SpokenSchedules.KEY_CLOCK_INTERVAL)?.let {
+      it.value = SpokenSchedules.clockIntervalMinutes(prefs).toString()
+    }
+    bindVoiceChoice(TimerSpeechSettings.KEY_PROFILE) { TimerSpeechSettings.profileId(it) }
     findPreference<Preference>("pref_notification_clock_hours_screen")?.let { hours ->
       fun updateSummary() {
         val selected = SpokenSchedules.selectedHours(prefs)
@@ -105,23 +105,64 @@ class TimerSettingsFragment :
         true
       }
     }
-    findPreference<SeekBarPreference>(Stopwatch.KEY_INTERVAL_SLIDER)?.let { interval ->
-      fun updateSummary(minutes: Int) {
-        interval.summary =
-          resources.getQuantityString(R.plurals.notification_minutes, minutes, minutes)
-      }
-      updateSummary(interval.value)
-      interval.setOnPreferenceChangeListener { _, value ->
-        updateSummary((value as Int).coerceIn(1, 60))
-        true
-      }
+  }
+}
+
+/** The stopwatch: its reminders, its signals, and the voice it speaks with. */
+class StopwatchSettingsFragment :
+  NotificationXmlFragment(R.xml.stopwatch_preferences, R.string.stopwatch_title) {
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    if (prefs.contains(Stopwatch.KEY_INTERVAL_SLIDER)) {
+      // The reminder interval is a list now: the slider's last value becomes the list's,
+      // and the slider's key goes away so the list's key is the only one.
+      prefs.edit()
+        .putString(
+          Stopwatch.KEY_INTERVAL_MINUTES,
+          Stopwatch.intervalMinutes(requireContext()).toString(),
+        )
+        .remove(Stopwatch.KEY_INTERVAL_SLIDER)
+        .apply()
     }
+    super.onCreate(savedInstanceState)
   }
 
-  override fun onResume() {
-    super.onResume()
-    findPreference<Preference>(ExactAlarmSettingsRow.KEY)?.let {
-      ExactAlarmSettingsRow.refresh(it, requireContext())
+  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    super.onCreatePreferences(savedInstanceState, rootKey)
+    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    findPreference<ListPreference>(Stopwatch.KEY_INTERVAL_MINUTES)?.let {
+      it.value = Stopwatch.intervalMinutes(requireContext()).toString()
+    }
+    bindVoiceChoice(TimerSpeechSettings.KEY_STOPWATCH_PROFILE) {
+      TimerSpeechSettings.stopwatchProfileId(it)
+    }
+    findPreference<ListPreference>(TimerSpeechSettings.KEY_STOPWATCH_STREAM)?.let {
+      it.value = TimerSpeechSettings.stopwatchStreamValue(prefs)
+    }
+  }
+}
+
+/** Fills a voice-profile list with the profiles on the phone and shows the one in effect. */
+private fun NotificationXmlFragment.bindVoiceChoice(
+  key: String,
+  currentId: (SharedPreferences) -> String,
+) {
+  val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+  findPreference<ListPreference>(key)?.let { voiceChoice ->
+    val ids = VoiceProfiles.ids(prefs)
+    voiceChoice.entries =
+      (listOf(getString(R.string.timer_voice_default)) +
+        ids.map { VoiceProfileNames.nameOf(requireContext(), prefs, it) }).toTypedArray()
+    voiceChoice.entryValues = (listOf("") + ids).toTypedArray()
+    voiceChoice.value = currentId(prefs)
+    voiceChoice.summary = voiceChoice.entry ?: getString(R.string.timer_voice_default)
+    voiceChoice.setOnPreferenceChangeListener { preference, value ->
+      val id = value as String
+      preference.summary =
+        if (id.isEmpty()) getString(R.string.timer_voice_default)
+        else VoiceProfileNames.nameOf(requireContext(), prefs, id)
+      true
     }
   }
 }
