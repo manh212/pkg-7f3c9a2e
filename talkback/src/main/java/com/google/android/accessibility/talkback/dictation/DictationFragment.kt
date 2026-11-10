@@ -42,17 +42,22 @@ import java.util.Locale
 class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
   private lateinit var prefs: SharedPreferences
   private lateinit var models: WhisperModels
+  private lateinit var zipformerModels: ZipformerModels
   private lateinit var recognitionPref: Preference
   private lateinit var aiServicePref: Preference
   private lateinit var modelPref: Preference
+  private lateinit var zipformerModelPref: Preference
   private lateinit var onlineRoutePref: Preference
   private lateinit var googleDownloadPref: Preference
   private lateinit var advancedPref: Preference
   private var advancedExpanded = false
   private var announcedMilestone = -1
   private var downloading: Model? = null
+  private var zipformerAnnouncedMilestone = -1
+  private var zipformerDownloading = false
 
   private val listener: () -> Unit = { if (isAdded) refresh() }
+  private val zipformerListener: () -> Unit = { if (isAdded) refresh() }
 
   public override fun getTitle(): CharSequence = getText(R.string.title_pref_dictation)
 
@@ -61,10 +66,12 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
     val context = requireContext()
     prefs = SharedPreferencesUtils.getSharedPreferences(context)
     models = WhisperModels.get(context)
+    zipformerModels = ZipformerModels.get(context)
     advancedExpanded = savedInstanceState?.getBoolean("dictation_advanced_expanded") ?: false
 
     recognitionPref = onClick("pref_dictation_recognition_choice") { chooseRecognition() }
     modelPref = onClick("pref_dictation_whisper_model_choice") { chooseModel() }
+    zipformerModelPref = onClick("pref_dictation_zipformer_model_choice") { chooseZipformerModel() }
     onlineRoutePref = onClick("pref_dictation_online_route_choice") { chooseOnlineRoute() }
     advancedPref = onClick("pref_dictation_advanced_toggle") {
       advancedExpanded = !advancedExpanded
@@ -89,12 +96,14 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
   override fun onStart() {
     super.onStart()
     models.addListener(listener)
+    zipformerModels.addListener(zipformerListener)
     refresh()
     GoogleSpeechLanguages.refresh(requireContext()) { if (isAdded) refresh() }
   }
 
   override fun onStop() {
     models.removeListener(listener)
+    zipformerModels.removeListener(zipformerListener)
     super.onStop()
   }
 
@@ -113,6 +122,11 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       (model ?: downloading ?: Model.SMALL).label,
     )
     modelPref.summary = null
+
+    zipformerModelPref.isVisible = chosen == Recognition.ZIPFORMER
+    zipformerModelPref.title =
+      getString(R.string.dictation_compact_model_selected, ZipformerModels.LABEL)
+    zipformerModelPref.summary = null
 
     onlineRoutePref.isVisible = chosen == Recognition.RAMBLER
     onlineRoutePref.title = getString(
@@ -143,6 +157,7 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       speechThresholdSummary(DictationSettings.speechThresholdDbfs(prefs))
     aiServicePref.summary = aiServiceSummary(context)
     announceProgress(models.state)
+    announceZipformerProgress(zipformerModels.state)
   }
 
   private fun speechThresholdSummary(dbfs: Int): String =
@@ -153,6 +168,7 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       when (recognition) {
         Recognition.RAMBLER -> R.string.dictation_compact_gemini
         Recognition.WHISPER -> R.string.dictation_recognition_whisper
+        Recognition.ZIPFORMER -> R.string.dictation_recognition_zipformer
         Recognition.ANDROID -> R.string.dictation_compact_android
       }
     )
@@ -167,7 +183,7 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
 
   private fun chooseRecognition() {
     val choices =
-      listOf(Recognition.WHISPER, Recognition.RAMBLER, Recognition.ANDROID)
+      listOf(Recognition.WHISPER, Recognition.ZIPFORMER, Recognition.RAMBLER, Recognition.ANDROID)
         .filter { it != Recognition.WHISPER || WhisperEngines.isAvailable() }
     AlertDialog.Builder(requireContext())
       .setTitle(R.string.dictation_compact_service)
@@ -300,6 +316,59 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       .show()
   }
 
+  private fun chooseZipformerModel() {
+    AlertDialog.Builder(requireContext())
+      .setTitle(R.string.dictation_compact_model)
+      .setSingleChoiceItems(
+        arrayOf(ZipformerModels.LABEL),
+        if (zipformerModels.isInstalled()) 0 else -1,
+      ) { dialog, _ ->
+        dialog.dismiss()
+        onZipformerModelClicked()
+      }
+      .setNegativeButton(R.string.on_device_ai_cancel, null)
+      .show()
+  }
+
+  private fun onZipformerModelClicked() {
+    when {
+      zipformerModels.state is ZipformerModels.State.Downloading -> zipformerModels.cancelDownload()
+      zipformerModels.isInstalled() -> zipformerModelActions()
+      isMetered() ->
+        AlertDialog.Builder(requireContext())
+          .setTitle(R.string.on_device_ai_metered_title)
+          .setMessage(size(ZipformerModels.TOTAL_BYTES))
+          .setPositiveButton(R.string.on_device_ai_metered_download) { _, _ ->
+            zipformerModels.startDownload()
+          }
+          .setNegativeButton(R.string.on_device_ai_cancel, null)
+          .show()
+      else -> zipformerModels.startDownload()
+    }
+  }
+
+  /** Offers to delete the downloaded Zipformer model. */
+  private fun zipformerModelActions() {
+    AlertDialog.Builder(requireContext())
+      .setTitle(ZipformerModels.LABEL)
+      .setItems(arrayOf(getString(R.string.manage_models_delete))) { _, _ ->
+        confirmDeleteZipformer()
+      }
+      .setNegativeButton(R.string.on_device_ai_cancel, null)
+      .show()
+  }
+
+  private fun confirmDeleteZipformer() {
+    AlertDialog.Builder(requireContext())
+      .setTitle(getString(R.string.manage_models_delete_title, ZipformerModels.LABEL))
+      .setMessage(
+        getString(R.string.manage_models_delete_message, size(ZipformerModels.TOTAL_BYTES))
+      )
+      .setPositiveButton(R.string.manage_models_delete) { _, _ -> zipformerModels.delete() }
+      .setNegativeButton(R.string.on_device_ai_cancel, null)
+      .show()
+  }
+
   /** Speaks each quarter of the download and its end, because the numbers change silently. */
   private fun announceProgress(state: State) {
     val view = view ?: return
@@ -321,7 +390,28 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
     }
   }
 
-  private fun size(model: Model): String = Formatter.formatShortFileSize(requireContext(), model.sizeBytes)
+  /** Speaks each quarter of the Zipformer download and its end, as for the Whisper models. */
+  private fun announceZipformerProgress(state: ZipformerModels.State) {
+    val view = view ?: return
+    if (state is ZipformerModels.State.Downloading) {
+      val milestone = zipformerModels.percent(state) / 25 * 25
+      if (milestone > zipformerAnnouncedMilestone) {
+        view.announceForAccessibility(getString(R.string.on_device_ai_announce_progress, milestone))
+      }
+      zipformerAnnouncedMilestone = milestone
+      zipformerDownloading = true
+    } else {
+      if (zipformerDownloading && zipformerModels.isInstalled()) {
+        view.announceForAccessibility(getString(R.string.on_device_ai_announce_done))
+      }
+      zipformerAnnouncedMilestone = -1
+      zipformerDownloading = false
+    }
+  }
+
+  private fun size(model: Model): String = size(model.sizeBytes)
+
+  private fun size(bytes: Long): String = Formatter.formatShortFileSize(requireContext(), bytes)
 
   private fun isMetered(): Boolean =
     (requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)
