@@ -1,54 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="pref_timer_exact_alarm"
       android:persistent="false"
       android:title="@string/timer_setup_exact_alarm_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:title="@string/notification_category_clock">
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="pref_notification_clock_hours_screen"
-        android:title="@string/timer_clock_hours_title" />
-    <EditTextPreference
-        android:dialogMessage="@string/notification_clock_format_message"
-        android:key="pref_notification_clock_format"
-        android:title="@string/notification_clock_format_title" />
-  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:title="@string/timer_speech_category">
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-        android:key="pref_timer_voice_profile"
-        android:defaultValue=""
-        android:title="@string/timer_voice_title"
-        android:dialogTitle="@string/timer_voice_title" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-        android:key="pref_timer_audio_stream"
-        android:defaultValue="accessibility"
-        android:title="@string/timer_stream_title"
-        android:dialogTitle="@string/timer_stream_title"
-        android:entries="@array/timer_stream_entries"
-        android:entryValues="@array/timer_stream_values"
-        android:summary="%s" />
-  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:title="@string/stopwatch_title">
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="true"
-        android:key="pref_stopwatch_sound"
-        android:title="@string/stopwatch_sound_title" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="true"
-        android:key="pref_stopwatch_vibration"
-        android:title="@string/stopwatch_vibration_title" />
-    <androidx.preference.SeekBarPreference
-        android:defaultValue="10"
-        android:key="pref_stopwatch_interval_slider"
-        android:max="60"
-        android:title="@string/stopwatch_interval_title"
-        app:min="1"
-        app:seekBarIncrement="1"
-        app:showSeekBarValue="true" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.timer.StopwatchHistoryFragment"
-        android:key="pref_stopwatch_history_screen"
-        android:title="@string/stopwatch_history_title" />
-  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.timer.SpokenClockSettingsFragment"
+      android:key="pref_spoken_clock_screen"
+      android:title="@string/spoken_clock_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.timer.StopwatchSettingsFragment"
+      android:key="pref_stopwatch_screen"
+      android:title="@string/stopwatch_title" />
 </PreferenceScreen>
