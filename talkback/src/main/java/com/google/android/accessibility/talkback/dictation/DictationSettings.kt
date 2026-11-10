@@ -61,10 +61,11 @@ object DictationSettings {
   /** The on-device AI model corrects dictation. */
   const val AI_DEVICE = "device"
 
-  /** The three available speech recognizers. */
+  /** The available speech recognizers. */
   enum class Recognition(val id: String) {
     RAMBLER("rambler"),
     WHISPER("whisper"),
+    ZIPFORMER("zipformer"),
     ANDROID("android");
 
     companion object {
