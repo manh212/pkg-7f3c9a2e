@@ -19,6 +19,9 @@ class EditableSelectionKeys {
     val key = event.deviceId to event.keyCode
     if (event.action == KeyEvent.ACTION_UP) return consumed.remove(key)
     if (event.action != KeyEvent.ACTION_DOWN) return false
+    if (event.keyCode == KeyEvent.KEYCODE_MOVE_HOME || event.keyCode == KeyEvent.KEYCODE_MOVE_END) {
+      return selectToEdge(event, input, key)
+    }
     if (!event.isCtrlPressed || !event.isShiftPressed || event.isAltPressed || event.isMetaPressed) {
       return key in consumed
     }
@@ -44,5 +47,40 @@ class EditableSelectionKeys {
     if (!supported && event.repeatCount == 0) unsupported.accept(R.string.selection_line_unavailable)
     consumed += key
     return true
+  }
+
+  /**
+   * Shift+Home and Shift+End extend the selection from its current position to the very start
+   * or the very end of the text, the way the same keys do in a desktop editor.
+   */
+  private fun selectToEdge(
+    event: KeyEvent,
+    input: AccessibilityNodeInfoCompat?,
+    key: Pair<Int, Int>,
+  ): Boolean {
+    if (!event.isShiftPressed || event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) {
+      return key in consumed
+    }
+    if (input == null || !input.isFocused || !input.isEditable || !input.isEnabled) return key in consumed
+    val length = input.text?.length ?: return key in consumed
+    val selectionStart = input.textSelectionStart
+    val selectionEnd = input.textSelectionEnd
+    if (selectionStart < 0 || selectionEnd < 0) return key in consumed
+    val toStart = event.keyCode == KeyEvent.KEYCODE_MOVE_HOME
+    val arguments = Bundle().apply {
+      putInt(
+        AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_START_INT,
+        if (toStart) 0 else selectionStart,
+      )
+      putInt(
+        AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_END_INT,
+        if (toStart) selectionEnd else length,
+      )
+    }
+    if (input.performAction(AccessibilityNodeInfoCompat.ACTION_SET_SELECTION, arguments)) {
+      consumed += key
+      return true
+    }
+    return key in consumed
   }
 }
