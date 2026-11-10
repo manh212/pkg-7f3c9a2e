@@ -50,4 +50,25 @@ class TimerSpeechSettingsTest {
     prefs.edit().putString(TimerSpeechSettings.KEY_STOPWATCH_PROFILE, "missing").commit()
     assertEquals("", TimerSpeechSettings.stopwatchProfileId(prefs))
   }
+
+  @Test fun countdownStreamFallsBackToTheSharedOneUntilChosen() {
+    prefs.edit().remove(TimerSpeechSettings.KEY_COUNTDOWN_STREAM)
+      .putString(TimerSpeechSettings.KEY_STREAM, "ring").commit()
+    assertEquals(AudioManager.STREAM_RING, TimerSpeechSettings.countdownStream(prefs))
+    assertEquals("ring", TimerSpeechSettings.countdownStreamValue(prefs))
+    prefs.edit().putString(TimerSpeechSettings.KEY_COUNTDOWN_STREAM, "media").commit()
+    assertEquals(AudioManager.STREAM_MUSIC, TimerSpeechSettings.countdownStream(prefs))
+    assertEquals("media", TimerSpeechSettings.countdownStreamValue(prefs))
+  }
+
+  @Test fun countdownProfileFallsBackToTheSharedOneUntilChosen() {
+    prefs.edit().putString(TimerSpeechSettings.KEY_PROFILE, "missing")
+      .remove(TimerSpeechSettings.KEY_COUNTDOWN_PROFILE).commit()
+    assertEquals(
+      TimerSpeechSettings.profileId(prefs),
+      TimerSpeechSettings.countdownProfileId(prefs),
+    )
+    prefs.edit().putString(TimerSpeechSettings.KEY_COUNTDOWN_PROFILE, "missing").commit()
+    assertEquals("", TimerSpeechSettings.countdownProfileId(prefs))
+  }
 }
