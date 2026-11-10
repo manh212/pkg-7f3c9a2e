@@ -4464,7 +4464,7 @@
   <string name="title_pref_dictation_rambler_live">Rambler live transcription</string>
   <!-- Dictation setting: how speech is turned into text. [CHAR_LIMIT=NONE] -->
   <string name="title_pref_dictation_recognition">Speech recognition</string>
-  <!-- Speech recognition choice: Rambler for languages it supports, then Whisper, then Android speech recognition. [CHAR_LIMIT=NONE] -->
+  <!-- Speech recognition choice: Rambler for languages it supports, then Android speech recognition. [CHAR_LIMIT=NONE] -->
   <string name="dictation_recognition_automatic">Automatic</string>
   <!-- Speech recognition choice: Google's speech recognition that runs on the phone, from the Speech Recognition & Synthesis app. [CHAR_LIMIT=NONE] -->
   <string name="dictation_recognition_google">Google on-device speech recognition</string>
@@ -4474,16 +4474,10 @@
   <string name="dictation_google_download">Download <xliff:g id="language" example="English">%1$s</xliff:g> for on-device recognition</string>
   <!-- Speech recognition choice: the speech recognition service set in Android's settings. [CHAR_LIMIT=NONE] -->
   <string name="dictation_recognition_android">Android speech recognition</string>
-  <!-- Summary of Speech recognition when Automatic is chosen, naming the one used now, such as Rambler or Whisper. [CHAR_LIMIT=NONE] -->
+  <!-- Summary of Speech recognition when Automatic is chosen, naming the one used now, such as Rambler. [CHAR_LIMIT=NONE] -->
   <string name="dictation_recognition_automatic_using">Automatic: <xliff:g id="recognition" example="Rambler">%1$s</xliff:g></string>
   <!-- Summary of Speech recognition when Rambler is chosen but no Gemini API key is set. Rambler is a product name. [CHAR_LIMIT=NONE] -->
   <string name="dictation_rambler_needs_key">Rambler, needs a Gemini API key</string>
-  <!-- Summary of Speech recognition when Whisper is chosen but no Whisper model is downloaded. Whisper is a product name. [CHAR_LIMIT=NONE] -->
-  <string name="dictation_whisper_needs_model">Whisper, needs a downloaded model</string>
-  <!-- Dictation settings category listing the Whisper speech recognition models that can be downloaded. Whisper is a product name. [CHAR_LIMIT=NONE] -->
-  <string name="title_pref_whisper_models">Whisper models</string>
-  <!-- Action on a downloaded Whisper model: dictation uses this model. [CHAR_LIMIT=30] -->
-  <string name="dictation_whisper_use">Use</string>
   <!-- Dictation setting: the AI service that corrects dictated text. [CHAR_LIMIT=NONE] -->
   <string name="title_pref_dictation_ai_service">AI service for dictation</string>
   <!-- AI service for dictation choice: the AI service chosen in Automatic descriptions settings. [CHAR_LIMIT=NONE] -->
