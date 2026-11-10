@@ -76,4 +76,8 @@
   <string tools:ignore="MissingTranslation" name="title_pref_translation_bilingual_order">Thứ tự đọc</string>
   <string tools:ignore="MissingTranslation" name="translation_bilingual_original_first">Bản gốc trước</string>
   <string tools:ignore="MissingTranslation" name="translation_bilingual_translated_first">Bản dịch trước</string>
+  <string tools:ignore="MissingTranslation" name="translation_bilingual_parallel">Đọc song song</string>
+  <string tools:ignore="MissingTranslation" name="title_pref_translation_bilingual_stream">Kênh âm thanh đọc song ngữ</string>
+  <string tools:ignore="MissingTranslation" name="translation_bilingual_stream_default">Theo kênh âm thanh chung</string>
+  <string tools:ignore="MissingTranslation" name="title_pref_translation_bilingual_swap_profiles">Tự động hoán đổi giọng đọc khi hoán đổi ngôn ngữ dịch</string>
 </resources>
