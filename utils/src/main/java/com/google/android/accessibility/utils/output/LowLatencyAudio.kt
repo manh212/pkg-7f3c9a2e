@@ -258,6 +258,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private val volume: Float,
     private val pan: Float,
     private val equalizer: IntArray?,
+    private val compressor: SpeechCompressor.Settings?,
     private val listener: StreamListener,
   ) {
     private var resampler: SincResampler? = null
@@ -265,6 +266,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private val convertOutsideLock = LatencyExperiments.Feature.AUDIO_RESAMPLE.enabled()
     private var soundStarted = false
     private var filter: SpeechEqualizer.Filter? = null
+    private var compressorFilter: SpeechCompressor.Filter? = null
     private var inChannels = 1
     private var inRate = 0
     private var inFrames = 0L
@@ -300,6 +302,10 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       val builtFilter =
         if (built != null && equalizer != null) SpeechEqualizer.Filter(equalizer, sampleRate, channels)
         else null
+      val builtCompressor =
+        if (built != null && compressor != null)
+          SpeechCompressor.Filter(compressor, sampleRate, channels)
+        else null
       synchronized(lock) {
         lastActivity = SystemClock.uptimeMillis()
         if (built == null) {
@@ -313,6 +319,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         inEncoding = encoding
         resampler = built
         filter = builtFilter
+        compressorFilter = builtCompressor
       }
     }
 
@@ -423,7 +430,10 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       }
     }
 
-    private fun filtered(frames: FloatArray): FloatArray = filter?.process(frames) ?: frames
+    private fun filtered(frames: FloatArray): FloatArray {
+      val equalized = filter?.process(frames) ?: frames
+      return compressorFilter?.process(equalized) ?: equalized
+    }
 
     private fun add(frames: FloatArray) {
       if (frames.isEmpty()) return
@@ -559,6 +569,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     volume: Float,
     pan: Float,
     equalizer: IntArray?,
+    compressor: SpeechCompressor.Settings?,
     listener: StreamListener,
   ): SpeechStream {
     synchronized(lock) {
@@ -568,6 +579,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           volume.coerceIn(0f, VoiceProfiles.MAX_VOLUME / 100f),
           pan.coerceIn(-1f, 1f),
           equalizer,
+          compressor,
           listener,
         )
       if (released || broken) {
