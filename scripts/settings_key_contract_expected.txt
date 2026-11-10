@@ -680,7 +680,6 @@ pref_subtitle_bottom
 pref_subtitle_engine
 pref_subtitle_interval
 pref_subtitle_left
-pref_subtitle_ocr_settings
 pref_subtitle_region
 pref_subtitle_right
 pref_subtitle_settings_screen
