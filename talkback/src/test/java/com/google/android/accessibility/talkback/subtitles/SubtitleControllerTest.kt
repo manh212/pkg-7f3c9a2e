@@ -6,6 +6,7 @@ import android.graphics.Rect
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.google.android.accessibility.talkback.imagecaption.installOfflineOcrTestModels
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import org.junit.After
 import org.junit.Assert.*
@@ -51,8 +52,9 @@ class SubtitleControllerTest {
 
   @Before fun setUp() {
     service = Robolectric.setupService(TestService::class.java)
+    installOfflineOcrTestModels(service)
     SharedPreferencesUtils.getSharedPreferences(service).edit().clear()
-      .putString(SubtitleSettings.ENGINE, "mlkit").putString(SubtitleSettings.REGION, "full").commit()
+      .putString(SubtitleSettings.ENGINE, SubtitleSettings.OFFLINE_ENGINE).putString(SubtitleSettings.REGION, "full").commit()
     speaker = Speaker()
     controller = SubtitleController(service, { announcements += it }, speaker) { true }
     controller.toggle()

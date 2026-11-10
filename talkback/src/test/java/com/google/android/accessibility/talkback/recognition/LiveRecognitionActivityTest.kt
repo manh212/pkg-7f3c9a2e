@@ -22,6 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.imagecaption.installOfflineOcrTestModels
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,6 +77,7 @@ class LiveRecognitionActivityTest {
   @Test fun permissionRequestDoesNotTurnTheModeOnPrematurely() {
     val controller = Robolectric.buildActivity(LiveRecognitionActivity::class.java).setup()
     val activity = controller.get()
+    installOfflineOcrTestModels(activity)
     activity.toggle(RecognitionMode.TEXT)
     assertArrayEquals(arrayOf(Manifest.permission.CAMERA), shadowOf(activity).lastRequestedPermission.requestedPermissions)
     assertFalse(activity.isEnabled(RecognitionMode.TEXT))
