@@ -22,9 +22,11 @@ import android.text.format.DateFormat
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.ListPreference
 import androidx.preference.Preference
+import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import androidx.preference.SwitchPreferenceCompat
 import com.google.android.accessibility.talkback.notifications.ExactAlarmSettingsRow
+import com.google.android.accessibility.talkback.notifications.NotificationReader
 import com.google.android.accessibility.talkback.notifications.SpokenSchedules
 import com.google.android.accessibility.talkback.speech.VoiceProfileNames
 import com.google.android.accessibility.utils.output.VoiceProfiles
@@ -139,6 +141,88 @@ class StopwatchSettingsFragment :
     }
     findPreference<ListPreference>(TimerSpeechSettings.KEY_STOPWATCH_STREAM)?.let {
       it.value = TimerSpeechSettings.stopwatchStreamValue(prefs)
+    }
+  }
+}
+
+/**
+ * The countdown alarms: the ones still to fire, with how each rings and the voice it speaks
+ * with. Alarms are added from the assignable action, not from here; this page lists them so
+ * each can be cancelled, and holds the settings.
+ */
+class CountdownAlarmSettingsFragment :
+  NotificationXmlFragment(R.xml.countdown_alarm_preferences, R.string.countdown_alarm_title) {
+
+  private var runningCategory: PreferenceCategory? = null
+
+  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    super.onCreatePreferences(savedInstanceState, rootKey)
+    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    findPreference<ListPreference>(CountdownAlarm.KEY_REPEATS)?.let {
+      it.value = CountdownAlarm.repeats(requireContext()).toString()
+    }
+    bindVoiceChoice(TimerSpeechSettings.KEY_COUNTDOWN_PROFILE) {
+      TimerSpeechSettings.countdownProfileId(it)
+    }
+    findPreference<ListPreference>(TimerSpeechSettings.KEY_COUNTDOWN_STREAM)?.let {
+      it.value = TimerSpeechSettings.countdownStreamValue(prefs)
+    }
+    val category =
+      PreferenceCategory(requireContext()).apply {
+        order = -100
+        title = getString(R.string.countdown_alarm_running_category)
+      }
+    preferenceScreen.addPreference(category)
+    runningCategory = category
+    showRunningAlarms()
+  }
+
+  override fun onResume() {
+    super.onResume()
+    showRunningAlarms()
+  }
+
+  /** Lists the alarms still to fire; choosing one offers to cancel it. */
+  private fun showRunningAlarms() {
+    val category = runningCategory ?: return
+    val context = requireContext()
+    category.removeAll()
+    val now = System.currentTimeMillis()
+    val running = CountdownAlarm.alarms(context).filter { it.deadlineMillis > now }
+    if (running.isEmpty()) {
+      category.addPreference(
+        Preference(context).apply {
+          isSelectable = false
+          title = getString(R.string.countdown_alarm_none_running)
+        }
+      )
+      return
+    }
+    for (entry in running) {
+      val label =
+        entry.name.ifEmpty { Stopwatch.formatElapsed(context, entry.durationMillis) }
+      category.addPreference(
+        Preference(context).apply {
+          isPersistent = false
+          title = label
+          summary =
+            getString(
+              R.string.countdown_alarm_remaining,
+              Stopwatch.formatElapsed(context, entry.deadlineMillis - now),
+            )
+          setOnPreferenceClickListener {
+            AlertDialog.Builder(context)
+              .setMessage(getString(R.string.countdown_alarm_cancel_confirm, label))
+              .setNegativeButton(android.R.string.cancel, null)
+              .setPositiveButton(R.string.countdown_alarm_cancel_action) { _, _ ->
+                NotificationReader.cancelCountdownAlarm(entry.id)
+                showRunningAlarms()
+              }
+              .show()
+            true
+          }
+        }
+      )
     }
   }
 }
