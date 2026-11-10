@@ -260,6 +260,13 @@ public final class FirebaseRest {
     database(path, "DELETE", null, "&print=silent");
   }
 
+  public void deleteRejectedDecision(String path) throws Exception {
+    if (!path.matches("decisions/[A-Za-z0-9_-]{1,128}")) {
+      throw new IllegalArgumentException("Chỉ được xóa quyết định đăng ký.");
+    }
+    database(path, "DELETE", null, "&print=silent");
+  }
+
   public JSONObject shallowKeys(String path) throws Exception {
     String raw = database(path, "GET", null, "&shallow=true");
     return raw.trim().equals("null") ? new JSONObject() : new JSONObject(raw);
