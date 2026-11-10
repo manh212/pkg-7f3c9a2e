@@ -1193,6 +1193,8 @@
   <string name="shortcut_value_toggle_stopwatch">TOGGLE_STOPWATCH</string>
   <string name="shortcut_value_pause_resume_stopwatch">PAUSE_RESUME_STOPWATCH</string>
   <string name="shortcut_value_speak_stopwatch_elapsed">SPEAK_STOPWATCH_ELAPSED</string>
+  <string name="shortcut_value_add_countdown_alarm">ADD_COUNTDOWN_ALARM</string>
+  <string name="shortcut_value_show_countdown_alarms">SHOW_COUNTDOWN_ALARMS</string>
   <string name="shortcut_value_pass_through_next_gesture">ENABLE_PASS_THROUGH</string>
   <string name="shortcut_value_a11y_button">ACCESSIBILITY_BUTTON</string>
   <string name="shortcut_value_a11y_button_long_press">ACCESSIBILITY_BUTTON_CHOOSER</string>
