@@ -30,6 +30,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowMediaPlayer
+import org.robolectric.shadows.util.DataSource
 
 /** The per-timer sound choices: storage, labelling, and falling back to the own sound. */
 @RunWith(RobolectricTestRunner::class)
@@ -41,9 +43,16 @@ class TimerSoundsTest {
   @Before
   fun setUp() {
     prefs.edit().clear().commit()
-    File(context.createDeviceProtectedStorageContext().dataDir, "timer_sounds")
-      .listFiles()
-      ?.forEach { it.delete() }
+    val directory = File(context.createDeviceProtectedStorageContext().dataDir, "timer_sounds")
+    directory.listFiles()?.forEach { it.delete() }
+    // The shadow player refuses every data source it has no media info for, so register
+    // the staging file each slot's copy is probed from before it is renamed into place.
+    for (slot in TimerSounds.Slot.entries) {
+      ShadowMediaPlayer.addMediaInfo(
+        DataSource.toDataSource(File(directory, slot.fileName + ".part").path),
+        ShadowMediaPlayer.MediaInfo(),
+      )
+    }
   }
 
   @Test
@@ -58,7 +67,6 @@ class TimerSoundsTest {
   @Test
   fun chosenSound_isStoredUnderItsLabel_andPlays() {
     val stored = byteArrayOf(1, 2, 3, 4)
-    // Robolectric's shadow player accepts the copied file, so the copy succeeds.
     val result =
       TimerSounds.setSound(
         context,
