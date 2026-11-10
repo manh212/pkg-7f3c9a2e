@@ -38,6 +38,7 @@ import com.google.android.accessibility.utils.output.SpeechControllerImpl
 object CountdownAlarmDialogs {
 
   /** Opens the add dialog: a name field, then hours, minutes and seconds typed as numbers. */
+  @JvmStatic
   fun showAdd(context: Context, speaker: SpeechControllerImpl?, eventId: EventId) {
     val layout = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     val padding = (24 * context.resources.displayMetrics.density).toInt()
@@ -73,6 +74,7 @@ object CountdownAlarmDialogs {
   }
 
   /** Opens the list of alarms still to fire; choosing one offers to cancel it. */
+  @JvmStatic
   fun showRunning(context: Context, speaker: SpeechControllerImpl?, eventId: EventId) {
     val now = System.currentTimeMillis()
     val running = NotificationReader.countdownAlarms().filter { it.deadlineMillis > now }
