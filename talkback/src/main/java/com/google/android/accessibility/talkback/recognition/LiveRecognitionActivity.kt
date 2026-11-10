@@ -248,11 +248,6 @@ class LiveRecognitionActivity : ComponentActivity() {
       if (enabled.isEmpty()) reconcile()
       return
     }
-    if (mode == RecognitionMode.TEXT && !TesseractOcr.isDataDownloaded(this)) {
-      updateSwitches()
-      report(R.string.ocr_offline_model_missing)
-      return
-    }
     if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
       pendingFlashPermission = true
       updateFlashSwitch()
@@ -304,6 +299,11 @@ class LiveRecognitionActivity : ComponentActivity() {
     if (mode == RecognitionMode.CURRENCY && !CurrencyRecognizer.isAvailable(this)) {
       updateSwitches()
       report(R.string.live_recognition_currency_model_missing)
+      return
+    }
+    if (mode == RecognitionMode.TEXT && !TesseractOcr.isDataDownloaded(this)) {
+      updateSwitches()
+      report(R.string.ocr_offline_model_missing)
       return
     }
     if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
