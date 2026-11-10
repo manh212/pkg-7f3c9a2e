@@ -374,6 +374,24 @@
     <string name="stopwatch_stopped">Stopped. <xliff:g id="duration" example="1 hour 2 minutes">%1$s</xliff:g></string>
     <!-- Said when the screen turns on while the stopwatch runs: how long it has run, then the time. -->
     <string name="stopwatch_elapsed_now"><xliff:g id="elapsed" example="1 hour 2 minutes">%1$s</xliff:g> elapsed, it\'s now <xliff:g id="time" example="7:45">%2$s</xliff:g></string>
+    <!-- Action: pauses the stopwatch while it runs, and resumes it while it is paused. -->
+    <string name="shortcut_pause_resume_stopwatch">Pause or resume stopwatch</string>
+    <!-- Action: says how long the stopwatch has run, and the time now. -->
+    <string name="shortcut_speak_stopwatch_elapsed">Speak stopwatch elapsed time</string>
+    <!-- Switch: the stopwatch says its reminders; sound and vibration keep their own switches. -->
+    <string name="stopwatch_speech_title">Speak reminders</string>
+    <!-- Heading: the stopwatch's own voice profile and audio stream. -->
+    <string name="stopwatch_speech_category">Stopwatch voice and audio stream</string>
+    <!-- Setting: the voice profile the stopwatch speaks with. -->
+    <string name="stopwatch_voice_title">Stopwatch voice profile</string>
+    <!-- Setting: the audio stream the stopwatch speaks on. -->
+    <string name="stopwatch_stream_title">Stopwatch audio stream</string>
+    <!-- Said when the stopwatch is paused. -->
+    <string name="stopwatch_paused">Stopwatch paused</string>
+    <!-- Said when a paused stopwatch runs again. -->
+    <string name="stopwatch_resumed">Stopwatch resumed</string>
+    <!-- Said by the speak-elapsed action when the stopwatch is not running. -->
+    <string name="stopwatch_not_running">The stopwatch is not running</string>
     <!-- Setting: how notifications of apps without their own setting are read. -->
     <string name="notification_other_apps_title">Other apps</string>
     <!-- Heading of the list of apps. -->
