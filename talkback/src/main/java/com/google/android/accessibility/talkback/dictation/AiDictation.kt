@@ -56,8 +56,8 @@ import java.util.concurrent.Executors
 /**
  * Dictate: types what the user says into the focused text field. The gesture starts recording and
  * the same gesture stops it; nothing stops it in between. The speech is then recognized as
- * Dictation settings say: by Google on-device speech recognition, Rambler (Gemini API), Whisper on
- * the phone, or Android's speech recognition. When Correct dictation with AI is on, the AI service chosen for dictation
+ * Dictation settings say: by Rambler (Gemini API), Zipformer on the phone, or Android's speech
+ * recognition. When Correct dictation with AI is on, the AI service chosen for dictation
  * cleans up the text as Gboard's Rambler does before it is typed: filler words, false starts and
  * self-corrections removed, punctuation and numbers formatted. Rambler (Gemini API) text arrives
  * cleaned up already.
@@ -255,7 +255,6 @@ class AiDictation(
 
   /** Starts recording for [used]. Returns false when it can't. */
   private fun startRecording(used: Recognition): Boolean {
-    if (used == Recognition.WHISPER && WhisperModels.get(service).activeModel() == null) return false
     if (used == Recognition.ZIPFORMER && !ZipformerModels.get(service).isInstalled()) return false
     if (used == Recognition.RAMBLER && DictationSettings.ramblerKey(prefs).isEmpty()) return false
     recognition = used
@@ -414,8 +413,8 @@ class AiDictation(
   }
 
   /**
-   * Recognizes the speech in [pcm] with [used], or with Whisper when Rambler fails. Returns the
-   * text and whether it is already cleaned up, or null when it couldn't be recognized.
+   * Recognizes the speech in [pcm] with [used]. Returns the text and whether it is already
+   * cleaned up, or null when it couldn't be recognized.
    */
   private fun transcribe(used: Recognition, pcm: ByteArray): Pair<String, Boolean>? {
     if (used == Recognition.RAMBLER) {
@@ -424,6 +423,7 @@ class AiDictation(
           true
       } catch (e: IOException) {
         LogUtils.w(TAG, "Rambler failed: %s", e)
+        return null
       }
     }
     if (used == Recognition.ZIPFORMER) {
@@ -435,19 +435,7 @@ class AiDictation(
         transcriber = null
       }
     }
-    val model = WhisperModels.get(service).activeModel() ?: return null
-    val whisper =
-      WhisperEngines.transcriber(WhisperModels.get(service).file(model), model.shortContext)
-        ?: return null
-    transcriber = whisper
-    try {
-      return whisper.transcribe(
-        AudioCapture.toFloats(pcm),
-        if (translateMode) DictationSettings.translationSource(prefs) else whisperLanguage(),
-      )?.let { it to false }
-    } finally {
-      transcriber = null
-    }
+    return null
   }
 
   private fun recognitionFailed(used: Recognition, error: Int) {
@@ -666,17 +654,6 @@ class AiDictation(
       speechSilenced = false
     }
   }
-
-  /** The language Whisper is told the speech is in: the phone's. */
-  private fun whisperLanguage(): String =
-    when (val language = Locale.getDefault().language) {
-      "iw" -> "he"
-      "in" -> "id"
-      "ji" -> "yi"
-      "fil" -> "tl"
-      "nb" -> "no"
-      else -> language
-    }
 
   private fun type(target: AccessibilityNodeInfoCompat?, text: String) {
     field = null
