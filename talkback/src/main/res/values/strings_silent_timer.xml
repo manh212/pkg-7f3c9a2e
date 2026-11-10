@@ -26,4 +26,28 @@
   <string name="timer_clock_hours_off" tools:ignore="MissingTranslation">Đang tắt</string>
   <string name="timer_clock_hours_all" tools:ignore="MissingTranslation">Đã chọn tất cả 24 giờ</string>
   <string name="timer_clock_hours_count" tools:ignore="MissingTranslation">Đã chọn %1$d giờ</string>
+  <string name="spoken_clock_title" tools:ignore="MissingTranslation">Đồng hồ nói tự động</string>
+  <string name="timer_clock_enabled_title" tools:ignore="MissingTranslation">Báo giờ tự động</string>
+  <string name="timer_clock_sound_title" tools:ignore="MissingTranslation">Âm thanh</string>
+  <string name="timer_clock_vibration_title" tools:ignore="MissingTranslation">Rung</string>
+  <string-array name="timer_interval_entries" tools:ignore="MissingTranslation">
+    <item>5 phút</item>
+    <item>10 phút</item>
+    <item>15 phút</item>
+    <item>20 phút</item>
+    <item>25 phút</item>
+    <item>30 phút</item>
+    <item>45 phút</item>
+    <item>60 phút</item>
+  </string-array>
+  <string-array name="timer_interval_values" translatable="false">
+    <item>5</item>
+    <item>10</item>
+    <item>15</item>
+    <item>20</item>
+    <item>25</item>
+    <item>30</item>
+    <item>45</item>
+    <item>60</item>
+  </string-array>
 </resources>
