@@ -274,7 +274,7 @@ object NotificationReader {
       ) { text, interrupt -> announceTimer(text, interrupt) }
         .also { it.start() }
     stopwatch =
-      StopwatchEngine(app, { text, interrupt -> announceTimer(text, interrupt) }) { sound ->
+      StopwatchEngine(app, { text, interrupt -> announceStopwatch(text, interrupt) }) { sound ->
           (context as? TalkBackService)?.feedbackController?.playAuditoryWithoutHaptic(
             sound, EVENT_ID_UNTRACKED)
         }
@@ -320,6 +320,20 @@ object NotificationReader {
   @MainThread
   fun toggleStopwatch() {
     stopwatch?.toggle()
+  }
+
+  /** Pauses the stopwatch while it runs, and resumes it while it is paused. */
+  @JvmStatic
+  @MainThread
+  fun pauseResumeStopwatch() {
+    stopwatch?.pauseOrResume()
+  }
+
+  /** Says how long the stopwatch has run, and the time now. */
+  @JvmStatic
+  @MainThread
+  fun speakStopwatchElapsed() {
+    stopwatch?.speakElapsed()
   }
 
   /** Tells which app is in front, for the rules. */
@@ -1022,12 +1036,38 @@ object NotificationReader {
    * Says [text] in the notification voice, or SandFly's when there is none: summaries and time
    * announcements.
    */
-  /** Reads timer and stopwatch announcements with their own selected profile and audio stream. */
+  /** Reads spoken-clock announcements with their own selected profile and audio stream. */
   private fun announceTimer(text: CharSequence, interrupt: Boolean) {
     val ctx = context ?: return
     val prefs = SharedPreferencesUtils.getSharedPreferences(ctx)
-    val profileId = com.google.android.accessibility.talkback.timer.TimerSpeechSettings.profileId(prefs)
-    val stream = com.google.android.accessibility.talkback.timer.TimerSpeechSettings.stream(prefs)
+    announceTimerVoice(
+      text,
+      interrupt,
+      com.google.android.accessibility.talkback.timer.TimerSpeechSettings.profileId(prefs),
+      com.google.android.accessibility.talkback.timer.TimerSpeechSettings.stream(prefs),
+    )
+  }
+
+  /** Reads stopwatch announcements with the stopwatch's own profile and audio stream. */
+  private fun announceStopwatch(text: CharSequence, interrupt: Boolean) {
+    val ctx = context ?: return
+    val prefs = SharedPreferencesUtils.getSharedPreferences(ctx)
+    announceTimerVoice(
+      text,
+      interrupt,
+      com.google.android.accessibility.talkback.timer.TimerSpeechSettings.stopwatchProfileId(prefs),
+      com.google.android.accessibility.talkback.timer.TimerSpeechSettings.stopwatchStream(prefs),
+    )
+  }
+
+  private fun announceTimerVoice(
+    text: CharSequence,
+    interrupt: Boolean,
+    profileId: String,
+    stream: Int,
+  ) {
+    val ctx = context ?: return
+    val prefs = SharedPreferencesUtils.getSharedPreferences(ctx)
     if (profileId.isEmpty() && stream == AudioManager.STREAM_ACCESSIBILITY) {
       timerVoice?.shutdown()
       timerVoice = null
