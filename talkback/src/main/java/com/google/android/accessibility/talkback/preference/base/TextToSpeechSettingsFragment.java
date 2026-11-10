@@ -21,6 +21,7 @@ import com.google.android.accessibility.utils.ServiceStateListener;
 import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech;
+import com.google.android.accessibility.utils.output.SpeechCompressor;
 import com.google.android.accessibility.utils.output.SpeechEqualizer;
 import com.google.android.accessibility.utils.output.VoiceProfiles;
 import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile;
@@ -35,7 +36,7 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
     R.string.pref_speech_pitch_seekbar_key_int,
   };
 
-  private static final String EQUALIZER_SCREEN_KEY = "pref_speech_equalizer_screen";
+  private static final String ADJUSTMENT_SCREEN_KEY = "pref_speech_adjustment_screen";
 
   private SharedPreferences prefs;
 
@@ -48,8 +49,9 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
           // Switched by a gesture, keyboard shortcut or the Backtalk menu.
           updateVoiceProfileSummary();
         } else if (SpeechEqualizer.isKey(key)
+            || SpeechCompressor.isKey(key)
             || TextUtils.equals(key, FailoverTextToSpeech.PREF_LOW_LATENCY_AUDIO_KEY)) {
-          updateEqualizerSummary();
+          updateAdjustmentSummary();
         } else if (TextUtils.equals(key, FailoverTextToSpeech.PREF_SPEECH_STREAM_KEY)) {
           // Switched by the reading control.
           updateSpeechStreamValue();
@@ -100,7 +102,7 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
     prefs.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
     updateSeekBarValues();
     updateVoiceProfileSummary();
-    updateEqualizerSummary();
+    updateAdjustmentSummary();
 
     boolean serviceActive =
         TalkBackService.getServiceState() == ServiceStateListener.SERVICE_STATE_ACTIVE;
@@ -168,16 +170,16 @@ public class TextToSpeechSettingsFragment extends VerbosityPrefFragment {
                 VoiceProfileNames.nameOf(requireContext(), prefs, profile.id())));
   }
 
-  private void updateEqualizerSummary() {
-    Preference preference = findPreference(EQUALIZER_SCREEN_KEY);
+  private void updateAdjustmentSummary() {
+    Preference preference = findPreference(ADJUSTMENT_SCREEN_KEY);
     if (preference == null) {
       return;
     }
     if (FormFactorUtils.isAndroidWear()) {
-      getPreferenceScreen().removePreferenceRecursively(EQUALIZER_SCREEN_KEY);
+      getPreferenceScreen().removePreferenceRecursively(ADJUSTMENT_SCREEN_KEY);
       return;
     }
-    preference.setSummary(SpeechEqualizerFragment.summary(requireContext(), prefs, ""));
+    preference.setSummary(SpeechAdjustmentFragment.summary(requireContext(), prefs, ""));
   }
 
   private void setUpSystemTtsSettingsPreference() {
