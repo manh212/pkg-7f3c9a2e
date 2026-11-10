@@ -22,6 +22,8 @@ import androidx.core.content.edit
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
+import com.google.android.accessibility.utils.output.BilingualSpeechText
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.Locale
 
@@ -71,6 +73,9 @@ object TranslationSettings {
   const val PREF_BILINGUAL_ORDER = "pref_translation_bilingual_order"
   const val BILINGUAL_ORIGINAL_FIRST = "original"
   const val BILINGUAL_TRANSLATED_FIRST = "translated"
+  const val BILINGUAL_PARALLEL = "parallel"
+  const val PREF_BILINGUAL_STREAM = "pref_translation_bilingual_stream"
+  const val PREF_BILINGUAL_SWAP_PROFILES = "pref_translation_bilingual_swap_profiles"
   const val PREF_TARGET_VOICE = "pref_translation_target_voice"
   const val PREF_SAY_SOURCE = "pref_translation_say_source"
   const val PREF_COPY = "pref_translation_copy"
@@ -156,9 +161,16 @@ object TranslationSettings {
   fun swap(prefs: SharedPreferences) {
     val source = source(prefs) ?: return
     val target = target(prefs)
+    val swapProfiles = swapProfilesOnSwap(prefs)
+    val originalProfile = prefs.getString(PREF_BILINGUAL_ORIGINAL_PROFILE, "")
+    val translatedProfile = prefs.getString(PREF_BILINGUAL_TRANSLATED_PROFILE, "")
     prefs.edit {
       putString(PREF_SOURCE, target)
       putString(PREF_TARGET, source)
+      if (swapProfiles) {
+        putString(PREF_BILINGUAL_ORIGINAL_PROFILE, translatedProfile)
+        putString(PREF_BILINGUAL_TRANSLATED_PROFILE, originalProfile)
+      }
     }
   }
 
@@ -166,6 +178,36 @@ object TranslationSettings {
 
   fun originalFirst(prefs: SharedPreferences): Boolean =
     prefs.getString(PREF_BILINGUAL_ORDER, BILINGUAL_ORIGINAL_FIRST) != BILINGUAL_TRANSLATED_FIRST
+
+  /** Whether bilingual reading interleaves the original and the translation sentence by sentence. */
+  fun parallel(prefs: SharedPreferences): Boolean =
+    prefs.getString(PREF_BILINGUAL_ORDER, BILINGUAL_ORIGINAL_FIRST) == BILINGUAL_PARALLEL
+
+  /** The stream value bilingual reading uses, or an empty string to follow the speech stream. */
+  fun bilingualStream(prefs: SharedPreferences): String =
+    prefs.getString(PREF_BILINGUAL_STREAM, "").orEmpty()
+      .takeIf { it in FailoverTextToSpeech.STREAM_VALUES }
+      .orEmpty()
+
+  /** Whether swapping the translation languages also swaps the two bilingual voice profiles. */
+  fun swapProfilesOnSwap(prefs: SharedPreferences): Boolean =
+    prefs.getBoolean(PREF_BILINGUAL_SWAP_PROFILES, false)
+
+  /** The bilingual speech for [original] and its [translation], with the current settings. */
+  fun bilingualSpeech(
+    prefs: SharedPreferences,
+    original: String,
+    translation: String,
+  ): BilingualSpeechText =
+    BilingualSpeechText(
+      original,
+      translation,
+      originalProfile(prefs),
+      translatedProfile(prefs),
+      originalFirst(prefs),
+      parallel(prefs),
+      bilingualStream(prefs),
+    )
 
   fun originalProfile(prefs: SharedPreferences): String = profile(prefs, PREF_BILINGUAL_ORIGINAL_PROFILE)
 
