@@ -358,6 +358,8 @@ public class FailoverTextToSpeech {
 
   private volatile int @Nullable [] equalizerGains;
 
+  private volatile SpeechCompressor.@Nullable Settings compressorSettings;
+
   /**
    * Returns whether low-latency audio is on when the user hasn't chosen. It's off on watches,
    * whose settings don't have the switch.
@@ -559,11 +561,14 @@ public class FailoverTextToSpeech {
           }
         } else if (SpeechEqualizer.isKey(key)) {
           equalizerGains = SpeechEqualizer.inUse(sharedPrefs);
+        } else if (SpeechCompressor.isKey(key)) {
+          compressorSettings = SpeechCompressor.inUse(sharedPrefs);
         } else if (VoiceProfiles.isProfileKey(key)) {
           clearBilingualEngines();
           readVoiceProfile(sharedPrefs);
           updateWarmEngines();
           equalizerGains = SpeechEqualizer.inUse(sharedPrefs);
+          compressorSettings = SpeechCompressor.inUse(sharedPrefs);
         }
       };
 
@@ -697,6 +702,7 @@ public class FailoverTextToSpeech {
     readLanguageSwitches(prefs);
     VoiceProfiles.setActive(VoiceProfiles.readActive(prefs));
     equalizerGains = SpeechEqualizer.inUse(prefs);
+    compressorSettings = SpeechCompressor.inUse(prefs);
     prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener);
     PowerManager power = context.getSystemService(PowerManager.class);
     screenOn = power == null || power.isInteractive();
@@ -1607,12 +1613,13 @@ public class FailoverTextToSpeech {
   }
 
   /**
-   * Returns the speech cache, or null if there is none, a voice profile is in use or the equalizer
-   * is set. The cache keeps speech by language, not by voice, so it could play speech made in
-   * another voice, and plays it on its own track, which the equalizer doesn't filter.
+   * Returns the speech cache, or null if there is none, a voice profile is in use or the speech
+   * adjustment is set. The cache keeps speech by language, not by voice, so it could play speech
+   * made in another voice, and plays it on its own track, which the adjustment doesn't filter.
    */
   private @Nullable SpeechCacheManager usableSpeechCache() {
     return VoiceProfiles.isProfileActive() || hasSelectedEngineVoice() || equalizerGains != null
+            || compressorSettings != null
         ? null : speechCacheManager;
   }
 
@@ -2028,7 +2035,7 @@ public class FailoverTextToSpeech {
       return tts.speak(text, queueMode, nativeParams, utteranceId);
     }
     NavigationPcmCache cache = navigationPcmCache;
-    if (equalizerGains == null && cache != null && ttsEngine != null && LatencyExperiments.preparePcm() && (!VoiceProfiles.isProfileActive() && !hasSelectedEngineVoice())
+    if (equalizerGains == null && compressorSettings == null && cache != null && ttsEngine != null && LatencyExperiments.preparePcm() && (!VoiceProfiles.isProfileActive() && !hasSelectedEngineVoice())
         && (!(text instanceof android.text.Spanned spanned)
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
       float[] prepared = cache.find(text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate());
@@ -2038,7 +2045,7 @@ public class FailoverTextToSpeech {
         if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();
         LowLatencyAudio.SpeechStream stream = player.openStream(utteranceId,
             floatParam(bundle, SpeechParam.VOLUME, 1f),
-            floatParam(bundle, Engine.KEY_PARAM_PAN, 0f), null, lowLatencyListener);
+            floatParam(bundle, Engine.KEY_PARAM_PAN, 0f), null, null, lowLatencyListener);
         lowLatencyStreams.put(utteranceId, stream);
         lowLatencyRequests.put(utteranceId, Pair.create(text, bundle));
         Performance.getInstance().onFeedbackAudioAvailable(utteranceId, SystemClock.uptimeMillis());
@@ -2066,6 +2073,7 @@ public class FailoverTextToSpeech {
             floatParam(bundle, SpeechParam.VOLUME, 1f),
             floatParam(bundle, Engine.KEY_PARAM_PAN, 0f),
             equalizerGains,
+            compressorSettings,
             lowLatencyListener);
     lowLatencyStreams.put(utteranceId, stream);
     lowLatencyRequests.put(utteranceId, Pair.create(text, bundle));
