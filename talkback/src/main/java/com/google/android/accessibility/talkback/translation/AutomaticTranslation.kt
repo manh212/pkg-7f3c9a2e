@@ -29,7 +29,6 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.SharedPreferencesUtils
-import com.google.android.accessibility.utils.output.BilingualSpeechText
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
@@ -228,13 +227,7 @@ internal constructor(
 
   private fun translated(original: String, translation: String, to: String): CharSequence {
     if (TranslationSettings.bilingual(prefs)) {
-      return BilingualSpeechText(
-        original,
-        translation,
-        TranslationSettings.originalProfile(prefs),
-        TranslationSettings.translatedProfile(prefs),
-        TranslationSettings.originalFirst(prefs),
-      )
+      return TranslationSettings.bilingualSpeech(prefs, original, translation)
     }
     return spoken(translation, to)
   }
