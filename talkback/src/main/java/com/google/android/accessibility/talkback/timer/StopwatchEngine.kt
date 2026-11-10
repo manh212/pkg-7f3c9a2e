@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.text.format.DateFormat
 import com.google.android.accessibility.utils.output.VibrationIntensity
 import android.os.Vibrator
 import androidx.annotation.MainThread
@@ -29,6 +30,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notifications.AlarmClockIntents
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import java.util.Date
 
 /**
  * Runs the stopwatch: at each multiple of the reminder interval it says how long the stopwatch
@@ -90,11 +92,55 @@ class StopwatchEngine(
     if (Stopwatch.isRunning(context)) stopStopwatch() else startStopwatch()
   }
 
+  /** Pauses the stopwatch while it runs, and resumes it while it is paused. */
+  @MainThread
+  fun pauseOrResume() {
+    if (!Stopwatch.isRunning(context)) return
+    if (Stopwatch.isPaused(context)) {
+      val now = System.currentTimeMillis()
+      val pausedAt = prefs.getLong(Stopwatch.KEY_PAUSED_AT, 0)
+      prefs
+        .edit()
+        .putLong(
+          Stopwatch.KEY_PAUSED_TOTAL,
+          prefs.getLong(Stopwatch.KEY_PAUSED_TOTAL, 0) + (now - pausedAt).coerceAtLeast(0),
+        )
+        .putLong(Stopwatch.KEY_PAUSED_AT, 0)
+        .apply()
+      say(context.getString(R.string.stopwatch_resumed), false)
+      schedule()
+      announceLatestMilestone()
+    } else {
+      prefs.edit().putLong(Stopwatch.KEY_PAUSED_AT, System.currentTimeMillis()).apply()
+      alarms?.let { cancelAlarm(it) }
+      say(context.getString(R.string.stopwatch_paused), false)
+    }
+  }
+
+  /** Says how long the stopwatch has run and the time now, or that it is not running. */
+  @MainThread
+  fun speakElapsed() {
+    if (!Stopwatch.isRunning(context)) {
+      say(context.getString(R.string.stopwatch_not_running), false)
+      return
+    }
+    say(
+      context.getString(
+        R.string.stopwatch_elapsed_now,
+        Stopwatch.formatElapsed(context, Stopwatch.activeElapsedMillis(context)),
+        DateFormat.getTimeFormat(context).format(Date()),
+      ),
+      false,
+    )
+  }
+
   private fun startStopwatch() {
     prefs
       .edit()
       .putLong(Stopwatch.KEY_STARTED_AT, System.currentTimeMillis())
       .putLong(Stopwatch.KEY_LAST_ANNOUNCED, 0)
+      .putLong(Stopwatch.KEY_PAUSED_AT, 0)
+      .putLong(Stopwatch.KEY_PAUSED_TOTAL, 0)
       .apply()
     signal(R.raw.chime_up)
     say(context.getString(R.string.stopwatch_started), false)
@@ -103,19 +149,21 @@ class StopwatchEngine(
 
   private fun stopStopwatch() {
     val startedAt = Stopwatch.startedAt(context)
-    val now = System.currentTimeMillis()
+    val duration = Stopwatch.activeElapsedMillis(context)
     prefs
       .edit()
       .putLong(Stopwatch.KEY_STARTED_AT, 0)
       .putLong(Stopwatch.KEY_LAST_ANNOUNCED, 0)
+      .putLong(Stopwatch.KEY_PAUSED_AT, 0)
+      .putLong(Stopwatch.KEY_PAUSED_TOTAL, 0)
       .apply()
     alarms?.let { cancelAlarm(it) }
-    if (startedAt > 0) {
-      Stopwatch.addHistory(context, Stopwatch.Entry(startedAt, now - startedAt))
+    if (startedAt > 0 && duration >= MIN_HISTORY_MS) {
+      Stopwatch.addHistory(context, Stopwatch.Entry(startedAt, duration))
     }
     signal(R.raw.chime_down)
     say(
-      context.getString(R.string.stopwatch_stopped, Stopwatch.formatElapsed(context, now - startedAt)),
+      context.getString(R.string.stopwatch_stopped, Stopwatch.formatElapsed(context, duration)),
       false,
     )
   }
@@ -123,12 +171,12 @@ class StopwatchEngine(
   private fun schedule() {
     val alarms = alarms ?: return
     cancelAlarm(alarms)
-    val startedAt = Stopwatch.startedAt(context)
-    if (startedAt <= 0) return
+    if (Stopwatch.startedAt(context) <= 0 || Stopwatch.isPaused(context)) return
     val intervalMs = Stopwatch.intervalMinutes(context) * 60_000L
     if (intervalMs <= 0) return
     val now = System.currentTimeMillis()
-    val next = startedAt + ((now - startedAt) / intervalMs + 1) * intervalMs
+    val elapsed = Stopwatch.activeElapsedMillis(context, now)
+    val next = now + (elapsed / intervalMs + 1) * intervalMs - elapsed
     set(alarms, next)
   }
 
@@ -161,17 +209,18 @@ class StopwatchEngine(
    * instead of being lost; one already said is not said again.
    */
   private fun announceLatestMilestone() {
-    val startedAt = Stopwatch.startedAt(context)
-    if (startedAt <= 0) return
-    val intervalMs = Stopwatch.intervalMinutes(context) * 60_000L
+    if (Stopwatch.startedAt(context) <= 0 || Stopwatch.isPaused(context)) return
+    val intervalMinutes = Stopwatch.intervalMinutes(context)
+    val intervalMs = intervalMinutes * 60_000L
     if (intervalMs <= 0) return
-    val elapsed = System.currentTimeMillis() - startedAt
-    val milestone = elapsed / intervalMs * intervalMs
+    val milestone = Stopwatch.activeElapsedMillis(context) / intervalMs * intervalMs
     if (milestone <= 0) return
     if (milestone <= prefs.getLong(Stopwatch.KEY_LAST_ANNOUNCED, 0)) return
     prefs.edit().putLong(Stopwatch.KEY_LAST_ANNOUNCED, milestone).apply()
-    signal(R.raw.chime_up, Stopwatch.pulsesForMilestone(milestone / 60_000L))
-    say(Stopwatch.formatElapsed(context, milestone), false)
+    signal(R.raw.chime_up, Stopwatch.pulsesForMilestone(milestone / 60_000L, intervalMinutes))
+    if (prefs.getBoolean(Stopwatch.KEY_SPEECH, true)) {
+      say(Stopwatch.formatElapsed(context, milestone), false)
+    }
   }
 
   private fun signal(soundResource: Int, pulses: Int = 1) {
@@ -195,5 +244,10 @@ class StopwatchEngine(
       }
     val effect = VibrationIntensity.createWaveform(vibrator, timings, strength / 100f)
     runCatching { vibrator.vibrate(effect) }
+  }
+
+  private companion object {
+    /** Runs shorter than this are a mistaken start, not a run worth keeping in the history. */
+    const val MIN_HISTORY_MS = 5_000L
   }
 }
