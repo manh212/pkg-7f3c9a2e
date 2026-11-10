@@ -24,4 +24,6 @@
     <string name="summary_sandfly_countdown_channel">Đếm ngược thời gian đăng ký khi Meridian đang bật</string>
     <string name="summary_sandfly_countdown_remaining">Trình đọc màn hình sẽ tự tắt sau %1$d giây. Hãy đăng ký ngay.</string>
     <string name="summary_sandfly_trial_dialog">Nếu chưa đăng ký thiết bị, trình đọc màn hình sẽ tự tắt sau %1$d giây. Trong thời gian đếm ngược, bạn vẫn có thể sử dụng trình đọc màn hình.</string>
+    <string name="title_admin_announcement">Thông báo</string>
+    <string name="action_admin_announcement_close">Đóng</string>
 </resources>
