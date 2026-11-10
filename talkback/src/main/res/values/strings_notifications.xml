@@ -423,7 +423,7 @@
     </string-array>
     <!-- Switch: a sound is played when a countdown alarm fires. -->
     <string name="countdown_alarm_sound_title">Sound</string>
-    <string name="timer_sound_choice_title" tools:ignore="MissingTranslation">Choose sound</string>
+    <string name="timer_sound_choice_title">Choose sound</string>
     <!-- Switch: the phone vibrates when a countdown alarm fires. -->
     <string name="countdown_alarm_vibration_title">Vibration</string>
     <!-- Heading: the countdown alarm's own voice profile and audio stream. -->
