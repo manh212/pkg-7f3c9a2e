@@ -512,16 +512,12 @@ class SubtitleController internal constructor(
     }
     if (emptyFrames >= 8 && !noTextAnnounced &&
         SystemClock.uptimeMillis() - lastDeliveredAt > 5000L) {
+      // No spoken warning when there are no subtitles: silence is the expected state
+      // whenever the video itself has nothing to read.
       noTextAnnounced = true
-      val reason = when {
-        nearDarkFrames >= 4 -> "Vùng ảnh chụp gần như tối. Hãy kiểm tra video có hiển thị trong ảnh chụp hay không."
-        lines.isNotEmpty() -> "OCR chỉ tìm được chữ ngoài vùng phụ đề. Meridian đang thử tìm lại vùng và đổi cách nhận dạng."
-        else -> "OCR không thấy chữ trong ảnh video. Hãy kiểm tra phụ đề đang hiển thị."
-      }
       LogUtils.i(TAG, "Subtitle candidates missing for %d frames; rawLines=%d darkFrames=%d",
         emptyFrames, lines.size, nearDarkFrames)
       setStatus("Chưa tìm thấy chữ phụ đề")
-      announce("Chưa tìm thấy phụ đề trên màn hình. $reason")
     }
     if (result.status == SubtitleFrameStatus.WAITING_FOR_STABILITY) {
       setStatus(if (tracker.lockedBounds == null) "Đang xác định vùng phụ đề"
