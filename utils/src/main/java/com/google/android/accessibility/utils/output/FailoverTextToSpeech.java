@@ -814,7 +814,12 @@ public class FailoverTextToSpeech {
   }
 
   public static int getSpeechAudioStream(Context context) {
-    return switch (speechStream(context)) {
+    return audioStreamForValue(speechStream(context));
+  }
+
+  /** The audio stream a stream value from {@link #STREAM_VALUES} names. */
+  public static int audioStreamForValue(String value) {
+    return switch (value) {
       case STREAM_VALUE_MEDIA -> AudioManager.STREAM_MUSIC;
       case STREAM_VALUE_RING -> AudioManager.STREAM_RING;
       case STREAM_VALUE_CALL -> AudioManager.STREAM_VOICE_CALL;
