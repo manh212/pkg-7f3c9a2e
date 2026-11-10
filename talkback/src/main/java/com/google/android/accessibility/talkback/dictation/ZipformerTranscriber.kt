@@ -183,8 +183,8 @@ internal object ZipformerText {
 
 /**
  * Recognizes Vietnamese speech with the Zipformer model in [directory], through ONNX Runtime.
- * The sessions are opened for each transcription and closed after it, as the Whisper engine
- * does, so the model takes no memory between dictations.
+ * The sessions are opened for each transcription and closed after it, so the model takes no
+ * memory between dictations.
  */
 class ZipformerTranscriber(private val directory: File) : SpeechTranscriber {
   @Volatile private var cancelled = false
