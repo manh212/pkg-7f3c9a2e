@@ -203,6 +203,47 @@ class TranslationTest {
   }
 
   @Test
+  fun swap_keepsTheBilingualVoiceProfilesByDefault() {
+    TranslationSettings.setSource(prefs, "de")
+    TranslationSettings.setTarget(prefs, "en")
+    prefs.edit()
+      .putString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, "1")
+      .putString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, "2")
+      .commit()
+    TranslationSettings.swap(prefs)
+    assertEquals("1", prefs.getString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, null))
+    assertEquals("2", prefs.getString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, null))
+  }
+
+  @Test
+  fun swap_exchangesTheBilingualVoiceProfilesWhenEnabled() {
+    TranslationSettings.setSource(prefs, "de")
+    TranslationSettings.setTarget(prefs, "en")
+    prefs.edit()
+      .putBoolean(TranslationSettings.PREF_BILINGUAL_SWAP_PROFILES, true)
+      .putString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, "1")
+      .putString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, "2")
+      .commit()
+    TranslationSettings.swap(prefs)
+    assertEquals("2", prefs.getString(TranslationSettings.PREF_BILINGUAL_ORIGINAL_PROFILE, null))
+    assertEquals("1", prefs.getString(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE, null))
+  }
+
+  @Test
+  fun bilingualParallelAndStreamSettings() {
+    assertFalse(TranslationSettings.parallel(prefs))
+    assertEquals("", TranslationSettings.bilingualStream(prefs))
+    prefs.edit()
+      .putString(TranslationSettings.PREF_BILINGUAL_ORDER, TranslationSettings.BILINGUAL_PARALLEL)
+      .putString(TranslationSettings.PREF_BILINGUAL_STREAM, "media")
+      .commit()
+    assertTrue(TranslationSettings.parallel(prefs))
+    assertEquals("media", TranslationSettings.bilingualStream(prefs))
+    prefs.edit().putString(TranslationSettings.PREF_BILINGUAL_STREAM, "bogus").commit()
+    assertEquals("", TranslationSettings.bilingualStream(prefs))
+  }
+
+  @Test
   fun missing_needsAKeyOrAnAddress() {
     assertEquals(TranslationSettings.Missing.API_KEY, TranslationSettings.missing(prefs, TranslationService.DEEPL))
     TranslationSettings.setApiKey(prefs, TranslationService.DEEPL, " abc:fx\n")
