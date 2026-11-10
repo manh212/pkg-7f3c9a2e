@@ -267,6 +267,14 @@ public final class FirebaseRest {
     database(path, "DELETE", null, "&print=silent");
   }
 
+  /** Withdraws one stored announcement so user apps stop offering it. */
+  public void deleteAnnouncement(String id) throws Exception {
+    if (!id.matches("[0-9]{1,16}")) {
+      throw new IllegalArgumentException("Chỉ được gỡ thông báo đã lưu.");
+    }
+    database("appAnnouncements/" + id, "DELETE", null, "&print=silent");
+  }
+
   public JSONObject shallowKeys(String path) throws Exception {
     String raw = database(path, "GET", null, "&shallow=true");
     return raw.trim().equals("null") ? new JSONObject() : new JSONObject(raw);
@@ -310,7 +318,7 @@ public final class FirebaseRest {
         throw new IllegalArgumentException("Đường dẫn dịch vụ không hợp lệ.");
       }
     }
-    if (!path.matches("(?:(?:requests|decisions|devices|admins|licenseEvents|supportIndex|supportUsers|supportMessages|supportStates|supportStaff|supportContacts|supportAttachments|forumCategories|forumTopics|forumPosts|forumProfiles|forumModerators|forumPublicRoles|forumAdminRatings|forumChatIndex|forumChats|forumTopicLikes|forumPollVotes|forumPollGuards|forumReports|forumIdentity|forumMigration|forumDeviceBans|forumNameHistory|forumPinnedTopics|forumPinnedPosts|forumBans|forumNotices|forumAnnouncements|forumModerationArchive|forumEditAudit|forumDeleteAudit|forumModerationLog|forumLegacyNames)(?:/[a-zA-Z0-9_-]{1,128}){0,5}|(?:forumPostLikes|forumDailySlots|forumEnrollmentIndex)(?:/[a-zA-Z0-9_-]{1,128}){0,6}|supportLogChunks(?:/[a-zA-Z0-9_-]{1,128}){0,3})")) {
+    if (!path.matches("(?:(?:requests|decisions|devices|admins|appAnnouncements|licenseEvents|supportIndex|supportUsers|supportMessages|supportStates|supportStaff|supportContacts|supportAttachments|forumCategories|forumTopics|forumPosts|forumProfiles|forumModerators|forumPublicRoles|forumAdminRatings|forumChatIndex|forumChats|forumTopicLikes|forumPollVotes|forumPollGuards|forumReports|forumIdentity|forumMigration|forumDeviceBans|forumNameHistory|forumPinnedTopics|forumPinnedPosts|forumBans|forumNotices|forumAnnouncements|forumModerationArchive|forumEditAudit|forumDeleteAudit|forumModerationLog|forumLegacyNames)(?:/[a-zA-Z0-9_-]{1,128}){0,5}|(?:forumPostLikes|forumDailySlots|forumEnrollmentIndex)(?:/[a-zA-Z0-9_-]{1,128}){0,6}|supportLogChunks(?:/[a-zA-Z0-9_-]{1,128}){0,3})")) {
       throw new IllegalArgumentException("Đường dẫn dịch vụ không hợp lệ.");
     }
   }
