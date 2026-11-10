@@ -103,6 +103,7 @@ public final class MainActivity extends ComponentActivity {
     button(column, "Quản lý dữ liệu Firebase", view -> new DataCleanup(this).open());
     button(column, "Nhắn tin riêng", view -> new ForumOwnerChat(this).open());
     button(column, "Quản lý diễn đàn", view -> new ForumAdministration(this).open());
+    button(column, "Thông báo cho người dùng", view -> new AnnouncementPanel(this).open());
     title(column, "Thiết bị đã cấp phép");
     deviceCount = label(column, "Đang đọc danh sách…");
     panel.attach(column);
