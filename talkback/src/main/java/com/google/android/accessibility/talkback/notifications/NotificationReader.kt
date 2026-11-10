@@ -51,6 +51,7 @@ import com.google.android.accessibility.talkback.scripting.Scripts
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
 import com.google.android.accessibility.talkback.timer.CountdownAlarmEngine
 import com.google.android.accessibility.talkback.timer.StopwatchEngine
+import com.google.android.accessibility.talkback.timer.TimerSounds
 import com.google.android.accessibility.talkback.translation.AutomaticTranslation
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -273,21 +274,30 @@ object NotificationReader {
     schedules =
       SpokenSchedules(
         app,
-        { this.feedback?.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.lib_new_clock)) },
+        {
+          if (!TimerSounds.play(app, TimerSounds.Slot.CLOCK)) {
+            this.feedback?.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.lib_new_clock))
+          }
+        },
       ) { text, interrupt -> announceTimer(text, interrupt) }
         .also { it.start() }
     stopwatch =
       StopwatchEngine(app, { text, interrupt -> announceStopwatch(text, interrupt) }) { sound ->
-          (context as? TalkBackService)?.feedbackController?.playAuditoryWithoutHaptic(
-            sound, EVENT_ID_UNTRACKED)
+          if (!TimerSounds.play(app, TimerSounds.Slot.STOPWATCH)) {
+            (context as? TalkBackService)?.feedbackController?.playAuditoryWithoutHaptic(
+              sound, EVENT_ID_UNTRACKED)
+          }
         }
         .also { it.start() }
     countdown =
       CountdownAlarmEngine(app, { text, interrupt -> announceCountdown(text, interrupt) }) { sound ->
-          (context as? TalkBackService)?.feedbackController?.playAuditoryWithoutHaptic(
-            sound, EVENT_ID_UNTRACKED)
+          if (!TimerSounds.play(app, TimerSounds.Slot.COUNTDOWN)) {
+            (context as? TalkBackService)?.feedbackController?.playAuditoryWithoutHaptic(
+              sound, EVENT_ID_UNTRACKED)
+          }
         }
         .also { it.start() }
+    TimerSounds.preload(app)
     updateVoices(SharedPreferencesUtils.getSharedPreferences(app))
   }
 
