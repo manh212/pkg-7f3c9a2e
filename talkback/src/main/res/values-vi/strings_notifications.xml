@@ -198,6 +198,38 @@
     <string name="stopwatch_paused">Đã tạm dừng bấm giờ</string>
     <string name="stopwatch_resumed">Đã tiếp tục bấm giờ</string>
     <string name="stopwatch_not_running">Bấm giờ chưa chạy</string>
+    <string name="countdown_alarm_title">Báo thức</string>
+    <string name="shortcut_add_countdown_alarm">Thêm báo thức</string>
+    <string name="shortcut_show_countdown_alarms">Báo thức đang chạy</string>
+    <string name="countdown_alarm_running_category">Báo thức đang chạy</string>
+    <string name="countdown_alarm_none_running">Không có báo thức nào đang chạy</string>
+    <string name="countdown_alarm_remaining">Còn <xliff:g id="remaining" example="12 phút 30 giây">%1$s</xliff:g></string>
+    <string name="countdown_alarm_repeats_title">Số lần kêu khi đến giờ</string>
+    <string-array name="countdown_alarm_repeats_entries">
+        <item>1 lần</item>
+        <item>2 lần</item>
+        <item>3 lần</item>
+        <item>4 lần</item>
+        <item>5 lần</item>
+    </string-array>
+    <string name="countdown_alarm_sound_title">Âm thanh</string>
+    <string name="countdown_alarm_vibration_title">Rung</string>
+    <string name="countdown_alarm_speech_category">Giọng nói và kênh phát của báo thức</string>
+    <string name="countdown_alarm_voice_title">Hồ sơ giọng nói báo thức</string>
+    <string name="countdown_alarm_stream_title">Kênh phát âm thanh báo thức</string>
+    <string name="countdown_alarm_name_title">Tên báo thức (không bắt buộc)</string>
+    <string name="countdown_alarm_hours_title">Giờ</string>
+    <string name="countdown_alarm_minutes_title">Phút</string>
+    <string name="countdown_alarm_seconds_title">Giây</string>
+    <string name="countdown_alarm_add">Thêm</string>
+    <string name="countdown_alarm_invalid">Hãy nhập thời gian lớn hơn không: giờ tối đa 99, phút và giây tối đa 59</string>
+    <string name="countdown_alarm_cancel_confirm">Hủy báo thức <xliff:g id="alarm" example="Uống thuốc">%1$s</xliff:g>?</string>
+    <string name="countdown_alarm_cancel_action">Hủy báo thức</string>
+    <string name="countdown_alarm_added">Đã đặt báo thức sau <xliff:g id="duration" example="1 giờ 0 phút">%1$s</xliff:g></string>
+    <string name="countdown_alarm_added_named">Đã đặt báo thức <xliff:g id="name" example="Uống thuốc">%1$s</xliff:g> sau <xliff:g id="duration" example="1 giờ 0 phút">%2$s</xliff:g></string>
+    <string name="countdown_alarm_cancelled">Đã hủy báo thức <xliff:g id="duration" example="1 giờ 0 phút">%1$s</xliff:g></string>
+    <string name="countdown_alarm_cancelled_named">Đã hủy báo thức <xliff:g id="name" example="Uống thuốc">%1$s</xliff:g></string>
+    <string name="countdown_alarm_fired">Hết giờ: <xliff:g id="duration" example="1 giờ 0 phút">%1$s</xliff:g></string>
     <string name="notification_other_apps_title">Ứng dụng khác</string>
     <string name="notification_apps_category">Ứng dụng</string>
     <string name="notification_apps_loading">Đang tải danh sách ứng dụng</string>
