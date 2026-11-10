@@ -73,7 +73,7 @@ public final class TesseractOcr implements AutoCloseable {
     try {
       api = new TessBaseAPI();
       String root = OcrModelDownload.directory(context).getAbsolutePath() + File.separator;
-      if (!api.init(root, "vie", TessBaseAPI.OcrEngineMode.OEM_LSTM_ONLY)) {
+      if (!api.init(root, "vie", TessBaseAPI.OEM_LSTM_ONLY)) {
         throw new IllegalStateException("Vietnamese Tesseract model could not be loaded");
       }
       api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
