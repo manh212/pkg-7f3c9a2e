@@ -70,6 +70,7 @@ class TimerSettingsStructureTest {
         "pref_notification_clock_interval",
         "pref_notification_clock_format",
         "pref_notification_clock_sound",
+        "pref_timer_sound_choice",
         "pref_notification_clock_vibration",
         "pref_timer_voice_profile",
         "pref_timer_audio_stream",
@@ -85,6 +86,7 @@ class TimerSettingsStructureTest {
     assertEquals(
       listOf(
         "pref_stopwatch_sound",
+        "pref_stopwatch_sound_choice",
         "pref_stopwatch_vibration",
         "pref_stopwatch_speech",
         "pref_stopwatch_interval_minutes",
@@ -109,6 +111,7 @@ class TimerSettingsStructureTest {
       listOf(
         "pref_countdown_alarm_repeats",
         "pref_countdown_alarm_sound",
+        "pref_countdown_alarm_sound_choice",
         "pref_countdown_alarm_vibration",
         "pref_countdown_alarm_voice_profile",
         "pref_countdown_alarm_audio_stream",
