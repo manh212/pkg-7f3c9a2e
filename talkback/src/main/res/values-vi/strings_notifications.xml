@@ -213,6 +213,7 @@
         <item>5 lần</item>
     </string-array>
     <string name="countdown_alarm_sound_title">Âm thanh</string>
+    <string name="timer_sound_choice_title">Chọn âm thanh</string>
     <string name="countdown_alarm_vibration_title">Rung</string>
     <string name="countdown_alarm_speech_category">Giọng nói và kênh phát của báo thức</string>
     <string name="countdown_alarm_voice_title">Hồ sơ giọng nói báo thức</string>
