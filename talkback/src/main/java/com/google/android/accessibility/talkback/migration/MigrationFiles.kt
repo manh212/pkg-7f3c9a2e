@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.migration
 
+import com.google.android.accessibility.talkback.licensing.AdminAnnouncement
 import com.google.android.accessibility.talkback.update.Updater
 
 /**
@@ -101,7 +102,8 @@ object MigrationFiles {
    * version is carried over, so the new app treats the old settings as an update of Backtalk, and
    * not as a first start.
    */
-  val SKIPPED_PREF_KEYS = setOf(Updater.PREF_LAST_CHECK_TIME, Updater.PREF_LAST_NOTIFIED_BUILD)
+  val SKIPPED_PREF_KEYS =
+    setOf(Updater.PREF_LAST_CHECK_TIME, Updater.PREF_LAST_NOTIFIED_BUILD, AdminAnnouncement.KEY_SEEN)
 
   /** The name of the default preference file of the app with the given app ID. */
   fun defaultPrefsName(packageName: String): String = "${packageName}_preferences$PREFS_SUFFIX"
