@@ -53,6 +53,23 @@ test('owner sees private requests and issues decisions visible only to their rec
   await assertFails(db('owner').ref('decisions/bob').set({request, state: 'approved', policy: 'SFLIC3.signed', decidedAt: {'.sv': 'timestamp'}}));
 });
 
+test('owner can clear a rejected decision and its request so the user may apply again', async () => {
+  await assertSucceeds(db('alice').ref('requests/alice').set(body()));
+  await assertSucceeds(db('owner').ref('decisions/alice').set({request, state: 'rejected', policy: '', decidedAt: {'.sv': 'timestamp'}}));
+  await assertFails(db('alice').ref('decisions/alice').remove());
+  await assertFails(db('bob').ref('decisions/alice').remove());
+  await assertFails(db('owner').ref('requests/alice').remove());
+  await assertSucceeds(db('owner').ref('decisions/alice').remove());
+  await assertSucceeds(db('owner').ref('requests/alice').remove());
+  await assertSucceeds(db('alice').ref('requests/alice').set(body()));
+});
+
+test('owner cannot delete an approved decision', async () => {
+  await assertSucceeds(db('alice').ref('requests/alice').set(body()));
+  await assertSucceeds(db('owner').ref('decisions/alice').set({request, state: 'approved', policy: 'SFLIC3.signed', decidedAt: {'.sv': 'timestamp'}}));
+  await assertFails(db('owner').ref('decisions/alice').remove());
+});
+
 test('malformed, incomplete, oversized and extra fields are denied', async () => {
   for (const invalid of [ {...body(), name: ''}, {...body(), description: ''},
     {...body(), name: 'a'.repeat(81)}, {...body(), description: 'a'.repeat(1001)},
