@@ -189,6 +189,15 @@
     <string name="stopwatch_started">Đã bắt đầu bấm giờ</string>
     <string name="stopwatch_stopped">Đã dừng. Tổng <xliff:g id="duration" example="1 giờ 2 phút">%1$s</xliff:g></string>
     <string name="stopwatch_elapsed_now"><xliff:g id="elapsed" example="1 giờ 2 phút">%1$s</xliff:g> đã trôi qua, bây giờ là <xliff:g id="time" example="7:45">%2$s</xliff:g></string>
+    <string name="shortcut_pause_resume_stopwatch">Tạm dừng hoặc tiếp tục bấm giờ</string>
+    <string name="shortcut_speak_stopwatch_elapsed">Đọc thời gian bấm giờ đã chạy</string>
+    <string name="stopwatch_speech_title">Đọc mốc nhắc</string>
+    <string name="stopwatch_speech_category">Giọng nói và kênh phát của bấm giờ</string>
+    <string name="stopwatch_voice_title">Hồ sơ giọng nói bấm giờ</string>
+    <string name="stopwatch_stream_title">Kênh phát âm thanh bấm giờ</string>
+    <string name="stopwatch_paused">Đã tạm dừng bấm giờ</string>
+    <string name="stopwatch_resumed">Đã tiếp tục bấm giờ</string>
+    <string name="stopwatch_not_running">Bấm giờ chưa chạy</string>
     <string name="notification_other_apps_title">Ứng dụng khác</string>
     <string name="notification_apps_category">Ứng dụng</string>
     <string name="notification_apps_loading">Đang tải danh sách ứng dụng</string>
