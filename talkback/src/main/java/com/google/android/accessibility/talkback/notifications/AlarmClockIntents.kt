@@ -32,6 +32,7 @@ import com.google.android.accessibility.utils.preference.BasePreferencesActivity
  */
 object AlarmClockIntents {
   const val ACTION_STOPWATCH = ".timer.action.STOPWATCH_REMINDER"
+  const val ACTION_COUNTDOWN_ALARM = ".timer.action.COUNTDOWN_ALARM"
   const val ACTION_SPOKEN_CLOCK = ".notifications.action.SPOKEN_CLOCK"
   const val ACTION_SPOKEN_SUMMARY = ".notifications.action.SPOKEN_SUMMARY"
 
@@ -39,6 +40,7 @@ object AlarmClockIntents {
   private const val REQUEST_STOPWATCH = 4101
   private const val REQUEST_SPOKEN_CLOCK = 4102
   private const val REQUEST_SPOKEN_SUMMARY = 4103
+  private const val REQUEST_COUNTDOWN_ALARM = 4104
 
   /** The full broadcast action of one alarm, in SandFly's package. */
   fun action(context: Context, suffix: String): String = context.packageName + suffix
@@ -69,6 +71,7 @@ object AlarmClockIntents {
     when (suffix) {
       ACTION_STOPWATCH -> REQUEST_STOPWATCH
       ACTION_SPOKEN_CLOCK -> REQUEST_SPOKEN_CLOCK
+      ACTION_COUNTDOWN_ALARM -> REQUEST_COUNTDOWN_ALARM
       else -> REQUEST_SPOKEN_SUMMARY
     }
 }
