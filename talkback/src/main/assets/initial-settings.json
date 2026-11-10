@@ -1008,10 +1008,6 @@
           "type": "string",
           "value": "vi"
         },
-        "pref_dictation_whisper_model": {
-          "type": "string",
-          "value": "base"
-        },
         "new_key_combo_model|keycombo_shortcut_navigate_next_window|trigger_modifier_used": {
           "type": "boolean",
           "value": true
