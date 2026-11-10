@@ -256,6 +256,7 @@ class AiDictation(
   /** Starts recording for [used]. Returns false when it can't. */
   private fun startRecording(used: Recognition): Boolean {
     if (used == Recognition.WHISPER && WhisperModels.get(service).activeModel() == null) return false
+    if (used == Recognition.ZIPFORMER && !ZipformerModels.get(service).isInstalled()) return false
     if (used == Recognition.RAMBLER && DictationSettings.ramblerKey(prefs).isEmpty()) return false
     recognition = used
 
@@ -423,6 +424,15 @@ class AiDictation(
           true
       } catch (e: IOException) {
         LogUtils.w(TAG, "Rambler failed: %s", e)
+      }
+    }
+    if (used == Recognition.ZIPFORMER) {
+      val zipformer = ZipformerTranscriber(ZipformerModels.get(service).directory)
+      transcriber = zipformer
+      try {
+        return zipformer.transcribe(AudioCapture.toFloats(pcm), "vi")?.let { it to false }
+      } finally {
+        transcriber = null
       }
     }
     val model = WhisperModels.get(service).activeModel() ?: return null
