@@ -62,9 +62,17 @@ class TimerSettingsFragment :
 class SpokenClockSettingsFragment :
   NotificationXmlFragment(R.xml.spoken_clock_preferences, R.string.spoken_clock_title) {
 
+  private val soundChooser = TimerSoundChooser(this, TimerSounds.Slot.CLOCK)
+
+  override fun onPause() {
+    soundChooser.stopPreview()
+    super.onPause()
+  }
+
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    findPreference<Preference>(TimerSounds.Slot.CLOCK.key)?.let { soundChooser.bind(it) }
     findPreference<SwitchPreferenceCompat>(SpokenSchedules.KEY_CLOCK_ENABLED)?.let {
       it.isChecked = SpokenSchedules.clockEnabled(prefs)
     }
@@ -114,6 +122,13 @@ class SpokenClockSettingsFragment :
 class StopwatchSettingsFragment :
   NotificationXmlFragment(R.xml.stopwatch_preferences, R.string.stopwatch_title) {
 
+  private val soundChooser = TimerSoundChooser(this, TimerSounds.Slot.STOPWATCH)
+
+  override fun onPause() {
+    soundChooser.stopPreview()
+    super.onPause()
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
     if (prefs.contains(Stopwatch.KEY_INTERVAL_SLIDER)) {
@@ -133,6 +148,7 @@ class StopwatchSettingsFragment :
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    findPreference<Preference>(TimerSounds.Slot.STOPWATCH.key)?.let { soundChooser.bind(it) }
     findPreference<ListPreference>(Stopwatch.KEY_INTERVAL_MINUTES)?.let {
       it.value = Stopwatch.intervalMinutes(requireContext()).toString()
     }
@@ -153,11 +169,18 @@ class StopwatchSettingsFragment :
 class CountdownAlarmSettingsFragment :
   NotificationXmlFragment(R.xml.countdown_alarm_preferences, R.string.countdown_alarm_title) {
 
+  private val soundChooser = TimerSoundChooser(this, TimerSounds.Slot.COUNTDOWN)
+
+  override fun onPause() {
+    soundChooser.stopPreview()
+    super.onPause()
+  }
   private var runningCategory: PreferenceCategory? = null
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    findPreference<Preference>(TimerSounds.Slot.COUNTDOWN.key)?.let { soundChooser.bind(it) }
     findPreference<ListPreference>(CountdownAlarm.KEY_REPEATS)?.let {
       it.value = CountdownAlarm.repeats(requireContext()).toString()
     }
