@@ -106,25 +106,25 @@ class SubtitleControllerTest {
     assertTrue(get("active") as Boolean)
   }
 
-  @Test fun emptyFramesAnnounceOnceWithoutBeingTreatedAsCaptureErrors() {
+  @Test fun emptyFramesStaySilentWithoutBeingTreatedAsCaptureErrors() {
     // Ensure the idle-no-text threshold is satisfied even with Robolectric's small uptime.
     set("lastDeliveredAt", -10_000L)
     val request = get("generation") as Int
     repeat(8) { frameEmpty(request) }
     assertTrue(get("active") as Boolean)
     assertEquals(0, get("failures") as Int)
-    assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
+    assertEquals(0, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
     repeat(8) { frameEmpty(request) }
-    assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
+    assertEquals(0, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
   }
 
-  @Test fun unrelatedOcrTextDoesNotHideTheMissingCaptionWarning() {
+  @Test fun unrelatedOcrTextIsNotACaptionAndStaysSilent() {
     set("lastDeliveredAt", -10_000L)
     val request = get("generation") as Int
     val unrelated = SubtitleLine("Thanh điều khiển lớn", Rect(0, 0, 1000, 900))
     repeat(8) { frameLines(request, listOf(unrelated)) }
     assertEquals(0, get("failures") as Int)
-    assertEquals(1, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
+    assertEquals(0, announcements.count { it.contains("Chưa tìm thấy phụ đề") })
     assertTrue(get("active") as Boolean)
   }
 
