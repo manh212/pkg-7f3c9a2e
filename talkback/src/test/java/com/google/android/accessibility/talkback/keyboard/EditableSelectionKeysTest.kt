@@ -79,6 +79,7 @@ class EditableSelectionKeysTest {
       Triple(AccessibilityNodeInfo.ACTION_SET_SELECTION, 0, 6),
     ), requested)
     assertTrue(keys.handle(event(KeyEvent.KEYCODE_MOVE_END, KeyEvent.ACTION_UP, 0), null, warn))
+    assertTrue(keys.handle(event(KeyEvent.KEYCODE_MOVE_HOME, KeyEvent.ACTION_UP, 0), null, warn))
     assertFalse(keys.handle(event(KeyEvent.KEYCODE_MOVE_END, meta = shift), null, warn))
     val readOnly = AccessibilityNodeInfoCompat.wrap(AccessibilityNodeInfo.obtain().apply {
       isEnabled = true
