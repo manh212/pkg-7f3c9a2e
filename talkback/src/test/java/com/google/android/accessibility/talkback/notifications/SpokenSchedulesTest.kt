@@ -6,6 +6,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.time.Instant
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -113,6 +114,51 @@ class SpokenSchedulesTest {
       count++
     }
     assertEquals(25, count)
+  }
+
+  @Test
+  fun intervalAnnouncesWithinTheChosenHours() {
+    val utcZone = TimeZone.getTimeZone("UTC")
+    val hours = setOf(7)
+    assertEquals(
+      utc("2026-02-01T07:30:00Z"),
+      SpokenSchedules.nextClockTime(utc("2026-02-01T07:05:00Z"), hours, utcZone, 30),
+    )
+    assertEquals(
+      utc("2026-02-01T07:25:00Z"),
+      SpokenSchedules.nextClockTime(utc("2026-02-01T07:05:00Z"), hours, utcZone, 25),
+    )
+    assertEquals(
+      utc("2026-02-01T07:45:00Z"),
+      SpokenSchedules.nextClockTime(utc("2026-02-01T07:05:00Z"), hours, utcZone, 45),
+    )
+    assertEquals(
+      utc("2026-02-02T07:00:00Z"),
+      SpokenSchedules.nextClockTime(utc("2026-02-01T07:31:00Z"), hours, utcZone, 30),
+    )
+  }
+
+  @Test
+  fun clockSwitchDefaultsToTheHoursInEffect() {
+    prefs.edit().putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, setOf("7")).commit()
+    assertTrue(SpokenSchedules.clockEnabled(prefs))
+    prefs.edit().putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, emptySet()).commit()
+    assertFalse(SpokenSchedules.clockEnabled(prefs))
+    prefs.edit().putBoolean(SpokenSchedules.KEY_CLOCK_ENABLED, true).commit()
+    assertTrue(SpokenSchedules.clockEnabled(prefs))
+    prefs.edit().putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, setOf("7"))
+      .putBoolean(SpokenSchedules.KEY_CLOCK_ENABLED, false).commit()
+    assertFalse(SpokenSchedules.clockEnabled(prefs))
+  }
+
+  @Test
+  fun clockIntervalFallsBackToTheHourForOlderValues() {
+    prefs.edit().putString(SpokenSchedules.KEY_CLOCK_INTERVAL, "45").commit()
+    assertEquals(45, SpokenSchedules.clockIntervalMinutes(prefs))
+    prefs.edit().putString(SpokenSchedules.KEY_CLOCK_INTERVAL, "180").commit()
+    assertEquals(60, SpokenSchedules.clockIntervalMinutes(prefs))
+    prefs.edit().remove(SpokenSchedules.KEY_CLOCK_INTERVAL).commit()
+    assertEquals(60, SpokenSchedules.clockIntervalMinutes(prefs))
   }
 
   @Test
