@@ -111,11 +111,13 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
   protected void onResume() {
     super.onResume();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.resumeSettings(this);
+    com.google.android.accessibility.talkback.licensing.AdminAnnouncement.resumeSettings(this);
   }
 
   @Override
   protected void onPause() {
     com.google.android.accessibility.talkback.licensing.ActivationReminder.pauseSettings(this);
+    com.google.android.accessibility.talkback.licensing.AdminAnnouncement.pauseSettings(this);
     super.onPause();
   }
 
