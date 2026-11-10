@@ -4,6 +4,10 @@
       android:defaultValue="true"
       android:key="pref_stopwatch_sound"
       android:title="@string/stopwatch_sound_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:key="pref_stopwatch_sound_choice"
+      android:persistent="false"
+      android:title="@string/timer_sound_choice_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="true"
       android:key="pref_stopwatch_vibration"
