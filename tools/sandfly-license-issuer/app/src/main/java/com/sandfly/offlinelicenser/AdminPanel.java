@@ -36,6 +36,7 @@ final class AdminPanel {
   void attach(LinearLayout root) {
     button(root, "Thiết lập dịch vụ đăng ký", this::setup);
     button(root, "Yêu cầu chờ duyệt", this::requests);
+    button(root, "Đã từ chối", this::rejected);
     button(root, "Quản lý gói tính năng", this::packages);
     button(root, "Tải danh sách thiết bị từ Firebase", this::restoreDevices);
     devices = new LinearLayout(activity);
@@ -358,6 +359,46 @@ final class AdminPanel {
         }
         if (pending == 0) text(root, "Không có yêu cầu chờ duyệt.");
         show("Yêu cầu đăng ký", root);
+      });
+    });
+  }
+
+  private void rejected() {
+    read(() -> {
+      FirebaseRest service = EnrollmentService.create(activity);
+      java.util.concurrent.Future<JSONObject> requestRead = SyncCoordinator.NETWORK.submit(() -> service.get("requests"));
+      JSONObject decisions = service.get("decisions"), requests = requestRead.get();
+      ui(() -> {
+        LinearLayout root = column();
+        int rejected = 0;
+        Iterator<String> keys = decisions.keys();
+        while (keys.hasNext()) {
+          String uid = keys.next();
+          JSONObject decision = decisions.optJSONObject(uid);
+          if (decision == null || !"rejected".equals(decision.optString("state"))) continue;
+          JSONObject request = requests.optJSONObject(uid);
+          rejected++;
+          String name = request == null ? "" : request.optString("name");
+          String description = request == null ? "" : request.optString("description");
+          String requestToken = request == null ? decision.optString("request") : request.optString("request");
+          text(root, "Họ tên: " + (name.isEmpty() ? "(không rõ)" : name)
+              + (description.isEmpty() ? "" : "\nMô tả: " + description)
+              + "\n" + requestToken);
+          button(root, "Cho gửi lại: " + (name.isEmpty() ? "Người dùng" : name), () -> new AlertDialog.Builder(activity)
+              .setTitle("Cho người này gửi lại yêu cầu?")
+              .setMessage("Yêu cầu cũ và quyết định từ chối của người này sẽ bị xóa. "
+                  + "Sau đó họ có thể gửi yêu cầu mới như lần đầu.")
+              .setNegativeButton("Hủy", null)
+              .setPositiveButton("Cho gửi lại", (d, w) -> task(() -> {
+                FirebaseRest reset = EnrollmentService.create(activity);
+                reset.deleteRejectedDecision("decisions/" + uid);
+                reset.deleteCleanupData("requests/" + uid);
+                activity.message("Đã xóa yêu cầu và quyết định từ chối. Người dùng có thể gửi lại.");
+                ui(this::closeScreens);
+              })).show());
+        }
+        if (rejected == 0) text(root, "Không có yêu cầu nào đã bị từ chối.");
+        show("Đã từ chối", root);
       });
     });
   }
