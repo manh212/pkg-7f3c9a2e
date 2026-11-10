@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="pref_stopwatch_sound"
+      android:title="@string/stopwatch_sound_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="pref_stopwatch_vibration"
+      android:title="@string/stopwatch_vibration_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="pref_stopwatch_speech"
+      android:title="@string/stopwatch_speech_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:key="pref_stopwatch_interval_minutes"
+      android:title="@string/stopwatch_interval_title"
+      android:dialogTitle="@string/stopwatch_interval_title"
+      android:entries="@array/timer_interval_entries"
+      android:entryValues="@array/timer_interval_values"
+      android:summary="%s" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:title="@string/stopwatch_speech_category">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:key="pref_stopwatch_voice_profile"
+        android:title="@string/stopwatch_voice_title"
+        android:dialogTitle="@string/stopwatch_voice_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:key="pref_stopwatch_audio_stream"
+        android:title="@string/stopwatch_stream_title"
+        android:dialogTitle="@string/stopwatch_stream_title"
+        android:entries="@array/timer_stream_entries"
+        android:entryValues="@array/timer_stream_values"
+        android:summary="%s" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.timer.StopwatchHistoryFragment"
+      android:key="pref_stopwatch_history_screen"
+      android:title="@string/stopwatch_history_title" />
+</PreferenceScreen>
