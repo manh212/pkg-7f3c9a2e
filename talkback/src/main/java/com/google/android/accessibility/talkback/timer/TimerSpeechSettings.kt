@@ -14,6 +14,8 @@ object TimerSpeechSettings {
   const val KEY_STREAM = "pref_timer_audio_stream"
   const val KEY_STOPWATCH_PROFILE = "pref_stopwatch_voice_profile"
   const val KEY_STOPWATCH_STREAM = "pref_stopwatch_audio_stream"
+  const val KEY_COUNTDOWN_PROFILE = "pref_countdown_alarm_voice_profile"
+  const val KEY_COUNTDOWN_STREAM = "pref_countdown_alarm_audio_stream"
 
   @JvmStatic
   fun profileId(prefs: SharedPreferences): String = validProfile(prefs, prefs.getString(KEY_PROFILE, ""))
@@ -24,6 +26,11 @@ object TimerSpeechSettings {
     else profileId(prefs)
 
   @JvmStatic
+  fun countdownProfileId(prefs: SharedPreferences): String =
+    if (prefs.contains(KEY_COUNTDOWN_PROFILE)) validProfile(prefs, prefs.getString(KEY_COUNTDOWN_PROFILE, ""))
+    else profileId(prefs)
+
+  @JvmStatic
   fun stream(prefs: SharedPreferences): Int = streamOf(prefs.getString(KEY_STREAM, "accessibility"))
 
   @JvmStatic
@@ -31,9 +38,19 @@ object TimerSpeechSettings {
     if (prefs.contains(KEY_STOPWATCH_STREAM)) streamOf(prefs.getString(KEY_STOPWATCH_STREAM, "accessibility"))
     else stream(prefs)
 
+  @JvmStatic
+  fun countdownStream(prefs: SharedPreferences): Int =
+    if (prefs.contains(KEY_COUNTDOWN_STREAM)) streamOf(prefs.getString(KEY_COUNTDOWN_STREAM, "accessibility"))
+    else stream(prefs)
+
   /** The stopwatch's stream setting as the settings list holds it. */
   fun stopwatchStreamValue(prefs: SharedPreferences): String =
     if (prefs.contains(KEY_STOPWATCH_STREAM)) prefs.getString(KEY_STOPWATCH_STREAM, "accessibility") ?: "accessibility"
+    else prefs.getString(KEY_STREAM, "accessibility") ?: "accessibility"
+
+  /** The countdown alarm's stream setting as the settings list holds it. */
+  fun countdownStreamValue(prefs: SharedPreferences): String =
+    if (prefs.contains(KEY_COUNTDOWN_STREAM)) prefs.getString(KEY_COUNTDOWN_STREAM, "accessibility") ?: "accessibility"
     else prefs.getString(KEY_STREAM, "accessibility") ?: "accessibility"
 
   private fun validProfile(prefs: SharedPreferences, id: String?): String =
