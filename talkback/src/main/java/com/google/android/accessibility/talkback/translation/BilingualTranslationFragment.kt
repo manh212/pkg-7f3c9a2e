@@ -9,6 +9,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.talkback.speech.VoiceProfileNames
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.VoiceProfiles
 
 class BilingualTranslationFragment : TalkbackBaseFragment() {
@@ -48,13 +49,42 @@ class BilingualTranslationFragment : TalkbackBaseFragment() {
       entries = arrayOf(
         getString(R.string.translation_bilingual_original_first),
         getString(R.string.translation_bilingual_translated_first),
+        getString(R.string.translation_bilingual_parallel),
       )
       entryValues = arrayOf(
         TranslationSettings.BILINGUAL_ORIGINAL_FIRST,
         TranslationSettings.BILINGUAL_TRANSLATED_FIRST,
+        TranslationSettings.BILINGUAL_PARALLEL,
       )
       setDefaultValue(TranslationSettings.BILINGUAL_ORIGINAL_FIRST)
       summary = "%s"
+      isIconSpaceReserved = false
+    })
+
+    screen.addPreference(AccessibilitySuiteListPreference(requireContext()).apply {
+      key = TranslationSettings.PREF_BILINGUAL_STREAM
+      setTitle(R.string.title_pref_translation_bilingual_stream)
+      entries = arrayOf(
+        getString(R.string.translation_bilingual_stream_default),
+        getString(R.string.timer_stream_accessibility),
+        getString(R.string.timer_stream_media),
+        getString(R.string.timer_stream_ring),
+      )
+      entryValues = arrayOf(
+        "",
+        FailoverTextToSpeech.STREAM_VALUE_ACCESSIBILITY,
+        FailoverTextToSpeech.STREAM_VALUE_MEDIA,
+        FailoverTextToSpeech.STREAM_VALUE_RING,
+      )
+      setDefaultValue("")
+      summary = "%s"
+      isIconSpaceReserved = false
+    })
+
+    screen.addPreference(AccessibilitySuiteSwitchPreference(requireContext()).apply {
+      key = TranslationSettings.PREF_BILINGUAL_SWAP_PROFILES
+      setTitle(R.string.title_pref_translation_bilingual_swap_profiles)
+      setDefaultValue(false)
       isIconSpaceReserved = false
     })
 
