@@ -28,6 +28,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.os.Vibrator
 import android.text.format.DateFormat
 import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
@@ -36,6 +37,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.compositor.rule.EventTypeNotificationStateChangedFeedbackRule
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.VibrationIntensity
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.Calendar
 import java.util.Date
@@ -126,8 +128,10 @@ class SpokenSchedules(
     cancelAlarm(alarms, AlarmClockIntents.ACTION_SPOKEN_CLOCK)
     cancelAlarm(alarms, AlarmClockIntents.ACTION_SPOKEN_SUMMARY)
     val now = System.currentTimeMillis()
-    nextClockTime(now, selectedHours(prefs))?.let {
-      set(alarms, it, AlarmClockIntents.ACTION_SPOKEN_CLOCK)
+    if (clockEnabled(prefs)) {
+      nextClockTime(now, selectedHours(prefs), intervalMinutes = clockIntervalMinutes(prefs))?.let {
+        set(alarms, it, AlarmClockIntents.ACTION_SPOKEN_CLOCK)
+      }
     }
     if (prefs.getBoolean(KEY_SUMMARY_DAILY, false) && isUserUnlocked()) {
       val minutes = NotificationSettings.int(prefs, KEY_SUMMARY_TIME, 8 * 60)
@@ -171,13 +175,31 @@ class SpokenSchedules(
   private fun onClock() {
     schedule()
     catchUpSummary()
+    if (!clockEnabled(prefs)) return
     if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) !in selectedHours(prefs)) return
     val elapsed = SystemClock.elapsedRealtime()
     if (lastClockAt != 0L && elapsed - lastClockAt < MIN_CLOCK_GAP_MS) return
     lastClockAt = elapsed
     val text = clockText(context, prefs.getString(KEY_CLOCK_FORMAT, null).orEmpty())
-    if (text.isNotBlank()) clockSound()
+    if (text.isNotBlank()) {
+      if (prefs.getBoolean(KEY_CLOCK_SOUND, true)) clockSound()
+      if (prefs.getBoolean(KEY_CLOCK_VIBRATION, false)) vibrateClock()
+    }
     speak(text)
+  }
+
+  /** One pulse at the strength the vibration settings choose, with a clock announcement. */
+  private fun vibrateClock() {
+    val vibrator = context.getSystemService(Vibrator::class.java) ?: return
+    if (!vibrator.hasVibrator()) return
+    val strength =
+      prefs.getInt(
+        context.getString(R.string.pref_vibration_strength_key),
+        context.resources.getInteger(R.integer.pref_vibration_strength_default),
+      ).coerceIn(0, 100)
+    if (strength == 0) return
+    val effect = VibrationIntensity.createWaveform(vibrator, longArrayOf(0L, 140L), strength / 100f)
+    runCatching { vibrator.vibrate(effect) }
   }
 
   private fun onSummary() {
@@ -232,7 +254,11 @@ class SpokenSchedules(
     const val KEY_CLOCK_INTERVAL = "pref_notification_clock_interval"
     const val KEY_CLOCK_HOURS = "pref_notification_clock_hours"
     const val KEY_CLOCK_FORMAT = "pref_notification_clock_format"
+    const val KEY_CLOCK_ENABLED = "pref_notification_clock_enabled"
+    const val KEY_CLOCK_SOUND = "pref_notification_clock_sound"
+    const val KEY_CLOCK_VIBRATION = "pref_notification_clock_vibration"
     val ALL_CLOCK_HOURS: Set<Int> = (0..23).toSet()
+    val CLOCK_INTERVAL_MINUTES = listOf(5, 10, 15, 20, 25, 30, 45, 60)
 
     fun selectedHours(prefs: SharedPreferences): Set<Int> {
       if (!prefs.contains(KEY_CLOCK_HOURS)) {
@@ -243,6 +269,23 @@ class SpokenSchedules(
         .mapNotNull { it.toIntOrNull()?.takeIf { hour -> hour in 0..23 } }
         .toSet()
     }
+
+    /**
+     * Whether the speaking clock is on. Before the switch existed, the clock was on exactly
+     * when hours were in effect, and an upgrade keeps that state until the switch is touched.
+     */
+    fun clockEnabled(prefs: SharedPreferences): Boolean =
+      if (prefs.contains(KEY_CLOCK_ENABLED)) prefs.getBoolean(KEY_CLOCK_ENABLED, false)
+      else selectedHours(prefs).isNotEmpty()
+
+    /**
+     * How often within a chosen hour the clock speaks. Sixty is the on-the-hour behaviour
+     * every existing setting had, and any older value outside the choices means that too.
+     */
+    fun clockIntervalMinutes(prefs: SharedPreferences): Int {
+      val saved = NotificationSettings.int(prefs, KEY_CLOCK_INTERVAL, 60)
+      return if (saved in CLOCK_INTERVAL_MINUTES) saved else 60
+    }
     const val KEY_SUMMARY_DAILY = "pref_notification_summary_daily"
     const val KEY_SUMMARY_LAST_DAY = "pref_notification_summary_last_day"
     const val KEY_SUMMARY_TIME = "pref_notification_summary_time"
@@ -250,13 +293,19 @@ class SpokenSchedules(
     const val KEY_SUMMARY_NAME = "pref_notification_summary_name"
     const val KEY_SUMMARY_GAP = "pref_notification_summary_gap"
 
-    fun nextClockTime(now: Long, hours: Set<Int>, zone: TimeZone = TimeZone.getDefault()): Long? {
+    fun nextClockTime(
+      now: Long,
+      hours: Set<Int>,
+      zone: TimeZone = TimeZone.getDefault(),
+      intervalMinutes: Int = 60,
+    ): Long? {
       if (hours.isEmpty()) return null
+      val interval = if (intervalMinutes in CLOCK_INTERVAL_MINUTES) intervalMinutes else 60
       var at = Math.floorDiv(now, MINUTE_MS) * MINUTE_MS + MINUTE_MS
       repeat(2 * MINUTES_PER_DAY + 120) {
         val minuteOfDay =
           Math.floorMod(Math.floorDiv(at + zone.getOffset(at), MINUTE_MS), MINUTES_PER_DAY.toLong()).toInt()
-        if (minuteOfDay % 60 == 0 && minuteOfDay / 60 in hours) return at
+        if ((minuteOfDay % 60) % interval == 0 && minuteOfDay / 60 in hours) return at
         at += MINUTE_MS
       }
       return null
