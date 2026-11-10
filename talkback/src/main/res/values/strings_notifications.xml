@@ -392,6 +392,71 @@
     <string name="stopwatch_resumed">Stopwatch resumed</string>
     <!-- Said by the speak-elapsed action when the stopwatch is not running. -->
     <string name="stopwatch_not_running">The stopwatch is not running</string>
+    <!-- Setting screen of the countdown alarms. -->
+    <string name="countdown_alarm_title">Countdown alarm</string>
+    <!-- Action: opens the dialog that adds a countdown alarm. -->
+    <string name="shortcut_add_countdown_alarm">Add countdown alarm</string>
+    <!-- Action: opens the list of the countdown alarms still to fire, to hear or cancel them. -->
+    <string name="shortcut_show_countdown_alarms">Running countdown alarms</string>
+    <!-- Heading: the countdown alarms still to fire. -->
+    <string name="countdown_alarm_running_category">Running alarms</string>
+    <!-- Shown, and said by the running-alarms action, when no countdown alarm is running. -->
+    <string name="countdown_alarm_none_running">No countdown alarm is running</string>
+    <!-- Summary of a running alarm: how long is left before it fires. -->
+    <string name="countdown_alarm_remaining">Time left: <xliff:g id="remaining" example="12 minutes 30 seconds">%1$s</xliff:g></string>
+    <!-- Setting: how many times a firing countdown alarm repeats before it stops. -->
+    <string name="countdown_alarm_repeats_title">Repeat when it fires</string>
+    <!-- Choices of the repeat setting. -->
+    <string-array name="countdown_alarm_repeats_entries">
+        <item>Once</item>
+        <item>Twice</item>
+        <item>3 times</item>
+        <item>4 times</item>
+        <item>5 times</item>
+    </string-array>
+    <string-array name="countdown_alarm_repeats_values" translatable="false">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </string-array>
+    <!-- Switch: a sound is played when a countdown alarm fires. -->
+    <string name="countdown_alarm_sound_title">Sound</string>
+    <!-- Switch: the phone vibrates when a countdown alarm fires. -->
+    <string name="countdown_alarm_vibration_title">Vibration</string>
+    <!-- Heading: the countdown alarm's own voice profile and audio stream. -->
+    <string name="countdown_alarm_speech_category">Countdown alarm voice and audio stream</string>
+    <!-- Setting: the voice profile the countdown alarm speaks with. -->
+    <string name="countdown_alarm_voice_title">Countdown alarm voice profile</string>
+    <!-- Setting: the audio stream the countdown alarm speaks on. -->
+    <string name="countdown_alarm_stream_title">Countdown alarm audio stream</string>
+    <!-- Field of the add dialog: the alarm's name, which it says when it fires. -->
+    <string name="countdown_alarm_name_title">Alarm name (optional)</string>
+    <!-- Field of the add dialog: the hours of the countdown. -->
+    <string name="countdown_alarm_hours_title">Hours</string>
+    <!-- Field of the add dialog: the minutes of the countdown. -->
+    <string name="countdown_alarm_minutes_title">Minutes</string>
+    <!-- Field of the add dialog: the seconds of the countdown. -->
+    <string name="countdown_alarm_seconds_title">Seconds</string>
+    <!-- Button of the add dialog: sets the alarm. -->
+    <string name="countdown_alarm_add">Add</string>
+    <!-- Said when the add dialog's time is not usable. -->
+    <string name="countdown_alarm_invalid">Enter a time longer than zero: hours up to 99, minutes and seconds up to 59</string>
+    <!-- Asked before a running alarm is cancelled, with its name or its set time. -->
+    <string name="countdown_alarm_cancel_confirm">Cancel alarm <xliff:g id="alarm" example="Take the medicine">%1$s</xliff:g>?</string>
+    <!-- Button: cancels the running alarm. -->
+    <string name="countdown_alarm_cancel_action">Cancel alarm</string>
+    <!-- Said when an unnamed countdown alarm is set, with the time it was set for. -->
+    <string name="countdown_alarm_added">Alarm set for <xliff:g id="duration" example="1 hour 0 minutes">%1$s</xliff:g></string>
+    <!-- Said when a named countdown alarm is set: its name, then the time it was set for. -->
+    <string name="countdown_alarm_added_named">Alarm <xliff:g id="name" example="Take the medicine">%1$s</xliff:g> set for <xliff:g id="duration" example="1 hour 0 minutes">%2$s</xliff:g></string>
+    <!-- Said when an unnamed countdown alarm is cancelled, with the time it was set for. -->
+    <string name="countdown_alarm_cancelled">Alarm for <xliff:g id="duration" example="1 hour 0 minutes">%1$s</xliff:g> cancelled</string>
+    <!-- Said when a named countdown alarm is cancelled. -->
+    <string name="countdown_alarm_cancelled_named">Alarm <xliff:g id="name" example="Take the medicine">%1$s</xliff:g> cancelled</string>
+    <!-- Said when an unnamed countdown alarm fires, with the time it was set for. -->
+    <string name="countdown_alarm_fired">Time up: <xliff:g id="duration" example="1 hour 0 minutes">%1$s</xliff:g></string>
     <!-- Setting: how notifications of apps without their own setting are read. -->
     <string name="notification_other_apps_title">Other apps</string>
     <!-- Heading of the list of apps. -->
