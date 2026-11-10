@@ -30,4 +30,6 @@
     <string name="summary_sandfly_countdown_channel" tools:ignore="MissingTranslation">Registration countdown while Meridian is active</string>
     <string name="summary_sandfly_countdown_remaining" tools:ignore="MissingTranslation">Screen reader turns off in %1$d seconds. Register now.</string>
     <string name="summary_sandfly_trial_dialog" tools:ignore="MissingTranslation">This screen reader will turn off in %1$d seconds unless you register this device. You can continue to use it during the countdown.</string>
+    <string name="title_admin_announcement" tools:ignore="MissingTranslation">Announcement</string>
+    <string name="action_admin_announcement_close" tools:ignore="MissingTranslation">Close</string>
 </resources>
