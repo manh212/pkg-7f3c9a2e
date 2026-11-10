@@ -216,6 +216,16 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
             resources.getString(R.string.shortcut_toggle_stopwatch),
             resources.getString(R.string.shortcut_value_toggle_stopwatch),
             TYPE_ACTION_ITEM));
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_pause_resume_stopwatch),
+            resources.getString(R.string.shortcut_value_pause_resume_stopwatch),
+            TYPE_ACTION_ITEM));
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_speak_stopwatch_elapsed),
+            resources.getString(R.string.shortcut_value_speak_stopwatch_elapsed),
+            TYPE_ACTION_ITEM));
     if (FeatureSupport.supportMediaControls()) {
       builder.add(
           new ActionItem(
@@ -466,6 +476,8 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         R.string.shortcut_value_stop_notification,
         R.string.shortcut_value_toggle_notification_speech,
         R.string.shortcut_value_toggle_stopwatch,
+        R.string.shortcut_value_pause_resume_stopwatch,
+        R.string.shortcut_value_speak_stopwatch_elapsed,
         R.string.shortcut_value_control_telling_time,
         R.string.shortcut_value_announce_battery_state,
         R.string.shortcut_value_read_current_time,
@@ -880,6 +892,18 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         new ActionItem(
             resources.getString(R.string.shortcut_toggle_stopwatch),
             resources.getString(R.string.shortcut_value_toggle_stopwatch),
+            TYPE_ACTION_ITEM));
+
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_pause_resume_stopwatch),
+            resources.getString(R.string.shortcut_value_pause_resume_stopwatch),
+            TYPE_ACTION_ITEM));
+
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_speak_stopwatch_elapsed),
+            resources.getString(R.string.shortcut_value_speak_stopwatch_elapsed),
             TYPE_ACTION_ITEM));
 
     builder.add(
