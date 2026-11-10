@@ -1,12 +1,15 @@
 package com.google.android.accessibility.talkback.subtitles
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.SeekBarPreference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKeyPreference
+import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload
+import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
@@ -61,10 +64,36 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
     refresh()
   }
 
+  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    super.onViewCreated(view, savedInstanceState)
+    val download =
+      findPreference<Preference>(getString(R.string.pref_ocr_data_download_key)) ?: return
+    download.setOnPreferenceClickListener {
+      OcrModelDownload.start(requireContext())
+      true
+    }
+    OcrModelDownload.status.observe(viewLifecycleOwner) { status ->
+      refreshDownload(download, status)
+    }
+  }
+
   override fun onResume() {
     super.onResume()
     refresh()
     GeminiApiKeyPreference.refresh(this)
+  }
+
+  private fun refreshDownload(download: Preference, status: OcrModelDownload.Status) {
+    val ready = TesseractOcr.isDataDownloaded(requireContext())
+    download.isEnabled = status.progress == null && !ready
+    download.summary =
+      when {
+        status.progress != null ->
+          getString(R.string.ocr_offline_download_progress, status.progress)
+        ready -> getString(R.string.summary_ocr_data_downloaded)
+        status.failed -> getString(R.string.summary_ocr_data_download_failed)
+        else -> getString(R.string.summary_ocr_data_not_downloaded)
+      }
   }
 
   private fun refresh(engineSelection: String? = null, voiceSelection: String? = null) {
@@ -79,7 +108,8 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
         SubtitleSettings.RIGHT, SubtitleSettings.BOTTOM)) {
       findPreference<Preference>(key)?.isVisible = custom
     }
-    findPreference<Preference>("pref_subtitle_ocr_settings")?.isVisible = !gemini
+    findPreference<Preference>(getString(R.string.pref_ocr_data_download_key))?.isVisible =
+      !gemini
     findPreference<Preference>(SubtitleSettings.GEMINI_VOICE)?.isVisible = gemini
     findPreference<Preference>(SubtitleSettings.GEMINI_CHANNEL)?.isVisible =
       gemini && voice == SubtitleSettings.VOICE_GEMINI
