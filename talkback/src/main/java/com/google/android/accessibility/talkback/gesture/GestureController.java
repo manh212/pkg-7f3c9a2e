@@ -726,6 +726,10 @@ public class GestureController {
       service.adjustContextualVolume(/* increase= */ false);
     } else if (action.equals(service.getString(R.string.shortcut_value_toggle_stopwatch))) {
       NotificationReader.toggleStopwatch();
+    } else if (action.equals(service.getString(R.string.shortcut_value_pause_resume_stopwatch))) {
+      NotificationReader.pauseResumeStopwatch();
+    } else if (action.equals(service.getString(R.string.shortcut_value_speak_stopwatch_elapsed))) {
+      NotificationReader.speakStopwatchElapsed();
     } else if (action.equals(service.getString(R.string.shortcut_value_rewind))) {
       result = MediaSeek.seek(service, /* forward= */ false);
     } else if (action.equals(service.getString(R.string.shortcut_value_fast_forward))) {
