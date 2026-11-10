@@ -81,7 +81,15 @@ public final class ClipboardUtils {
 
     CharSequence combinedText =
         TextUtils.isEmpty(previousText) ? text : previousText + "\n" + text;
-    return copyToClipboard(clipboard, combinedText);
+    if (!copyToClipboard(clipboard, combinedText)) {
+      return false;
+    }
+    // The combined text replaces the text it extends, so the history keeps only the combined
+    // entry instead of the shorter one it grew from as well.
+    if (!TextUtils.isEmpty(previousText)) {
+      ClipboardHistory.remove(previousText);
+    }
+    return true;
   }
 
   /**
