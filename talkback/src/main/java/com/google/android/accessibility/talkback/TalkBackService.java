@@ -264,6 +264,7 @@ import com.google.android.accessibility.talkback.tutorial.TutorialHooks;
 import com.google.android.accessibility.talkback.clipboard.ClipboardHistory;
 import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryCapture;
 import com.google.android.accessibility.talkback.translation.AutomaticTranslation;
+import com.google.android.accessibility.talkback.translation.BilingualParallelSpeaker;
 import com.google.android.accessibility.talkback.update.Updater;
 import com.google.android.accessibility.talkback.updatetasks.TalkBackUpdateHelper;
 import com.google.android.accessibility.talkback.utils.DiagnosticOverlayControllerImpl;
@@ -628,6 +629,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   /** Controller for speech feedback. */
   private SpeechControllerImpl speechController;
+
+  /** The second voice of a parallel bilingual reading, spoken outside the speech queue. */
+  private BilingualParallelSpeaker bilingualParallelSpeaker;
   private OtherScreenReaderMonitor otherScreenReaderMonitor;
   private final StartupUiGate startupUiGate = new StartupUiGate();
   private com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController extendedGesturesController;
@@ -989,6 +993,11 @@ public class TalkBackService extends AccessibilityServiceCompat
   @Override
   public void onDestroy() {
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
+    SpeechControllerImpl.setParallelBilingualVoice(null);
+    if (bilingualParallelSpeaker != null) {
+      bilingualParallelSpeaker.shutdown();
+      bilingualParallelSpeaker = null;
+    }
     // onDestroy can run without a preceding onUnbind (or after a partial startup).
     if (menuManager != null) {
       menuManager.dismissAll();
@@ -2614,6 +2623,9 @@ public class TalkBackService extends AccessibilityServiceCompat
             FeatureFlagReader.catchIndexOutOfBounds(this),
             "TALKBACK",
             FeatureFlagReader.hasLocalCacheCapability(this));
+
+    bilingualParallelSpeaker = new BilingualParallelSpeaker(this);
+    SpeechControllerImpl.setParallelBilingualVoice(bilingualParallelSpeaker);
 
     if (FeatureFlagReader.enableAggressiveChunking(this)) {
       FeedbackProcessingUtils.enableAggressiveChunking();
