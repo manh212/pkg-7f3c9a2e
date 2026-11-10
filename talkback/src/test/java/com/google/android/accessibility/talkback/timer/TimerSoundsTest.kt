@@ -17,7 +17,7 @@
 package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import org.robolectric.RuntimeEnvironment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -33,7 +33,7 @@ import org.robolectric.RobolectricTestRunner
 /** The per-timer sound choices: storage, labelling, and falling back to the own sound. */
 @RunWith(RobolectricTestRunner::class)
 class TimerSoundsTest {
-  private val context: Context = ApplicationProvider.getApplicationContext()
+  private val context: Context = RuntimeEnvironment.getApplication()
   private val prefs = SharedPreferencesUtils.getSharedPreferences(context)
 
   @Before
