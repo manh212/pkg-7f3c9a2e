@@ -64,6 +64,23 @@ test('owner can clear a rejected decision and its request so the user may apply 
   await assertSucceeds(db('alice').ref('requests/alice').set(body()));
 });
 
+test('announcements are stored as a list, readable by every user and writable only by the owner', async () => {
+  const note = {text: 'Chào mừng bạn đến với Meridian.', updatedAt: {'.sv': 'timestamp'}, requireLatest: true};
+  await assertFails(env.unauthenticatedContext().database().ref('appAnnouncements').once('value'));
+  await assertFails(db('alice').ref('appAnnouncements/1700000000000').set(note));
+  await assertSucceeds(db('owner').ref('appAnnouncements/1700000000000').set(note));
+  await assertSucceeds(db('owner').ref('appAnnouncements/1700000001000').set({text: 'Thông báo thứ hai', updatedAt: {'.sv': 'timestamp'}}));
+  await assertSucceeds(db('alice').ref('appAnnouncements').once('value'));
+  await assertSucceeds(db('bob').ref('appAnnouncements/1700000001000').once('value'));
+  await assertFails(db('alice').ref('appAnnouncements/1700000000000').remove());
+  await assertFails(db('owner').ref('appAnnouncements/1700000002000').set({...note, text: ''}));
+  await assertFails(db('owner').ref('appAnnouncements/1700000002000').set({...note, text: 'a'.repeat(4001)}));
+  await assertFails(db('owner').ref('appAnnouncements/1700000002000').set({...note, extra: true}));
+  await assertFails(db('owner').ref('appAnnouncements/1700000002000').set({text: 'Thiếu mốc thời gian'}));
+  await assertFails(db('owner').ref('appAnnouncements/1700000002000').set({...note, requireLatest: 'yes'}));
+  await assertSucceeds(db('owner').ref('appAnnouncements/1700000000000').remove());
+});
+
 test('owner cannot delete an approved decision', async () => {
   await assertSucceeds(db('alice').ref('requests/alice').set(body()));
   await assertSucceeds(db('owner').ref('decisions/alice').set({request, state: 'approved', policy: 'SFLIC3.signed', decidedAt: {'.sv': 'timestamp'}}));
