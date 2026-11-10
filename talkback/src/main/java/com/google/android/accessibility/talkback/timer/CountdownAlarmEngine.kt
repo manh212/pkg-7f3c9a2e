@@ -79,12 +79,15 @@ class CountdownAlarmEngine(
   private val ringQueue = ArrayDeque<CountdownAlarm.Entry>()
   private var repeatsLeft = 0
 
-  private val repeatStep = Runnable {
-    val entry = ringQueue.firstOrNull() ?: return@Runnable
+  private val repeatStep = Runnable { ringStep() }
+
+  /** Rings the alarm at the head of the queue once, then queues the next ringing or alarm. */
+  private fun ringStep() {
+    val entry = ringQueue.firstOrNull() ?: return
     ringOnce(entry)
     repeatsLeft--
     if (repeatsLeft > 0) {
-      handler.postDelayed(this.repeatStep, REPEAT_GAP_MS)
+      handler.postDelayed(repeatStep, REPEAT_GAP_MS)
     } else {
       ringQueue.removeFirst()
       startNextRing()
