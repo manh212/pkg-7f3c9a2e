@@ -9,12 +9,6 @@
       android:title="@string/dictation_compact_service" />
 
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:key="pref_dictation_whisper_model_choice"
-      android:order="1"
-      android:persistent="false"
-      android:title="@string/dictation_compact_model" />
-
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="pref_dictation_zipformer_model_choice"
       android:order="1"
       android:persistent="false"
