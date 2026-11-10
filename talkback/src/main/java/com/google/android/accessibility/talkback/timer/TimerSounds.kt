@@ -74,7 +74,9 @@ object TimerSounds {
   /** The copied file of [slot]'s chosen sound, or null while the timer uses its own sound. */
   fun soundFile(context: Context, slot: Slot): File? =
     directory(context).listFiles()
-      ?.filter { it.isFile && it.name.startsWith(slot.fileName + ".") }
+      ?.filter {
+        it.isFile && it.name.startsWith(slot.fileName + ".") && !it.name.endsWith(".part")
+      }
       ?.minByOrNull { it.name }
 
   /** The name of [slot]'s chosen sound as the settings row shows it, or null for its own. */
