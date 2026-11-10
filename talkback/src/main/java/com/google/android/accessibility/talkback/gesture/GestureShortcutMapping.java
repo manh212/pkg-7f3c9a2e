@@ -592,6 +592,11 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
         R.string.shortcut_decrease_contextual_volume),
     TOGGLE_STOPWATCH(
         R.string.shortcut_value_toggle_stopwatch, R.string.shortcut_toggle_stopwatch),
+    PAUSE_RESUME_STOPWATCH(
+        R.string.shortcut_value_pause_resume_stopwatch, R.string.shortcut_pause_resume_stopwatch),
+    SPEAK_STOPWATCH_ELAPSED(
+        R.string.shortcut_value_speak_stopwatch_elapsed,
+        R.string.shortcut_speak_stopwatch_elapsed),
     REWIND(R.string.shortcut_value_rewind, R.string.shortcut_rewind),
     FAST_FORWARD(R.string.shortcut_value_fast_forward, R.string.shortcut_fast_forward),
     VOICE_COMMANDS(R.string.shortcut_value_voice_commands, R.string.shortcut_voice_commands),
