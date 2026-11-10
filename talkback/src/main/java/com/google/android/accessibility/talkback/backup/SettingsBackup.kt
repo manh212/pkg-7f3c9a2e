@@ -31,6 +31,7 @@ import androidx.preference.PreferenceFragmentCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.migration.MigrationFiles
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
+import com.google.android.accessibility.talkback.timer.TimerSounds
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -505,7 +506,8 @@ object SettingsBackup {
     (name == null || name == defaultName(context)) &&
       (key in MigrationFiles.SKIPPED_PREF_KEYS ||
         key == "pref_gesture_profile" ||
-        key == CountdownAlarm.KEY_ALARMS)
+        key == CountdownAlarm.KEY_ALARMS ||
+        key in TimerSounds.Slot.entries.map { it.key })
 
   private fun isBraillePhoneKey(name: String?, key: String) =
     name == BRAILLE_PREFS && key in BRAILLE_PHONE_KEYS
