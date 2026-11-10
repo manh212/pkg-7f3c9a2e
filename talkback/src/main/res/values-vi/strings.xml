@@ -1824,7 +1824,7 @@
     <string name="title_pref_speech_equalizer">Bộ cân bằng giọng nói</string>
     <string name="title_pref_speech_equalizer_preset">Cấu hình sẵn</string>
     <string name="title_pref_speech_equalizer_on">Bật bộ cân bằng giọng nói</string>
-    <string name="speech_equalizer_off">Đã tắt</string>
+    <string name="speech_equalizer_off">Tắt</string>
     <string name="summary_speech_equalizer_needs_low_latency">Cần bật âm thanh độ trễ thấp</string>
     <string name="speech_equalizer_flat">Cân bằng</string>
     <string name="speech_equalizer_clarity">Giọng rõ hơn</string>
