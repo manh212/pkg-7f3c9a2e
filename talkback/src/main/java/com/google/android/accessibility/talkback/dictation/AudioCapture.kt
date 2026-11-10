@@ -29,8 +29,8 @@ import kotlin.math.log10
 import kotlin.math.sqrt
 
 /**
- * Records the microphone as 16 kHz mono 16-bit audio, the format Whisper and Gemini 3.5 Transcribe
- * take, from [start] until [stop]. Recording ends by itself after [MAX_SECONDS] or when the
+ * Records the microphone as 16 kHz mono 16-bit audio, the format the on-device recognizers and
+ * Gemini 3.5 Transcribe take, from [start] until [stop]. Recording ends by itself after [MAX_SECONDS] or when the
  * microphone fails, and then [onLimit] runs on the recording thread, as does [onChunk], with each
  * tenth of a second recorded.
  */
@@ -182,7 +182,7 @@ class AudioCapture(
     /** Whether [pcm] is long enough to hold a word: a quarter of a second. */
     fun hasSpeechLength(pcm: ByteArray) = pcm.size >= SAMPLE_RATE / 2
 
-    /** [pcm] as samples from -1 to 1, as Whisper takes them. */
+    /** [pcm] as samples from -1 to 1, as the on-device recognizers take them. */
     fun toFloats(pcm: ByteArray): FloatArray {
       val shorts = ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
       return FloatArray(shorts.remaining()) { shorts.get(it) / 32768f }
