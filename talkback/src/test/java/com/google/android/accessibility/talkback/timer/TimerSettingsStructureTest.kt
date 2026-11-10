@@ -34,7 +34,7 @@ class TimerSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun timerScreen_isOnlyTheWarningAndTheWayIntoTheTwoPages() {
+  fun timerScreen_isOnlyTheWarningAndTheWayIntoTheThreePages() {
     val rows = rowsOf(R.xml.timer_preferences)
 
     assertEquals(
@@ -42,11 +42,13 @@ class TimerSettingsStructureTest {
         "pref_timer_exact_alarm",
         "pref_spoken_clock_screen",
         "pref_stopwatch_screen",
+        "pref_countdown_alarm_screen",
       ),
       rows.map { it.first },
     )
     assertTrue(rows[1].second?.endsWith("SpokenClockSettingsFragment") == true)
     assertTrue(rows[2].second?.endsWith("StopwatchSettingsFragment") == true)
+    assertTrue(rows[3].second?.endsWith("CountdownAlarmSettingsFragment") == true)
     assertFalse(
       "the initial setup moved off this screen",
       rows.any { it.first == SETUP_KEY || it.second?.contains("SetupFragment") == true },
@@ -97,6 +99,22 @@ class TimerSettingsStructureTest {
       rows.any { it.first == "pref_stopwatch_interval_slider" },
     )
     assertTrue(rows.last().second?.endsWith("StopwatchHistoryFragment") == true)
+  }
+
+  @Test
+  fun countdownAlarmScreen_hasRepeatsSoundVibrationAndItsOwnVoice() {
+    val rows = rowsOf(R.xml.countdown_alarm_preferences)
+
+    assertEquals(
+      listOf(
+        "pref_countdown_alarm_repeats",
+        "pref_countdown_alarm_sound",
+        "pref_countdown_alarm_vibration",
+        "pref_countdown_alarm_voice_profile",
+        "pref_countdown_alarm_audio_stream",
+      ),
+      rows.map { it.first },
+    )
   }
 
   @Test
