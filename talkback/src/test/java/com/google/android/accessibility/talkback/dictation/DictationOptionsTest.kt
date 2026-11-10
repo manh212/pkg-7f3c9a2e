@@ -8,7 +8,10 @@ import org.junit.Test
 
 class DictationOptionsTest {
   @Test fun speechServicesExcludeAutomaticAndGoogleOnDevice() {
-    assertEquals(listOf(Recognition.RAMBLER, Recognition.WHISPER, Recognition.ANDROID), Recognition.entries)
+    assertEquals(
+      listOf(Recognition.RAMBLER, Recognition.WHISPER, Recognition.ZIPFORMER, Recognition.ANDROID),
+      Recognition.entries,
+    )
   }
 
   @Test fun vietnameseWhisperCatalogContainsOnlyThreeModels() {
