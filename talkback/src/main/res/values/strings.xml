@@ -116,6 +116,25 @@
     <string name="speech_equalizer_band_hz"><xliff:g id="frequency">%1$s</xliff:g> Hz</string>
     <string name="speech_equalizer_band_khz"><xliff:g id="frequency">%1$s</xliff:g> kHz</string>
     <string name="speech_equalizer_gain_db"><xliff:g id="gain">%1$s</xliff:g> dB</string>
+    <string name="title_pref_speech_adjustment">Hiệu chỉnh giọng nói</string>
+    <string name="title_pref_speech_compressor">Bộ nén đa dải</string>
+    <string name="title_pref_speech_compressor_on">Bật bộ nén đa dải</string>
+    <string name="speech_compressor_none">Không nén</string>
+    <string name="speech_compressor_gentle">Nén nhẹ</string>
+    <string name="speech_compressor_clarity">Rõ tiếng</string>
+    <string name="speech_compressor_even">Đều tiếng</string>
+    <string name="speech_compressor_threshold">Ngưỡng nén</string>
+    <string name="speech_compressor_ratio">Tỉ lệ nén</string>
+    <string name="speech_compressor_attack">Tốc độ bắt nén</string>
+    <string name="speech_compressor_release">Tốc độ nhả nén</string>
+    <string name="speech_compressor_makeup">Âm lượng bù</string>
+    <string name="speech_compressor_common">Chung cho cả bộ</string>
+    <string name="speech_compressor_band_below">Dưới <xliff:g id="frequency">%1$s</xliff:g></string>
+    <string name="speech_compressor_band_range"><xliff:g id="low">%1$s</xliff:g> – <xliff:g id="high">%2$s</xliff:g></string>
+    <string name="speech_compressor_band_above">Trên <xliff:g id="frequency">%1$s</xliff:g></string>
+    <string name="speech_compressor_ratio_value"><xliff:g id="ratio">%1$s</xliff:g> : 1</string>
+    <string name="speech_compressor_ms"><xliff:g id="ms">%1$s</xliff:g> ms</string>
+    <string name="speech_adjustment_two_summaries"><xliff:g id="first">%1$s</xliff:g> · <xliff:g id="second">%2$s</xliff:g></string>
     <!-- Title for the button that adds a voice profile. [CHAR LIMIT=NONE] -->
     <string name="title_pref_add_voice_profile">Add voice profile</string>
     <!-- Name given to a new voice profile, with a number to tell it apart. [CHAR LIMIT=NONE] -->
