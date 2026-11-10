@@ -29,9 +29,11 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** The per-timer sound choices: storage, labelling, and falling back to the own sound. */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class TimerSoundsTest {
   private val context: Context = RuntimeEnvironment.getApplication()
   private val prefs = SharedPreferencesUtils.getSharedPreferences(context)
