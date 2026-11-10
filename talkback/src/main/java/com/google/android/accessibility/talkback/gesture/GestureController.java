@@ -133,6 +133,7 @@ import com.google.android.accessibility.talkback.scripting.ItemInspector;
 import com.google.android.accessibility.talkback.scripting.Scripts;
 import com.google.android.accessibility.talkback.dictation.AiDictation;
 import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryDialog;
+import com.google.android.accessibility.talkback.timer.CountdownAlarmDialogs;
 import com.google.android.accessibility.talkback.granularediting.GranularEditing;
 import com.google.android.accessibility.talkback.selector.NavigationMode;
 import com.google.android.accessibility.talkback.selector.SelectorController;
@@ -730,6 +731,10 @@ public class GestureController {
       NotificationReader.pauseResumeStopwatch();
     } else if (action.equals(service.getString(R.string.shortcut_value_speak_stopwatch_elapsed))) {
       NotificationReader.speakStopwatchElapsed();
+    } else if (action.equals(service.getString(R.string.shortcut_value_add_countdown_alarm))) {
+      CountdownAlarmDialogs.showAdd(service, speaker, eventId);
+    } else if (action.equals(service.getString(R.string.shortcut_value_show_countdown_alarms))) {
+      CountdownAlarmDialogs.showRunning(service, speaker, eventId);
     } else if (action.equals(service.getString(R.string.shortcut_value_rewind))) {
       result = MediaSeek.seek(service, /* forward= */ false);
     } else if (action.equals(service.getString(R.string.shortcut_value_fast_forward))) {
