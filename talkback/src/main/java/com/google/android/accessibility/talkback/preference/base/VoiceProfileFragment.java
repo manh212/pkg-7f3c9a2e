@@ -78,7 +78,7 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   private @Nullable ListPreference voicePref;
   private @Nullable Preference moveUp;
   private @Nullable Preference moveDown;
-  private @Nullable Preference equalizer;
+  private @Nullable Preference adjustment;
 
   private final OnSharedPreferenceChangeListener prefsListener =
       (sharedPrefs, key) -> {
@@ -156,12 +156,12 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
         TextToSpeechSettingsFragment::fromPercent);
 
     if (!FormFactorUtils.isAndroidWear()) {
-      equalizer = new AccessibilitySuitePreference(context);
-      equalizer.setTitle(R.string.title_pref_speech_equalizer);
-      equalizer.setPersistent(false);
-      equalizer.setIconSpaceReserved(false);
-      SpeechEqualizerFragment.setUp(equalizer, id);
-      screen.addPreference(equalizer);
+      adjustment = new AccessibilitySuitePreference(context);
+      adjustment.setTitle(R.string.title_pref_speech_adjustment);
+      adjustment.setPersistent(false);
+      adjustment.setIconSpaceReserved(false);
+      SpeechAdjustmentFragment.setUp(adjustment, id);
+      screen.addPreference(adjustment);
     }
 
     AccessibilitySuiteSwitchPreference phrases = new AccessibilitySuiteSwitchPreference(context);
@@ -202,8 +202,8 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   }
 
   private void updateEqualizerSummary() {
-    if (equalizer != null) {
-      equalizer.setSummary(SpeechEqualizerFragment.summary(requireContext(), prefs, id));
+    if (adjustment != null) {
+      adjustment.setSummary(SpeechAdjustmentFragment.summary(requireContext(), prefs, id));
     }
   }
 
