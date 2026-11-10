@@ -942,6 +942,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   public boolean onUnbind(Intent intent) {
     releaseTouchHandling();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
+    com.google.android.accessibility.talkback.licensing.AdminAnnouncement.stopService(this);
     if (otherScreenReaderMonitor != null) {
       otherScreenReaderMonitor.stop();
       otherScreenReaderMonitor = null;
@@ -993,6 +994,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   @Override
   public void onDestroy() {
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
+    com.google.android.accessibility.talkback.licensing.AdminAnnouncement.stopService(this);
     SpeechControllerImpl.setParallelBilingualVoice(null);
     if (bilingualParallelSpeaker != null) {
       bilingualParallelSpeaker.shutdown();
@@ -4859,6 +4861,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     unlockedBootHandler.removeCallbacks(checkUnlockedBoot);
     com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.prepareDirectBoot(this);
     com.google.android.accessibility.talkback.licensing.ActivationReminder.startService(this);
+    com.google.android.accessibility.talkback.licensing.AdminAnnouncement.startService(this);
     initializeClipboardHistory();
     // Update TTS and allow announcement.
     // If the TTS changes here, it is probably a non-FBE TTS that is available after the user
