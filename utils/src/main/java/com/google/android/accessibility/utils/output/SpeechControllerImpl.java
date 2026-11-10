@@ -146,12 +146,32 @@ public class SpeechControllerImpl implements SpeechController {
   public static final String SPEECH_PARAM_RELEASED = "sandfly.released";
   public static final String SPEECH_PARAM_VOICE_PROFILE = "sandfly.voiceProfile";
   public static final String SPEECH_PARAM_BILINGUAL_SEGMENT = "sandfly.bilingualSegment";
+  public static final String SPEECH_PARAM_AUDIO_STREAM = "sandfly.audioStream";
   private long bilingualInterruptionGeneration;
 
   private static volatile @Nullable SpeechHold speechHold;
 
   public static void setSpeechHold(@Nullable SpeechHold hold) {
     speechHold = hold;
+  }
+
+  /**
+   * A voice that speaks one side of a parallel bilingual reading outside the speech queue, so it
+   * is heard at the same time as the side the speech controller speaks.
+   */
+  public interface ParallelBilingualVoice {
+
+    /** Speaks {@code text} at once with the given voice profile, on the given stream value. */
+    void speak(CharSequence text, String profileId, String audioStream);
+
+    /** Stops the parallel voice if it is speaking. */
+    void stop();
+  }
+
+  private static volatile @Nullable ParallelBilingualVoice parallelBilingualVoice;
+
+  public static void setParallelBilingualVoice(@Nullable ParallelBilingualVoice voice) {
+    parallelBilingualVoice = voice;
   }
 
   /** Prefix for utterance IDs. */
@@ -1296,6 +1316,8 @@ public class SpeechControllerImpl implements SpeechController {
     if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0
         && (speechParams == null || !speechParams.containsKey(SPEECH_PARAM_BILINGUAL_SEGMENT))) {
       bilingualInterruptionGeneration++;
+      // Speech that interrupts also silences a parallel bilingual reading's second voice.
+      if (parallelBilingualVoice != null) parallelBilingualVoice.stop();
     }
     // Speech a hold released has been through the dictionary already.
     @Nullable SpeechFilter dictionary = dictionaryFilter;
@@ -1393,12 +1415,50 @@ public class SpeechControllerImpl implements SpeechController {
     if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0) {
       failoverTts.interruptBilingualProfiles();
     }
-    Bundle firstParams = bilingualParams(speechParams, bilingual.firstProfile());
+    if (bilingual.isParallel() && parallelBilingualVoice != null) {
+      // Parallel reading: the translation goes through the speech queue as usual while the
+      // original is spoken at the same time on its own voice.
+      parallelBilingualVoice.speak(
+          bilingual.original(), bilingual.originalProfile(), bilingual.audioStream());
+      Bundle params =
+          bilingualParams(speechParams, bilingual.translatedProfile(), bilingual.audioStream());
+      speak(
+          bilingual.translated(), null, null, queueMode, flags, utteranceGroup, params,
+          nonSpeechParams, startAction, rangeStartCallback, completedAction, eventId);
+      return;
+    }
+    List<BilingualSpeechText.Segment> segments = bilingual.segments();
+    speakBilingualSegment(
+        bilingual, segments, 0, generation, queueMode, flags, utteranceGroup, speechParams,
+        nonSpeechParams, startAction, rangeStartCallback, completedAction, eventId);
+  }
+
+  /** Speaks one bilingual segment, then chains to the next after a short pause. */
+  private void speakBilingualSegment(
+      BilingualSpeechText bilingual,
+      List<BilingualSpeechText.Segment> segments,
+      int index,
+      long generation,
+      int queueMode,
+      int flags,
+      int utteranceGroup,
+      @Nullable Bundle speechParams,
+      @Nullable Bundle nonSpeechParams,
+      @Nullable UtteranceStartRunnable startAction,
+      @Nullable UtteranceRangeStartCallback rangeStartCallback,
+      @Nullable UtteranceCompleteRunnable completedAction,
+      @Nullable EventId eventId) {
+    BilingualSpeechText.Segment segment = segments.get(index);
+    boolean last = index == segments.size() - 1;
+    Bundle params = bilingualParams(speechParams, segment.profile(), bilingual.audioStream());
     speak(
-        bilingual.first(), null, null, queueMode, flags, utteranceGroup,
-        firstParams, nonSpeechParams, startAction, rangeStartCallback,
+        segment.text(), null, null,
+        index == 0 ? queueMode : QUEUE_MODE_QUEUE, flags, utteranceGroup, params,
+        index == 0 ? nonSpeechParams : null,
+        index == 0 ? startAction : null,
+        index == 0 ? rangeStartCallback : null,
         status -> {
-          if (status != STATUS_SPOKEN) {
+          if (last || status != STATUS_SPOKEN) {
             if (completedAction != null) completedAction.run(status);
             return;
           }
@@ -1408,17 +1468,18 @@ public class SpeechControllerImpl implements SpeechController {
                   if (completedAction != null) completedAction.run(STATUS_INTERRUPTED);
                   return;
                 }
-                Bundle secondParams = bilingualParams(speechParams, bilingual.secondProfile());
-                speak(
-                    bilingual.second(), null, null, QUEUE_MODE_QUEUE, flags, utteranceGroup,
-                    secondParams, null, null, null, completedAction, eventId);
+                speakBilingualSegment(
+                    bilingual, segments, index + 1, generation, queueMode, flags, utteranceGroup,
+                    speechParams, nonSpeechParams, startAction, rangeStartCallback, completedAction,
+                    eventId);
               },
               750);
         },
         eventId);
   }
 
-  private static Bundle bilingualParams(@Nullable Bundle original, String profile) {
+  private static Bundle bilingualParams(
+      @Nullable Bundle original, String profile, String audioStream) {
     Bundle params = original == null ? new Bundle() : new Bundle(original);
     params.putBoolean(SPEECH_PARAM_RELEASED, true);
     params.putBoolean(SPEECH_PARAM_BILINGUAL_SEGMENT, true);
@@ -1426,6 +1487,11 @@ public class SpeechControllerImpl implements SpeechController {
       params.remove(SPEECH_PARAM_VOICE_PROFILE);
     } else {
       params.putString(SPEECH_PARAM_VOICE_PROFILE, profile);
+    }
+    if (audioStream == null || audioStream.isEmpty()) {
+      params.remove(SPEECH_PARAM_AUDIO_STREAM);
+    } else {
+      params.putString(SPEECH_PARAM_AUDIO_STREAM, audioStream);
     }
     return params;
   }
@@ -2060,6 +2126,7 @@ public class SpeechControllerImpl implements SpeechController {
       clearCurrentAndQueuedUtterances(notifyObserver);
     }
     bilingualInterruptionGeneration++;
+    if (parallelBilingualVoice != null) parallelBilingualVoice.stop();
     LogUtils.v(TAG, "interruptInternal, stopTtsSpeechCompletely=" + stopTtsSpeechCompletely);
 
     clearUtteranceRangeStartCallbacks();
@@ -2473,8 +2540,13 @@ public class SpeechControllerImpl implements SpeechController {
 
     float volume = speechVolume * parseFloatParam(params, SpeechParam.VOLUME, 1);
 
-    // Utterance ID, stream, and volume override item params.
-    final int stream = FailoverTextToSpeech.getSpeechAudioStream(mContext);
+    // Utterance ID, stream, and volume override item params. An utterance may name its own
+    // stream, as bilingual speech does when the user picked one for it.
+    String streamValue = params.get(SPEECH_PARAM_AUDIO_STREAM);
+    final int stream =
+        streamValue != null && FailoverTextToSpeech.STREAM_VALUES.contains(streamValue)
+            ? FailoverTextToSpeech.audioStreamForValue(streamValue)
+            : FailoverTextToSpeech.getSpeechAudioStream(mContext);
     params.put(Engine.KEY_PARAM_UTTERANCE_ID, feedbackItem.getUtteranceId());
     params.put(Engine.KEY_PARAM_STREAM, String.valueOf(stream));
     params.put(Engine.KEY_PARAM_VOLUME, String.valueOf(volume));
