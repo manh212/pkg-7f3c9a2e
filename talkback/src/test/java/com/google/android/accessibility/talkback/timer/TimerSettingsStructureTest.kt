@@ -34,23 +34,19 @@ class TimerSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun timerScreen_isFlat_inOrder_andHasNoExactSwitch() {
+  fun timerScreen_isOnlyTheWarningAndTheWayIntoTheTwoPages() {
     val rows = rowsOf(R.xml.timer_preferences)
 
     assertEquals(
       listOf(
         "pref_timer_exact_alarm",
-        "pref_notification_clock_hours_screen",
-        "pref_notification_clock_format",
-        "pref_timer_voice_profile",
-        "pref_timer_audio_stream",
-        "pref_stopwatch_sound",
-        "pref_stopwatch_vibration",
-        "pref_stopwatch_interval_slider",
-        "pref_stopwatch_history_screen",
+        "pref_spoken_clock_screen",
+        "pref_stopwatch_screen",
       ),
       rows.map { it.first },
     )
+    assertTrue(rows[1].second?.endsWith("SpokenClockSettingsFragment") == true)
+    assertTrue(rows[2].second?.endsWith("StopwatchSettingsFragment") == true)
     assertFalse(
       "the initial setup moved off this screen",
       rows.any { it.first == SETUP_KEY || it.second?.contains("SetupFragment") == true },
@@ -59,10 +55,48 @@ class TimerSettingsStructureTest {
       "the exact-times switch is gone",
       rows.any { it.first == "pref_notification_clock_exact" },
     )
-    assertFalse(
-      "no nested stopwatch screen",
-      rows.any { it.second?.endsWith("StopwatchFragment") == true },
+  }
+
+  @Test
+  fun spokenClockScreen_hasItsOwnSwitchIntervalSoundVibrationAndVoice() {
+    val rows = rowsOf(R.xml.spoken_clock_preferences)
+
+    assertEquals(
+      listOf(
+        "pref_notification_clock_enabled",
+        "pref_notification_clock_hours_screen",
+        "pref_notification_clock_interval",
+        "pref_notification_clock_format",
+        "pref_notification_clock_sound",
+        "pref_notification_clock_vibration",
+        "pref_timer_voice_profile",
+        "pref_timer_audio_stream",
+      ),
+      rows.map { it.first },
     )
+  }
+
+  @Test
+  fun stopwatchScreen_hasSpeechSwitchListIntervalAndItsOwnVoice() {
+    val rows = rowsOf(R.xml.stopwatch_preferences)
+
+    assertEquals(
+      listOf(
+        "pref_stopwatch_sound",
+        "pref_stopwatch_vibration",
+        "pref_stopwatch_speech",
+        "pref_stopwatch_interval_minutes",
+        "pref_stopwatch_voice_profile",
+        "pref_stopwatch_audio_stream",
+        "pref_stopwatch_history_screen",
+      ),
+      rows.map { it.first },
+    )
+    assertFalse(
+      "the interval slider is gone",
+      rows.any { it.first == "pref_stopwatch_interval_slider" },
+    )
+    assertTrue(rows.last().second?.endsWith("StopwatchHistoryFragment") == true)
   }
 
   @Test
