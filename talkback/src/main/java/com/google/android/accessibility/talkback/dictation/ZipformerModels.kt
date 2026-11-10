@@ -35,8 +35,8 @@ private const val HUGGING_FACE =
 /**
  * The Vietnamese Zipformer model that Dictate can use on the phone: whether its files are
  * downloaded, and the download in progress. One instance lives for the whole process, so a
- * download carries on while Dictation settings are closed. Mirrors [WhisperModels], except that
- * this model is a fixed set of files rather than a choice of sizes.
+ * download carries on while Dictation settings are closed. The model is a fixed set of files
+ * rather than a choice of sizes.
  */
 class ZipformerModels private constructor(context: Context) {
   /** One file of the model, verified by size and hash as it is downloaded. */
