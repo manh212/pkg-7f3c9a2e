@@ -21,6 +21,9 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
         SubtitleSettings.SPEECH, SubtitleSettings.INTERVAL,
         SubtitleSettings.GEMINI_VOICE, SubtitleSettings.GEMINI_CHANNEL)) {
       findPreference<ListPreference>(key)?.apply {
+        if (key == SubtitleSettings.ENGINE && value == "mlkit") {
+          value = SubtitleSettings.OFFLINE_ENGINE
+        }
         summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
         setOnPreferenceChangeListener { _, value ->
           val engine = if (key == SubtitleSettings.ENGINE) value.toString() else null
@@ -76,8 +79,7 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
         SubtitleSettings.RIGHT, SubtitleSettings.BOTTOM)) {
       findPreference<Preference>(key)?.isVisible = custom
     }
-    findPreference<Preference>("pref_subtitle_ocr_settings")?.isVisible =
-      !gemini && (engineSelection ?: SubtitleSettings.engine(prefs)) == "tesseract"
+    findPreference<Preference>("pref_subtitle_ocr_settings")?.isVisible = !gemini
     findPreference<Preference>(SubtitleSettings.GEMINI_VOICE)?.isVisible = gemini
     findPreference<Preference>(SubtitleSettings.GEMINI_CHANNEL)?.isVisible =
       gemini && voice == SubtitleSettings.VOICE_GEMINI

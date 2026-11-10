@@ -366,7 +366,7 @@ Sounds and vibration follow the user's **Sound feedback** and **Vibration feedba
 
 ### Recognizing text
 
-*Version 2.* `sf.screen.recognizeText()` and `item:recognizeText()` take a screenshot and recognize the Latin-script text in it, on the device. They [wait](#waiting), need `screen` and Android 11 or later, and give `{ text, blocks }`. Each block is `{ text, bounds, lines }`, and each line `{ text, bounds }`, in screen pixels, so a script can tap a line with `sf.touch.tap`. A script can recognize text twice at once. Android allows only a few screenshots a second, so Meridian tries again twice when it refuses one, and raises an error after that.
+*Version 2.* `sf.screen.recognizeText()` and `item:recognizeText()` take a screenshot and recognize text in it on the device. Download the offline OCR models in OCR settings first. They [wait](#waiting), need `screen` and Android 11 or later, and give `{ text, blocks }`. Each block is `{ text, bounds, lines }`, and each line `{ text, bounds }`, in screen pixels, so a script can tap a line with `sf.touch.tap`. A script can recognize text twice at once. Android allows only a few screenshots a second, so Meridian tries again twice when it refuses one, and raises an error after that.
 
 ### Touch and keys
 

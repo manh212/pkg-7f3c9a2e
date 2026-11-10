@@ -37,11 +37,6 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.screencapture.ScreenshotCapture;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.android.libraries.accessibility.utils.screencapture.ScreenCaptureController.CaptureListener;
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.text.Text;
-import com.google.mlkit.vision.text.TextRecognition;
-import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -203,74 +198,32 @@ public class ScreenRecognitionController {
           });
       return;
     }
-    if (useTesseract(service)) {
-      recognizeWithTesseract(bitmap, true, request);
-    } else {
-      recognizeWithMlKit(bitmap, true, request);
+    if (!TesseractOcr.isDataDownloaded(service)) {
+      bitmap.recycle();
+      active = false;
+      announcer.announce(service.getString(R.string.ocr_offline_model_missing));
+      return;
     }
-  }
-
-  private void recognizeWithMlKit(Bitmap bitmap, boolean allowFallback, int request) {
-    TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-    recognizer
-        .process(InputImage.fromBitmap(bitmap, 0))
-        .addOnSuccessListener(
-            text -> {
-              if (active && request == generation) {
-                finishRecognition(merge(text));
-              }
-              bitmap.recycle();
-            })
-        .addOnFailureListener(
-            e -> {
-              if (!active || request != generation) {
-                bitmap.recycle();
-                return;
-              }
-              LogUtils.w(TAG, "ML Kit recognition failed: " + e.getMessage());
-              if (allowFallback && TesseractOcr.isDataDownloaded(service)) {
-                recognizeWithTesseract(bitmap, false, request);
-              } else {
-                bitmap.recycle();
-                finishFailure();
-              }
-            })
-        .addOnCompleteListener(task -> recognizer.close());
-  }
-
-  private void recognizeWithTesseract(Bitmap bitmap, boolean allowFallback, int request) {
-    new Thread(
-            () -> {
-              List<TesseractOcr.TextLine> segments = TesseractOcr.recognizeSegments(service, bitmap);
-              mainHandler.post(
-                  () -> {
-                    if (!active || request != generation) {
-                      bitmap.recycle();
-                      return;
-                    }
-                    if (segments == null && allowFallback) {
-                      recognizeWithMlKit(bitmap, false, request);
-                      return;
-                    }
-                    bitmap.recycle();
-                    if (segments == null) {
-                      finishFailure();
-                    } else {
-                      finishRecognition(toItems(segments));
-                    }
-                  });
-            })
-        .start();
-  }
-
-  private static boolean useTesseract(TalkBackService service) {
-    SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(service);
-    String engine =
-        prefs.getString(
-            service.getString(R.string.pref_ocr_engine_key),
-            service.getString(R.string.ocr_engine_mlkit_value));
-    return service.getString(R.string.ocr_engine_tesseract_value).equals(engine)
-        && TesseractOcr.isDataDownloaded(service);
+    nodeTraversalExecutor.execute(
+        () -> {
+          List<TesseractOcr.TextLine> segments;
+          try {
+            segments = TesseractOcr.recognizeSegments(service, bitmap);
+          } finally {
+            bitmap.recycle();
+          }
+          mainHandler.post(
+              () -> {
+                if (!active || request != generation) {
+                  return;
+                }
+                if (segments == null) {
+                  finishFailure();
+                } else {
+                  finishRecognition(toItems(segments));
+                }
+              });
+        });
   }
 
   private List<RecognizedItem> toItems(List<TesseractOcr.TextLine> segments) {
@@ -281,28 +234,6 @@ public class ScreenRecognitionController {
         words.add(new RecognizedItem(word.text, word.bounds, false));
       }
       items.addAll(RecognitionLayout.splitLine(segment.text, segment.bounds, words, controls));
-    }
-    RecognitionLayout.sort(items);
-    return items;
-  }
-
-  private List<RecognizedItem> merge(Text text) {
-    List<RecognizedItem> items = new ArrayList<>();
-    for (Text.TextBlock block : text.getTextBlocks()) {
-      for (Text.Line line : block.getLines()) {
-        Rect box = line.getBoundingBox();
-        if (box == null) {
-          continue;
-        }
-        List<RecognizedItem> words = new ArrayList<>();
-        for (Text.Element element : line.getElements()) {
-          Rect wordBox = element.getBoundingBox();
-          if (wordBox != null) {
-            words.add(new RecognizedItem(element.getText(), wordBox, false));
-          }
-        }
-        items.addAll(RecognitionLayout.splitLine(line.getText(), box, words, controls));
-      }
     }
     RecognitionLayout.sort(items);
     return items;

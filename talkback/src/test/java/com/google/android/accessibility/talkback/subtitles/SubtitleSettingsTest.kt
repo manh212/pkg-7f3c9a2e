@@ -19,21 +19,21 @@ class SubtitleSettingsTest {
 
   @Before fun clear() { prefs.edit().clear().commit() }
 
-  @Test fun defaultsToTesseractAndFinishingCurrentSpeech() {
+  @Test fun defaultsToOfflineAndMigratesLegacyMlKit() {
     assertEquals("tesseract", SubtitleSettings.engine(prefs))
     assertEquals("auto", SubtitleSettings.region(prefs))
     assertFalse(SubtitleSettings.interrupt(prefs))
     assertEquals(750L, SubtitleSettings.interval(prefs))
     prefs.edit().putString(SubtitleSettings.ENGINE, "mlkit").putString(SubtitleSettings.SPEECH, "interrupt").commit()
-    assertEquals("mlkit", SubtitleSettings.engine(prefs))
+    assertEquals(SubtitleSettings.OFFLINE_ENGINE, SubtitleSettings.engine(prefs))
     assertTrue(SubtitleSettings.interrupt(prefs))
   }
 
-  @Test fun offersThreeSubtitleEnginesAndGeminiAudioChoices() {
-    assertEquals(listOf("tesseract", "mlkit", "gemini_live"),
+  @Test fun offersOfflineAndOnlineModesAndGeminiAudioChoices() {
+    assertEquals(listOf("tesseract", "gemini_live"),
       context.resources.getStringArray(R.array.subtitle_engine_values).toList())
-    assertEquals(3, context.resources.getStringArray(R.array.subtitle_engine_labels).size)
-    assertEquals("Trực tuyến", context.resources.getStringArray(R.array.subtitle_engine_labels)[2])
+    assertEquals(listOf("Ngoại tuyến", "Trực tuyến"),
+      context.resources.getStringArray(R.array.subtitle_engine_labels).toList())
     assertEquals("gemini", SubtitleSettings.geminiVoice(prefs))
     assertEquals("accessibility", SubtitleSettings.geminiChannel(prefs))
     prefs.edit().putString(SubtitleSettings.ENGINE, "gemini_live")

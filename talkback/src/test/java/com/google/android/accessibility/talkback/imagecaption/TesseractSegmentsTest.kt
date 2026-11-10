@@ -8,9 +8,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class TesseractSegmentsTest {
   @Test fun idleReleaseDoesNotWaitForOcrOnTheMainLooper() {
     val handler =
@@ -19,26 +21,17 @@ class TesseractSegmentsTest {
     assertNotSame(Looper.getMainLooper(), handler.looper)
   }
 
-  @Test fun preservesWordBoxesAndVietnameseLabelsForFocusSegmentation() {
-    val hocr = """<span class='ocr_line' title='bbox 10 20 280 50'>
-      <span class='ocrx_word' title='bbox 10 20 70 50'><strong>Đăng</strong></span>
-      <span class='ocrx_word' title='bbox 75 20 140 50'>nhập</span>
-      <span class='ocrx_word' title='bbox 220 20 280 50'>Hủy</span></span>"""
-    val parse = TesseractOcr::class.java.getDeclaredMethod("parseHocrSegments", String::class.java)
-      .apply { isAccessible = true }
-    @Suppress("UNCHECKED_CAST")
-    val lines = parse.invoke(null, hocr) as List<TesseractOcr.TextLine>
-    assertEquals("Đăng nhập Hủy", lines.single().text)
-    assertEquals(listOf("Đăng", "nhập", "Hủy"), lines.single().words.map { it.text })
-    assertEquals(Rect(220, 20, 280, 50), lines.single().words.last().bounds)
+  @Test fun projectsWordBoundsFromPaddedLineToScreen() {
+    val corners = floatArrayOf(100f, 200f, 300f, 200f, 300f, 248f, 100f, 248f)
+    val word = intArrayOf(26, 10, 66, 30)
+    assertEquals(Rect(120, 204, 160, 224),
+      TesseractOcr.projectWord(word, corners, 200, 400, 500))
   }
 
-  @Test fun readsBoundingBoxesWithMetadataAndRejectsInvalidRegions() {
-    val parse = TesseractOcr::class.java.getDeclaredMethod("parseHocrBbox", String::class.java)
-      .apply { isAccessible = true }
-    assertEquals(Rect(10, 20, 70, 50), parse.invoke(null, "title='bbox 10 20 70 50; x_wconf 95'"))
-    assertEquals(Rect(10, 20, 70, 50), parse.invoke(null, "title='bbox 10 20 70 50'"))
-    assertNull(parse.invoke(null, "title='bbox 70 20 10 50'"))
-    assertNull(parse.invoke(null, "title='bbox invalid'"))
+  @Test fun clipsProjectedWordBoundsToTheInputImage() {
+    val corners = floatArrayOf(0f, 0f, 200f, 0f, 200f, 48f, 0f, 48f)
+    val word = intArrayOf(0, 0, 26, 30)
+    assertEquals(Rect(0, 0, 20, 24),
+      TesseractOcr.projectWord(word, corners, 200, 200, 48))
   }
 }

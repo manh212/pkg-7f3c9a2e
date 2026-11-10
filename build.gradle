@@ -87,6 +87,7 @@ android {
             excludes += ['LICENSE', 'README']
         }
         jniLibs {
+            pickFirsts += ['lib/arm64-v8a/libc++_shared.so']
             // On-device AI only runs on arm64-v8a (see OnDeviceAiSettings), so its 26 MB library
             // would never load on x86_64.
             excludes += ['lib/x86_64/liblitertlm_jni.so']

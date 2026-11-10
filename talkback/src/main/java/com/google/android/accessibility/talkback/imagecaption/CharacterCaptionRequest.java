@@ -19,33 +19,22 @@ package com.google.android.accessibility.talkback.imagecaption;
 import static com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.CaptionType.OCR;
 
 import android.accessibilityservice.AccessibilityService;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.TextUtils;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.R;
-import com.google.android.accessibility.utils.Filter;
-import com.google.android.accessibility.utils.SharedPreferencesUtils;
-import com.google.android.accessibility.utils.StringBuilderUtils;
-import com.google.android.accessibility.utils.ocr.OcrController;
-import com.google.android.accessibility.utils.ocr.OcrController.OcrListener;
-import com.google.android.accessibility.utils.ocr.OcrInfo;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A {@link CaptionRequest} for performing OCR (optical character recognition) to recognize text
  * from the screenshot.
  */
-public class CharacterCaptionRequest extends CaptionRequest implements OcrListener {
+public class CharacterCaptionRequest extends CaptionRequest {
 
-  private final OcrController ocrController;
   private final AccessibilityService service;
   private final Bitmap screenCapture;
-  private final float threshold = 0.3f;
 
   /** This object takes ownership of node, caller should not recycle. */
   public CharacterCaptionRequest(
@@ -57,7 +46,6 @@ public class CharacterCaptionRequest extends CaptionRequest implements OcrListen
       @NonNull OnErrorListener onErrorListener,
       boolean isUserRequested) {
     super(requestId, node, onFinishListener, onErrorListener, isUserRequested);
-    ocrController = new OcrController(this, /* needCropScreenshot= */ false);
     this.service = service;
     this.screenCapture = screenCapture;
   }
@@ -74,24 +62,13 @@ public class CharacterCaptionRequest extends CaptionRequest implements OcrListen
       return;
     }
     onCaptionStart();
-    if (useTesseract(service)) {
-      recognizeWithTesseract();
-    } else {
-      recognizeWithMlKit();
+    if (!TesseractOcr.isDataDownloaded(service)) {
+      if (isUserRequested()) {
+        Toast.makeText(service, R.string.ocr_offline_model_missing, Toast.LENGTH_SHORT).show();
+      }
+      onError(ERROR_TEXT_RECOGNITION_NO_RESULT);
+      return;
     }
-
-    runTimeoutRunnable();
-  }
-
-  private void recognizeWithMlKit() {
-    TesseractOcr.release();
-    final List<OcrInfo> ocrInfos = new ArrayList<>();
-    ocrInfos.add(new OcrInfo(node));
-    ocrController.recognizeTextForNodes(
-        screenCapture, ocrInfos, /* selectionBounds= */ null, Filter.node(node -> true));
-  }
-
-  private void recognizeWithTesseract() {
     Handler mainHandler = new Handler(Looper.getMainLooper());
     new Thread(
             () -> {
@@ -99,46 +76,13 @@ public class CharacterCaptionRequest extends CaptionRequest implements OcrListen
               mainHandler.post(
                   () -> {
                     if (text == null) {
-                      recognizeWithMlKit();
-                      return;
+                      onError(ERROR_TEXT_RECOGNITION_NO_RESULT);
+                    } else {
+                      onCaptionFinish(Result.create(OCR, text));
                     }
-                    stopTimeoutRunnable();
-                    onCaptionFinish(Result.create(OCR, text.trim()));
                   });
             })
         .start();
-  }
-
-  private static boolean useTesseract(AccessibilityService service) {
-    SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(service);
-    String engine =
-        prefs.getString(
-            service.getString(R.string.pref_ocr_engine_key),
-            service.getString(R.string.ocr_engine_mlkit_value));
-    return service.getString(R.string.ocr_engine_tesseract_value).equals(engine)
-        && TesseractOcr.isDataDownloaded(service);
-  }
-
-  @Override
-  public void onOcrStarted() {}
-
-  @Override
-  public void onOcrFinished(List<OcrInfo> ocrResults) {
-    stopTimeoutRunnable();
-    if (ocrResults == null) {
-      onError(ERROR_TEXT_RECOGNITION_NO_RESULT);
-      return;
-    }
-
-    List<CharSequence> texts = new ArrayList<>();
-    for (OcrInfo ocrResult : ocrResults) {
-      String text = OcrController.getTextFromBlocks(ocrResult.getTextBlocks(), threshold);
-      if (TextUtils.isEmpty(text)) {
-        continue;
-      }
-      texts.add(text);
-    }
-    onCaptionFinish(Result.create(OCR, StringBuilderUtils.getAggregateText(texts)));
+    runTimeoutRunnable();
   }
 }
-

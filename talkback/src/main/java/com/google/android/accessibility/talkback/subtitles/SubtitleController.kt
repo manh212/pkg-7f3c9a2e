@@ -32,10 +32,6 @@ import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.screencapture.ScreenshotCapture
 import com.google.android.libraries.accessibility.utils.screencapture.ScreenCaptureController.CaptureListener
 import com.google.android.libraries.accessibility.utils.log.LogUtils
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.TextRecognizer
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.Executors
 
 internal interface SubtitleSpeaker {
@@ -69,7 +65,6 @@ class SubtitleController internal constructor(
   private val worker = Executors.newSingleThreadExecutor { task ->
     Thread(task, "subtitle-ocr").apply { isDaemon = true }
   }
-  private var recognizer: TextRecognizer? = null
   private var active = false
   private var generation = 0
   private var owner = ""
@@ -183,7 +178,7 @@ class SubtitleController internal constructor(
       announce(service.getString(R.string.subtitle_requires_android))
       return
     }
-    if (SubtitleSettings.engine(prefs) == "tesseract" && !TesseractOcr.isDataDownloaded(service)) {
+    if (!TesseractOcr.isDataDownloaded(service)) {
       announce(service.getString(R.string.subtitle_model_missing))
       return
     }
@@ -281,7 +276,6 @@ class SubtitleController internal constructor(
     if (closed) return
     stop(false)
     closed = true
-    worker.execute { recognizer?.close(); recognizer = null }
     worker.shutdown()
   }
 
@@ -438,19 +432,11 @@ class SubtitleController internal constructor(
             val stats = SubtitleImageProcessor.inspect(cropped)
             captureWasDark = stats.nearlyUniformDark
             val controls = if (SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds == null) controlBounds() else emptyList()
-            // Rotate enhancement and OCR engines only after repeated frames with NO caption candidates.
-            // A screenshot containing unrelated interface text must not disable this fallback.
             val enhance = emptyFrames >= 3 && emptyFrames % 2 == 1
-            val preferredEngine = SubtitleSettings.engine(prefs)
-            val fallbackEngine = if (preferredEngine == "tesseract") "mlkit" else "tesseract"
-            val useFallback = (failures > 0 && failures % 2 == 1 ||
-              emptyFrames >= 6 && emptyFrames % 4 == 2) &&
-              (fallbackEngine != "tesseract" || TesseractOcr.isDataDownloaded(service))
-            val engine = if (useFallback) fallbackEngine else preferredEngine
-            LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d engine=%s enhanced=%s",
-              cropped.width, cropped.height, region, stats.darkPercent, stats.contrastRange, engine, enhance)
+            LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d enhanced=%s",
+              cropped.width, cropped.height, region, stats.darkPercent, stats.contrastRange, enhance)
             try {
-              worker.execute { recognize(cropped, region, controls, request, engine, enhance) }
+              worker.execute { recognize(cropped, region, controls, request, enhance) }
             } catch (e: RuntimeException) {
               cropped.recycle()
               LogUtils.w(TAG, "OCR worker unavailable: %s", e.message)
@@ -467,50 +453,21 @@ class SubtitleController internal constructor(
   }
 
   private fun recognize(
-    bitmap: Bitmap, region: Rect, controls: List<Rect>, request: Int,
-    engineName: String, enhanced: Boolean,
+    bitmap: Bitmap, region: Rect, controls: List<Rect>, request: Int, enhanced: Boolean,
   ) {
     val prepared = SubtitleImageProcessor.prepare(bitmap, enhanced)
     val image = prepared.bitmap
-    if (engineName == "tesseract") {
-      val lines = try {
-        TesseractOcr.recognizeSegments(service, image)?.map {
-          SubtitleLine(it.text, prepared.screenBounds(it.bounds, region))
-        }
-      } catch (e: RuntimeException) {
-        LogUtils.w(TAG, "Tesseract failure: %s", e.message)
-        null
-      } finally { image.recycle() }
-      handler.post {
-        complete(request, lines?.filterNot { line ->
-          controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) }
-        })
+    val lines = try {
+      TesseractOcr.recognizeSegments(service, image)?.map {
+        SubtitleLine(it.text, prepared.screenBounds(it.bounds, region))
       }
-    } else {
-      try {
-        val engine = recognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-          .also { recognizer = it }
-        engine.process(InputImage.fromBitmap(image, 0))
-          .addOnSuccessListener { text ->
-            val lines = text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
-              line.boundingBox?.let {
-                SubtitleLine(line.text, prepared.screenBounds(it, region))
-              }
-            }.filterNot { line ->
-              controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) }
-            }
-            complete(request, lines)
-          }
-          .addOnFailureListener { error ->
-            LogUtils.w(TAG, "ML Kit subtitle recognition failed: %s", error.message)
-            complete(request, null)
-          }
-          .addOnCompleteListener { image.recycle() }
-      } catch (e: RuntimeException) {
-        image.recycle()
-        LogUtils.w(TAG, "ML Kit invocation failed: %s", e.message)
-        handler.post { complete(request, null) }
-      }
+    } finally {
+      image.recycle()
+    }
+    handler.post {
+      complete(request, lines?.filterNot { line ->
+        controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) }
+      })
     }
   }
 

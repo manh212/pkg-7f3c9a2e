@@ -33,8 +33,7 @@
   <string name="update_saved_downloads">Đã lưu APK vào thư mục Tải xuống</string>
   <string name="update_storage_permission">Cần quyền lưu tệp để tải APK vào thư mục Tải xuống</string>
   <string-array name="subtitle_engine_labels">
-    <item>Tesseract — tiếng Việt và tiếng Anh</item>
-    <item>ML Kit — chữ Latin</item>
+    <item>Ngoại tuyến</item>
     <item>Trực tuyến</item>
   </string-array>
   <string-array name="subtitle_gemini_voice_labels">

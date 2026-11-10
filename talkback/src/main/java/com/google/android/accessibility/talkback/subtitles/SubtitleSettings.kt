@@ -5,6 +5,7 @@ import android.graphics.Rect
 
 object SubtitleSettings {
   const val ENGINE = "pref_subtitle_engine"
+  const val OFFLINE_ENGINE = "tesseract"
   const val LIVE_ENGINE = "gemini_live"
   const val GEMINI_VOICE = "pref_subtitle_gemini_voice"
   const val GEMINI_CHANNEL = "pref_subtitle_gemini_channel"
@@ -20,7 +21,8 @@ object SubtitleSettings {
   const val RIGHT = "pref_subtitle_right"
   const val BOTTOM = "pref_subtitle_bottom"
 
-  fun engine(prefs: SharedPreferences): String = prefs.getString(ENGINE, "tesseract") ?: "tesseract"
+  fun engine(prefs: SharedPreferences): String =
+    if (prefs.getString(ENGINE, OFFLINE_ENGINE) == LIVE_ENGINE) LIVE_ENGINE else OFFLINE_ENGINE
   fun geminiVoice(prefs: SharedPreferences): String =
     prefs.getString(GEMINI_VOICE, VOICE_GEMINI) ?: VOICE_GEMINI
   fun geminiChannel(prefs: SharedPreferences): String =

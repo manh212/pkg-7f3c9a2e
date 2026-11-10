@@ -17,16 +17,14 @@
 package com.google.android.accessibility.talkback.preference.base;
 
 import android.os.Bundle;
-import androidx.preference.ListPreference;
+import android.view.View;
+import androidx.annotation.NonNull;
 import androidx.preference.Preference;
-import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload;
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr;
 
 public class OcrSettingsFragment extends TalkbackBaseFragment {
-  private boolean downloading;
-  private boolean downloadFailed;
-
   public OcrSettingsFragment() {
     super(R.xml.ocr_settings_preferences);
   }
@@ -37,63 +35,33 @@ public class OcrSettingsFragment extends TalkbackBaseFragment {
   }
 
   @Override
-  public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-    super.onCreatePreferences(savedInstanceState, rootKey);
-    ListPreference engine = findPreference(getString(R.string.pref_ocr_engine_key));
-    if (engine != null) {
-      engine.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
-      engine.setOnPreferenceChangeListener(
-          (preference, value) -> {
-            preference.setSummary(value.toString());
-            refreshDownload(value.toString());
-            return true;
-          });
-    }
+  public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+    super.onViewCreated(view, savedInstanceState);
     Preference download = findPreference(getString(R.string.pref_ocr_data_download_key));
-    if (download != null) {
-      download.setOnPreferenceClickListener(
-          preference -> {
-            if (downloading || TesseractOcr.isDataDownloaded(requireContext())) return true;
-            downloading = true;
-            refreshDownload();
-            TesseractOcr.downloadData(
-                requireContext().getApplicationContext(),
-                success -> {
-                  downloading = false;
-                  downloadFailed = !success;
-                  if (isAdded()) refreshDownload();
-                });
-            return true;
-          });
-      refreshDownload();
+    if (download == null) {
+      return;
     }
+    download.setOnPreferenceClickListener(
+        preference -> {
+          OcrModelDownload.INSTANCE.start(requireContext());
+          return true;
+        });
+    OcrModelDownload.INSTANCE.getStatus().observe(
+        getViewLifecycleOwner(), status -> refreshDownload(download, status));
   }
 
-  @Override
-  public void onResume() {
-    super.onResume();
-    refreshDownload();
-  }
-
-  private void refreshDownload() {
-    refreshDownload(
-        SharedPreferencesUtils.getSharedPreferences(requireContext())
-            .getString(getString(R.string.pref_ocr_engine_key), "mlkit"));
-  }
-
-  private void refreshDownload(String engine) {
-    Preference download = findPreference(getString(R.string.pref_ocr_data_download_key));
-    if (download == null || !isAdded()) return;
+  private void refreshDownload(Preference download, OcrModelDownload.Status status) {
     boolean ready = TesseractOcr.isDataDownloaded(requireContext());
-    download.setVisible(engine.equals("tesseract"));
-    download.setEnabled(!downloading && !ready);
-    download.setSummary(
-        downloading
-            ? R.string.summary_ocr_data_downloading
-            : ready
-                ? R.string.summary_ocr_data_downloaded
-                : downloadFailed
-                    ? R.string.summary_ocr_data_download_failed
-                    : R.string.summary_ocr_data_not_downloaded);
+    Integer progress = status.getProgress();
+    download.setEnabled(progress == null && !ready);
+    if (progress != null) {
+      download.setSummary(getString(R.string.ocr_offline_download_progress, progress));
+    } else if (ready) {
+      download.setSummary(R.string.summary_ocr_data_downloaded);
+    } else if (status.getFailed()) {
+      download.setSummary(R.string.summary_ocr_data_download_failed);
+    } else {
+      download.setSummary(R.string.summary_ocr_data_not_downloaded);
+    }
   }
 }

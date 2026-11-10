@@ -26,12 +26,12 @@ import android.os.SystemClock
 import android.view.Display
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.libraries.accessibility.utils.log.LogUtils
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -39,10 +39,7 @@ import org.json.JSONObject
 class ScriptScreen(private val service: AccessibilityService) {
   private val mainHandler = Handler(Looper.getMainLooper())
   private val mainExecutor = Executor { mainHandler.post(it) }
-  private val recognizerHolder = lazy {
-    TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-  }
-  private val recognizer by recognizerHolder
+  private val ocrWorker = Executors.newSingleThreadExecutor()
 
   /**
    * Every window on screen, top first, with a snapshot of its top item. SandFly's own windows, such
@@ -103,6 +100,9 @@ class ScriptScreen(private val service: AccessibilityService) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
       return done(null, "Recognizing text needs Android 11 or later")
     }
+    if (!TesseractOcr.isDataDownloaded(service)) {
+      return done(null, service.getString(R.string.ocr_offline_model_missing))
+    }
     mainHandler.post { capture(bounds, retries = 2, done) }
   }
 
@@ -127,15 +127,22 @@ class ScriptScreen(private val service: AccessibilityService) {
               buffer.close()
             }
           if (bitmap == null) return done(null, "The item is not on screen")
-          recognizer
-            .process(InputImage.fromBitmap(bitmap, 0))
-            .addOnSuccessListener { text -> done(textJson(text, bounds), null) }
-            .addOnFailureListener { e ->
-              LogUtils.w(TAG, "Text recognition failed: %s", e)
-              // Such as Google Play services still downloading the recognizer.
-              done(null, "Text recognition failed: ${e.message}")
+          try {
+            ocrWorker.execute {
+              val lines = try {
+                TesseractOcr.recognizeSegments(service, bitmap)
+              } finally {
+                bitmap.recycle()
+              }
+              mainHandler.post {
+                if (lines == null) done(null, service.getString(R.string.ocr_offline_failed))
+                else done(textJson(lines, bounds), null)
+              }
             }
-            .addOnCompleteListener { bitmap.recycle() }
+          } catch (_: RejectedExecutionException) {
+            bitmap.recycle()
+            done(null, service.getString(R.string.ocr_offline_failed))
+          }
         }
 
         override fun onFailure(errorCode: Int) {
@@ -169,32 +176,21 @@ class ScriptScreen(private val service: AccessibilityService) {
   }
 
   // Recognized bounds are in the cropped picture, so they move back to screen coordinates.
-  private fun textJson(text: Text, bounds: Rect?): JSONObject {
+  private fun textJson(lines: List<TesseractOcr.TextLine>, bounds: Rect?): JSONObject {
     val left = bounds?.left?.coerceAtLeast(0) ?: 0
     val top = bounds?.top?.coerceAtLeast(0) ?: 0
-    fun place(box: Rect?) = box?.let { boundsJson(Rect(it).apply { offset(left, top) }) }
     return jsonObject(
-      "text" to text.text,
-      "blocks" to
-        JSONArray(
-          text.textBlocks.map { block ->
-            jsonObject(
-              "text" to block.text,
-              "bounds" to place(block.boundingBox),
-              "lines" to
-                JSONArray(
-                  block.lines.map { line ->
-                    jsonObject("text" to line.text, "bounds" to place(line.boundingBox))
-                  }
-                ),
-            )
-          }
-        ),
+      "text" to lines.joinToString("\n") { it.text },
+      "blocks" to JSONArray(lines.map { line ->
+        val lineBounds = boundsJson(Rect(line.bounds).apply { offset(left, top) })
+        val item = jsonObject("text" to line.text, "bounds" to lineBounds)
+        jsonObject("text" to line.text, "bounds" to lineBounds, "lines" to JSONArray(listOf(item)))
+      }),
     )
   }
 
   fun close() {
-    if (recognizerHolder.isInitialized()) recognizer.close()
+    ocrWorker.shutdown()
   }
 
   companion object {

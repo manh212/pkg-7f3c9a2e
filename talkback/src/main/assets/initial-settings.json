@@ -1727,10 +1727,6 @@
           "type": "boolean",
           "value": false
         },
-        "pref_ocr_engine_key": {
-          "type": "string",
-          "value": "tesseract"
-        },
         "new_key_combo_model|keycombo_shortcut_navigate_next_list_item|trigger_modifier_used": {
           "type": "boolean",
           "value": false

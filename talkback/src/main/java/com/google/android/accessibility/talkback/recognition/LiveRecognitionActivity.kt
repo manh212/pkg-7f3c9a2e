@@ -53,6 +53,7 @@ import androidx.lifecycle.LiveData
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
 import com.google.android.accessibility.talkback.pause.PauseController
@@ -61,9 +62,6 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.monitor.RecentUserInput
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.libraries.accessibility.utils.log.LogUtils
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -97,8 +95,6 @@ class LiveRecognitionActivity : ComponentActivity() {
   private val announcements = RecognitionAnnouncements()
   private val pendingResults = linkedMapOf<String, Pair<String, Long>>()
   private val prefs by lazy { SharedPreferencesUtils.getSharedPreferences(this) }
-  private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
-  private var recognizerUsed = false
   // Read by the camera thread, to encode a frame only when it can be described.
   @Volatile private var describer: FrameDescriber? = null
   private var cameraProvider: ProcessCameraProvider? = null
@@ -234,7 +230,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     loadingFeedback.stop()
     worker.execute { currencyRecognizer?.close(); currencyRecognizer = null }
     describer?.close()
-    if (recognizerUsed) recognizer.close()
     worker.shutdown()
     super.onDestroy()
   }
@@ -251,6 +246,11 @@ class LiveRecognitionActivity : ComponentActivity() {
       updateFlashSwitch()
       boundCamera?.cameraControl?.enableTorch(false)
       if (enabled.isEmpty()) reconcile()
+      return
+    }
+    if (mode == RecognitionMode.TEXT && !TesseractOcr.isDataDownloaded(this)) {
+      updateSwitches()
+      report(R.string.ocr_offline_model_missing)
       return
     }
     if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -572,29 +572,25 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     if (RecognitionMode.TEXT !in enabled) { release(); return }
     try {
-      recognizerUsed = true
-      recognizer.process(InputImage.fromBitmap(bitmap, 0))
-        .addOnSuccessListener { result ->
-          LogUtils.v(TAG, "Text, %d characters, %d ms after the frame", result.text.length,
-            SystemClock.elapsedRealtime() - capturedAt)
-          if (generation == token &&
-              SystemClock.elapsedRealtime() - capturedAt <= GeminiLiveSession.MAX_RESULT_AGE_MS) {
-            announceResult(SOURCE_TEXT, result.text.take(MAX_TEXT_LENGTH))
-          }
+      worker.execute {
+        val text = try {
+          TesseractOcr.recognizeText(this, bitmap)
+        } finally {
+          release()
         }
-        .addOnFailureListener { e ->
-          LogUtils.e(TAG, "Text recognition failed: %s", e.javaClass.simpleName)
-          if (generation == token) {
+        handler.post {
+          if (generation != token || !resumed) return@post
+          if (text == null) {
             enabled.remove(RecognitionMode.TEXT)
             reconcile()
             report(R.string.live_recognition_ocr_error)
+          } else if (SystemClock.elapsedRealtime() - capturedAt <= GeminiLiveSession.MAX_RESULT_AGE_MS) {
+            announceResult(SOURCE_TEXT, text.take(MAX_TEXT_LENGTH))
           }
-        }.addOnCompleteListener { release() }
-    } catch (_: Exception) {
+        }
+      }
+    } catch (_: java.util.concurrent.RejectedExecutionException) {
       release()
-      enabled.remove(RecognitionMode.TEXT)
-      reconcile()
-      report(R.string.live_recognition_ocr_error)
     }
   }
 
