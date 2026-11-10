@@ -208,6 +208,7 @@ pref_countdown_alarm_audio_stream
 pref_countdown_alarm_repeats
 pref_countdown_alarm_screen
 pref_countdown_alarm_sound
+pref_countdown_alarm_sound_choice
 pref_countdown_alarm_vibration
 pref_countdown_alarm_voice_profile
 pref_custom_action_menu_setting_key
@@ -672,6 +673,7 @@ pref_stopwatch_history_screen
 pref_stopwatch_interval_minutes
 pref_stopwatch_screen
 pref_stopwatch_sound
+pref_stopwatch_sound_choice
 pref_stopwatch_speech
 pref_stopwatch_vibration
 pref_stopwatch_voice_profile
@@ -712,6 +714,7 @@ pref_time_feedback_format_key
 pref_timer_audio_stream
 pref_timer_settings_screen
 pref_timer_voice_profile
+pref_timer_sound_choice
 pref_touch_activation
 pref_touch_stops_speech_key
 pref_translate_last_spoken_phrase_menu_setting_key
