@@ -48,6 +48,8 @@ import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.compositor.rule.EventTypeNotificationStateChangedFeedbackRule
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
 import com.google.android.accessibility.talkback.scripting.Scripts
+import com.google.android.accessibility.talkback.timer.CountdownAlarm
+import com.google.android.accessibility.talkback.timer.CountdownAlarmEngine
 import com.google.android.accessibility.talkback.timer.StopwatchEngine
 import com.google.android.accessibility.talkback.translation.AutomaticTranslation
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
@@ -118,6 +120,7 @@ object NotificationReader {
   private var languageIdentifier: LanguageIdentifier? = null
   private var schedules: SpokenSchedules? = null
   private var stopwatch: StopwatchEngine? = null
+  private var countdown: CountdownAlarmEngine? = null
   private var timerVoice: NotificationVoice? = null
   private var timerVoiceKey = ""
   /** The voices of the voice profiles that notifications are read with, by profile ID. */
@@ -279,6 +282,12 @@ object NotificationReader {
             sound, EVENT_ID_UNTRACKED)
         }
         .also { it.start() }
+    countdown =
+      CountdownAlarmEngine(app, { text, interrupt -> announceCountdown(text, interrupt) }) { sound ->
+          (context as? TalkBackService)?.feedbackController?.playAuditoryWithoutHaptic(
+            sound, EVENT_ID_UNTRACKED)
+        }
+        .also { it.start() }
     updateVoices(SharedPreferencesUtils.getSharedPreferences(app))
   }
 
@@ -293,6 +302,8 @@ object NotificationReader {
     schedules = null
     stopwatch?.stop()
     stopwatch = null
+    countdown?.stop()
+    countdown = null
     timerVoice?.shutdown()
     timerVoice = null
     timerVoiceKey = ""
@@ -334,6 +345,27 @@ object NotificationReader {
   @MainThread
   fun speakStopwatchElapsed() {
     stopwatch?.speakElapsed()
+  }
+
+  /** Adds a countdown alarm and confirms it in the alarm's voice. */
+  @JvmStatic
+  @MainThread
+  fun addCountdownAlarm(name: String, durationMillis: Long) {
+    countdown?.add(name, durationMillis)
+  }
+
+  /** Cancels the countdown alarm with [id] and confirms it in the alarm's voice. */
+  @JvmStatic
+  @MainThread
+  fun cancelCountdownAlarm(id: Long) {
+    countdown?.cancel(id)
+  }
+
+  /** The countdown alarms still to fire, the soonest first. */
+  @JvmStatic
+  fun countdownAlarms(): List<CountdownAlarm.Entry> {
+    val app = context ?: return emptyList()
+    return CountdownAlarm.alarms(app)
   }
 
   /** Tells which app is in front, for the rules. */
@@ -1057,6 +1089,18 @@ object NotificationReader {
       interrupt,
       com.google.android.accessibility.talkback.timer.TimerSpeechSettings.stopwatchProfileId(prefs),
       com.google.android.accessibility.talkback.timer.TimerSpeechSettings.stopwatchStream(prefs),
+    )
+  }
+
+  /** Reads countdown alarm announcements with the alarm's own profile and audio stream. */
+  private fun announceCountdown(text: CharSequence, interrupt: Boolean) {
+    val ctx = context ?: return
+    val prefs = SharedPreferencesUtils.getSharedPreferences(ctx)
+    announceTimerVoice(
+      text,
+      interrupt,
+      com.google.android.accessibility.talkback.timer.TimerSpeechSettings.countdownProfileId(prefs),
+      com.google.android.accessibility.talkback.timer.TimerSpeechSettings.countdownStream(prefs),
     )
   }
 
