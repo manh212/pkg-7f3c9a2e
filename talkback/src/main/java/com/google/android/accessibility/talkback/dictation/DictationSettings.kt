@@ -34,7 +34,6 @@ object DictationSettings {
   const val PREF_RECOGNITION = "pref_dictation_recognition"
   const val PREF_AI_SERVICE = "pref_dictation_ai_service"
   const val PREF_ONLINE_ROUTE = "pref_dictation_online_route"
-  const val PREF_WHISPER_MODEL = "pref_dictation_whisper_model"
   const val PREF_RAMBLER_LIVE = "pref_dictation_rambler_live"
   const val PREF_AUTO_STOP_MS = "pref_dictation_auto_stop_ms"
   const val PREF_SPEECH_THRESHOLD = "pref_dictation_speech_threshold"
@@ -64,7 +63,6 @@ object DictationSettings {
   /** The available speech recognizers. */
   enum class Recognition(val id: String) {
     RAMBLER("rambler"),
-    WHISPER("whisper"),
     ZIPFORMER("zipformer"),
     ANDROID("android");
 
@@ -132,7 +130,7 @@ object DictationSettings {
 
   /**
    * Use the explicitly selected recognition service. A password field cannot send audio to
-   * Gemini, so only in that case use a downloaded Whisper model or Android recognition.
+   * Gemini, so only in that case fall back to Android recognition.
    */
   fun effectiveRecognition(
     context: Context,
@@ -141,8 +139,7 @@ object DictationSettings {
   ): Recognition {
     val selected = recognition(prefs)
     if (selected !in skip) return selected
-    return if (WhisperModels.get(context).activeModel() != null) Recognition.WHISPER
-    else Recognition.ANDROID
+    return Recognition.ANDROID
   }
 
   fun correctsWithAi(context: Context, prefs: SharedPreferences): Boolean =
