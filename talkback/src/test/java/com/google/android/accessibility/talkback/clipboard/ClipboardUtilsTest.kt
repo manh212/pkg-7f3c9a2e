@@ -65,7 +65,8 @@ class ClipboardUtilsTest {
     assertTrue(ClipboardUtils.appendToClipboard(context, "third"))
 
     assertEquals("first\nsecond\nthird", clip())
-    assertEquals("first\nsecond\nthird", ClipboardHistory.getEntries().get(0))
+    // The texts the combined text grew from do not stay in the history beside it.
+    assertEquals(listOf("first\nsecond\nthird"), ClipboardHistory.getEntries())
   }
 
   @Test
@@ -76,6 +77,7 @@ class ClipboardUtilsTest {
     assertTrue(ClipboardUtils.appendToClipboard(context, "added"))
 
     assertEquals("previous\nadded", clip())
+    assertEquals(listOf("previous\nadded"), ClipboardHistory.getEntries())
   }
 
   @Test
