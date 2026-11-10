@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:defaultValue="3"
+      android:key="pref_countdown_alarm_repeats"
+      android:title="@string/countdown_alarm_repeats_title"
+      android:dialogTitle="@string/countdown_alarm_repeats_title"
+      android:entries="@array/countdown_alarm_repeats_entries"
+      android:entryValues="@array/countdown_alarm_repeats_values"
+      android:summary="%s" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="pref_countdown_alarm_sound"
+      android:title="@string/countdown_alarm_sound_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="false"
+      android:key="pref_countdown_alarm_vibration"
+      android:title="@string/countdown_alarm_vibration_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:title="@string/countdown_alarm_speech_category">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:key="pref_countdown_alarm_voice_profile"
+        android:title="@string/countdown_alarm_voice_title"
+        android:dialogTitle="@string/countdown_alarm_voice_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:key="pref_countdown_alarm_audio_stream"
+        android:title="@string/countdown_alarm_stream_title"
+        android:dialogTitle="@string/countdown_alarm_stream_title"
+        android:entries="@array/timer_stream_entries"
+        android:entryValues="@array/timer_stream_values"
+        android:summary="%s" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+</PreferenceScreen>
