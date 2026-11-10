@@ -53,6 +53,44 @@ class EditableSelectionKeysTest {
     assertTrue(keys.handle(event(KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.ACTION_UP), null, warn))
   }
 
+  @Test fun shiftHomeAndEndSelectToTheEdgesOfTheText() {
+    val info = AccessibilityNodeInfo.obtain().apply {
+      isEditable = true
+      isEnabled = true
+      isFocused = true
+      text = "hello world"
+      setTextSelection(6, 6)
+    }
+    val field = AccessibilityNodeInfoCompat.wrap(info)
+    val requested = ArrayList<Triple<Int, Int, Int>>()
+    shadowOf(info).setOnPerformActionListener { action, arguments ->
+      requested += Triple(
+        action,
+        arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT),
+        arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT),
+      )
+      true
+    }
+    val shift = KeyEvent.META_SHIFT_ON
+    assertTrue(keys.handle(event(KeyEvent.KEYCODE_MOVE_END, meta = shift), field, warn))
+    assertTrue(keys.handle(event(KeyEvent.KEYCODE_MOVE_HOME, meta = shift), field, warn))
+    assertEquals(listOf(
+      Triple(AccessibilityNodeInfo.ACTION_SET_SELECTION, 6, 11),
+      Triple(AccessibilityNodeInfo.ACTION_SET_SELECTION, 0, 6),
+    ), requested)
+    assertTrue(keys.handle(event(KeyEvent.KEYCODE_MOVE_END, KeyEvent.ACTION_UP, 0), null, warn))
+    assertFalse(keys.handle(event(KeyEvent.KEYCODE_MOVE_END, meta = shift), null, warn))
+    val readOnly = AccessibilityNodeInfoCompat.wrap(AccessibilityNodeInfo.obtain().apply {
+      isEnabled = true
+      isFocused = true
+      text = "hello"
+      setTextSelection(2, 2)
+    })
+    assertFalse(keys.handle(event(KeyEvent.KEYCODE_MOVE_HOME, meta = shift), readOnly, warn))
+    assertFalse(keys.handle(event(KeyEvent.KEYCODE_MOVE_END, meta = 0), field, warn))
+    assertTrue(warnings.isEmpty())
+  }
+
   @Test fun plainArrowsAndNonEditableFocusAreNotCaptured() {
     assertFalse(keys.handle(event(KeyEvent.KEYCODE_DPAD_LEFT, meta = 0), editor(7), warn))
     assertFalse(keys.handle(event(KeyEvent.KEYCODE_DPAD_LEFT), null, warn))
