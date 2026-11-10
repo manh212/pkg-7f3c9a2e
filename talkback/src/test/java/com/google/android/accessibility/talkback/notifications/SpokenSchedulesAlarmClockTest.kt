@@ -89,6 +89,60 @@ class SpokenSchedulesAlarmClockTest {
   }
 
   @Test
+  fun clockSwitchOff_setsNoClockAlarmButKeepsTheSummary() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    val minutes = minuteOfDay(System.currentTimeMillis()) + 2
+    startSchedules {
+      putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet())
+      putBoolean(SpokenSchedules.KEY_CLOCK_ENABLED, false)
+      putBoolean(SpokenSchedules.KEY_SUMMARY_DAILY, true)
+      putString(SpokenSchedules.KEY_SUMMARY_TIME, minutes.toString())
+    }
+
+    assertEquals(1, shadowAlarms.scheduledAlarms.size)
+    assertNotNull("the one alarm is the summary's alarm clock", alarmManager.nextAlarmClock)
+  }
+
+  @Test
+  fun clockInterval_schedulesWithinTheHour() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    startSchedules {
+      putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, setOf(hour.toString()))
+      putString(SpokenSchedules.KEY_CLOCK_INTERVAL, "30")
+    }
+
+    assertEquals(1, shadowAlarms.scheduledAlarms.size)
+    val trigger = shadowAlarms.scheduledAlarms[0].triggerAtMs
+    assertTrue(
+      "trigger $trigger is the next half-hour mark of the chosen hour",
+      trigger in
+        setOf(
+          SpokenSchedules.nextClockTime(System.currentTimeMillis() - 5_000L, setOf(hour), intervalMinutes = 30),
+          SpokenSchedules.nextClockTime(System.currentTimeMillis() + 5_000L, setOf(hour), intervalMinutes = 30),
+        ),
+    )
+  }
+
+  @Test
+  fun clockSoundOff_broadcastStillSpeaksWithoutTheSound() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    startSchedules {
+      putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet())
+      putBoolean(SpokenSchedules.KEY_CLOCK_SOUND, false)
+    }
+
+    context.sendBroadcast(
+      Intent(AlarmClockIntents.action(context, AlarmClockIntents.ACTION_SPOKEN_CLOCK))
+        .setPackage(context.packageName)
+    )
+    Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+    assertTrue("the clock still speaks", said.isNotEmpty())
+    assertEquals(0, playedClockSounds)
+  }
+
+  @Test
   fun dailySummary_setsAnAlarmClock() {
     ShadowAlarmManager.setCanScheduleExactAlarms(true)
     val minutes = minuteOfDay(System.currentTimeMillis()) + 2
