@@ -66,6 +66,8 @@ object SettingsBackup {
   private const val FILE_NAME = "sandfly-settings.json"
   private const val INITIAL_SETTINGS_FILE = "initial-settings.json"
   private const val BUNDLED_DEFAULTS_APPLIED = "bundled_defaults_applied"
+  private const val EVENT_PROCESSING_LEVEL_RESET = "event_processing_level_reset"
+  private const val KEY_EVENT_PROCESSING_LEVEL = "pref_event_processing_level"
   private const val MAX_BYTES = 5 * 1024 * 1024
   private const val PREFS_SUFFIX = ".xml"
 
@@ -322,6 +324,27 @@ object SettingsBackup {
         .commit()
     ) {
       LogUtils.e(TAG, "Cannot record that the bundled initial settings were applied")
+    }
+  }
+
+  /**
+   * Raises every existing install to the medium event-processing level, once. Very low drops
+   * progress updates and announcements that are not tied to the user's own touch, which left
+   * progress bars silent. The reset runs a single time; a level the user picks afterwards in
+   * the developer settings is left alone.
+   */
+  @JvmStatic
+  fun applyEventProcessingLevelResetIfNeeded(context: Context) {
+    val statePrefs =
+      SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
+    if (statePrefs.getBoolean(EVENT_PROCESSING_LEVEL_RESET, false)) return
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    if (!prefs.edit().putString(KEY_EVENT_PROCESSING_LEVEL, "medium").commit()) {
+      LogUtils.e(TAG, "Cannot raise the event processing level")
+      return
+    }
+    if (!statePrefs.edit().putBoolean(EVENT_PROCESSING_LEVEL_RESET, true).commit()) {
+      LogUtils.e(TAG, "Cannot record the event processing level reset")
     }
   }
 
