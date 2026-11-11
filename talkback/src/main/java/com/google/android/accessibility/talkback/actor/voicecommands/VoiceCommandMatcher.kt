@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.actor.voicecommands
 import android.content.Context
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.commands.Commands
+import com.google.android.accessibility.talkback.gesture.OpenAppActions
 import java.text.Normalizer
 import java.util.Locale
 
@@ -143,6 +144,13 @@ object VoiceCommandCatalog {
           continue
         }
         entries.add(VoiceCommandMatcher.Entry(command.label, value))
+        if (OpenAppActions.isAction(value)) {
+          // An app is in the catalog under its bare name, but nobody says the name
+          // alone: the spoken form is "Mở" and the name, so register that too.
+          OpenAppActions.label(context, value)?.let {
+            entries.add(VoiceCommandMatcher.Entry(it, value))
+          }
+        }
       }
     }
     return entries
