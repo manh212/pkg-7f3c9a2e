@@ -37,7 +37,10 @@ internal object SubtitleAccessibility {
             lines.add(line)
           } else if (scanChildren) {
             val childLimit = minOf(node.childCount, MAX_NODES - visited - queue.size)
-            for (index in 0 until childLimit) node.getChild(index)?.let(queue::addLast)
+            for (index in 0 until childLimit) {
+              if (SystemClock.uptimeMillis() > deadline) break
+              node.getChild(index)?.let(queue::addLast)
+            }
           }
         } finally {
           if (node !== source) node.recycle()

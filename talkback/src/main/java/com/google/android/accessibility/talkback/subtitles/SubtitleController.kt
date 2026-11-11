@@ -319,9 +319,9 @@ class SubtitleController internal constructor(
       event.packageName?.toString() == owner) {
       val now = SystemClock.uptimeMillis()
       if (lastAccessibilityEventAt?.let { now - it < ACCESSIBILITY_EVENT_INTERVAL_MS } == true) return
-      lastAccessibilityEventAt = now
       refreshVideoViewport()
       val source = event.source ?: return
+      lastAccessibilityEventAt = now
       try {
         readAccessibleSubtitle(source, fromWindow = false)
       } finally { source.recycle() }

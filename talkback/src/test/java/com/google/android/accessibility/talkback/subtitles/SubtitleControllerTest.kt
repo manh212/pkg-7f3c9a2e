@@ -174,6 +174,24 @@ class SubtitleControllerTest {
     assertEquals(listOf(caption to true, fallback to true), speaker.spoken)
   }
 
+  @Test fun subtitleTreeScanFiltersPlayerControlsAndHonorsTheSelectedRegion() {
+    val source = captionContainer("Phụ đề ở phía trên")
+    try {
+      val upper = Rect(0, 0, 1000, 200)
+      val lower = Rect(0, 800, 1000, 1000)
+      val upperLines = SubtitleAccessibility.findLines(
+        source, upper, maxLineHeight = 100, automatic = false, allowUpper = true,
+        scanChildren = true, scanWindow = true)
+      val lowerLines = SubtitleAccessibility.findLines(
+        source, lower, maxLineHeight = 100, automatic = false, allowUpper = true,
+        scanChildren = true, scanWindow = true)
+      assertEquals(listOf("Phụ đề ở phía trên"), upperLines.map { it.text })
+      assertTrue(lowerLines.isEmpty())
+    } finally {
+      source.recycle()
+    }
+  }
+
   private fun restartWithRegion(region: String) {
     controller.stop(false)
     SharedPreferencesUtils.getSharedPreferences(service).edit()
