@@ -134,4 +134,63 @@ class VoiceCommandParametersTest {
     assertFalse(VoiceCommandParameters.isYesAnswer("xóa", keywords))
     assertFalse(VoiceCommandParameters.isYesAnswer("", keywords))
   }
+
+  @Test
+  fun wordNumberPercent() {
+    val fifty = VoiceCommandParameters.parsePercent("âm lượng năm mươi phần trăm", keywords)
+    assertEquals(VoiceCommandParameters.PercentKind.SPEECH_VOLUME, fifty?.kind)
+    assertEquals(50, fifty?.value)
+
+    val media = VoiceCommandParameters.parsePercent("âm lượng nhạc ba mươi", keywords)
+    assertEquals(VoiceCommandParameters.PercentKind.MEDIA_VOLUME, media?.kind)
+    assertEquals(30, media?.value)
+
+    val rate = VoiceCommandParameters.parsePercent("tốc độ đọc một trăm hai mươi", keywords)
+    assertEquals(VoiceCommandParameters.PercentKind.SPEECH_RATE, rate?.kind)
+    assertEquals(120, rate?.value)
+
+    val noDiacritics = VoiceCommandParameters.parsePercent("am luong nam muoi", keywords)
+    assertEquals(50, noDiacritics?.value)
+
+    val fifteen = VoiceCommandParameters.parsePercent("âm lượng mười lăm phần trăm", keywords)
+    assertEquals(15, fifteen?.value)
+
+    val twentyOne = VoiceCommandParameters.parsePercent("âm lượng hai mươi mốt", keywords)
+    assertEquals(21, twentyOne?.value)
+  }
+
+  @Test
+  fun wordNumberDurations() {
+    assertEquals(
+      5 * 60_000L, VoiceCommandParameters.parseDurationMillis("báo thức năm phút", keywords)
+    )
+    assertEquals(
+      5_400_000L,
+      VoiceCommandParameters.parseDurationMillis("đếm ngược một giờ ba mươi phút", keywords),
+    )
+    assertEquals(
+      45_000L, VoiceCommandParameters.parseDurationMillis("bao thuc bon muoi lam giay", keywords)
+    )
+    assertEquals(
+      7_200_000L, VoiceCommandParameters.parseDurationMillis("báo thức hai giờ", keywords)
+    )
+  }
+
+  @Test
+  fun wordNumberRepeats() {
+    val repeat = VoiceCommandParameters.parseRepeat("cuộn xuống ba lần", keywords)
+    assertEquals("cuon xuong", repeat?.text)
+    assertEquals(3, repeat?.count)
+
+    assertNull(VoiceCommandParameters.parseRepeat("cuộn xuống một lần", keywords))
+  }
+
+  @Test
+  fun wordNumbersLeaveOtherWordsAlone() {
+    // A unit word inside an ordinary phrase is not a parameter without its keyword.
+    assertNull(VoiceCommandParameters.parsePercent("mở trang năm", keywords))
+    assertNull(VoiceCommandParameters.parseDurationMillis("hẹn giờ năm phút", keywords))
+    // A bare "không" is a negation, not the number zero.
+    assertNull(VoiceCommandParameters.parsePercent("âm lượng không phần trăm", keywords))
+  }
 }
