@@ -72,14 +72,19 @@ object VoiceCommandPhrases {
       @JvmStatic
       fun from(context: Context): Keywords =
         Keywords(
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_create_openers),
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_set_prefixes),
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_separator),
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_list_commands),
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_delete_prefixes),
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_cancel_words),
-          VoiceCommandBilingual.list(context, R.string.voice_phrase_finish_words),
+          phrases(context, R.string.voice_phrase_create_openers),
+          phrases(context, R.string.voice_phrase_set_prefixes),
+          phrases(context, R.string.voice_phrase_separator),
+          phrases(context, R.string.voice_phrase_list_commands),
+          phrases(context, R.string.voice_phrase_delete_prefixes),
+          phrases(context, R.string.voice_phrase_cancel_words),
+          phrases(context, R.string.voice_phrase_finish_words),
         )
+
+      /** The resource's keyword list, or the user's own phrasings when they replaced it. */
+      private fun phrases(context: Context, resId: Int): List<String> =
+          VoiceCommandSpeechOverrides.forResource(context, resId)
+              ?: VoiceCommandBilingual.list(context, resId)
     }
   }
 

@@ -40,6 +40,20 @@ class VoiceCommandSettingsFragment : TalkbackBaseFragment() {
     screen.addPreference(row)
     phrasesRow = row
 
+    val keywords = AccessibilitySuitePreference(context)
+    keywords.title = getString(R.string.title_voice_command_keywords)
+    keywords.isPersistent = false
+    keywords.isIconSpaceReserved = false
+    keywords.fragment = VoiceCommandKeywordListFragment::class.java.name
+    screen.addPreference(keywords)
+
+    val fixedCommands = AccessibilitySuitePreference(context)
+    fixedCommands.title = getString(R.string.title_voice_command_fixed_commands)
+    fixedCommands.isPersistent = false
+    fixedCommands.isIconSpaceReserved = false
+    fixedCommands.fragment = VoiceCommandFixedListFragment::class.java.name
+    screen.addPreference(fixedCommands)
+
     val aiFallback = AccessibilitySuiteSwitchPreference(context)
     aiFallback.title = getString(R.string.title_voice_command_ai_fallback)
     aiFallback.summary = getString(R.string.summary_voice_command_ai_fallback)

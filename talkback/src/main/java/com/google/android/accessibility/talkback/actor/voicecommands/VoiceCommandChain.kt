@@ -31,7 +31,9 @@ object VoiceCommandChain {
     companion object {
       @JvmStatic
       fun from(context: Context): Keywords =
-        Keywords(VoiceCommandBilingual.list(context, R.string.voice_chain_connectors))
+        Keywords(
+            VoiceCommandSpeechOverrides.forResource(context, R.string.voice_chain_connectors)
+                ?: VoiceCommandBilingual.list(context, R.string.voice_chain_connectors))
     }
   }
 
