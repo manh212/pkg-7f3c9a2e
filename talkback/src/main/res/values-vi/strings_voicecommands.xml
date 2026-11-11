@@ -164,6 +164,10 @@
   <string name="voice_param_decrease">giảm</string>
   <string name="voice_param_at">lúc</string>
   <string name="voice_param_day_parts">sáng,trưa,chiều,tối,đêm</string>
+  <string name="voice_param_item_goto">đi tới mục,tới mục,đến mục</string>
+  <string name="voice_param_item">mục</string>
+  <string name="voice_param_number_word">số</string>
+  <string name="voice_item_not_found">Không có mục số %1$d trên màn hình này</string>
   <string name="voice_param_media_volume_value">Âm lượng nhạc: %1$d%%</string>
   <string name="voice_phrase_create_openers">tạo lệnh mới,thêm lệnh mới,đặt lệnh mới</string>
   <string name="voice_phrase_set_prefixes">đặt lệnh,gán lệnh,tạo lệnh</string>

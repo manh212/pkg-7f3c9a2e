@@ -394,6 +394,10 @@
   <string name="voice_param_decrease">decrease,lower</string>
   <string name="voice_param_at">at</string>
   <string name="voice_param_day_parts">am,pm</string>
+  <string name="voice_param_item_goto">go to item</string>
+  <string name="voice_param_item">item</string>
+  <string name="voice_param_number_word">number</string>
+  <string name="voice_item_not_found">Không có mục số %1$d trên màn hình này</string>
   <!-- Announces the media volume after a voice command sets it. [CHAR_LIMIT=NONE] -->
   <string name="voice_param_media_volume_value">Media volume: %1$d%%</string>
   <!-- Comma-separated spoken phrases that start teaching a custom voice command phrase. [CHAR_LIMIT=NONE] -->
