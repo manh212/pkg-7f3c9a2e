@@ -30,7 +30,7 @@ import com.google.android.accessibility.talkback.utils.RemoteIntentUtils;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.WebActivity;
 
-/** Fragment to display tutorial and help page. */
+/** Fragment to display the tutorial page. */
 public class TutorialAndHelpFragment extends TalkbackBaseFragment {
 
   public TutorialAndHelpFragment() {
@@ -45,7 +45,7 @@ public class TutorialAndHelpFragment extends TalkbackBaseFragment {
               ? R.string.title_pref_category_tutorial
               : R.string.title_pref_category_help_no_tutorial);
     }
-    return getText(R.string.title_pref_category_tutorial);
+    return getText(R.string.title_pref_tutorial);
   }
 
   @Override

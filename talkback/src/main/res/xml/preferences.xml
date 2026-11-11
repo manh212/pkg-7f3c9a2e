@@ -5,6 +5,10 @@
       android:key="pref_updates_screen"
       android:title="@string/title_pref_updates" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.InitialSetupFragment"
+      android:key="pref_initial_setup_screen"
+      android:title="@string/timer_setup_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.TextToSpeechSettingsFragment"
       android:key="@string/pref_tts_settings_key"
       android:title="@string/title_pref_voice_settings" />
@@ -37,17 +41,9 @@
       android:key="@string/pref_settings_group_screen_info_key"
       android:title="@string/title_pref_recognition_ai" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.translation.TranslationFragment"
-      android:key="@string/pref_offline_translation_settings_key"
-      android:title="@string/title_pref_translation" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.timer.TimerSettingsFragment"
-      android:key="pref_timer_settings_screen"
-      android:title="@string/title_pref_clock_stopwatch" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.taskassistant.TaskAssistantFragment"
-      android:key="task_assistant"
-      android:title="@string/title_pref_task_assistant" />
+      android:fragment="com.google.android.accessibility.talkback.preference.base.ToolsGroupFragment"
+      android:key="@string/pref_settings_group_tools_key"
+      android:title="@string/title_pref_group_tools" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.AppsGroupFragment"
       android:key="@string/pref_settings_group_apps_key"
@@ -57,18 +53,11 @@
       android:key="pref_backup_reset_screen"
       android:title="@string/title_pref_backup_reset" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.SystemHelpGroupFragment"
-      android:key="@string/pref_settings_group_system_help_key"
-      android:title="@string/title_pref_group_system_help" />
+      android:fragment="com.google.android.accessibility.talkback.preference.base.AdvancedGroupFragment"
+      android:key="@string/pref_settings_group_advanced_key"
+      android:title="@string/title_pref_advanced_settings" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.LogAndReportsFragment"
-      android:key="support_screen"
-      android:title="@string/support_title" />
-  <com.google.android.accessibility.talkback.licensing.ForumEntryPreference
-      android:key="forum_open"
-      android:title="@string/forum_title" />
-  <com.google.android.accessibility.talkback.licensing.OwnerChatEntryPreference
-      android:key="meridian_owner_private_chat"
-      android:title="Nhắn tin" />
+      android:fragment="com.google.android.accessibility.talkback.preference.base.HelpCenterGroupFragment"
+      android:key="@string/pref_settings_group_help_center_key"
+      android:title="@string/title_pref_group_help_center" />
 </PreferenceScreen>
-

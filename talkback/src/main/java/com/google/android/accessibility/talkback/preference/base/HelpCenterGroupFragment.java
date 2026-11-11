@@ -18,14 +18,15 @@ package com.google.android.accessibility.talkback.preference.base;
 
 import com.google.android.accessibility.talkback.R;
 
-public class SystemHelpGroupFragment extends AdvancedSettingFragment {
+/** Main settings group holding the tutorial, the about page, logs and community entries. */
+public class HelpCenterGroupFragment extends AdvancedSettingFragment {
 
-  public SystemHelpGroupFragment() {
-    super(R.xml.settings_group_system_help);
+  public HelpCenterGroupFragment() {
+    super(R.xml.settings_group_help_center);
   }
 
   @Override
   public CharSequence getTitle() {
-    return getText(R.string.title_pref_group_system_help);
+    return getText(R.string.title_pref_group_help_center);
   }
 }

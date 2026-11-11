@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_tools_key">
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.timer.TimerSettingsFragment"
+        android:key="pref_timer_settings_screen"
+        android:title="@string/title_pref_clock_stopwatch" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.translation.TranslationFragment"
+        android:key="@string/pref_offline_translation_settings_key"
+        android:title="@string/title_pref_translation" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.taskassistant.TaskAssistantFragment"
+        android:key="task_assistant"
+        android:title="@string/title_pref_task_assistant" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandSettingsFragment"
+        android:key="pref_voice_commands_screen"
+        android:title="@string/title_voice_commands_settings" />
+    <com.google.android.accessibility.talkback.texteditor.TextEditorEntryPreference
+        android:key="pref_text_editor_screen"
+        android:title="@string/text_editor_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+</PreferenceScreen>

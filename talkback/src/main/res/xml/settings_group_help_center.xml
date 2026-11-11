@@ -2,27 +2,33 @@
 <PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_system_help_key">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_help_center_key">
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.notifications.InitialSetupFragment"
-        android:key="pref_initial_setup_screen"
-        android:title="@string/timer_setup_title" />
+        android:fragment="com.google.android.accessibility.talkback.preference.base.TutorialAndHelpFragment"
+        android:key="@string/pref_tutorial_and_help_key"
+        android:title="@string/title_pref_tutorial" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.AboutFragment"
+        android:key="pref_about_screen"
+        android:title="@string/title_pref_about" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.LogAndReportsFragment"
+        android:key="support_screen"
+        android:title="@string/support_title" />
+    <com.google.android.accessibility.talkback.licensing.ForumEntryPreference
+        android:key="forum_open"
+        android:title="@string/forum_title" />
+    <com.google.android.accessibility.talkback.licensing.OwnerChatEntryPreference
+        android:key="meridian_owner_private_chat"
+        android:title="Nhắn tin" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="pref_open_accessibility_settings"
         android:title="@string/title_open_accessibility_settings">
       <intent android:action="android.settings.ACCESSIBILITY_SETTINGS" />
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreference>
-
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.TutorialAndHelpFragment"
-        android:key="@string/pref_tutorial_and_help_key"
-        android:title="@string/title_pref_category_tutorial" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_survey_setting_entry_point_key"
         android:title="@string/survey_setting_title" />
-    <com.google.android.accessibility.talkback.wallpaper.MeridianWallpaperPreference
-        android:key="pref_meridian_wallpaper"
-        android:title="@string/meridian_wallpaper_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
         android:defaultValue="@string/pref_resume_backtalk_default"
         android:dialogTitle="@string/title_pref_resume_backtalk"
@@ -37,10 +43,5 @@
         android:persistent="false"
         android:summary="@string/summary_pref_play_installer"
         android:title="@string/title_pref_play_installer" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.DeveloperPrefFragment"
-        android:key="@string/pref_category_developer_key"
-        android:title="@string/title_pref_category_developer_settings"
-        app:allowDividerAbove="true" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>
