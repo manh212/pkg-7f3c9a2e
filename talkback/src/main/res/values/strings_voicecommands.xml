@@ -426,4 +426,8 @@
   <string name="voice_command_phrase_delete_title">Xóa cụm từ</string>
   <!-- Message of the dialog that deletes a taught phrase from settings. [CHAR_LIMIT=NONE] -->
   <string name="voice_command_phrase_delete_message">Xóa cụm từ \'%1$s\' (cho %2$s)?</string>
+  <!-- Title of the switch that lets an AI interpret voice commands nothing else matched. [CHAR_LIMIT=NONE] -->
+  <string name="title_voice_command_ai_fallback">Dự phòng bằng AI</string>
+  <!-- Summary of the AI fallback switch. [CHAR_LIMIT=NONE] -->
+  <string name="summary_voice_command_ai_fallback">Khi không nhận ra lệnh, gửi câu nói tới dịch vụ AI để đoán hành động rồi chạy ngay. Câu nói được gửi qua mạng.</string>
 </resources>
