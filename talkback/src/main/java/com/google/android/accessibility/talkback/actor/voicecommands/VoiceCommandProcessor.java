@@ -44,6 +44,7 @@ import static com.google.android.accessibility.talkback.Interpretation.VoiceComm
 import static com.google.android.accessibility.talkback.Interpretation.VoiceCommand.Action.VOICE_COMMAND_START_SELECT;
 import static com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandActor.RECOGNITION_SPEECH_DELAY_MS;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_RECOGNIZED;
+import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_ACTION;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_ALL_APPS;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_ASSISTANT;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_BACK;
@@ -147,6 +148,7 @@ public class VoiceCommandProcessor {
   ////////////////////////////////////////////////////////////////////////////////////////////////
   private List<String> verbosityCommandList;
   private List<String> granularityCommandList;
+  private List<VoiceCommandMatcher.Entry> catalogEntries;
 
   private static final int[] typeCommandResArray = {
     R.string.voice_commands_type,
@@ -817,6 +819,13 @@ public class VoiceCommandProcessor {
       return true;
     }
 
+    // Any other action that a gesture or a shortcut can run can be spoken by its name.
+    // Partial results are not matched: the phrase may still be growing into another command.
+    if (!isPartialResult && handleCatalogCommand(command, eventId)) {
+      handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
+      return true;
+    }
+
     if (echoNotRecognizedTextEnabled) {
       speakDelayed(
           service.getString(R.string.voice_commands_echo_feedback_not_recognized, command));
@@ -835,6 +844,19 @@ public class VoiceCommandProcessor {
     }
 
     return false;
+  }
+
+  /* Runs the catalog action whose name the recognized text matches, if any. */
+  private boolean handleCatalogCommand(String command, EventId eventId) {
+    if (catalogEntries == null) {
+      catalogEntries = VoiceCommandCatalog.entries(service);
+    }
+    VoiceCommandMatcher.Match match = VoiceCommandMatcher.INSTANCE.match(command, catalogEntries);
+    if (match == null) {
+      return false;
+    }
+    service.performCatalogAction(match.getValue(), eventId);
+    return true;
   }
 
   private List<String> getCommandList(int[] formattedCommandArray, int[] parameterArrays) {
