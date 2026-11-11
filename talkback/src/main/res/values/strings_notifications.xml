@@ -25,6 +25,12 @@
     <string name="notification_queue_interrupt">Interrupt it</string>
     <!-- Choices of what happens to a notification that arrives while another is read. -->
     <string name="notification_queue_queue">Read after it</string>
+    <!-- Choices of what happens to a notification that arrives while something else is read. -->
+    <string name="notification_while_reading_now">Read it now</string>
+    <!-- Choices of what happens to a notification that arrives while something else is read. -->
+    <string name="notification_while_reading_after">Read it after the reading finishes</string>
+    <!-- Choices of what happens to a notification that arrives while something else is read. -->
+    <string name="notification_while_reading_skip">Do not read it</string>
     <!-- Choices of how links are read. -->
     <string name="notification_url_omit">Leave out</string>
     <!-- Choices of how links are read. -->
@@ -119,6 +125,8 @@
     <string name="notification_delay_title">Wait before reading</string>
     <!-- Setting: what happens to a notification that arrives while another is being read. -->
     <string name="notification_queue_title">When another notification is read</string>
+    <!-- Setting: what happens to a notification that arrives while something else is being read. -->
+    <string name="notification_while_reading_title">While something else is being read</string>
     <!-- Setting: notifications read with the screen off are read again at this interval until the screen turns on. -->
     <string name="notification_repeat_minutes_title">Read again until the screen turns on</string>
     <!-- Switch: notifications of music and video players are not read. -->
@@ -901,6 +909,17 @@
         <item>@string/notification_queue_queue</item>
         <item>@string/notification_queue_interrupt</item>
         <item>@string/notification_queue_skip</item>
+    </string-array>
+    <!-- Choices of what happens to a notification that arrives while something else is read. -->
+    <string-array name="notification_while_reading_entries">
+        <item>@string/notification_while_reading_now</item>
+        <item>@string/notification_while_reading_after</item>
+        <item>@string/notification_while_reading_skip</item>
+    </string-array>
+    <string-array name="notification_while_reading_values" translatable="false">
+        <item>NOW</item>
+        <item>AFTER</item>
+        <item>SKIP</item>
     </string-array>
     <!-- Choices of when notifications are read, by headphones. -->
     <string-array name="notification_headphones_entries">
