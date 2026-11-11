@@ -15,6 +15,7 @@ package com.google.android.accessibility.talkback.actor.voicecommands
 import android.os.Bundle
 import androidx.preference.Preference
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+import com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 
@@ -37,6 +38,15 @@ class VoiceCommandSettingsFragment : TalkbackBaseFragment() {
     row.fragment = VoiceCommandPhraseListFragment::class.java.name
     screen.addPreference(row)
     phrasesRow = row
+
+    val aiFallback = AccessibilitySuiteSwitchPreference(context)
+    aiFallback.title = getString(R.string.title_voice_command_ai_fallback)
+    aiFallback.summary = getString(R.string.summary_voice_command_ai_fallback)
+    aiFallback.key = VoiceCommandAi.PREF_KEY
+    aiFallback.setDefaultValue(false)
+    aiFallback.isPersistent = true
+    aiFallback.isIconSpaceReserved = false
+    screen.addPreference(aiFallback)
   }
 
   override fun onResume() {

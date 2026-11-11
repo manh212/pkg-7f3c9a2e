@@ -165,12 +165,16 @@ public class VoiceCommandProcessor {
   private final Runnable phraseDialogueTimeout = this::onPhraseDialogueTimeout;
   private int phraseStage;
   private String phraseDraft;
+  private int aiRequestId;
+  private String aiCommand;
+  private final Runnable aiFallbackTimeout = this::onAiFallbackTimeout;
 
   private static final int PHRASE_STAGE_NONE = 0;
   private static final int PHRASE_STAGE_PHRASE = 1;
   private static final int PHRASE_STAGE_ACTION = 2;
 
   private static final long CONFIRMATION_TIMEOUT_MS = 10000;
+  private static final long AI_FALLBACK_TIMEOUT_MS = 12000;
   private static final long REPEAT_INTERVAL_MS = 350;
 
   /** Asks the owner of the listening session to listen once more for a spoken answer. */
@@ -346,6 +350,11 @@ public class VoiceCommandProcessor {
     }
     LogUtils.i(LOG_TAG, "handleSpeechCommand() command=\"%s\"", command);
     EventId eventId = EVENT_ID_UNTRACKED;
+
+    // A new final result supersedes an AI answer still on its way for an earlier sentence.
+    if (!isPartialResult) {
+      invalidateAiFallback();
+    }
 
     // A dangerous command is waiting for its spoken confirmation: this result is the answer,
     // never a new command. Partial results do not answer it.
@@ -908,14 +917,13 @@ public class VoiceCommandProcessor {
       return true;
     }
 
-    if (echoNotRecognizedTextEnabled) {
-      speakDelayed(
-          service.getString(R.string.voice_commands_echo_feedback_not_recognized, command));
-    } else {
-      speakDelayed(
-          service.getString(
-              R.string.voice_commands_partial_result, service.getString(R.string.title_pref_help)));
+    // Nothing matched. When the user turned the AI fallback on, the sentence is given to
+    // the AI before it is called unrecognized; the fallback speaks for itself.
+    if (!isPartialResult && startAiFallback(command, eventId)) {
+      return true;
     }
+
+    speakUnrecognized(command);
     if (!isPartialResult) {
       // To expect further partial/final result from speech recognizer could match the supported
       // commands, we don't log the unrecognized metrics for partial result. On the other hand, for
@@ -1162,6 +1170,28 @@ public class VoiceCommandProcessor {
     phraseStage = PHRASE_STAGE_NONE;
     phraseDraft = null;
     mainHandler.removeCallbacks(phraseDialogueTimeout);
+    invalidateAiFallback();
+  }
+
+  /* Applies one spoken percentage to the volume or the speech rate it names. */
+  private void applyPercent(VoiceCommandParameters.Percent percent) {
+    switch (percent.getKind()) {
+      case SPEECH_VOLUME -> {
+        int applied =
+            SpeechVolumeControl.set(
+                service, SharedPreferencesUtils.getSharedPreferences(service), percent.getValue());
+        speakDelayed(service.getString(R.string.selector_speech_volume_value, applied));
+      }
+      case MEDIA_VOLUME -> {
+        VoiceCommandActions.setMediaVolumePercent(service, percent.getValue());
+        speakDelayed(
+            service.getString(R.string.voice_param_media_volume_value, percent.getValue()));
+      }
+      case SPEECH_RATE -> {
+        int applied = speechRateAndPitchActor.setSpeechRatePercent(percent.getValue());
+        speakDelayed(service.getString(R.string.template_speech_rate_change, applied));
+      }
+    }
   }
 
   /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
@@ -1170,25 +1200,7 @@ public class VoiceCommandProcessor {
     VoiceCommandParameters.Percent percent =
         VoiceCommandParameters.parsePercent(command, keywords);
     if (percent != null) {
-      switch (percent.getKind()) {
-        case SPEECH_VOLUME -> {
-          int applied =
-              SpeechVolumeControl.set(
-                  service,
-                  SharedPreferencesUtils.getSharedPreferences(service),
-                  percent.getValue());
-          speakDelayed(service.getString(R.string.selector_speech_volume_value, applied));
-        }
-        case MEDIA_VOLUME -> {
-          VoiceCommandActions.setMediaVolumePercent(service, percent.getValue());
-          speakDelayed(
-              service.getString(R.string.voice_param_media_volume_value, percent.getValue()));
-        }
-        case SPEECH_RATE -> {
-          int applied = speechRateAndPitchActor.setSpeechRatePercent(percent.getValue());
-          speakDelayed(service.getString(R.string.template_speech_rate_change, applied));
-        }
-      }
+      applyPercent(percent);
       return true;
     }
     Long alarmMillis = VoiceCommandParameters.parseDurationMillis(command, keywords);
@@ -1240,6 +1252,12 @@ public class VoiceCommandProcessor {
           });
       return;
     }
+    performCatalogValue(value, repeat, eventId);
+  }
+
+  /* Runs one catalog action by value at once, with its spoken repeats. */
+  private void performCatalogValue(
+      String value, VoiceCommandParameters.Repeat repeat, EventId eventId) {
     service.performCatalogAction(value, eventId);
     handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
     if (repeat != null) {
@@ -1353,6 +1371,103 @@ public class VoiceCommandProcessor {
       speakDelayed(service.getString(R.string.not_editable));
       return null;
     }
+  }
+
+  /* Speaks the feedback for a command nothing recognized. */
+  private void speakUnrecognized(String command) {
+    if (echoNotRecognizedTextEnabled) {
+      speakDelayed(
+          service.getString(R.string.voice_commands_echo_feedback_not_recognized, command));
+    } else {
+      speakDelayed(
+          service.getString(
+              R.string.voice_commands_partial_result, service.getString(R.string.title_pref_help)));
+    }
+  }
+
+  /* Drops an AI answer still on its way, without a word. */
+  private void invalidateAiFallback() {
+    aiRequestId++;
+    aiCommand = null;
+    mainHandler.removeCallbacks(aiFallbackTimeout);
+  }
+
+  /*
+   * Hands an unmatched sentence to the AI fallback, when the user turned it on. Returns
+   * true when the fallback took the sentence over; its outcome is spoken when it lands.
+   */
+  private boolean startAiFallback(String command, EventId eventId) {
+    if (!VoiceCommandAi.isEnabled(service)) {
+      return false;
+    }
+    if (catalogEntries == null) {
+      catalogEntries = VoiceCommandCatalog.entries(service);
+    }
+    List<VoiceCommandMatcher.Entry> entries = new ArrayList<>();
+    entries.addAll(VoiceCommandPhrases.entries(VoiceCommandPhrases.load(service)));
+    entries.addAll(catalogEntries);
+    final int requestId = ++aiRequestId;
+    aiCommand = command;
+    mainHandler.postDelayed(aiFallbackTimeout, AI_FALLBACK_TIMEOUT_MS);
+    VoiceCommandAi.interpret(
+        service,
+        command,
+        entries,
+        interpretation -> {
+          mainHandler.post(() -> onAiInterpretation(requestId, interpretation, eventId));
+          return kotlin.Unit.INSTANCE;
+        });
+    return true;
+  }
+
+  /* Runs what the AI made of one sentence, or calls it unrecognized after all. */
+  private void onAiInterpretation(
+      int requestId, VoiceCommandAi.Interpretation interpretation, EventId eventId) {
+    if (requestId != aiRequestId) {
+      // A newer command, or the timeout, already settled this sentence.
+      return;
+    }
+    mainHandler.removeCallbacks(aiFallbackTimeout);
+    String command = aiCommand;
+    aiCommand = null;
+    aiRequestId++;
+    if (interpretation instanceof VoiceCommandAi.Interpretation.Action) {
+      VoiceCommandAi.Interpretation.Action action =
+          (VoiceCommandAi.Interpretation.Action) interpretation;
+      VoiceCommandMatcher.Entry entry = action.getEntry();
+      // The pick runs at once, with no confirmation, and its name is spoken first, so the
+      // user hears what their sentence was understood as.
+      speakDelayed(entry.getPhrase());
+      VoiceCommandParameters.Repeat repeat =
+          action.getRepeat() > 1
+              ? new VoiceCommandParameters.Repeat(entry.getPhrase(), action.getRepeat())
+              : null;
+      performCatalogValue(entry.getValue(), repeat, eventId);
+    } else if (interpretation instanceof VoiceCommandAi.Interpretation.Percent) {
+      applyPercent(((VoiceCommandAi.Interpretation.Percent) interpretation).getPercent());
+    } else if (interpretation instanceof VoiceCommandAi.Interpretation.Alarm) {
+      long durationMillis =
+          ((VoiceCommandAi.Interpretation.Alarm) interpretation).getDurationMillis();
+      VoiceCommandActions.startCountdownAlarm(service, durationMillis);
+      speakDelayed(
+          service.getString(
+              R.string.countdown_alarm_added, Stopwatch.formatElapsed(service, durationMillis)));
+    } else {
+      analytics.onVoiceCommandEvent(VOICE_COMMAND_UNRECOGNIZED);
+      speakUnrecognized(command);
+    }
+  }
+
+  /* Runs when the AI answer never arrives: the sentence is called unrecognized after all. */
+  private void onAiFallbackTimeout() {
+    if (aiCommand == null) {
+      return;
+    }
+    String command = aiCommand;
+    aiCommand = null;
+    aiRequestId++;
+    analytics.onVoiceCommandEvent(VOICE_COMMAND_UNRECOGNIZED);
+    speakUnrecognized(command);
   }
 
   /** Delay to announce message to inform user. */
