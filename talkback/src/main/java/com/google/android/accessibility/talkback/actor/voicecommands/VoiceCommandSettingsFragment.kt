@@ -47,6 +47,15 @@ class VoiceCommandSettingsFragment : TalkbackBaseFragment() {
     aiFallback.isPersistent = true
     aiFallback.isIconSpaceReserved = false
     screen.addPreference(aiFallback)
+
+    val continuous = AccessibilitySuiteSwitchPreference(context)
+    continuous.title = getString(R.string.title_voice_commands_continuous)
+    continuous.summary = getString(R.string.summary_voice_commands_continuous)
+    continuous.key = VoiceCommandActor.PREF_CONTINUOUS
+    continuous.setDefaultValue(false)
+    continuous.isPersistent = true
+    continuous.isIconSpaceReserved = false
+    screen.addPreference(continuous)
   }
 
   override fun onResume() {
