@@ -37,8 +37,8 @@ object VoiceCommandMatcher {
   /** One spoken phrase and the action value it runs. */
   class Entry(val phrase: String, val value: String)
 
-  /** The winning entry of a [match], with the score it won by. */
-  class Match(val value: String, val score: Double)
+  /** The winning entry of a [match], with the phrase that won and the score it won by. */
+  class Match(val phrase: String, val value: String, val score: Double)
 
   private const val MIN_SCORE = 0.85
   private const val MIN_MARGIN = 0.1
@@ -65,7 +65,7 @@ object VoiceCommandMatcher {
       val current = best
       if (current == null || score > current.score) {
         if (current != null && current.value != entry.value) runnerUp = maxOf(runnerUp, current.score)
-        best = Match(entry.value, score)
+        best = Match(entry.phrase, entry.value, score)
       } else if (entry.value != current.value) {
         runnerUp = maxOf(runnerUp, score)
       }
