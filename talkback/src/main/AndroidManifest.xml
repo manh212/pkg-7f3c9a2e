@@ -25,6 +25,8 @@
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Required to place a call to a phone number dictated as a voice command. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
 
     <!-- Required for haptic feedback. -->
     <uses-permission android:name="android.permission.VIBRATE" />
