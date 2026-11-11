@@ -53,7 +53,7 @@ class NotificationSettingsTest {
 
   @Test
   fun busyBehaviorReadsAfterFromThePreference() {
-    prefs.edit().putString(NotificationSettings.Keys.WHILE_READING, "AFTER").commit()
+    prefs.edit().putString("pref_notification_while_reading", "AFTER").commit()
     assertEquals(BusyBehavior.AFTER, NotificationSettings.read(prefs).busyBehavior)
   }
 }
