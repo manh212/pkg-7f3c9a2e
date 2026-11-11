@@ -366,6 +366,7 @@
   <string name="voice_phrase_finish_words">done</string>
   <string name="voice_phrase_more_question">Còn hành động nào nữa không? Nói tên hành động, hoặc nói xong.</string>
   <string name="voice_phrase_confirm_macro_question">Gán \'%1$s\' cho các hành động: %2$s?</string>
+  <string name="voice_phrase_confirm_macro_collision">Cụm từ \'%1$s\' đã có nghĩa khác. Vẫn gán cho các hành động: %2$s?</string>
   <string name="title_voice_commands_continuous">Nghe liên tục</string>
   <string name="summary_voice_commands_continuous">Sau mỗi lệnh, máy tự nghe tiếp lệnh sau. Nói “dừng” hoặc “xong” để thoát; máy cũng tự thoát khi khoảng 30 giây không có lệnh nào chạy.</string>
 
@@ -389,6 +390,10 @@
   <string name="voice_param_seconds">seconds</string>
   <!-- The word after a number that repeats a voice command action that many times. [CHAR_LIMIT=NONE] -->
   <string name="voice_param_times">times</string>
+  <string name="voice_param_increase">increase,raise</string>
+  <string name="voice_param_decrease">decrease,lower</string>
+  <string name="voice_param_at">at</string>
+  <string name="voice_param_day_parts">am,pm</string>
   <!-- Announces the media volume after a voice command sets it. [CHAR_LIMIT=NONE] -->
   <string name="voice_param_media_volume_value">Media volume: %1$d%%</string>
   <!-- Comma-separated spoken phrases that start teaching a custom voice command phrase. [CHAR_LIMIT=NONE] -->
