@@ -90,6 +90,8 @@ import static com.google.android.accessibility.talkback.contextmenu.ListMenuMana
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
@@ -100,6 +102,7 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.actor.DimScreenActor;
+import com.google.android.accessibility.talkback.actor.SpeechRateAndPitchActor;
 import com.google.android.accessibility.talkback.actor.gemini.GeminiConfiguration;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VoiceCommandTypeId;
@@ -110,12 +113,15 @@ import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFo
 import com.google.android.accessibility.talkback.menurules.RuleAction;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
+import com.google.android.accessibility.talkback.selector.SpeechVolumeControl;
+import com.google.android.accessibility.talkback.timer.Stopwatch;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.LocaleUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.SettingsUtils;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.SpannableUtils;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.CursorGranularity;
@@ -142,6 +148,7 @@ public class VoiceCommandProcessor {
   private SelectorController selectorController;
   private ActorState actorState;
   private final TalkBackAnalytics analytics;
+  private final SpeechRateAndPitchActor speechRateAndPitchActor;
 
   private boolean echoNotRecognizedTextEnabled;
 
@@ -149,6 +156,29 @@ public class VoiceCommandProcessor {
   private List<String> verbosityCommandList;
   private List<String> granularityCommandList;
   private List<VoiceCommandMatcher.Entry> catalogEntries;
+  private VoiceCommandParameters.Keywords parameterKeywords;
+  private ConfirmationSession confirmationSession;
+  private Runnable pendingConfirmationAction;
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
+  private final Runnable confirmationTimeout =
+      () -> {
+        if (pendingConfirmationAction != null) {
+          pendingConfirmationAction = null;
+          speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+        }
+      };
+
+  private static final long CONFIRMATION_TIMEOUT_MS = 10000;
+  private static final long REPEAT_INTERVAL_MS = 350;
+
+  /** Asks the owner of the listening session to listen once more for a spoken answer. */
+  public interface ConfirmationSession {
+    void requestListenAgain();
+  }
+
+  public void setConfirmationSession(ConfirmationSession confirmationSession) {
+    this.confirmationSession = confirmationSession;
+  }
 
   private static final int[] typeCommandResArray = {
     R.string.voice_commands_type,
@@ -256,11 +286,13 @@ public class VoiceCommandProcessor {
       TalkBackService service,
       AccessibilityFocusMonitor accessibilityFocusMonitor,
       SelectorController selectorController,
-      TalkBackAnalytics analytics) {
+      TalkBackAnalytics analytics,
+      SpeechRateAndPitchActor speechRateAndPitchActor) {
     this.service = service;
     this.accessibilityFocusMonitor = accessibilityFocusMonitor;
     this.selectorController = selectorController;
     this.analytics = analytics;
+    this.speechRateAndPitchActor = speechRateAndPitchActor;
   }
 
   public void setPipeline(Pipeline.FeedbackReturner pipeline) {
@@ -312,6 +344,23 @@ public class VoiceCommandProcessor {
     }
     LogUtils.i(LOG_TAG, "handleSpeechCommand() command=\"%s\"", command);
     EventId eventId = EVENT_ID_UNTRACKED;
+
+    // A dangerous command is waiting for its spoken confirmation: this result is the answer,
+    // never a new command. Partial results do not answer it.
+    if (pendingConfirmationAction != null) {
+      if (isPartialResult) {
+        return false;
+      }
+      Runnable action = pendingConfirmationAction;
+      pendingConfirmationAction = null;
+      mainHandler.removeCallbacks(confirmationTimeout);
+      if (VoiceCommandParameters.isYesAnswer(command, parameterKeywords())) {
+        action.run();
+      } else {
+        speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+      }
+      return true;
+    }
 
     // Gemini voice command
     // command format: Gemini
@@ -673,7 +722,17 @@ public class VoiceCommandProcessor {
     if (containsWord(command, R.string.voice_commands_delete)) {
       node = getEditTextFocus();
       if (node != null) {
-        sendInterpretation(VOICE_COMMAND_DELETE, node, eventId);
+        // Deleted text is gone for good, so the command runs only after a spoken confirmation.
+        requestConfirmation(
+            service.getString(R.string.voice_commands_delete),
+            () -> {
+              AccessibilityNodeInfoCompat freshNode = getEditTextFocus();
+              if (freshNode != null) {
+                sendInterpretation(VOICE_COMMAND_DELETE, freshNode, EVENT_ID_UNTRACKED);
+                handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_DELETE);
+              }
+            });
+        return true;
       }
 
       handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_DELETE);
@@ -819,10 +878,14 @@ public class VoiceCommandProcessor {
       return true;
     }
 
-    // Any other action that a gesture or a shortcut can run can be spoken by its name.
-    // Partial results are not matched: the phrase may still be growing into another command.
+    // Commands carrying a spoken number come next: a percentage or a countdown duration.
+    // Any other action that a gesture or a shortcut can run can be spoken by its name, with
+    // an optional repeat count. Partial results are not matched: the phrase may still be
+    // growing into another command.
+    if (!isPartialResult && handleParameterCommand(command)) {
+      return true;
+    }
     if (!isPartialResult && handleCatalogCommand(command, eventId)) {
-      handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
       return true;
     }
 
@@ -846,16 +909,101 @@ public class VoiceCommandProcessor {
     return false;
   }
 
+  private VoiceCommandParameters.Keywords parameterKeywords() {
+    if (parameterKeywords == null) {
+      parameterKeywords = VoiceCommandParameters.Keywords.from(service);
+    }
+    return parameterKeywords;
+  }
+
+  /* Asks about a dangerous command by name and holds it until the spoken answer arrives. */
+  private void requestConfirmation(String label, Runnable action) {
+    pendingConfirmationAction = action;
+    mainHandler.removeCallbacks(confirmationTimeout);
+    mainHandler.postDelayed(confirmationTimeout, CONFIRMATION_TIMEOUT_MS);
+    speakDelayed(service.getString(R.string.voice_commands_confirm_question, label));
+    if (confirmationSession != null) {
+      confirmationSession.requestListenAgain();
+    }
+  }
+
+  /** Drops a command waiting for confirmation without a word, e.g. after a recognition error. */
+  public void cancelPendingConfirmation() {
+    pendingConfirmationAction = null;
+    mainHandler.removeCallbacks(confirmationTimeout);
+  }
+
+  /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
+  private boolean handleParameterCommand(String command) {
+    VoiceCommandParameters.Keywords keywords = parameterKeywords();
+    VoiceCommandParameters.Percent percent =
+        VoiceCommandParameters.parsePercent(command, keywords);
+    if (percent != null) {
+      switch (percent.getKind()) {
+        case SPEECH_VOLUME -> {
+          int applied =
+              SpeechVolumeControl.set(
+                  service,
+                  SharedPreferencesUtils.getSharedPreferences(service),
+                  percent.getValue());
+          speakDelayed(service.getString(R.string.selector_speech_volume_value, applied));
+        }
+        case MEDIA_VOLUME -> {
+          VoiceCommandActions.setMediaVolumePercent(service, percent.getValue());
+          speakDelayed(
+              service.getString(R.string.voice_param_media_volume_value, percent.getValue()));
+        }
+        case SPEECH_RATE -> {
+          int applied = speechRateAndPitchActor.setSpeechRatePercent(percent.getValue());
+          speakDelayed(service.getString(R.string.template_speech_rate_change, applied));
+        }
+      }
+      return true;
+    }
+    Long alarmMillis = VoiceCommandParameters.parseDurationMillis(command, keywords);
+    if (alarmMillis != null) {
+      VoiceCommandActions.startCountdownAlarm(service, alarmMillis);
+      speakDelayed(
+          service.getString(
+              R.string.countdown_alarm_added, Stopwatch.formatElapsed(service, alarmMillis)));
+      return true;
+    }
+    return false;
+  }
+
   /* Runs the catalog action whose name the recognized text matches, if any. */
   private boolean handleCatalogCommand(String command, EventId eventId) {
     if (catalogEntries == null) {
       catalogEntries = VoiceCommandCatalog.entries(service);
     }
-    VoiceCommandMatcher.Match match = VoiceCommandMatcher.INSTANCE.match(command, catalogEntries);
+    // An action name can carry a repeat count: "<name> <count> <times word>".
+    VoiceCommandParameters.Repeat repeat =
+        VoiceCommandParameters.parseRepeat(command, parameterKeywords());
+    VoiceCommandMatcher.Match match =
+        VoiceCommandMatcher.INSTANCE.match(
+            repeat != null ? repeat.getText() : command, catalogEntries);
     if (match == null) {
       return false;
     }
-    service.performCatalogAction(match.getValue(), eventId);
+    String value = match.getValue();
+    // Sending composed text cannot be undone, so it runs only after a spoken confirmation.
+    if (value.equals(service.getString(R.string.shortcut_value_submit_text))) {
+      requestConfirmation(
+          match.getPhrase(),
+          () -> {
+            service.performCatalogAction(value, eventId);
+            handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
+          });
+      return true;
+    }
+    service.performCatalogAction(value, eventId);
+    handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
+    if (repeat != null) {
+      for (int i = 1; i < repeat.getCount(); i++) {
+        mainHandler.postDelayed(
+            () -> service.performCatalogAction(value, eventId), REPEAT_INTERVAL_MS * i);
+      }
+    }
     return true;
   }
 
