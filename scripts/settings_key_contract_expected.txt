@@ -743,7 +743,6 @@ pref_tts_settings_menu_setting_key
 pref_tts_voice_profiles
 pref_turn_off_menu_setting_key
 pref_tutorial_and_help_key
-pref_tutorial_entry_point_key
 pref_two_finger_rotation
 pref_typing_confirmation
 pref_typing_long_press_duration
