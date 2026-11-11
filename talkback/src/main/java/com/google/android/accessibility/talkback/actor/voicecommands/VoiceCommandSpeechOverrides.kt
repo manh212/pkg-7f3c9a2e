@@ -101,6 +101,11 @@ object VoiceCommandSpeechOverrides {
               listOf(R.string.voice_param_number_word),
               true),
           Item(
+              "call_number",
+              R.string.voice_word_call,
+              listOf(R.string.voice_param_call),
+              true),
+          Item(
               "yes_answers",
               R.string.voice_word_yes_answers,
               listOf(R.string.voice_commands_yes_answers),

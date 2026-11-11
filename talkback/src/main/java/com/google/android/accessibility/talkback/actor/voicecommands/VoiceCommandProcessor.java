@@ -53,6 +53,7 @@ import static com.google.android.accessibility.talkback.analytics.TalkBackAnalyt
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_CUSTOM_ACTION;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_CUT;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_DELETE;
+import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_DIAL;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_END_SELECT;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_FIND;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_FIRST;
@@ -177,7 +178,9 @@ public class VoiceCommandProcessor {
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private final Runnable confirmationTimeout = this::onConfirmationTimeout;
   private final Runnable phraseDialogueTimeout = this::onPhraseDialogueTimeout;
+  private final Runnable dialStageTimeout = this::onDialStageTimeout;
   private int phraseStage;
+  private int dialStage;
   private String phraseDraft;
   private final List<String> phraseDraftValues = new ArrayList<>();
   private final List<String> phraseDraftLabels = new ArrayList<>();
@@ -188,6 +191,9 @@ public class VoiceCommandProcessor {
   private static final int PHRASE_STAGE_NONE = 0;
   private static final int PHRASE_STAGE_PHRASE = 1;
   private static final int PHRASE_STAGE_ACTION = 2;
+
+  private static final int DIAL_STAGE_NONE = 0;
+  private static final int DIAL_STAGE_NUMBER = 1;
 
   private static final long CONFIRMATION_TIMEOUT_MS = 10000;
   private static final long AI_FALLBACK_TIMEOUT_MS = 12000;
@@ -409,6 +415,16 @@ public class VoiceCommandProcessor {
       }
       mainHandler.removeCallbacks(phraseDialogueTimeout);
       handlePhraseDialogueAnswer(command);
+      return true;
+    }
+
+    // A call command asked for its number: this result is the number, never a command.
+    if (dialStage != DIAL_STAGE_NONE) {
+      if (isPartialResult) {
+        return false;
+      }
+      mainHandler.removeCallbacks(dialStageTimeout);
+      handleDialAnswer(command);
       return true;
     }
 
@@ -1287,6 +1303,8 @@ public class VoiceCommandProcessor {
     pendingConfirmationAction = null;
     mainHandler.removeCallbacks(confirmationTimeout);
     clearPhraseDialogue();
+    dialStage = DIAL_STAGE_NONE;
+    mainHandler.removeCallbacks(dialStageTimeout);
     invalidateAiFallback();
   }
 
@@ -1367,8 +1385,78 @@ public class VoiceCommandProcessor {
     return true;
   }
 
+  private VoiceCommandPhoneNumbers.Keywords phoneKeywords() {
+    // Read fresh every time, so phrasings the user replaced in Settings apply at once.
+    return VoiceCommandPhoneNumbers.Keywords.from(service);
+  }
+
+  /* Asks for the number of a call command said with none, and listens for it. */
+  private void askDialNumber() {
+    dialStage = DIAL_STAGE_NUMBER;
+    mainHandler.removeCallbacks(dialStageTimeout);
+    mainHandler.postDelayed(dialStageTimeout, CONFIRMATION_TIMEOUT_MS);
+    speakDelayed(service.getString(R.string.voice_call_ask_number));
+    if (confirmationSession != null) {
+      confirmationSession.requestListenAgain();
+    }
+  }
+
+  /* Runs when the asked-for number never arrives: the call is abandoned. */
+  private void onDialStageTimeout() {
+    if (dialStage != DIAL_STAGE_NONE) {
+      dialStage = DIAL_STAGE_NONE;
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+    }
+  }
+
+  /* Takes the spoken answer to the call command's question for a number. */
+  private void handleDialAnswer(String command) {
+    dialStage = DIAL_STAGE_NONE;
+    if (VoiceCommandPhrases.isCancel(command, phraseKeywords())) {
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+      return;
+    }
+    String number = VoiceCommandPhoneNumbers.parseNumber(command);
+    if (number == null) {
+      speakDelayed(service.getString(R.string.voice_call_number_not_understood));
+      noteCommandRan();
+      return;
+    }
+    showCallConfirmation(number);
+  }
+
+  /*
+   * Shows the confirmation dialog for a spoken number; the call itself is placed only
+   * from the dialog's call button. Without the call permission the dialog opens the
+   * dialler with the number filled in instead, and that is said aloud here.
+   */
+  private void showCallConfirmation(String number) {
+    VoiceCommandCallDialog.show(
+        service,
+        number,
+        () -> {
+          speakDelayed(service.getString(R.string.voice_call_no_permission));
+          return kotlin.Unit.INSTANCE;
+        });
+    handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_DIAL);
+  }
+
   /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
   private boolean handleParameterCommand(String command, EventId eventId) {
+    VoiceCommandPhoneNumbers.Request call =
+        VoiceCommandPhoneNumbers.parseCommand(command, phoneKeywords());
+    if (call != null) {
+      if (call instanceof VoiceCommandPhoneNumbers.Request.Number) {
+        showCallConfirmation(((VoiceCommandPhoneNumbers.Request.Number) call).getNumber());
+      } else if (call instanceof VoiceCommandPhoneNumbers.Request.AskNumber) {
+        askDialNumber();
+      } else {
+        // Words followed the call phrases but form no number: say so; nothing is shown.
+        speakDelayed(service.getString(R.string.voice_call_number_not_understood));
+        noteCommandRan();
+      }
+      return true;
+    }
     VoiceCommandParameters.Keywords keywords = parameterKeywords();
     VoiceCommandParameters.Percent percent =
         VoiceCommandParameters.parsePercent(command, keywords);
@@ -1732,7 +1820,8 @@ public class VoiceCommandProcessor {
     if (chainId != chainGeneration) {
       return;
     }
-    if (pendingConfirmationAction != null || phraseStage != PHRASE_STAGE_NONE) {
+    if (pendingConfirmationAction != null || phraseStage != PHRASE_STAGE_NONE
+        || dialStage != DIAL_STAGE_NONE) {
       // A part asked a question: the chain stops there and the rest is dropped.
       chainGeneration++;
       return;
