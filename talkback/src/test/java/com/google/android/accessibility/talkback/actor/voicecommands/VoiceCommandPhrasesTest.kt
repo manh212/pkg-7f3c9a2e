@@ -28,21 +28,49 @@ class VoiceCommandPhrasesTest {
       listCommands = listOf("liệt kê lệnh của tôi", "danh sách lệnh của tôi"),
       deletePrefixes = listOf("xóa lệnh", "xóa cụm từ"),
       cancelWords = listOf("hủy", "hủy bỏ"),
+      finishWords = listOf("xong"),
     )
 
   @Test
   fun storageRoundTrips() {
     val phrases =
       listOf(
-        VoiceCommandPhrases.Phrase("về đầu", "shortcut_value_first_item"),
-        VoiceCommandPhrases.Phrase("đọc tiếp đi", "shortcut_value_read_from_cursor"),
+        VoiceCommandPhrases.Phrase("về đầu", listOf("shortcut_value_first_item")),
+        VoiceCommandPhrases.Phrase("đọc tiếp đi", listOf("shortcut_value_read_from_cursor")),
       )
     val parsed = VoiceCommandPhrases.parse(VoiceCommandPhrases.serialize(phrases))
     assertEquals(2, parsed.size)
     assertEquals("về đầu", parsed[0].phrase)
-    assertEquals("shortcut_value_first_item", parsed[0].value)
+    assertEquals(listOf("shortcut_value_first_item"), parsed[0].values)
     assertEquals("đọc tiếp đi", parsed[1].phrase)
-    assertEquals("shortcut_value_read_from_cursor", parsed[1].value)
+    assertEquals(listOf("shortcut_value_read_from_cursor"), parsed[1].values)
+  }
+
+  @Test
+  fun storageRoundTripsAMacro() {
+    val phrases =
+      listOf(
+        VoiceCommandPhrases.Phrase(
+          "chuẩn bị",
+          listOf("shortcut_value_first_item", "shortcut_value_read_from_cursor"),
+        )
+      )
+    val parsed = VoiceCommandPhrases.parse(VoiceCommandPhrases.serialize(phrases))
+    assertEquals(1, parsed.size)
+    assertEquals(
+      listOf("shortcut_value_first_item", "shortcut_value_read_from_cursor"),
+      parsed[0].values,
+    )
+    // A phase 3 entry (one value, no separator) still parses as a one-action phrase.
+    val legacy = VoiceCommandPhrases.parse("về đầu\tshortcut_value_first_item")
+    assertEquals(listOf("shortcut_value_first_item"), legacy[0].values)
+  }
+
+  @Test
+  fun finishWordsMatchExactly() {
+    assertTrue(VoiceCommandPhrases.isFinish("xong", keywords))
+    assertTrue(VoiceCommandPhrases.isFinish("Xong", keywords))
+    assertFalse(VoiceCommandPhrases.isFinish("xong rồi", keywords))
   }
 
   @Test
