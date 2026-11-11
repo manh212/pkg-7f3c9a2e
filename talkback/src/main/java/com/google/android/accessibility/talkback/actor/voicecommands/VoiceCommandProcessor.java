@@ -138,6 +138,7 @@ import com.google.android.accessibility.utils.screencapture.ScreenshotCapture;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -165,10 +166,8 @@ public class VoiceCommandProcessor {
   private List<String> verbosityCommandList;
   private List<String> granularityCommandList;
   private List<VoiceCommandMatcher.Entry> catalogEntries;
-  private VoiceCommandParameters.Keywords parameterKeywords;
   private VoiceCommandPhrases.Keywords phraseKeywords;
   private VoiceCommandChain.Keywords chainKeywords;
-  private Set<String> continuousStartWords;
 
   /* Set while the fixed legacy commands run their second, scored-matching pass. */
   private boolean fuzzyLegacyPass;
@@ -1014,10 +1013,8 @@ public class VoiceCommandProcessor {
   }
 
   private VoiceCommandParameters.Keywords parameterKeywords() {
-    if (parameterKeywords == null) {
-      parameterKeywords = VoiceCommandParameters.Keywords.from(service);
-    }
-    return parameterKeywords;
+    // Read fresh every time, so phrasings the user replaced in Settings apply at once.
+    return VoiceCommandParameters.Keywords.from(service);
   }
 
   /* Asks about a dangerous command by name and holds it until the spoken answer arrives. */
@@ -1502,9 +1499,10 @@ public class VoiceCommandProcessor {
   private List<String> getCommandList(int[] formattedCommandArray, int[] parameterArrays) {
     List<String> commandList = new ArrayList<>();
     for (int i = 0; i < formattedCommandArray.length; i++) {
-      for (int j = 0; j < parameterArrays.length; j++) {
-        commandList.add(
-            service.getString(formattedCommandArray[i], service.getString(parameterArrays[j])));
+      for (String format : phrasesFor(formattedCommandArray[i])) {
+        for (int j = 0; j < parameterArrays.length; j++) {
+          commandList.add(String.format(format, service.getString(parameterArrays[j])));
+        }
       }
     }
 
@@ -1547,13 +1545,15 @@ public class VoiceCommandProcessor {
       return false;
     }
     // A command word said without its diacritics still names the command.
-    String word = VoiceCommandPhrases.identity(service.getString(stringResId));
-    if (word.isEmpty()) {
-      return false;
-    }
-    for (int i = 0; i < commandSplit.length; i++) {
-      if (VoiceCommandPhrases.identity(commandSplit[i]).equals(word)) {
-        return true;
+    for (String phrase : phrasesFor(stringResId)) {
+      String word = VoiceCommandPhrases.identity(phrase);
+      if (word.isEmpty()) {
+        continue;
+      }
+      for (int i = 0; i < commandSplit.length; i++) {
+        if (VoiceCommandPhrases.identity(commandSplit[i]).equals(word)) {
+          return true;
+        }
       }
     }
     return false;
@@ -1579,19 +1579,29 @@ public class VoiceCommandProcessor {
   }
 
   private boolean equals(String command, int stringResId) {
-    if (command.equals(service.getString(stringResId).toLowerCase())) {
-      return true;
+    List<String> phrases = phrasesFor(stringResId);
+    for (String phrase : phrases) {
+      if (command.equals(phrase.toLowerCase())) {
+        return true;
+      }
     }
     if (!fuzzyLegacyPass) {
       return false;
     }
     List<VoiceCommandMatcher.Entry> entries = new ArrayList<>();
-    entries.add(new VoiceCommandMatcher.Entry(service.getString(stringResId), ""));
+    for (String phrase : phrases) {
+      entries.add(new VoiceCommandMatcher.Entry(phrase, ""));
+    }
     return VoiceCommandMatcher.INSTANCE.match(command, entries) != null;
   }
 
   private boolean startsWith(String command, int stringResId) {
-    return command.startsWith(service.getString(stringResId).toLowerCase());
+    for (String phrase : phrasesFor(stringResId)) {
+      if (command.startsWith(phrase.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private int startsWith(String command, int[] stringResIdArray) {
@@ -1599,8 +1609,10 @@ public class VoiceCommandProcessor {
       return -1;
     }
     for (int i = 0; i < stringResIdArray.length; i++) {
-      if (command.startsWith(service.getString(stringResIdArray[i]).toLowerCase())) {
-        return stringResIdArray[i];
+      for (String phrase : phrasesFor(stringResIdArray[i])) {
+        if (command.startsWith(phrase.toLowerCase())) {
+          return stringResIdArray[i];
+        }
       }
     }
     return -1;
@@ -1611,8 +1623,10 @@ public class VoiceCommandProcessor {
       return -1;
     }
     for (int i = 0; i < stringResIdArray.length; i++) {
-      if (command.equals(service.getString(stringResIdArray[i]).toLowerCase())) {
-        return stringResIdArray[i];
+      for (String phrase : phrasesFor(stringResIdArray[i])) {
+        if (command.equals(phrase.toLowerCase())) {
+          return stringResIdArray[i];
+        }
       }
     }
     if (!fuzzyLegacyPass) {
@@ -1620,9 +1634,10 @@ public class VoiceCommandProcessor {
     }
     List<VoiceCommandMatcher.Entry> entries = new ArrayList<>();
     for (int i = 0; i < stringResIdArray.length; i++) {
-      entries.add(
-          new VoiceCommandMatcher.Entry(
-              service.getString(stringResIdArray[i]), Integer.toString(stringResIdArray[i])));
+      for (String phrase : phrasesFor(stringResIdArray[i])) {
+        entries.add(
+            new VoiceCommandMatcher.Entry(phrase, Integer.toString(stringResIdArray[i])));
+      }
     }
     VoiceCommandMatcher.Match match = VoiceCommandMatcher.INSTANCE.match(command, entries);
     return match == null ? -1 : Integer.parseInt(match.getValue());
@@ -1630,8 +1645,30 @@ public class VoiceCommandProcessor {
 
   /* Returns the tail of command-string after the stringResId prefix. */
   private CharSequence remainder(String command, int stringResId) {
+    String best = null;
+    for (String phrase : phrasesFor(stringResId)) {
+      String prefix = phrase.toLowerCase();
+      if (command.startsWith(prefix) && (best == null || prefix.length() > best.length())) {
+        best = prefix;
+      }
+    }
+    if (best != null) {
+      return command.substring(best.length());
+    }
     CharSequence prefix = service.getString(stringResId).toLowerCase();
     return command.substring(prefix.length());
+  }
+
+  /**
+   * The phrasings a string resource is matched by: the ones the user set for it in
+   * Settings when they replaced them, or the resource's own text otherwise.
+   */
+  private List<String> phrasesFor(int resId) {
+    List<String> override = VoiceCommandSpeechOverrides.forResource(service, resId);
+    if (override != null) {
+      return override;
+    }
+    return Collections.singletonList(service.getString(resId));
   }
 
   private @Nullable AccessibilityNodeInfoCompat getEditTextFocus() {
@@ -1648,14 +1685,16 @@ public class VoiceCommandProcessor {
 
   /* Whether [command] asks for continuous listening in this session. */
   private boolean isContinuousStartCommand(String command) {
-    if (continuousStartWords == null) {
-      continuousStartWords = new HashSet<>();
-      for (String word :
-          VoiceCommandBilingual.list(service, R.string.voice_continuous_start_commands)) {
-        continuousStartWords.add(VoiceCommandPhrases.identity(word));
-      }
+    List<String> phrases =
+        VoiceCommandSpeechOverrides.forResource(service, R.string.voice_continuous_start_commands);
+    if (phrases == null) {
+      phrases = VoiceCommandBilingual.list(service, R.string.voice_continuous_start_commands);
     }
-    return continuousStartWords.contains(VoiceCommandPhrases.identity(command));
+    Set<String> words = new HashSet<>();
+    for (String word : phrases) {
+      words.add(VoiceCommandPhrases.identity(word));
+    }
+    return words.contains(VoiceCommandPhrases.identity(command));
   }
 
   private VoiceCommandChain.Keywords chainKeywords() {

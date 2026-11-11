@@ -41,6 +41,7 @@ import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.gesture.GestureHints;
 import com.google.android.accessibility.talkback.training.VoiceCommandHelpInitiator;
+import java.util.List;
 import com.google.android.accessibility.talkback.utils.SpeechRecognizerPerformer;
 import com.google.android.accessibility.talkback.utils.SpeechRecognizerPerformer.SpeechRecognizerRequester;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -111,8 +112,13 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   /* Whether [text] is one of the words that end continuous listening. */
   private boolean isContinuousStopWord(String text) {
     String identity = VoiceCommandPhrases.identity(text);
-    for (String word :
-        VoiceCommandBilingual.list(talkbackContext, R.string.voice_continuous_stop_words)) {
+    List<String> stopWords =
+        VoiceCommandSpeechOverrides.forResource(
+            talkbackContext, R.string.voice_continuous_stop_words);
+    if (stopWords == null) {
+      stopWords = VoiceCommandBilingual.list(talkbackContext, R.string.voice_continuous_stop_words);
+    }
+    for (String word : stopWords) {
       if (VoiceCommandPhrases.identity(word).equals(identity)) {
         return true;
       }

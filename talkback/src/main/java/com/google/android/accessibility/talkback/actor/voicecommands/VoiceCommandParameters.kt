@@ -77,25 +77,30 @@ object VoiceCommandParameters {
       @JvmStatic
       fun from(context: Context): Keywords =
         Keywords(
-          VoiceCommandBilingual.list(context, R.string.voice_param_volume),
-          VoiceCommandBilingual.list(context, R.string.voice_param_media_volume),
-          VoiceCommandBilingual.list(context, R.string.voice_param_speech_rate),
-          VoiceCommandBilingual.list(context, R.string.voice_param_percent),
-          VoiceCommandBilingual.list(context, R.string.voice_param_alarm),
-          VoiceCommandBilingual.list(context, R.string.voice_param_countdown),
-          VoiceCommandBilingual.list(context, R.string.voice_param_hours),
-          VoiceCommandBilingual.list(context, R.string.voice_param_minutes),
-          VoiceCommandBilingual.list(context, R.string.voice_param_seconds),
-          VoiceCommandBilingual.list(context, R.string.voice_param_times),
-          VoiceCommandBilingual.list(context, R.string.voice_commands_yes_answers),
-          VoiceCommandBilingual.list(context, R.string.voice_param_increase),
-          VoiceCommandBilingual.list(context, R.string.voice_param_decrease),
-          VoiceCommandBilingual.list(context, R.string.voice_param_at),
-          VoiceCommandBilingual.list(context, R.string.voice_param_day_parts),
-          VoiceCommandBilingual.list(context, R.string.voice_param_item_goto),
-          VoiceCommandBilingual.list(context, R.string.voice_param_item),
-          VoiceCommandBilingual.list(context, R.string.voice_param_number_word),
+          phrases(context, R.string.voice_param_volume),
+          phrases(context, R.string.voice_param_media_volume),
+          phrases(context, R.string.voice_param_speech_rate),
+          phrases(context, R.string.voice_param_percent),
+          phrases(context, R.string.voice_param_alarm),
+          phrases(context, R.string.voice_param_countdown),
+          phrases(context, R.string.voice_param_hours),
+          phrases(context, R.string.voice_param_minutes),
+          phrases(context, R.string.voice_param_seconds),
+          phrases(context, R.string.voice_param_times),
+          phrases(context, R.string.voice_commands_yes_answers),
+          phrases(context, R.string.voice_param_increase),
+          phrases(context, R.string.voice_param_decrease),
+          phrases(context, R.string.voice_param_at),
+          phrases(context, R.string.voice_param_day_parts),
+          phrases(context, R.string.voice_param_item_goto),
+          phrases(context, R.string.voice_param_item),
+          phrases(context, R.string.voice_param_number_word),
         )
+
+      /** The resource's keyword list, or the user's own phrasings when they replaced it. */
+      private fun phrases(context: Context, resId: Int): List<String> =
+          VoiceCommandSpeechOverrides.forResource(context, resId)
+              ?: VoiceCommandBilingual.list(context, resId)
     }
   }
 
