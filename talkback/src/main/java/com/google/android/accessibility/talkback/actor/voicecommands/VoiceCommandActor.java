@@ -29,6 +29,8 @@ import static com.google.android.accessibility.talkback.analytics.TalkBackAnalyt
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import androidx.annotation.VisibleForTesting;
 import com.google.android.accessibility.talkback.Feedback;
@@ -54,6 +56,10 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   private static final String TAG = "VoiceCommandActor";
   static final int RECOGNITION_SPEECH_DELAY_MS = 100;
   public static final int TURN_OFF_RECOGNITION_DELAY_MS = 10000;
+  // Listening again for a confirmation answer waits until the spoken question has finished,
+  // because starting to listen silences the speech that is still playing.
+  private static final int CONFIRMATION_RELISTEN_DELAY_MS = 2000;
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private VoiceCommandDialog voiceCommandDialog;
   private final Context talkbackContext;
   private final TalkBackAnalytics analytics;
@@ -114,6 +120,9 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   @Override
   public void onError(int error) {
     LogUtils.d(TAG, "errorCallback with error: %d", error);
+    // The error message below already tells the user; a command waiting for its confirmation
+    // is dropped with the failed answer round.
+    voiceCommandProcessor.cancelPendingConfirmation();
     switch (error) {
       case ERROR_INSUFFICIENT_PERMISSIONS ->
           speakDelayed(talkbackContext, R.string.voice_commands_no_mic_permissions);
@@ -147,6 +156,10 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
     this.analytics = analytics;
     this.speechRecognizerPerformer = speechRecognizerPerformer;
     speechRecognizerPerformer.setListener(this);
+    voiceCommandProcessor.setConfirmationSession(
+        () ->
+            mainHandler.postDelayed(
+                speechRecognizerPerformer::doListening, CONFIRMATION_RELISTEN_DELAY_MS));
   }
 
   public void setPipeline(Pipeline.FeedbackReturner pipeline) {
