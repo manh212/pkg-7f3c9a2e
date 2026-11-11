@@ -411,6 +411,10 @@
     <string name="title_pref_group_apps">Apps</string>
     <!-- Main settings group for system options, updates and help. [CHAR LIMIT=40] -->
     <string name="title_pref_group_system_help">System and help</string>
+    <!-- Main settings group for the clock, translation, voice commands and the text editor. [CHAR LIMIT=40] -->
+    <string name="title_pref_group_tools">Tools</string>
+    <!-- Main settings group for the tutorial, the about page, logs and the community. [CHAR LIMIT=40] -->
+    <string name="title_pref_group_help_center">Help center</string>
     <!-- Main settings group for items that belong to no other group. [CHAR LIMIT=40] -->
     <!-- Title for preference that controls the volume of TalkBack's speech output. [CHAR LIMIT=25] -->
     <string name="title_pref_speech_volume">Speech volume</string>
@@ -748,6 +752,10 @@
     <string name="title_pref_category_back_tap">Gõ mặt lưng</string>
     <!-- Category for tutorial, the tutorial page contains help and feedback. [CHAR LIMIT=60] -->
     <string name="title_pref_category_tutorial">Meridian tutorial</string>
+    <!-- Title for the tutorial page in the help center. [CHAR LIMIT=60] -->
+    <string name="title_pref_tutorial">Tutorial</string>
+    <!-- Title for the about page in the help center. [CHAR LIMIT=60] -->
+    <string name="title_pref_about">About</string>
     <!-- Category for helping page or feedback. [CHAR LIMIT=60] -->
     <string name="title_pref_category_help_no_tutorial">Help</string>
     <!-- Category for advanced settings. [CHAR LIMIT=60] -->

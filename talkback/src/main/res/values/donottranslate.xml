@@ -166,6 +166,9 @@
     <string name="pref_category_group_screen_info_key" translatable="false">pref_category_group_screen_info_key</string>
     <string name="pref_category_group_apps_key" translatable="false">pref_category_group_apps_key</string>
     <string name="pref_category_group_system_help_key" translatable="false">pref_category_group_system_help_key</string>
+    <string name="pref_category_group_tools_key" translatable="false">pref_category_group_tools_key</string>
+    <string name="pref_category_group_advanced_key" translatable="false">pref_category_group_advanced_key</string>
+    <string name="pref_category_group_help_center_key" translatable="false">pref_category_group_help_center_key</string>
     <string name="pref_settings_group_speech_key" translatable="false">pref_settings_group_speech_key</string>
     <string name="pref_settings_group_navigation_key" translatable="false">pref_settings_group_navigation_key</string>
     <string name="pref_settings_group_gestures_shortcuts_key" translatable="false">pref_settings_group_gestures_shortcuts_key</string>
@@ -174,6 +177,9 @@
     <string name="pref_settings_group_screen_info_key" translatable="false">pref_settings_group_screen_info_key</string>
     <string name="pref_settings_group_apps_key" translatable="false">pref_settings_group_apps_key</string>
     <string name="pref_settings_group_system_help_key" translatable="false">pref_settings_group_system_help_key</string>
+    <string name="pref_settings_group_tools_key" translatable="false">pref_settings_group_tools_key</string>
+    <string name="pref_settings_group_advanced_key" translatable="false">pref_settings_group_advanced_key</string>
+    <string name="pref_settings_group_help_center_key" translatable="false">pref_settings_group_help_center_key</string>
     <string name="pref_tutorial_entry_point_key" translatable="false">pref_tutorial_entry_point_key</string>
     <string name="pref_practice_gestures_entry_point_key" translatable="false">pref_practice_gestures_entry_point_key</string>
     <string name="pref_reset_latency_settings_key" translatable="false">pref_reset_latency_settings_key</string>
