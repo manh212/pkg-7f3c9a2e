@@ -2803,7 +2803,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     ttsLogger = new TtsLogger(analytics, speechRateAndPitchActor.rateState);
 
     voiceCommandProcessor =
-        new VoiceCommandProcessor(this, accessibilityFocusMonitor, selectorController, analytics);
+        new VoiceCommandProcessor(
+            this, accessibilityFocusMonitor, selectorController, analytics, speechRateAndPitchActor);
     voiceCommandActor =
         new VoiceCommandActor(
             this,
