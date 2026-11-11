@@ -299,11 +299,11 @@ class OrganizedSettingsTest {
 
   @Test
   fun backupAndResetActionsAreGroupedAndResetRequiresConfirmation() {
-    val system = HelpCenterGroupFragment()
-    open(system)
-    assertTrue(system.findPreference<Preference>(activity.getString(R.string.pref_export_settings_key)) == null)
-    assertTrue(system.findPreference<Preference>(activity.getString(R.string.pref_import_settings_key)) == null)
-    assertTrue(system.findPreference<Preference>(activity.getString(R.string.pref_reset_latency_settings_key)) == null)
+    val advanced = AdvancedGroupFragment()
+    open(advanced)
+    assertTrue(advanced.findPreference<Preference>(activity.getString(R.string.pref_export_settings_key)) == null)
+    assertTrue(advanced.findPreference<Preference>(activity.getString(R.string.pref_import_settings_key)) == null)
+    assertTrue(advanced.findPreference<Preference>(activity.getString(R.string.pref_reset_latency_settings_key)) == null)
     val fragment = BackupResetFragment()
     open(fragment)
     for (key in listOf(
