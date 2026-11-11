@@ -100,6 +100,15 @@ object TextPieces {
   }
 
   /**
+   * The range [pieces] cover together, as the first one's first shown character paired with
+   * the last one's last shown character, or null when there are no pieces.
+   */
+  fun span(pieces: Collection<Piece>): Pair<Int, Int>? {
+    if (pieces.isEmpty()) return null
+    return pieces.minOf { it.coreStart } to pieces.maxOf { it.coreEnd }
+  }
+
+  /**
    * [text] with the first [find] in the shown part of [piece] replaced by [replacement],
    * ignoring case, or null when the piece does not hold [find].
    */
