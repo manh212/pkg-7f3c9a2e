@@ -202,6 +202,11 @@ object SpeechCompressor {
    * so a band is also passed through the all-passes of the crossovers below its own; with every
    * gain at one the bands then add back to the speech itself, unchanged. The level of a band is
    * followed across all channels together, so the balance between channels never moves.
+   *
+   * One filter serves one stream, so it starts unsettled: the crossovers need a few tens of
+   * milliseconds before their bands add back up to the speech. To keep the start of every
+   * utterance clean, the processed speech is blended in from the speech itself over the first
+   * [START_FADE_MS] milliseconds while the crossovers settle underneath it.
    */
   class Filter(settings: Settings, rate: Int, private val channels: Int) {
     private val splits: Int
@@ -221,6 +226,10 @@ object SpeechCompressor {
     private val loudest = FloatArray(BANDS)
     private val gains = FloatArray(BANDS)
     private val raw = FloatArray(BANDS)
+    private val fadeFrames = (rate * START_FADE_MS / 1000).coerceAtLeast(1)
+    private var framesSeen = 0
+    private val dry = FloatArray(channels)
+    private val wet = FloatArray(channels)
 
     init {
       var count = 0
@@ -249,10 +258,11 @@ object SpeechCompressor {
     fun process(samples: FloatArray): FloatArray {
       val frames = samples.size / channels
       for (frame in 0 until frames) {
+        for (channel in 0 until channels) dry[channel] = samples[frame * channels + channel]
         // Split every channel into its bands, remembering each band's loudest channel sample.
         loudest.fill(0f)
         for (channel in 0 until channels) {
-          var rest = samples[frame * channels + channel]
+          var rest = dry[channel]
           for (split in 0 until splits) {
             raw[split] = lowPass[split].run(channel, rest)
             rest = highPass[split].run(channel, rest)
@@ -281,14 +291,25 @@ object SpeechCompressor {
           var out = 0f
           for (band in 0 until BANDS) out += bandSamples[band * channels + channel] * gains[band]
           out *= makeup
-          samples[frame * channels + channel] = out
+          wet[channel] = out
           peak = maxOf(peak, abs(out))
         }
         if (limit) {
           limiterGain = 1f - (1f - limiterGain) * limiterRelease
           if (peak * limiterGain > LIMITER_CEILING) limiterGain = LIMITER_CEILING / peak
-          for (channel in 0 until channels) samples[frame * channels + channel] *= limiterGain
+          for (channel in 0 until channels) wet[channel] *= limiterGain
         }
+        if (framesSeen < fadeFrames) {
+          // Blend the processed speech in from the speech itself while the crossovers settle.
+          val step = framesSeen.toFloat() / fadeFrames
+          val weight = step * step * (3f - 2f * step)
+          for (channel in 0 until channels) {
+            samples[frame * channels + channel] = dry[channel] + (wet[channel] - dry[channel]) * weight
+          }
+        } else {
+          for (channel in 0 until channels) samples[frame * channels + channel] = wet[channel]
+        }
+        framesSeen++
       }
       for (i in envelopes.indices) if (envelopes[i] < DENORMAL) envelopes[i] = 0f
       return samples
@@ -375,5 +396,6 @@ object SpeechCompressor {
   private const val MAX_FREQUENCY_OF_RATE = 0.45
   private const val LIMITER_CEILING = 0.98f
   private const val LIMITER_RELEASE_S = 0.08
+  private const val START_FADE_MS = 60
   private const val DENORMAL = 1e-20f
 }
