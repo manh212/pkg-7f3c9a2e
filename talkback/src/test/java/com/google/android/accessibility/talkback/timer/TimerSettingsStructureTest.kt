@@ -150,15 +150,13 @@ class TimerSettingsStructureTest {
         "TypingGroupFragment",
         "ScreenInfoGroupFragment",
         "ToolsGroupFragment",
-        "AppsGroupFragment",
-        "BackupResetFragment",
         "AdvancedGroupFragment",
         "HelpCenterGroupFragment",
       ),
       topLevel.map { it.second?.substringAfterLast('.') },
     )
     assertTrue(topLevel.all { !it.second.isNullOrBlank() })
-    assertEquals(15, topLevel.size)
+    assertEquals(13, topLevel.size)
     assertEquals(
       "one initial setup entry point on the main screen",
       1,
@@ -184,6 +182,40 @@ class TimerSettingsStructureTest {
         it.first == "meridian_owner_private_chat" && it.second == null
       }
     )
+    assertTrue(
+      "the tutorial row opens the tutorial itself, so it has no fragment",
+      rowsOf(R.xml.settings_group_help_center).any {
+        it.first == TUTORIAL_KEY && it.second == null
+      },
+    )
+    assertFalse(
+      "the resume row moved to the advanced screen",
+      rowsOf(R.xml.settings_group_help_center).any { it.first == RESUME_KEY },
+    )
+    assertFalse(
+      "the Play installer row moved to the advanced screen",
+      rowsOf(R.xml.settings_group_help_center).any { it.first == PLAY_INSTALLER_KEY },
+    )
+  }
+
+  @Test
+  fun advancedScreen_holdsDeveloperWallpaperAndTheMovedRowsInOrder() {
+    val rows = rowsOf(R.xml.settings_group_advanced)
+
+    assertEquals(
+      listOf(
+        "pref_category_group_advanced_key",
+        "pref_category_developer_key",
+        "pref_meridian_wallpaper",
+        RESUME_KEY,
+        PLAY_INSTALLER_KEY,
+        BACKUP_RESET_KEY,
+        APPS_KEY,
+      ),
+      rows.map { it.first },
+    )
+    assertTrue(rows[5].second?.contains("BackupResetFragment") == true)
+    assertTrue(rows[6].second?.contains("AppsGroupFragment") == true)
   }
 
   /** Every row of an XML preference screen, in document order, as key to fragment. */
@@ -206,6 +238,11 @@ class TimerSettingsStructureTest {
     const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
     const val SETUP_KEY = "pref_initial_setup_screen"
     const val ACCESSIBILITY_SETTINGS_KEY = "pref_open_accessibility_settings"
+    const val TUTORIAL_KEY = "pref_tutorial_and_help_key"
+    const val RESUME_KEY = "pref_resume_backtalk_key"
+    const val PLAY_INSTALLER_KEY = "pref_play_installer_key"
+    const val BACKUP_RESET_KEY = "pref_backup_reset_screen"
+    const val APPS_KEY = "pref_settings_group_apps_key"
   }
 }
 
