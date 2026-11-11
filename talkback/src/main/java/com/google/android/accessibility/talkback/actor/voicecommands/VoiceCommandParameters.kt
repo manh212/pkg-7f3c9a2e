@@ -32,69 +32,69 @@ import com.google.android.accessibility.talkback.timer.CountdownAlarm
  */
 object VoiceCommandParameters {
 
-  /** The keyword phrases of one language, already normalized without diacritics. */
+  /** The keyword phrases of every language listened for, normalized without diacritics. */
   class Keywords(
-    volume: String,
-    mediaVolume: String,
-    speechRate: String,
-    percent: String,
-    alarm: String,
-    countdown: String,
-    hours: String,
-    minutes: String,
-    seconds: String,
-    times: String,
+    volume: List<String>,
+    mediaVolume: List<String>,
+    speechRate: List<String>,
+    percent: List<String>,
+    alarm: List<String>,
+    countdown: List<String>,
+    hours: List<String>,
+    minutes: List<String>,
+    seconds: List<String>,
+    times: List<String>,
     yesAnswers: List<String>,
     increase: List<String>,
     decrease: List<String>,
-    at: String,
+    at: List<String>,
     dayParts: List<String>,
     itemGoTo: List<String>,
-    item: String,
-    numberWord: String,
+    item: List<String>,
+    numberWord: List<String>,
   ) {
-    val volumeTokens = tokens(volume)
-    val mediaVolumeTokens = tokens(mediaVolume)
-    val speechRateTokens = tokens(speechRate)
-    val percentTokens = tokens(percent)
-    val alarmTokens = tokens(alarm)
-    val countdownTokens = tokens(countdown)
-    val hoursTokens = tokens(hours)
-    val minutesTokens = tokens(minutes)
-    val secondsTokens = tokens(seconds)
-    val timesTokens = tokens(times)
+    val volumeTokenSets = tokenSets(volume)
+    val mediaVolumeTokenSets = tokenSets(mediaVolume)
+    val speechRateTokenSets = tokenSets(speechRate)
+    val percentTokenSets = tokenSets(percent)
+    val alarmTokenSets = tokenSets(alarm)
+    val countdownTokenSets = tokenSets(countdown)
+    val hourUnits = tokenSets(hours)
+    val minuteUnits = tokenSets(minutes)
+    val secondUnits = tokenSets(seconds)
+    val timesTokenSets = tokenSets(times)
     val yesAnswers: Set<String> = yesAnswers.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val increaseWords: Set<String> = increase.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val decreaseWords: Set<String> = decrease.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
-    val atTokens = tokens(at)
+    val atTokenSets = tokenSets(at)
     val dayPartWords: Set<String> = dayParts.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val itemGoToTokens: List<List<String>> =
       itemGoTo.map { tokens(it) }.filter { it.isNotEmpty() }.sortedByDescending { it.size }
-    val itemTokens = tokens(item)
-    val numberWordTokens = tokens(numberWord)
+    val itemTokenSets = tokenSets(item)
+    val numberWordTokenSets = tokenSets(numberWord)
 
     companion object {
       @JvmStatic
       fun from(context: Context): Keywords =
         Keywords(
-          context.getString(R.string.voice_param_volume),
-          context.getString(R.string.voice_param_media_volume),
-          context.getString(R.string.voice_param_speech_rate),
-          context.getString(R.string.voice_param_percent),
-          context.getString(R.string.voice_param_alarm),
-          context.getString(R.string.voice_param_countdown),
-          context.getString(R.string.voice_param_hours),
-          context.getString(R.string.voice_param_minutes),
-          context.getString(R.string.voice_param_seconds),
-          context.getString(R.string.voice_param_times),
-          context.getString(R.string.voice_commands_yes_answers).split(','),
-          context.getString(R.string.voice_param_increase).split(','),
-          context.getString(R.string.voice_param_decrease).split(','),
-          context.getString(R.string.voice_param_at),
-          context.getString(R.string.voice_param_day_parts).split(','),
-          context.getString(R.string.voice_param_item_goto).split(','),
-          context.getString(R.string.voice_param_item),
-          context.getString(R.string.voice_param_number_word),
+          VoiceCommandBilingual.list(context, R.string.voice_param_volume),
+          VoiceCommandBilingual.list(context, R.string.voice_param_media_volume),
+          VoiceCommandBilingual.list(context, R.string.voice_param_speech_rate),
+          VoiceCommandBilingual.list(context, R.string.voice_param_percent),
+          VoiceCommandBilingual.list(context, R.string.voice_param_alarm),
+          VoiceCommandBilingual.list(context, R.string.voice_param_countdown),
+          VoiceCommandBilingual.list(context, R.string.voice_param_hours),
+          VoiceCommandBilingual.list(context, R.string.voice_param_minutes),
+          VoiceCommandBilingual.list(context, R.string.voice_param_seconds),
+          VoiceCommandBilingual.list(context, R.string.voice_param_times),
+          VoiceCommandBilingual.list(context, R.string.voice_commands_yes_answers),
+          VoiceCommandBilingual.list(context, R.string.voice_param_increase),
+          VoiceCommandBilingual.list(context, R.string.voice_param_decrease),
+          VoiceCommandBilingual.list(context, R.string.voice_param_at),
+          VoiceCommandBilingual.list(context, R.string.voice_param_day_parts),
+          VoiceCommandBilingual.list(context, R.string.voice_param_item_goto),
+          VoiceCommandBilingual.list(context, R.string.voice_param_item),
+          VoiceCommandBilingual.list(context, R.string.voice_param_number_word),
         )
     }
   }
@@ -125,6 +125,13 @@ object VoiceCommandParameters {
   private fun tokens(text: String): List<String> =
     plain(text).split(' ').filter { it.isNotEmpty() }
 
+  private fun tokenSets(phrases: List<String>): List<List<String>> =
+    phrases.map { tokens(it) }.filter { it.isNotEmpty() }
+
+  /** The length of the longest of [alternatives] that [words] starts with, or 0 for none. */
+  private fun prefixLength(words: List<String>, alternatives: List<List<String>>): Int =
+    alternatives.filter { words.startsWith(it) }.maxOfOrNull { it.size } ?: 0
+
   /** Whether [command] is one of the spoken answers that confirm a dangerous command. */
   @JvmStatic
   fun isYesAnswer(command: String, keywords: Keywords): Boolean =
@@ -134,31 +141,32 @@ object VoiceCommandParameters {
   @JvmStatic
   fun parsePercent(command: String, keywords: Keywords): Percent? {
     val tokens = tokens(VietnameseNumbers.convert(plain(command)))
-    percentAfter(tokens, keywords.mediaVolumeTokens, keywords)?.let {
+    percentAfter(tokens, keywords.mediaVolumeTokenSets, keywords)?.let {
       if (it in 0..100) return Percent(PercentKind.MEDIA_VOLUME, it)
       return null
     }
-    percentAfter(tokens, keywords.volumeTokens, keywords)?.let {
+    percentAfter(tokens, keywords.volumeTokenSets, keywords)?.let {
       if (it in 0..100) return Percent(PercentKind.SPEECH_VOLUME, it)
       return null
     }
-    percentAfter(tokens, keywords.speechRateTokens, keywords)?.let {
+    percentAfter(tokens, keywords.speechRateTokenSets, keywords)?.let {
       if (it in 1..999) return Percent(PercentKind.SPEECH_RATE, it)
       return null
     }
     return null
   }
 
-  /** The number right after [prefix] in [tokens], with an optional percent word after it. */
+  /** The number right after one of the [prefixes] in [tokens], with an optional percent word. */
   private fun percentAfter(
     tokens: List<String>,
-    prefix: List<String>,
+    prefixes: List<List<String>>,
     keywords: Keywords,
   ): Int? {
-    if (tokens.size <= prefix.size || tokens.subList(0, prefix.size) != prefix) return null
-    val number = tokens[prefix.size].toIntOrNull() ?: return null
-    val rest = tokens.drop(prefix.size + 1)
-    if (rest.isNotEmpty() && rest != keywords.percentTokens) return null
+    val prefixSize = prefixLength(tokens, prefixes)
+    if (prefixSize == 0 || tokens.size <= prefixSize) return null
+    val number = tokens[prefixSize].toIntOrNull() ?: return null
+    val rest = tokens.drop(prefixSize + 1)
+    if (rest.isNotEmpty() && keywords.percentTokenSets.none { it == rest }) return null
     return number
   }
 
@@ -179,20 +187,21 @@ object VoiceCommandParameters {
     val rest = words.drop(1)
     val targets =
       listOf(
-        keywords.mediaVolumeTokens to PercentKind.MEDIA_VOLUME,
-        keywords.volumeTokens to PercentKind.SPEECH_VOLUME,
-        keywords.speechRateTokens to PercentKind.SPEECH_RATE,
+        keywords.mediaVolumeTokenSets to PercentKind.MEDIA_VOLUME,
+        keywords.volumeTokenSets to PercentKind.SPEECH_VOLUME,
+        keywords.speechRateTokenSets to PercentKind.SPEECH_RATE,
       )
-    for ((targetTokens, kind) in targets) {
-      if (!rest.startsWith(targetTokens)) continue
-      val tail = rest.drop(targetTokens.size)
+    for ((targetTokenSets, kind) in targets) {
+      val targetSize = prefixLength(rest, targetTokenSets)
+      if (targetSize == 0) continue
+      val tail = rest.drop(targetSize)
       val step =
         when {
           tail.isEmpty() -> 10
           else -> {
             val number = tail[0].toIntOrNull() ?: return null
             val after = tail.drop(1)
-            if (after.isNotEmpty() && after != keywords.percentTokens) return null
+            if (after.isNotEmpty() && keywords.percentTokenSets.none { it == after }) return null
             number
           }
         }
@@ -210,25 +219,28 @@ object VoiceCommandParameters {
   @JvmStatic
   fun parseClockAlarmMillis(command: String, keywords: Keywords, nowMillis: Long): Long? {
     val words = tokens(VietnameseNumbers.convert(plain(command)))
+    val alarmSize = prefixLength(words, keywords.alarmTokenSets)
+    val countdownSize = prefixLength(words, keywords.countdownTokenSets)
     var rest =
       when {
-        words.startsWith(keywords.alarmTokens) -> words.drop(keywords.alarmTokens.size)
-        words.startsWith(keywords.countdownTokens) -> words.drop(keywords.countdownTokens.size)
+        alarmSize > 0 -> words.drop(alarmSize)
+        countdownSize > 0 -> words.drop(countdownSize)
         else -> return null
       }
-    if (rest.startsWith(keywords.atTokens)) {
-      rest = rest.drop(keywords.atTokens.size)
+    val atSize = prefixLength(rest, keywords.atTokenSets)
+    if (atSize > 0) {
+      rest = rest.drop(atSize)
     }
     var index = 0
     val hour = rest.getOrNull(index)?.toIntOrNull() ?: return null
     index++
-    if (listOf(rest.getOrNull(index)) != keywords.hoursTokens) return null
+    if (keywords.hourUnits.none { it == listOf(rest.getOrNull(index)) }) return null
     index++
     var minute = 0
     rest.getOrNull(index)?.toIntOrNull()?.let { spokenMinute ->
       minute = spokenMinute
       index++
-      if (listOf(rest.getOrNull(index)) == keywords.minutesTokens) {
+      if (keywords.minuteUnits.any { it == listOf(rest.getOrNull(index)) }) {
         index++
       }
     }
@@ -287,10 +299,12 @@ object VoiceCommandParameters {
     // first ("mục số 5").
     val startIndex =
       keywords.itemGoToTokens.firstOrNull { words.startsWith(it) }?.size
-        ?: if (words.startsWith(keywords.itemTokens)) keywords.itemTokens.size else return null
+        ?: prefixLength(words, keywords.itemTokenSets).takeIf { it > 0 }
+        ?: return null
     var rest = words.drop(startIndex)
-    if (rest.startsWith(keywords.numberWordTokens)) {
-      rest = rest.drop(keywords.numberWordTokens.size)
+    val numberWordSize = prefixLength(rest, keywords.numberWordTokenSets)
+    if (numberWordSize > 0) {
+      rest = rest.drop(numberWordSize)
     }
     if (rest.size != 1) return null
     val number = rest[0].toIntOrNull() ?: return null
@@ -301,10 +315,12 @@ object VoiceCommandParameters {
   @JvmStatic
   fun parseDurationMillis(command: String, keywords: Keywords): Long? {
     val tokens = tokens(VietnameseNumbers.convert(plain(command)))
+    val alarmSize = prefixLength(tokens, keywords.alarmTokenSets)
+    val countdownSize = prefixLength(tokens, keywords.countdownTokenSets)
     val rest =
       when {
-        tokens.startsWith(keywords.alarmTokens) -> tokens.drop(keywords.alarmTokens.size)
-        tokens.startsWith(keywords.countdownTokens) -> tokens.drop(keywords.countdownTokens.size)
+        alarmSize > 0 -> tokens.drop(alarmSize)
+        countdownSize > 0 -> tokens.drop(countdownSize)
         else -> return null
       }
     if (rest.isEmpty() || rest.size % 2 != 0) return null
@@ -316,10 +332,10 @@ object VoiceCommandParameters {
       if (number < 0) return null
       val unit = listOf(rest[index + 1])
       val multiplier =
-        when (unit) {
-          keywords.hoursTokens -> 3600L
-          keywords.minutesTokens -> 60L
-          keywords.secondsTokens -> 1L
+        when {
+          unit in keywords.hourUnits -> 3600L
+          unit in keywords.minuteUnits -> 60L
+          unit in keywords.secondUnits -> 1L
           else -> return null
         }
       if (!seenUnits.add(unit)) return null
@@ -335,11 +351,14 @@ object VoiceCommandParameters {
   @JvmStatic
   fun parseRepeat(command: String, keywords: Keywords): Repeat? {
     val tokens = tokens(VietnameseNumbers.convert(plain(command)))
-    if (tokens.size <= keywords.timesTokens.size + 1) return null
-    if (tokens.takeLast(keywords.timesTokens.size) != keywords.timesTokens) return null
-    val count = tokens[tokens.size - keywords.timesTokens.size - 1].toIntOrNull() ?: return null
+    val timesSize =
+      keywords.timesTokenSets
+        .filter { tokens.size > it.size + 1 && tokens.takeLast(it.size) == it }
+        .maxOfOrNull { it.size }
+        ?: return null
+    val count = tokens[tokens.size - timesSize - 1].toIntOrNull() ?: return null
     if (count < 2) return null
-    val text = tokens.dropLast(keywords.timesTokens.size + 1).joinToString(" ")
+    val text = tokens.dropLast(timesSize + 1).joinToString(" ")
     if (text.isEmpty()) return null
     return Repeat(text, minOf(count, MAX_REPEAT))
   }

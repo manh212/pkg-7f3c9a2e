@@ -31,7 +31,7 @@ object VoiceCommandChain {
     companion object {
       @JvmStatic
       fun from(context: Context): Keywords =
-        Keywords(context.getString(R.string.voice_chain_connectors).split(','))
+        Keywords(VoiceCommandBilingual.list(context, R.string.voice_chain_connectors))
     }
   }
 

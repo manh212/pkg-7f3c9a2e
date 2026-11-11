@@ -111,7 +111,8 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   /* Whether [text] is one of the words that end continuous listening. */
   private boolean isContinuousStopWord(String text) {
     String identity = VoiceCommandPhrases.identity(text);
-    for (String word : talkbackContext.getString(R.string.voice_continuous_stop_words).split(",")) {
+    for (String word :
+        VoiceCommandBilingual.list(talkbackContext, R.string.voice_continuous_stop_words)) {
       if (VoiceCommandPhrases.identity(word).equals(identity)) {
         return true;
       }

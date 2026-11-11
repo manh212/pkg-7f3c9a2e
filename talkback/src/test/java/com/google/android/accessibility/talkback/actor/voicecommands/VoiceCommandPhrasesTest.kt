@@ -24,7 +24,7 @@ class VoiceCommandPhrasesTest {
     VoiceCommandPhrases.Keywords(
       createOpeners = listOf("tạo lệnh mới", "thêm lệnh mới", "đặt lệnh mới"),
       setPrefixes = listOf("đặt lệnh", "gán lệnh", "tạo lệnh"),
-      separator = "cho",
+      separators = listOf("cho"),
       listCommands = listOf("liệt kê lệnh của tôi", "danh sách lệnh của tôi"),
       deletePrefixes = listOf("xóa lệnh", "xóa cụm từ"),
       cancelWords = listOf("hủy", "hủy bỏ"),
@@ -130,6 +130,25 @@ class VoiceCommandPhrasesTest {
     assertNull(VoiceCommandPhrases.splitAssignment("đặt lệnh về đầu", keywords))
     assertNull(VoiceCommandPhrases.splitAssignment("về đầu cho mục đầu tiên", keywords))
     assertNull(VoiceCommandPhrases.splitAssignment("mở cài đặt", keywords))
+  }
+
+  @Test
+  fun assignmentSplitsAtAnEnglishSeparator() {
+    val englishKeywords =
+      VoiceCommandPhrases.Keywords(
+        createOpeners = listOf("new command"),
+        setPrefixes = listOf("set phrase"),
+        separators = listOf("for"),
+        listCommands = listOf("list my commands"),
+        deletePrefixes = listOf("delete phrase"),
+        cancelWords = listOf("cancel"),
+        finishWords = listOf("done"),
+      )
+    val splits =
+      VoiceCommandPhrases.splitAssignment("set phrase morning news for read from top", englishKeywords)
+    assertEquals(1, splits?.size)
+    assertEquals("morning news", splits?.get(0)?.first)
+    assertEquals("read from top", splits?.get(0)?.second)
   }
 
   @Test

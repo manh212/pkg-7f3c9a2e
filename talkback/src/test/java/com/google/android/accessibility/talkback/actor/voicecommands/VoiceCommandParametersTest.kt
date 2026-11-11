@@ -26,24 +26,47 @@ class VoiceCommandParametersTest {
 
   private val keywords =
     VoiceCommandParameters.Keywords(
-      volume = "âm lượng",
-      mediaVolume = "âm lượng nhạc",
-      speechRate = "tốc độ đọc",
-      percent = "phần trăm",
-      alarm = "báo thức",
-      countdown = "đếm ngược",
-      hours = "giờ",
-      minutes = "phút",
-      seconds = "giây",
-      times = "lần",
+      volume = listOf("âm lượng"),
+      mediaVolume = listOf("âm lượng nhạc"),
+      speechRate = listOf("tốc độ đọc"),
+      percent = listOf("phần trăm"),
+      alarm = listOf("báo thức"),
+      countdown = listOf("đếm ngược"),
+      hours = listOf("giờ"),
+      minutes = listOf("phút"),
+      seconds = listOf("giây"),
+      times = listOf("lần"),
       yesAnswers = listOf("đúng", "có"),
       increase = listOf("tăng"),
       decrease = listOf("giảm"),
-      at = "lúc",
+      at = listOf("lúc"),
       dayParts = listOf("sáng", "trưa", "chiều", "tối", "đêm"),
       itemGoTo = listOf("đi tới mục", "tới mục", "đến mục"),
-      item = "mục",
-      numberWord = "số",
+      item = listOf("mục"),
+      numberWord = listOf("số"),
+    )
+
+  /* The same keywords in English: both languages are always active, on any device language. */
+  private val englishKeywords =
+    VoiceCommandParameters.Keywords(
+      volume = listOf("volume"),
+      mediaVolume = listOf("media volume"),
+      speechRate = listOf("speech rate"),
+      percent = listOf("percent"),
+      alarm = listOf("alarm"),
+      countdown = listOf("countdown"),
+      hours = listOf("hours"),
+      minutes = listOf("minutes"),
+      seconds = listOf("seconds"),
+      times = listOf("times"),
+      yesAnswers = listOf("yes"),
+      increase = listOf("increase", "raise"),
+      decrease = listOf("decrease", "lower"),
+      at = listOf("at"),
+      dayParts = listOf("am", "pm"),
+      itemGoTo = listOf("go to item"),
+      item = listOf("item"),
+      numberWord = listOf("number"),
     )
 
   @Test
@@ -281,6 +304,27 @@ class VoiceCommandParametersTest {
     assertNull(VoiceCommandParameters.parseItemNumber("đi tới mục số 0", keywords))
     assertNull(VoiceCommandParameters.parseItemNumber("mục tiêu số 5", keywords))
     assertNull(VoiceCommandParameters.parseItemNumber("cuộn xuống 5 lần", keywords))
+  }
+
+  @Test
+  fun englishParameters() {
+    val percent = VoiceCommandParameters.parsePercent("volume 50 percent", englishKeywords)
+    assertEquals(VoiceCommandParameters.PercentKind.SPEECH_VOLUME, percent?.kind)
+    assertEquals(50, percent?.value)
+    val media = VoiceCommandParameters.parsePercent("media volume 30", englishKeywords)
+    assertEquals(VoiceCommandParameters.PercentKind.MEDIA_VOLUME, media?.kind)
+    assertEquals(300_000L, VoiceCommandParameters.parseDurationMillis("alarm 5 minutes", englishKeywords))
+    assertEquals(
+      5_400_000L,
+      VoiceCommandParameters.parseDurationMillis("countdown 1 hours 30 minutes", englishKeywords),
+    )
+    val repeat = VoiceCommandParameters.parseRepeat("scroll down 3 times", englishKeywords)
+    assertEquals(3, repeat?.count)
+    assertEquals("scroll down", repeat?.text)
+    assertEquals(5, VoiceCommandParameters.parseItemNumber("go to item number 5", englishKeywords))
+    val relative = VoiceCommandParameters.parseRelativePercent("increase volume", englishKeywords)
+    assertEquals(VoiceCommandParameters.PercentKind.SPEECH_VOLUME, relative?.kind)
+    assertEquals(10, relative?.delta)
   }
 
   private fun atTime(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long {

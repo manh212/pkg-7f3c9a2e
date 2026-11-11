@@ -169,6 +169,9 @@ public class VoiceCommandProcessor {
   private VoiceCommandPhrases.Keywords phraseKeywords;
   private VoiceCommandChain.Keywords chainKeywords;
   private Set<String> continuousStartWords;
+
+  /* Set while the fixed legacy commands run their second, scored-matching pass. */
+  private boolean fuzzyLegacyPass;
   private int chainGeneration;
   private ConfirmationSession confirmationSession;
   private Runnable pendingConfirmationAction;
@@ -440,6 +443,71 @@ public class VoiceCommandProcessor {
       return true;
     }
 
+    if (handleLegacyCommands(command, eventId)) {
+      return true;
+    }
+    if (!isPartialResult) {
+      // A fixed command said slightly differently — a word off, a diacritic missing —
+      // gets one more pass with scored matching before the parameterized commands
+      // see the sentence.
+      fuzzyLegacyPass = true;
+      try {
+        if (handleLegacyCommands(command, eventId)) {
+          return true;
+        }
+      } finally {
+        fuzzyLegacyPass = false;
+      }
+    }
+
+    // Commands carrying a spoken number come next: a percentage or a countdown duration.
+    // Any other action that a gesture or a shortcut can run can be spoken by its name, with
+    // an optional repeat count. Partial results are not matched: the phrase may still be
+    // growing into another command.
+    if (!isPartialResult && handleParameterCommand(command, eventId)) {
+      return true;
+    }
+    if (!isPartialResult && handleCatalogCommand(command, eventId)) {
+      return true;
+    }
+
+    if (!isPartialResult && !chainedPart) {
+      // A sentence that matched nothing may still be a chain of commands joined by a
+      // connector: each part runs in order, and a part nothing recognizes is skipped.
+      if (tryChainedCommands(command, eventId)) {
+        return true;
+      }
+      // Nothing matched. When the user turned the AI fallback on, the sentence is given
+      // to the AI before it is called unrecognized; the fallback speaks for itself.
+      if (startAiFallback(command, eventId)) {
+        return true;
+      }
+    }
+
+    if (chainedPart) {
+      // One part of a chain that nothing recognized is skipped without a word.
+      return false;
+    }
+    speakUnrecognized(command);
+    if (!isPartialResult) {
+      // To expect further partial/final result from speech recognizer could match the supported
+      // commands, we don't log the unrecognized metrics for partial result. On the other hand, for
+      // final result, we should return true even the command match failed so that the entire
+      // session will be terminated.
+      analytics.onVoiceCommandEvent(VOICE_COMMAND_UNRECOGNIZED);
+      return true;
+    }
+
+    return false;
+  }
+
+  /*
+   * The fixed legacy commands, in their long-standing order: returns true when one of
+   * them took the sentence. Matching goes through the equals and containsWord
+   * helpers, so a second pass with fuzzyLegacyPass set runs the very same commands
+   * with scored, diacritic-tolerant matching.
+   */
+  private boolean handleLegacyCommands(String command, EventId eventId) {
     @Nullable AccessibilityNodeInfoCompat node = null;
     // select all voice command
     // command format: Select all
@@ -942,45 +1010,6 @@ public class VoiceCommandProcessor {
       handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_HELP);
       return true;
     }
-
-    // Commands carrying a spoken number come next: a percentage or a countdown duration.
-    // Any other action that a gesture or a shortcut can run can be spoken by its name, with
-    // an optional repeat count. Partial results are not matched: the phrase may still be
-    // growing into another command.
-    if (!isPartialResult && handleParameterCommand(command, eventId)) {
-      return true;
-    }
-    if (!isPartialResult && handleCatalogCommand(command, eventId)) {
-      return true;
-    }
-
-    if (!isPartialResult && !chainedPart) {
-      // A sentence that matched nothing may still be a chain of commands joined by a
-      // connector: each part runs in order, and a part nothing recognizes is skipped.
-      if (tryChainedCommands(command, eventId)) {
-        return true;
-      }
-      // Nothing matched. When the user turned the AI fallback on, the sentence is given
-      // to the AI before it is called unrecognized; the fallback speaks for itself.
-      if (startAiFallback(command, eventId)) {
-        return true;
-      }
-    }
-
-    if (chainedPart) {
-      // One part of a chain that nothing recognized is skipped without a word.
-      return false;
-    }
-    speakUnrecognized(command);
-    if (!isPartialResult) {
-      // To expect further partial/final result from speech recognizer could match the supported
-      // commands, we don't log the unrecognized metrics for partial result. On the other hand, for
-      // final result, we should return true even the command match failed so that the entire
-      // session will be terminated.
-      analytics.onVoiceCommandEvent(VOICE_COMMAND_UNRECOGNIZED);
-      return true;
-    }
-
     return false;
   }
 
@@ -1514,6 +1543,19 @@ public class VoiceCommandProcessor {
         return true;
       }
     }
+    if (!fuzzyLegacyPass) {
+      return false;
+    }
+    // A command word said without its diacritics still names the command.
+    String word = VoiceCommandPhrases.identity(service.getString(stringResId));
+    if (word.isEmpty()) {
+      return false;
+    }
+    for (int i = 0; i < commandSplit.length; i++) {
+      if (VoiceCommandPhrases.identity(commandSplit[i]).equals(word)) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -1523,11 +1565,29 @@ public class VoiceCommandProcessor {
         return command;
       }
     }
-    return null;
+    if (!fuzzyLegacyPass) {
+      return null;
+    }
+    List<VoiceCommandMatcher.Entry> entries = new ArrayList<>();
+    for (int i = 0; i < stringList.size(); i++) {
+      entries.add(new VoiceCommandMatcher.Entry(stringList.get(i), Integer.toString(i)));
+    }
+    VoiceCommandMatcher.Match match = VoiceCommandMatcher.INSTANCE.match(command, entries);
+    return match == null
+        ? null
+        : stringList.get(Integer.parseInt(match.getValue())).toLowerCase();
   }
 
   private boolean equals(String command, int stringResId) {
-    return command.equals(service.getString(stringResId).toLowerCase());
+    if (command.equals(service.getString(stringResId).toLowerCase())) {
+      return true;
+    }
+    if (!fuzzyLegacyPass) {
+      return false;
+    }
+    List<VoiceCommandMatcher.Entry> entries = new ArrayList<>();
+    entries.add(new VoiceCommandMatcher.Entry(service.getString(stringResId), ""));
+    return VoiceCommandMatcher.INSTANCE.match(command, entries) != null;
   }
 
   private boolean startsWith(String command, int stringResId) {
@@ -1555,7 +1615,17 @@ public class VoiceCommandProcessor {
         return stringResIdArray[i];
       }
     }
-    return -1;
+    if (!fuzzyLegacyPass) {
+      return -1;
+    }
+    List<VoiceCommandMatcher.Entry> entries = new ArrayList<>();
+    for (int i = 0; i < stringResIdArray.length; i++) {
+      entries.add(
+          new VoiceCommandMatcher.Entry(
+              service.getString(stringResIdArray[i]), Integer.toString(stringResIdArray[i])));
+    }
+    VoiceCommandMatcher.Match match = VoiceCommandMatcher.INSTANCE.match(command, entries);
+    return match == null ? -1 : Integer.parseInt(match.getValue());
   }
 
   /* Returns the tail of command-string after the stringResId prefix. */
@@ -1581,7 +1651,7 @@ public class VoiceCommandProcessor {
     if (continuousStartWords == null) {
       continuousStartWords = new HashSet<>();
       for (String word :
-          service.getString(R.string.voice_continuous_start_commands).split(",")) {
+          VoiceCommandBilingual.list(service, R.string.voice_continuous_start_commands)) {
         continuousStartWords.add(VoiceCommandPhrases.identity(word));
       }
     }

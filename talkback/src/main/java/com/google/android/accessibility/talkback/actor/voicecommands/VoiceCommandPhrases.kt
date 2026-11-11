@@ -51,7 +51,7 @@ object VoiceCommandPhrases {
   class Keywords(
     createOpeners: List<String>,
     setPrefixes: List<String>,
-    separator: String,
+    separators: List<String>,
     listCommands: List<String>,
     deletePrefixes: List<String>,
     cancelWords: List<String>,
@@ -60,7 +60,8 @@ object VoiceCommandPhrases {
     val createOpeners: Set<String> = createOpeners.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val setPrefixTokens: List<List<String>> =
       setPrefixes.map { tokens(it) }.filter { it.isNotEmpty() }
-    val separatorToken: String = plain(separator)
+    val separatorTokens: Set<String> =
+      separators.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val listCommands: Set<String> = listCommands.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val deletePrefixTokens: List<List<String>> =
       deletePrefixes.map { tokens(it) }.filter { it.isNotEmpty() }
@@ -71,13 +72,13 @@ object VoiceCommandPhrases {
       @JvmStatic
       fun from(context: Context): Keywords =
         Keywords(
-          context.getString(R.string.voice_phrase_create_openers).split(','),
-          context.getString(R.string.voice_phrase_set_prefixes).split(','),
-          context.getString(R.string.voice_phrase_separator),
-          context.getString(R.string.voice_phrase_list_commands).split(','),
-          context.getString(R.string.voice_phrase_delete_prefixes).split(','),
-          context.getString(R.string.voice_phrase_cancel_words).split(','),
-          context.getString(R.string.voice_phrase_finish_words).split(','),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_create_openers),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_set_prefixes),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_separator),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_list_commands),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_delete_prefixes),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_cancel_words),
+          VoiceCommandBilingual.list(context, R.string.voice_phrase_finish_words),
         )
     }
   }
@@ -193,7 +194,7 @@ object VoiceCommandPhrases {
     val restPlain = plainWords.drop(prefix.size)
     val splits = mutableListOf<Pair<String, String>>()
     for (index in restPlain.indices) {
-      if (restPlain[index] == keywords.separatorToken && index > 0 && index < rest.size - 1) {
+      if (restPlain[index] in keywords.separatorTokens && index > 0 && index < rest.size - 1) {
         splits.add(
           rest.subList(0, index).joinToString(" ") to rest.subList(index + 1, rest.size).joinToString(" ")
         )
