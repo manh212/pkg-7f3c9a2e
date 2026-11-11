@@ -12,6 +12,9 @@
     <string name="notification_queue_skip">Không đọc thông báo mới</string>
     <string name="notification_queue_interrupt">Ngắt thông báo đang đọc</string>
     <string name="notification_queue_queue">Đọc sau thông báo đó</string>
+    <string name="notification_while_reading_now">Đọc ngay</string>
+    <string name="notification_while_reading_after">Chờ đọc xong mới đọc</string>
+    <string name="notification_while_reading_skip">Không đọc</string>
     <string name="notification_url_omit">Bỏ qua</string>
     <string name="notification_url_replace">Đọc văn bản bên dưới</string>
     <string name="notification_url_domain">Chỉ đọc tên trang web</string>
@@ -59,6 +62,7 @@
     <string name="notification_category_timing">Thời điểm</string>
     <string name="notification_delay_title">Chờ trước khi đọc</string>
     <string name="notification_queue_title">Khi một thông báo khác đang được đọc</string>
+    <string name="notification_while_reading_title">Khi đang đọc nội dung khác</string>
     <string name="notification_repeat_minutes_title">Đọc lại cho đến khi màn hình bật</string>
     <string name="notification_skip_media_title">Bỏ qua trình phát đa phương tiện</string>
     <string name="notification_skip_ongoing_title">Bỏ qua thông báo đang diễn ra</string>
@@ -459,6 +463,16 @@
         <item>@string/notification_queue_queue</item>
         <item>@string/notification_queue_interrupt</item>
         <item>@string/notification_queue_skip</item>
+    </string-array>
+    <string-array name="notification_while_reading_entries">
+        <item>@string/notification_while_reading_now</item>
+        <item>@string/notification_while_reading_after</item>
+        <item>@string/notification_while_reading_skip</item>
+    </string-array>
+    <string-array name="notification_while_reading_values" translatable="false">
+        <item>NOW</item>
+        <item>AFTER</item>
+        <item>SKIP</item>
     </string-array>
     <string-array name="notification_headphones_entries">
         <item>@string/notification_headphones_always</item>
