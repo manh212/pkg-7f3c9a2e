@@ -373,7 +373,7 @@
   <!-- The words a voice command uses to set the speech volume to a percentage. [CHAR_LIMIT=NONE] -->
   <string name="voice_param_volume">volume</string>
   <!-- The words a voice command uses to set the media volume to a percentage. [CHAR_LIMIT=NONE] -->
-  <string name="voice_param_media_volume">media volume</string>
+  <string name="voice_param_media_volume">media volume,media</string>
   <!-- The words a voice command uses to set the speech rate to a percentage. [CHAR_LIMIT=NONE] -->
   <string name="voice_param_speech_rate">speech rate</string>
   <!-- The word a voice command can say after a percentage number. [CHAR_LIMIT=NONE] -->

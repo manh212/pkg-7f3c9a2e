@@ -151,7 +151,7 @@
   <string name="summary_voice_commands_continuous">Sau mỗi lệnh, máy tự nghe tiếp lệnh sau. Nói “dừng” hoặc “xong” để thoát; máy cũng tự thoát khi khoảng 30 giây không có lệnh nào chạy.</string>
 
   <string name="voice_param_volume">âm lượng</string>
-  <string name="voice_param_media_volume">âm lượng nhạc</string>
+  <string name="voice_param_media_volume">âm lượng nhạc,âm lượng phương tiện</string>
   <string name="voice_param_speech_rate">tốc độ đọc</string>
   <string name="voice_param_percent">phần trăm</string>
   <string name="voice_param_alarm">báo thức</string>
