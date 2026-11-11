@@ -101,6 +101,14 @@ class TextPiecesTest {
   }
 
   @Test
+  fun spanCoversFromTheFirstPieceToTheLast() {
+    val words = TextPieces.split("one two three", Granularity.WORDS, Locale.US)
+    assertEquals(0 to 13, TextPieces.span(listOf(words[2], words[0], words[1])))
+    assertEquals(4 to 7, TextPieces.span(listOf(words[1])))
+    assertEquals(null, TextPieces.span(emptyList()))
+  }
+
+  @Test
   fun whiteSpaceOnlyTextHasNoPieces() {
     assertTrue(TextPieces.split("   \n ", Granularity.WORDS, Locale.US).isEmpty())
     assertTrue(TextPieces.split("", Granularity.CHARACTERS, Locale.US).isEmpty())

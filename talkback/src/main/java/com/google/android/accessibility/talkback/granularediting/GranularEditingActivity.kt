@@ -19,8 +19,13 @@ package com.google.android.accessibility.talkback.granularediting
 import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Rect
+import android.icu.text.ListFormatter
 import android.os.Bundle
 import android.text.InputType
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.LocaleSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -44,8 +49,27 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Accessibilit
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.actor.gemini.AiTextRequests
+import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandEditor
+import com.google.android.accessibility.talkback.textcorrection.CorrectionPrompt
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
+import com.google.android.accessibility.talkback.translation.AutomaticTranslation
+import com.google.android.accessibility.talkback.translation.Translation
+import com.google.android.accessibility.talkback.translation.TranslationFailure
+import com.google.android.accessibility.talkback.translation.TranslationFailure.Kind
+import com.google.android.accessibility.talkback.translation.TranslationLanguages
+import com.google.android.accessibility.talkback.translation.TranslationService
+import com.google.android.accessibility.talkback.translation.TranslationSettings
+import com.google.android.accessibility.talkback.translation.Translator
+import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
+import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FeedbackItem
+import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.widget.KeyboardSafeEditText
+import java.util.Locale
+import java.util.function.Consumer
+import org.json.JSONObject
 
 /**
  * The granular editing screen: the text as a list of pieces, split by characters, words,
@@ -67,6 +91,23 @@ class GranularEditingActivity : AppCompatActivity() {
   private val undo = ArrayList<String>()
   private val redo = ArrayList<String>()
   private var lastFind = ""
+  private var translator: Translator? = null
+  private var aiRequests: AiTextRequests? = null
+
+  /** The styles Rewrite offers, the same wordings as the text correction screen's. */
+  private val rewriteStyles =
+    listOf(
+      R.string.correction_professional to "Make the wording professional.",
+      R.string.correction_friendly to "Make the wording friendly and warm.",
+      R.string.correction_formal to "Make the wording formal and respectful.",
+      R.string.correction_simple to "Use simple, easy-to-understand wording.",
+      R.string.correction_shorter to "Shorten the wording while keeping its essential information.",
+      R.string.correction_longer to "Expand the wording without adding facts or new ideas.",
+      R.string.correction_spelling to
+        "Correct spelling, punctuation and recognition errors only; keep the writing style.",
+      R.string.correction_coherent to "Improve coherence and sentence order, and remove repetition.",
+      R.string.correction_custom to "",
+    )
 
   private lateinit var list: RecyclerView
   private lateinit var splitBy: Button
@@ -158,6 +199,7 @@ class GranularEditingActivity : AppCompatActivity() {
 
   override fun onResume() {
     super.onResume()
+    GranularEditing.editorResumed(this)
     for (result in GranularEditing.takeChildResults(sessionId)) {
       val field = promptFields.getOrNull(result.fieldIndex)
       if (field != null) {
@@ -174,7 +216,16 @@ class GranularEditingActivity : AppCompatActivity() {
     }
   }
 
+  override fun onPause() {
+    GranularEditing.editorPaused(this)
+    super.onPause()
+  }
+
   override fun onDestroy() {
+    translator?.shutdown()
+    translator = null
+    aiRequests?.cancel()
+    aiRequests = null
     GranularEditing.unregisterActivity(sessionId, this)
     if (isFinishing) GranularEditing.close(sessionId)
     super.onDestroy()
@@ -447,6 +498,9 @@ class GranularEditingActivity : AppCompatActivity() {
       add(R.string.granular_editing_find_previous) { find(lastFind, focusedIndex(), forward = false) }
     }
     add(R.string.granular_editing_replace) { showReplace() }
+    add(R.string.granular_editing_translate) { translateTarget() }
+    add(R.string.granular_editing_summarize) { summarizeTarget() }
+    add(R.string.granular_editing_rewrite) { chooseRewriteStyle() }
     add(R.string.granular_editing_add_at_end) { addAtEnd() }
     if (pieces.isNotEmpty()) {
       add(android.R.string.selectAll) {
@@ -476,6 +530,290 @@ class GranularEditingActivity : AppCompatActivity() {
       true
     }
     menu.show()
+  }
+
+  /** Runs one spoken editor command, heard while this screen is in front of the user. */
+  internal fun runVoiceCommand(command: VoiceCommandEditor.Command) {
+    when (command) {
+      VoiceCommandEditor.Command.SelectCurrent -> selectFocusedPiece()
+      VoiceCommandEditor.Command.DeleteSelection -> deleteSelectionOrFocused()
+      VoiceCommandEditor.Command.ReadCurrent -> readFocusedPiece()
+      VoiceCommandEditor.Command.ReadAll -> readWholeText()
+      VoiceCommandEditor.Command.Undo -> undoLast()
+      VoiceCommandEditor.Command.Redo -> redoLast()
+      is VoiceCommandEditor.Command.Find -> findByVoice(command.query)
+    }
+  }
+
+  private fun selectFocusedPiece() {
+    val index = focusedIndex()
+    if (index !in pieces.indices) return
+    if (selected.add(index)) adapter.notifyItemChanged(index)
+    focus(index)
+  }
+
+  /** Deletes the selected pieces, or the piece in focus when none is selected. Undo brings them back. */
+  private fun deleteSelectionOrFocused() {
+    if (selected.isNotEmpty()) {
+      delete(selected.toList())
+      return
+    }
+    val index = focusedIndex()
+    if (index in pieces.indices) delete(listOf(index))
+  }
+
+  private fun readFocusedPiece() {
+    val piece = pieces.getOrNull(focusedIndex().coerceAtLeast(0)) ?: return
+    list.announceForAccessibility(label(piece))
+  }
+
+  private fun readWholeText() {
+    list.announceForAccessibility(
+      if (text.isEmpty()) getString(R.string.granular_editing_empty) else text
+    )
+  }
+
+  private fun findByVoice(query: String?) {
+    when {
+      query != null -> find(query, focusedIndex())
+      lastFind.isNotEmpty() -> find(lastFind, focusedIndex())
+      else -> list.announceForAccessibility(getString(R.string.granular_editing_voice_no_find))
+    }
+  }
+
+  /** The range of text the AI actions work on: the selected pieces, or the piece in focus. */
+  private fun targetRange(): Pair<Int, Int>? {
+    if (selected.isNotEmpty()) {
+      return TextPieces.span(selected.mapNotNull { pieces.getOrNull(it) })
+    }
+    val piece = pieces.getOrNull(focusedIndex().coerceAtLeast(0)) ?: return null
+    return piece.coreStart to piece.coreEnd
+  }
+
+  private fun targetText(): String? = targetRange()?.let { (start, end) -> text.substring(start, end) }
+
+  private fun aiRequests(): AiTextRequests =
+    aiRequests
+      ?: AiTextRequests(
+          this,
+          Consumer { message ->
+            runOnUiThread {
+              if (!isFinishing && !isDestroyed) list.announceForAccessibility(message)
+            }
+          },
+        )
+        .also { aiRequests = it }
+
+  /** Translates the target text with the translation service, and reads it the way translations are read. */
+  private fun translateTarget() {
+    val target = targetText()
+    if (target.isNullOrBlank()) {
+      list.announceForAccessibility(getString(R.string.granular_editing_ai_nothing))
+      return
+    }
+    val active = translator ?: Translator(this).also { translator = it }
+    active.translate(target) { result ->
+      runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        when (result) {
+          is Translator.Result.Done -> speakTranslation(target, result.translation)
+          is Translator.Result.Downloading ->
+            list.announceForAccessibility(
+              getString(R.string.translation_downloading, languageNames(result.languages))
+            )
+          is Translator.Result.Failed ->
+            list.announceForAccessibility(translationFailureText(result.failure, result.service))
+        }
+      }
+    }
+  }
+
+  /** Reads a translation aloud, honouring the bilingual, voice and copy translation settings. */
+  private fun speakTranslation(source: String, translation: Translation) {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(this)
+    if (TranslationLanguages.same(translation.from, translation.to) && translation.text == source) {
+      list.announceForAccessibility(
+        getString(R.string.translation_already_in, TranslationLanguages.name(translation.to))
+      )
+      return
+    }
+    if (TranslationSettings.copy(prefs)) GranularEditing.copy(this, translation.text)
+    val controller =
+      if (TalkBackService.isServiceActive()) TalkBackService.getInstance()?.speechController else null
+    if (controller == null) {
+      list.announceForAccessibility(translation.text)
+      return
+    }
+    val options =
+      SpeechController.SpeakOptions.create()
+        .setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT)
+        .setFlags(FeedbackItem.FLAG_FORCE_FEEDBACK_ALL)
+        .setSpeechParams(AutomaticTranslation.untranslated())
+    if (TranslationSettings.bilingual(prefs)) {
+      controller.speak(
+        TranslationSettings.bilingualSpeech(prefs, source, translation.text),
+        EVENT_ID_UNTRACKED,
+        options,
+      )
+      return
+    }
+    val translated = SpannableString(translation.text)
+    if (TranslationSettings.targetVoice(prefs)) {
+      translated.setSpan(
+        LocaleSpan(Locale.forLanguageTag(translation.to)),
+        0,
+        translated.length,
+        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+      )
+    }
+    val speech = SpannableStringBuilder()
+    val from = translation.from
+    if (TranslationSettings.saySource(prefs) && from != null) {
+      speech.append(getString(R.string.translation_from, TranslationLanguages.name(from))).append(' ')
+    }
+    speech.append(translated)
+    controller.speak(speech, EVENT_ID_UNTRACKED, options)
+  }
+
+  private fun languageNames(languages: List<String>): String =
+    ListFormatter.getInstance().format(languages.map { TranslationLanguages.name(it) })
+
+  /** What a failed translation is announced as, the same wording as the translate commands'. */
+  private fun translationFailureText(failure: TranslationFailure, service: TranslationService): String {
+    val name = getString(service.label)
+    return when (failure.kind) {
+      Kind.NOT_SET_UP ->
+        when {
+          service == TranslationService.AI -> getString(R.string.ai_service_not_set_up)
+          service.needsKey -> getString(R.string.translation_error_no_key, name)
+          else -> getString(R.string.translation_error_no_address, name)
+        }
+      Kind.CONNECTION ->
+        if (service == TranslationService.ON_DEVICE) getString(R.string.translation_error_download)
+        else getString(R.string.translation_error_connection, name)
+      Kind.API_KEY -> getString(R.string.translation_error_api_key, name)
+      Kind.QUOTA -> getString(R.string.translation_error_quota, name)
+      Kind.LANGUAGE ->
+        getString(R.string.translation_error_language, name, TranslationLanguages.name(failure.detail))
+      Kind.NOT_DETECTED -> getString(R.string.translation_error_not_detected)
+      Kind.DOWNLOADING -> getString(R.string.translation_error_downloading)
+      Kind.DETECTION_DOWNLOADING -> getString(R.string.translation_error_detection_downloading)
+      Kind.OTHER ->
+        when {
+          service == TranslationService.AI && failure.detail.isNotEmpty() -> failure.detail
+          failure.detail.isEmpty() -> getString(R.string.translation_error, name)
+          else -> getString(R.string.translation_error_details, name, failure.detail)
+        }
+    }
+  }
+
+  /** Summarizes the selected pieces, or the whole text when none is selected, and shows the summary. */
+  private fun summarizeTarget() {
+    val target = if (selected.isNotEmpty()) targetText() else text
+    if (target.isNullOrBlank()) {
+      list.announceForAccessibility(getString(R.string.granular_editing_ai_nothing))
+      return
+    }
+    if (!AiTextRequests.isSetUp(this)) {
+      list.announceForAccessibility(getString(R.string.ai_service_not_set_up))
+      return
+    }
+    list.announceForAccessibility(getString(R.string.granular_editing_ai_working))
+    aiRequests().ask(summarizePrompt(target), json = false) { answer, failure ->
+      runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        if (answer != null) {
+          showSummary(answer)
+        } else {
+          list.announceForAccessibility(
+            failure?.userMessage(this) ?: getString(R.string.granular_editing_ai_failed)
+          )
+        }
+      }
+    }
+  }
+
+  private fun showSummary(summary: String) {
+    AlertDialog.Builder(this)
+      .setTitle(R.string.granular_editing_summarize)
+      .setMessage(summary)
+      .setPositiveButton(android.R.string.ok, null)
+      .show()
+  }
+
+  private fun summarizePrompt(target: String): String =
+    """Summarize the text in the JSON data below in its own language, keeping its key points, names, facts and numbers. Return only the summary, without commentary.
+${JSONObject().put("source", target)}"""
+
+  /** Asks which style to rewrite the target text in, the text correction screen's styles. */
+  private fun chooseRewriteStyle() {
+    val target = targetText()
+    if (target.isNullOrBlank()) {
+      list.announceForAccessibility(getString(R.string.granular_editing_ai_nothing))
+      return
+    }
+    AlertDialog.Builder(this)
+      .setTitle(R.string.granular_editing_rewrite)
+      .setItems(rewriteStyles.map { getString(it.first) }.toTypedArray()) { _, which ->
+        val (label, instruction) = rewriteStyles[which]
+        if (label == R.string.correction_custom) {
+          ask(R.string.correction_instruction, "") { typed ->
+            val custom = typed.trim()
+            if (custom.isNotEmpty()) rewriteTarget(custom)
+          }
+        } else {
+          rewriteTarget(instruction)
+        }
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  private fun rewriteTarget(instruction: String) {
+    val target = targetText()
+    if (target.isNullOrBlank()) {
+      list.announceForAccessibility(getString(R.string.granular_editing_ai_nothing))
+      return
+    }
+    if (!AiTextRequests.isSetUp(this)) {
+      list.announceForAccessibility(getString(R.string.ai_service_not_set_up))
+      return
+    }
+    list.announceForAccessibility(getString(R.string.correction_working))
+    aiRequests().ask(CorrectionPrompt.build(target, instruction), json = true) { answer, failure ->
+      runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        val result = answer?.let(CorrectionPrompt::result)
+        if (result != null) {
+          previewRewrite(target, instruction, result)
+        } else {
+          list.announceForAccessibility(
+            failure?.userMessage(this) ?: getString(R.string.correction_failed)
+          )
+        }
+      }
+    }
+  }
+
+  /** Shows the rewritten text first; only Apply puts it into the text, where Undo can undo it. */
+  private fun previewRewrite(expected: String, instruction: String, result: String) {
+    AlertDialog.Builder(this)
+      .setTitle(R.string.correction_preview)
+      .setMessage(result)
+      .setPositiveButton(R.string.correction_apply) { _, _ -> applyRewrite(expected, result) }
+      .setNeutralButton(R.string.correction_retry) { _, _ -> rewriteTarget(instruction) }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  private fun applyRewrite(expected: String, result: String) {
+    val range = targetRange() ?: return
+    if (text.substring(range.first, range.second) != expected) {
+      list.announceForAccessibility(getString(R.string.correction_changed))
+      return
+    }
+    val focusAt = pieces.indexOfFirst { it.coreStart >= range.first }.coerceAtLeast(0)
+    change(text.replaceRange(range.first, range.second, result), focusAt)
   }
 
   private fun save() {

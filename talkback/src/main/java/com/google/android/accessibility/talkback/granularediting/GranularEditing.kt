@@ -28,6 +28,7 @@ import java.lang.ref.WeakReference
 import java.util.ArrayDeque
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandEditor
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.utils.ClipboardHistory
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
@@ -53,6 +54,9 @@ object GranularEditing {
   private val activities = mutableMapOf<Int, WeakReference<GranularEditingActivity>>()
   private val childResults = mutableMapOf<Int, MutableList<ChildResult>>()
   private var nextSessionId = 1
+
+  /** The editor screen in front of the user, whose editing the spoken editor commands drive. */
+  private var foregroundEditor: WeakReference<GranularEditingActivity>? = null
 
   private val handler = Handler(Looper.getMainLooper())
 
@@ -176,6 +180,28 @@ object GranularEditing {
 
   internal fun registerActivity(id: Int, activity: GranularEditingActivity) {
     activities[id] = WeakReference(activity)
+  }
+
+  internal fun editorResumed(activity: GranularEditingActivity) {
+    foregroundEditor = WeakReference(activity)
+  }
+
+  internal fun editorPaused(activity: GranularEditingActivity) {
+    if (foregroundEditor?.get() === activity) foregroundEditor = null
+  }
+
+  /**
+   * Runs one of the text editor's own spoken commands on the editor screen in front of the
+   * user, returning whether the sentence was one of them. With no editor in front, or a
+   * sentence that is none of its commands, the sentence is left for the other voice commands.
+   */
+  @JvmStatic
+  fun handleVoiceCommand(context: Context, command: String): Boolean {
+    val activity = foregroundEditor?.get() ?: return false
+    val parsed =
+      VoiceCommandEditor.parse(command, VoiceCommandEditor.Keywords.from(context)) ?: return false
+    activity.runVoiceCommand(parsed)
+    return true
   }
 
   internal fun unregisterActivity(id: Int, activity: GranularEditingActivity) {

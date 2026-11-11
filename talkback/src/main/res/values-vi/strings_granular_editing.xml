@@ -31,6 +31,13 @@
     <string name="granular_editing_replace_one">Thay một</string>
     <string name="granular_editing_replace_all">Thay tất cả</string>
     <string name="granular_editing_add_at_end">Thêm văn bản ở cuối</string>
+    <string name="granular_editing_translate">Dịch song ngữ</string>
+    <string name="granular_editing_summarize">Tóm tắt</string>
+    <string name="granular_editing_rewrite">Viết lại</string>
+    <string name="granular_editing_ai_working">Đang xử lý…</string>
+    <string name="granular_editing_ai_failed">AI chưa làm được việc này.</string>
+    <string name="granular_editing_ai_nothing">Không có văn bản để xử lý</string>
+    <string name="granular_editing_voice_no_find">Hãy nói từ cần tìm sau chữ Tìm</string>
     <string name="granular_editing_clear_selection">Xóa vùng chọn</string>
     <string name="granular_editing_cut_selected">Cắt phần đã chọn</string>
     <string name="granular_editing_delete_selected">Xóa phần đã chọn</string>

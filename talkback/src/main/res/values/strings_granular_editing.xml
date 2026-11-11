@@ -40,6 +40,16 @@
     <string name="granular_editing_replace_one">Replace one</string>
     <string name="granular_editing_replace_all">Replace all</string>
     <string name="granular_editing_add_at_end">Add text at end</string>
+    <!-- Actions the artificial intelligence performs on the selected pieces, or the piece in focus. [CHAR LIMIT=40] -->
+    <string name="granular_editing_translate">Translate bilingually</string>
+    <string name="granular_editing_summarize">Summarize</string>
+    <string name="granular_editing_rewrite">Rewrite</string>
+    <!-- Spoken while the artificial intelligence works, and when it has nothing or cannot. [CHAR LIMIT=NONE] -->
+    <string name="granular_editing_ai_working">Working…</string>
+    <string name="granular_editing_ai_failed">The AI could not do that.</string>
+    <string name="granular_editing_ai_nothing">No text to work on</string>
+    <!-- Spoken when a spoken Find command has no search text and none was searched for before. [CHAR LIMIT=NONE] -->
+    <string name="granular_editing_voice_no_find">Say what to find after the word Find</string>
     <string name="granular_editing_clear_selection">Clear selection</string>
     <string name="granular_editing_cut_selected">Cut selected</string>
     <string name="granular_editing_delete_selected">Delete selected</string>
