@@ -146,6 +146,7 @@
   <string name="voice_phrase_finish_words">xong</string>
   <string name="voice_phrase_more_question">Còn hành động nào nữa không? Nói tên hành động, hoặc nói xong.</string>
   <string name="voice_phrase_confirm_macro_question">Gán \'%1$s\' cho các hành động: %2$s?</string>
+  <string name="voice_phrase_confirm_macro_collision">Cụm từ \'%1$s\' đã có nghĩa khác. Vẫn gán cho các hành động: %2$s?</string>
   <string name="title_voice_commands_continuous">Nghe liên tục</string>
   <string name="summary_voice_commands_continuous">Sau mỗi lệnh, máy tự nghe tiếp lệnh sau. Nói “dừng” hoặc “xong” để thoát; máy cũng tự thoát khi khoảng 30 giây không có lệnh nào chạy.</string>
 
@@ -159,6 +160,10 @@
   <string name="voice_param_minutes">phút</string>
   <string name="voice_param_seconds">giây</string>
   <string name="voice_param_times">lần</string>
+  <string name="voice_param_increase">tăng</string>
+  <string name="voice_param_decrease">giảm</string>
+  <string name="voice_param_at">lúc</string>
+  <string name="voice_param_day_parts">sáng,trưa,chiều,tối,đêm</string>
   <string name="voice_param_media_volume_value">Âm lượng nhạc: %1$d%%</string>
   <string name="voice_phrase_create_openers">tạo lệnh mới,thêm lệnh mới,đặt lệnh mới</string>
   <string name="voice_phrase_set_prefixes">đặt lệnh,gán lệnh,tạo lệnh</string>
