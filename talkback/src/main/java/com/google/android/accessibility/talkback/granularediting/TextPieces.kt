@@ -99,6 +99,19 @@ object TextPieces {
     return builder.toString()
   }
 
+  /**
+   * [text] with the first [find] in the shown part of [piece] replaced by [replacement],
+   * ignoring case, or null when the piece does not hold [find].
+   */
+  fun replaceFirst(text: String, piece: Piece, find: String, replacement: String): String? {
+    if (find.isEmpty()) return null
+    val shown = text.substring(piece.coreStart, piece.coreEnd)
+    val index = shown.indexOf(find, ignoreCase = true)
+    if (index < 0) return null
+    val start = piece.coreStart + index
+    return text.replaceRange(start, start + find.length, replacement)
+  }
+
   /** Replaces every [find] in [text] with [replacement], ignoring case, and counts them. */
   fun replaceAll(text: String, find: String, replacement: String): Pair<String, Int> {
     if (find.isEmpty()) return text to 0
