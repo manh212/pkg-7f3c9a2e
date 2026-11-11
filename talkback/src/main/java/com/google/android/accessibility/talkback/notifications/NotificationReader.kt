@@ -50,7 +50,9 @@ import com.google.android.accessibility.talkback.notificationlist.NotificationLi
 import com.google.android.accessibility.talkback.scripting.Scripts
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
 import com.google.android.accessibility.talkback.timer.CountdownAlarmEngine
+import com.google.android.accessibility.talkback.timer.Stopwatch
 import com.google.android.accessibility.talkback.timer.StopwatchEngine
+import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import com.google.android.accessibility.talkback.timer.TimerSounds
 import com.google.android.accessibility.talkback.translation.AutomaticTranslation
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
@@ -233,6 +235,18 @@ object NotificationReader {
         if (prefs.getBoolean(key, true)) context?.let { NotificationListService.onSandFlyStarted(it) }
         else stop()
       }
+      // Every clock and timer state change lands in a preference write, so the keep-alive
+      // service follows them all from here.
+      if (
+        key == SpokenSchedules.KEY_CLOCK_ENABLED ||
+          (key != null && key.startsWith("pref_notification_clock")) ||
+          key == SpokenSchedules.KEY_SUMMARY_DAILY ||
+          key == Stopwatch.KEY_STARTED_AT ||
+          key == Stopwatch.KEY_PAUSED_AT ||
+          key == CountdownAlarm.KEY_ALARMS
+      ) {
+        context?.let { TimerKeepAliveService.refresh(it) }
+      }
     }
 
   /**
@@ -297,6 +311,7 @@ object NotificationReader {
           }
         }
         .also { it.start() }
+    TimerKeepAliveService.refresh(app)
     TimerSounds.preload(app)
     updateVoices(SharedPreferencesUtils.getSharedPreferences(app))
   }
@@ -314,6 +329,7 @@ object NotificationReader {
     stopwatch = null
     countdown?.stop()
     countdown = null
+    TimerKeepAliveService.stop(app)
     timerVoice?.shutdown()
     timerVoice = null
     timerVoiceKey = ""

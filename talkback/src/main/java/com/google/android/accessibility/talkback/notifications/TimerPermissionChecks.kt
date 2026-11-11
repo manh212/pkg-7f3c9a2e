@@ -20,6 +20,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -125,6 +126,53 @@ object TimerPermissionChecks {
       )
     } catch (e: ActivityNotFoundException) {
       // Nowhere to ask; the initial setup will say the state it found.
+    }
+  }
+
+  /**
+   * Whether the phone maker's autostart leave is held. No system call reports it, so the
+   * state is always [Status.UNKNOWN] and the initial setup can only offer the maker's page.
+   */
+  fun autostartStatus(context: Context): Status = Status.UNKNOWN
+
+  /** Opens the phone maker's autostart page, falling back to Meridian's app page. */
+  fun openAutoStartSettings(context: Context) {
+    val pages =
+      listOf(
+        "com.miui.securitycenter" to
+          "com.miui.permcenter.autostart.AutoStartManagementActivity",
+        "com.coloros.safecenter" to
+          "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+        "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
+        "com.vivo.permissionmanager" to
+          "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+        "com.huawei.systemmanager" to
+          "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+      )
+    for ((makerPackage, page) in pages) {
+      try {
+        context.startActivity(
+          Intent()
+            .setComponent(ComponentName(makerPackage, page))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        return
+      } catch (_: ActivityNotFoundException) {
+        // This maker's page is not on the phone; try the next maker.
+      } catch (_: SecurityException) {
+        // This maker's page refuses the open; try the next maker.
+      }
+    }
+    try {
+      context.startActivity(
+        Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:" + context.packageName),
+          )
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+    } catch (_: ActivityNotFoundException) {
+      // No page to open on this phone.
     }
   }
 

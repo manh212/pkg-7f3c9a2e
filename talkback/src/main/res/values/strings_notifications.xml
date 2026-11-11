@@ -292,10 +292,22 @@
     <string name="timer_setup_battery_open">Request Android battery exemption</string>
     <string name="timer_setup_xiaomi_title">Xiaomi background restrictions (not checked)</string>
     <string name="timer_setup_xiaomi_unverified">Meridian cannot verify HyperOS\'s separate No restrictions setting. Check it in Xiaomi\'s app battery settings; it does not confirm Android\'s battery exemption.</string>
+    <string name="timer_setup_autostart_title">Autostart</string>
+    <string name="timer_setup_autostart_granted">The autostart page has been offered so you can allow Meridian. Meridian cannot check this state itself.</string>
+    <string name="timer_setup_autostart_missing">On this phone, apps need autostart permission to wake on time for the speaking clock and alarms. Open the autostart page and allow Meridian.</string>
+    <string name="timer_setup_autostart_open">Open the autostart page</string>
     <string name="timer_setup_exact_alarm_title">Alarms &amp; reminders</string>
     <string name="timer_setup_exact_alarm_granted">Android currently allows exact alarms for spoken time, reminders and timers.</string>
     <string name="timer_setup_exact_alarm_missing">Exact alarms are not allowed. Spoken time and reminders may run late until Alarms &amp; reminders access is granted.</string>
     <string name="timer_setup_exact_alarm_open">Open Alarms &amp; reminders access</string>
+    <string name="timer_setup_keep_alive_title">Keep timers on time</string>
+    <string name="timer_setup_keep_alive_granted">On: the background service is keeping the speaking clock and timers on time.</string>
+    <string name="timer_setup_keep_alive_missing">Some phones deliver the alarms of Meridian late while they rest, so the speaking clock and timers can read at the wrong time. Allow Meridian to keep a quiet background service, with a small persistent notification, so the speaking clock, the stopwatch and the countdown alarms read on time.</string>
+    <string name="timer_setup_keep_alive_open">Allow</string>
+    <string name="timer_setup_keep_alive_off">Turn off</string>
+    <string name="timer_keep_alive_channel">Keeping timers on time</string>
+    <string name="timer_keep_alive_title">Meridian is keeping timers on time</string>
+    <string name="timer_keep_alive_text">The speaking clock and timers are being kept on time.</string>
     <!-- Step of the initial setup: Meridian's access to the notifications. -->
     <string name="timer_setup_access_title">Notification access</string>
     <!-- The access step, held. -->
