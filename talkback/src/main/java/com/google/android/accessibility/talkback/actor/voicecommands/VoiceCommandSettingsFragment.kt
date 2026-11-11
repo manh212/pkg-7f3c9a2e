@@ -18,6 +18,7 @@ import com.google.android.accessibility.material.preference.AccessibilitySuitePr
 import com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
+import com.google.android.accessibility.talkback.training.VoiceCommandHelpInitiator
 
 /** The voice command settings page: the phrases the user taught, and how they are matched. */
 class VoiceCommandSettingsFragment : TalkbackBaseFragment() {
@@ -56,6 +57,16 @@ class VoiceCommandSettingsFragment : TalkbackBaseFragment() {
     continuous.isPersistent = true
     continuous.isIconSpaceReserved = false
     screen.addPreference(continuous)
+
+    val help = AccessibilitySuitePreference(context)
+    help.title = getString(R.string.title_voice_command_help)
+    help.isPersistent = false
+    help.isIconSpaceReserved = false
+    help.setOnPreferenceClickListener {
+      startActivity(VoiceCommandHelpInitiator.createVoiceCommandHelpIntent(context))
+      true
+    }
+    screen.addPreference(help)
   }
 
   override fun onResume() {
