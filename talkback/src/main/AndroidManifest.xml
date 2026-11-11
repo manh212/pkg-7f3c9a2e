@@ -81,6 +81,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Required for Primes. -->
     <uses-permission android:name="android.permission.GET_PACKAGE_SIZE" />
@@ -194,6 +195,18 @@
             android:name="com.google.android.accessibility.talkback.actor.gemini.local.ModelDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Keeps the speaking clock, stopwatch and countdown alarms on time while the phone
+             rests, with the user's leave from the initial setup. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.timer.TimerKeepAliveService"
+            android:directBootAware="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the speaking clock, stopwatch and countdown alarms on time while the phone rests." />
+        </service>
 
         <!-- Moves calls to the speaker when the phone is away from the ear. Android binds it
              during calls only while the user has granted MANAGE_ONGOING_CALLS with adb. -->
