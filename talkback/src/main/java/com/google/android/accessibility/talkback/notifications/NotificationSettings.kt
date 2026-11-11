@@ -50,6 +50,17 @@ enum class QueueBehavior {
   }
 }
 
+/** What happens to a notification that arrives while SandFly is reading something else. */
+enum class BusyBehavior {
+  NOW,
+  AFTER,
+  SKIP;
+
+  companion object {
+    fun of(name: String?): BusyBehavior = entries.firstOrNull { it.name == name } ?: NOW
+  }
+}
+
 /** How links are read. */
 enum class UrlHandling {
   FULL,
@@ -248,6 +259,7 @@ data class NotificationSettings(
   val soundBefore: Boolean = false,
   val delaySeconds: Int = 0,
   val queueBehavior: QueueBehavior = QueueBehavior.QUEUE,
+  val busyBehavior: BusyBehavior = BusyBehavior.NOW,
   val repeatMinutes: Int = 0,
   // Apps.
   val otherApps: AppMode = AppMode.READ,
@@ -337,6 +349,7 @@ data class NotificationSettings(
       const val SOUND_BEFORE = "pref_notification_sound_before"
       const val DELAY = "pref_notification_delay"
       const val QUEUE = "pref_notification_queue"
+      const val WHILE_READING = "pref_notification_while_reading"
       const val REPEAT_MINUTES = "pref_notification_repeat_minutes"
       const val OTHER_APPS = "pref_notification_other_apps"
       const val APPS = "pref_notification_apps"
@@ -410,6 +423,7 @@ data class NotificationSettings(
         soundBefore = b(Keys.SOUND_BEFORE, d.soundBefore),
         delaySeconds = i(Keys.DELAY, d.delaySeconds).coerceIn(0, 60),
         queueBehavior = QueueBehavior.of(prefs.getString(Keys.QUEUE, null)),
+        busyBehavior = BusyBehavior.of(prefs.getString(Keys.WHILE_READING, null)),
         repeatMinutes = i(Keys.REPEAT_MINUTES, d.repeatMinutes).coerceAtLeast(0),
         otherApps = AppMode.of(prefs.getString(Keys.OTHER_APPS, null), AppMode.READ)
           .takeIf { it != AppMode.DEFAULT } ?: AppMode.READ,
