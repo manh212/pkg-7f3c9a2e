@@ -7,6 +7,10 @@
         android:fragment="com.google.android.accessibility.talkback.dictation.DictationFragment"
         android:key="pref_dictation_screen"
         android:title="@string/title_pref_dictation" />
+      <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+          android:fragment="com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandSettingsFragment"
+          android:key="pref_voice_commands_screen"
+          android:title="@string/title_voice_commands_settings" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_physical_keyboard_key"
         android:title="@string/title_pref_physical_keyboard" />
