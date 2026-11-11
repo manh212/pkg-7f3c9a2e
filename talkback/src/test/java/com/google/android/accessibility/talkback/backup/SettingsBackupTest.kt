@@ -21,6 +21,7 @@ import android.content.ContextWrapper
 import android.content.SharedPreferences
 import com.google.android.accessibility.talkback.gesture.GestureProfiles
 import com.google.android.accessibility.talkback.migration.MigrationFiles
+import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.talkback.preference.ItemOrder
 import com.google.android.accessibility.talkback.update.Updater
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -424,6 +425,42 @@ class SettingsBackupTest {
 
     assertFalse(SettingsBackup.import(context, damaged))
     assertFalse(prefs.getBoolean("a_switch", true))
+  }
+
+  @Test
+  fun editorDocumentsRideTheSettingsBackup() {
+    EditorDocuments.init(context.filesDir)
+    EditorDocuments.clear()
+    val first = EditorDocuments.create("First note", "alpha")!!
+    Thread.sleep(10)
+    EditorDocuments.create("Second note", "beta")
+
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("First note"))
+
+    EditorDocuments.clear()
+    assertTrue(EditorDocuments.documents().isEmpty())
+    assertTrue(SettingsBackup.import(context, exported))
+    assertEquals(listOf("Second note", "First note"), EditorDocuments.documents().map { it.name })
+    assertEquals("alpha", EditorDocuments.get(first.id)?.content)
+    EditorDocuments.clear()
+  }
+
+  @Test
+  fun aBackupWithoutEditorDocumentsLeavesThemAlone() {
+    EditorDocuments.init(context.filesDir)
+    EditorDocuments.clear()
+    EditorDocuments.create("Kept", "still here")
+
+    val foreign =
+      JSONObject()
+        .put("format", "sandfly-settings")
+        .put("version", 1)
+        .put("files", JSONObject())
+    assertTrue(SettingsBackup.import(context, foreign.toString()))
+
+    assertEquals(listOf("Kept"), EditorDocuments.documents().map { it.name })
+    EditorDocuments.clear()
   }
 
   @Test
