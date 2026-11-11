@@ -66,7 +66,11 @@ internal class SubtitleTracker(
   fun observe(input: List<SubtitleLine>, viewport: Rect): String? =
     observeFrame(input, viewport).text
 
-  fun observeFrame(input: List<SubtitleLine>, viewport: Rect): SubtitleFrameObservation {
+  fun observeFrame(
+    input: List<SubtitleLine>,
+    viewport: Rect,
+    fastText: Boolean = fastOcr,
+  ): SubtitleFrameObservation {
     if (avoidanceFrames > 0) avoidanceFrames-- else avoidedBounds = null
     var lines = input.filter { it.text.isNotBlank() && !it.bounds.isEmpty }
       .sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
@@ -118,7 +122,7 @@ internal class SubtitleTracker(
       candidateText = key
       textFrames = 1
     }
-    if (textFrames < if (fastOcr) 1 else 2) {
+    if (textFrames < if (fastText) 1 else 2) {
       return SubtitleFrameObservation(null, SubtitleFrameStatus.WAITING_FOR_STABILITY, lines.size)
     }
 

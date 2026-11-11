@@ -28,9 +28,10 @@ import java.time.Duration
 class SubtitleControllerTest {
   class TestService : AccessibilityService() {
     var foregroundPackage = "video.app"
+    var foregroundBounds = Rect(0, 0, 1000, 1000)
     override fun getRootInActiveWindow(): AccessibilityNodeInfo = AccessibilityNodeInfo.obtain().apply {
       packageName = foregroundPackage
-      setBoundsInScreen(Rect(0, 0, 1000, 1000))
+      setBoundsInScreen(foregroundBounds)
       ReflectionHelpers.callInstanceMethod<Any>(
         this, "setSealed", ClassParameter.from(Boolean::class.javaPrimitiveType, true))
     }
@@ -142,6 +143,79 @@ class SubtitleControllerTest {
     service.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF))
     shadowOf(Looper.getMainLooper()).idle()
     assertFalse(get("active") as Boolean)
+  }
+
+  @Test fun automaticReadsUpperCaptionFromChangedContainerAndFollowsItsReplacement() {
+    service.foregroundBounds = Rect(0, 0, 1000, 560)
+    restartWithRegion("auto")
+    val first = "Hãy công nhận quyền của robot!"
+    val second = "Kiên quyết phản đối!"
+    val source = captionContainer(first)
+    assertFalse(readAccessible(source))
+    assertTrue(readAccessible(captionContainer(first), fromWindow = true))
+    assertTrue(readAccessible(captionContainer(second)))
+    assertTrue(readAccessible(captionContainer(second), fromWindow = true))
+    assertEquals(listOf(first to true, second to true), speaker.spoken)
+  }
+
+  @Test fun aNarrowCustomRegionReadsTextAtFullCaptionHeightAndFallsBackToOcr() {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+    prefs.edit().putInt(SubtitleSettings.TOP, 0).putInt(SubtitleSettings.BOTTOM, 15).commit()
+    restartWithRegion("custom")
+    val caption = "Một dòng phụ đề cỡ lớn"
+    assertTrue(readAccessible(captionContainer(caption), fromWindow = true))
+    val request = get("generation") as Int
+    frameLines(request, listOf(SubtitleLine("OCR trùng lúc có văn bản", Rect(100, 40, 900, 90))))
+    assertEquals(listOf(caption to true), speaker.spoken)
+
+    assertFalse(readAccessible(captionContainer(null), fromWindow = true))
+    val fallback = "Phụ đề tiếp theo nhận dạng bằng OCR"
+    frameLines(request, listOf(SubtitleLine(fallback, Rect(100, 40, 900, 90))))
+    assertEquals(listOf(caption to true, fallback to true), speaker.spoken)
+  }
+
+  private fun restartWithRegion(region: String) {
+    controller.stop(false)
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putString(SubtitleSettings.REGION, region).putString(SubtitleSettings.SPEECH, "interrupt").commit()
+    controller.toggle()
+    set("quietUntil", 0L)
+    handlerRemoveCaptures()
+  }
+
+  private fun captionContainer(caption: String?): AccessibilityNodeInfo {
+    val control = AccessibilityNodeInfo.obtain().apply {
+      text = "Cài đặt Phụ đề"
+      isVisibleToUser = true
+      isClickable = true
+      setBoundsInScreen(Rect(500, 10, 650, 70))
+    }
+    return AccessibilityNodeInfo.obtain().apply {
+      isVisibleToUser = true
+      setBoundsInScreen(service.foregroundBounds)
+      shadowOf(this).addChild(control)
+      if (caption != null) {
+        val line = AccessibilityNodeInfo.obtain().apply {
+          text = caption
+          isVisibleToUser = true
+          setBoundsInScreen(Rect(100, 10, 900, 90))
+        }
+        shadowOf(this).addChild(line)
+      }
+      ReflectionHelpers.callInstanceMethod<Any>(
+        this, "setSealed", ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+    }
+  }
+
+  private fun readAccessible(source: AccessibilityNodeInfo, fromWindow: Boolean = false): Boolean {
+    val method = SubtitleController::class.java.getDeclaredMethod(
+      "readAccessibleSubtitle", AccessibilityNodeInfo::class.java, Boolean::class.javaPrimitiveType)
+    method.isAccessible = true
+    return try {
+      method.invoke(controller, source, fromWindow) as Boolean
+    } finally {
+      source.recycle()
+    }
   }
 
   private fun frame(request: Int, text: String) {

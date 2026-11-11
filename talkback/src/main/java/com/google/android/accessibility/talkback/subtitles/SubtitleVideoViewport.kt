@@ -23,7 +23,7 @@ internal object SubtitleVideoViewport {
         val className = node.className?.toString().orEmpty()
         val description = node.contentDescription?.toString()?.lowercase(Locale.ROOT).orEmpty()
         val rank = when {
-          listOf("watch_player", "player_view", "exo_player", "video_view", "player_container")
+          listOf("watch_player", "player_view", "exo_player", "video_view", "player_container", "jw-player-")
             .any { id.contains(it) } -> 3
           className.endsWith("SurfaceView") || className.endsWith("TextureView") ||
             className.endsWith("VideoView") -> 2

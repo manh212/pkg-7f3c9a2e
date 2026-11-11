@@ -22,6 +22,17 @@ class SubtitleVideoViewportTest {
     } finally { player.recycle() }
   }
 
+  @Test fun detectsJwPlayerVideoViewport() {
+    val player = AccessibilityNodeInfo.obtain()
+    try {
+      player.viewIdResourceName = "jw-player-episode"
+      player.setBoundsInScreen(Rect(20, 100, 1000, 650))
+      player.isVisibleToUser = true
+      assertEquals(Rect(20, 100, 1000, 650),
+        SubtitleVideoViewport.find(player, Rect(0, 0, 1080, 1920)))
+    } finally { player.recycle() }
+  }
+
   @Test fun ignoresTextAndControlsThatAreNotVideoPlayers() {
     val label = AccessibilityNodeInfo.obtain()
     try {
