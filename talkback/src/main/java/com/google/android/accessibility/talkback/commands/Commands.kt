@@ -691,6 +691,7 @@ object Commands {
         )
         gesture(R.string.shortcut_value_correct_text, R.string.correction_title)
         gesture(R.string.shortcut_value_granular_editing, R.string.granular_editing_title)
+        gesture(R.string.shortcut_value_text_editor, R.string.text_editor_title)
         gesture(R.string.shortcut_value_dictate, R.string.shortcut_dictate)
         gesture(
           R.string.shortcut_value_voice_input,
