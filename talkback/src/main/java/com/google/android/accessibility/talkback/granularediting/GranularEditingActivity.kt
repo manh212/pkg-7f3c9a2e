@@ -16,6 +16,8 @@
 
 package com.google.android.accessibility.talkback.granularediting
 
+import android.content.ClipboardManager
+import android.content.Intent
 import android.graphics.Rect
 import android.os.Bundle
 import android.text.InputType
@@ -42,16 +44,20 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Accessibilit
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.utils.widget.KeyboardSafeEditText
 
 /**
  * The granular editing screen: the text as a list of pieces, split by characters, words,
  * sentences, lines or paragraphs. Double tapping a piece edits it, and its actions insert text
  * before or after it, delete it or select it. Selected pieces can be copied, cut or deleted
- * together. Save writes the text back to the text field it came from.
+ * together. Save writes the text back to the text field it came from. Opened on one of the
+ * user's own documents instead, the screen shows the document's name and saves the document
+ * as its text changes, with no Save button.
  */
 class GranularEditingActivity : AppCompatActivity() {
   private var sessionId = -1
+  private var documentId: String? = null
   private var promptFields: List<EditText> = emptyList()
   private var commitNestedInput: (() -> Unit)? = null
   private var text = ""
@@ -65,6 +71,7 @@ class GranularEditingActivity : AppCompatActivity() {
   private lateinit var list: RecyclerView
   private lateinit var splitBy: Button
   private lateinit var empty: TextView
+  private lateinit var heading: TextView
   private val adapter = PieceAdapter()
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,16 +84,31 @@ class GranularEditingActivity : AppCompatActivity() {
       return
     }
     GranularEditing.registerActivity(sessionId, this)
+    documentId = GranularEditing.documentId(sessionId)
     text = savedInstanceState?.getString(STATE_TEXT) ?: initial
     savedInstanceState?.getString(STATE_GRANULARITY)?.let { granularity = Granularity.valueOf(it) }
 
-    val title =
+    heading =
       TextView(this).apply {
         setText(R.string.granular_editing_title)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
         setPadding(dp(16), dp(12), dp(16), dp(4))
         ViewCompat.setAccessibilityHeading(this, true)
       }
+    if (documentId != null) {
+      val name = documentName()
+      heading.text = name
+      setTitle(name)
+      heading.isClickable = true
+      heading.setOnClickListener { renameDocument() }
+      ViewCompat.replaceAccessibilityAction(
+        heading,
+        AccessibilityActionCompat.ACTION_CLICK,
+        getString(R.string.text_editor_rename),
+        null,
+      )
+    }
+    val title = heading
     splitBy = button("") { chooseGranularity() }
     empty =
       TextView(this).apply {
@@ -217,7 +239,13 @@ class GranularEditingActivity : AppCompatActivity() {
     text = newText
     refresh()
     focus(focusAt)
+    persistDocument()
     announcement?.let { list.announceForAccessibility(getString(it)) }
+  }
+
+  /** A document is saved as its text changes; a text field is only written back by Save. */
+  private fun persistDocument() {
+    documentId?.let { EditorDocuments.updateContent(it, text) }
   }
 
   private fun focus(index: Int) {
@@ -301,18 +329,49 @@ class GranularEditingActivity : AppCompatActivity() {
     delete(selected.toList())
   }
 
-  private fun find(query: String, from: Int) {
+  /** Focuses the next piece holding [query], or announces that there is none. */
+  private fun find(query: String, from: Int, forward: Boolean = true) {
     lastFind = query
-    if (pieces.isEmpty()) return
-    for (step in 1..pieces.size) {
-      val index = (from + step) % pieces.size
+    val index = findMatch(query, from, forward, includeFrom = false)
+    if (index != null) {
+      focus(index)
+    } else {
+      list.announceForAccessibility(getString(R.string.granular_editing_not_found))
+    }
+  }
+
+  /**
+   * The index of a piece holding [query], looking from [from] in one direction and wrapping
+   * around the ends, or null when no piece holds it. [includeFrom] starts the search at [from]
+   * itself instead of at the piece after it.
+   */
+  private fun findMatch(query: String, from: Int, forward: Boolean, includeFrom: Boolean): Int? {
+    if (pieces.isEmpty()) return null
+    val steps = if (includeFrom) 0 until pieces.size else 1..pieces.size
+    for (step in steps) {
+      val index = Math.floorMod(if (forward) from + step else from - step, pieces.size)
       val piece = pieces[index]
       if (text.substring(piece.coreStart, piece.coreEnd).contains(query, ignoreCase = true)) {
-        focus(index)
-        return
+        return index
       }
     }
-    list.announceForAccessibility(getString(R.string.granular_editing_not_found))
+    return null
+  }
+
+  /** Replaces the first match at or after the focused piece, and says how many were replaced. */
+  private fun replaceOne(query: String, replacement: String) {
+    if (query.isEmpty()) return
+    lastFind = query
+    val target = findMatch(query, focusedIndex().coerceAtLeast(0), forward = true, includeFrom = true)
+    val newText = target?.let { TextPieces.replaceFirst(text, pieces[it], query, replacement) }
+    if (target == null || newText == null) {
+      list.announceForAccessibility(getString(R.string.granular_editing_not_found))
+      return
+    }
+    change(newText, target)
+    list.announceForAccessibility(
+      resources.getQuantityString(R.plurals.granular_editing_replaced, 1, 1)
+    )
   }
 
   private fun focusedIndex(): Int {
@@ -323,7 +382,7 @@ class GranularEditingActivity : AppCompatActivity() {
     return list.getChildAdapterPosition(view)
   }
 
-  private fun replaceAll() {
+  private fun showReplace() {
     val find = editText(R.string.granular_editing_find, lastFind)
     val replacement = editText(R.string.granular_editing_replace_with, "")
     val fields =
@@ -345,6 +404,9 @@ class GranularEditingActivity : AppCompatActivity() {
           resources.getQuantityString(R.plurals.granular_editing_replaced, count, count)
         )
       }
+      .setNeutralButton(R.string.granular_editing_replace_one) { _, _ ->
+        replaceOne(find.text.toString(), replacement.text.toString())
+      }
       .setNegativeButton(android.R.string.cancel, null)
       .show()
     trackDialogInputs(dialog, listOf(find, replacement))
@@ -356,6 +418,7 @@ class GranularEditingActivity : AppCompatActivity() {
     text = previous
     refresh()
     focus(0)
+    persistDocument()
   }
 
   private fun redoLast() {
@@ -364,6 +427,7 @@ class GranularEditingActivity : AppCompatActivity() {
     text = next
     refresh()
     focus(0)
+    persistDocument()
   }
 
   private fun showMore(anchor: View) {
@@ -378,8 +442,11 @@ class GranularEditingActivity : AppCompatActivity() {
     add(R.string.granular_editing_find) {
       ask(R.string.granular_editing_find, lastFind) { typed -> if (typed.isNotEmpty()) find(typed, focusedIndex()) }
     }
-    if (lastFind.isNotEmpty()) add(R.string.granular_editing_find_next) { find(lastFind, focusedIndex()) }
-    add(R.string.granular_editing_replace) { replaceAll() }
+    if (lastFind.isNotEmpty()) {
+      add(R.string.granular_editing_find_next) { find(lastFind, focusedIndex()) }
+      add(R.string.granular_editing_find_previous) { find(lastFind, focusedIndex(), forward = false) }
+    }
+    add(R.string.granular_editing_replace) { showReplace() }
     add(R.string.granular_editing_add_at_end) { addAtEnd() }
     if (pieces.isNotEmpty()) {
       add(android.R.string.selectAll) {
@@ -395,6 +462,15 @@ class GranularEditingActivity : AppCompatActivity() {
       add(R.string.granular_editing_cut_selected) { cut() }
       add(R.string.granular_editing_delete_selected) { delete(selected.toList()) }
     }
+    if (documentId != null) {
+      add(R.string.text_editor_new_document) { newDocument() }
+      add(R.string.text_editor_open_document) { showDocumentList() }
+      add(R.string.text_editor_rename) { renameDocument() }
+      add(R.string.text_editor_paste_from_clipboard) { pasteFromClipboard() }
+      add(R.string.text_editor_share) { shareDocument() }
+      add(R.string.text_editor_word_count) { showWordCount() }
+      add(R.string.text_editor_delete_document) { confirmDeleteDocument() }
+    }
     menu.setOnMenuItemClickListener { item ->
       actions[item.itemId]()
       true
@@ -407,8 +483,138 @@ class GranularEditingActivity : AppCompatActivity() {
     finish()
   }
 
-  /** Closes the screen, asking first when the text was changed. */
+  private fun documentName(): String =
+    documentId?.let { EditorDocuments.get(it)?.name } ?: getString(R.string.granular_editing_title)
+
+  private fun renameDocument() {
+    val id = documentId ?: return
+    val current = EditorDocuments.get(id)?.name ?: return
+    ask(R.string.text_editor_rename, current) { typed ->
+      val name = typed.trim()
+      if (name.isNotEmpty() && name != current && EditorDocuments.rename(id, name)) {
+        heading.text = name
+        setTitle(name)
+      }
+    }
+  }
+
+  private fun newDocument() {
+    val created = EditorDocuments.createDefault() ?: return
+    switchToDocument(created.id)
+  }
+
+  private fun showDocumentList() {
+    val current = documentId ?: return
+    val others = EditorDocuments.documents().filter { it.id != current }
+    if (others.isEmpty()) {
+      list.announceForAccessibility(getString(R.string.text_editor_no_other_documents))
+      return
+    }
+    AlertDialog.Builder(this)
+      .setTitle(R.string.text_editor_open_document)
+      .setItems(others.map { it.name }.toTypedArray()) { _, which ->
+        switchToDocument(others[which].id)
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  /** Shows another document in this same screen, with a fresh Undo history of its own. */
+  private fun switchToDocument(id: String) {
+    if (id == documentId) return
+    val newSession = GranularEditing.createDocumentSession(id) ?: return
+    GranularEditing.unregisterActivity(sessionId, this)
+    GranularEditing.close(sessionId)
+    sessionId = newSession
+    GranularEditing.registerActivity(sessionId, this)
+    documentId = id
+    text = GranularEditing.initialText(sessionId) ?: ""
+    undo.clear()
+    redo.clear()
+    lastFind = ""
+    val name = documentName()
+    heading.text = name
+    setTitle(name)
+    refresh()
+    focus(0)
+  }
+
+  private fun shareDocument() {
+    val intent =
+      Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    startActivity(Intent.createChooser(intent, getString(R.string.text_editor_share)))
+  }
+
+  private fun pasteFromClipboard() {
+    val clipboard = getSystemService(ClipboardManager::class.java)
+    val clip = clipboard?.primaryClip
+    val pasted =
+      if (clip != null && clip.itemCount > 0) {
+        clip.getItemAt(0)?.coerceToText(this)?.toString()
+      } else {
+        null
+      }
+    if (pasted.isNullOrEmpty()) {
+      list.announceForAccessibility(getString(R.string.text_editor_empty_clipboard))
+      return
+    }
+    if (text.isEmpty()) {
+      change(pasted, 0)
+      return
+    }
+    AlertDialog.Builder(this)
+      .setTitle(R.string.text_editor_paste_from_clipboard)
+      .setItems(
+        arrayOf(
+          getString(R.string.text_editor_paste_replace),
+          getString(R.string.granular_editing_add_at_end),
+        )
+      ) { _, which ->
+        if (which == 0) {
+          change(pasted, 0)
+        } else {
+          change(TextPieces.append(text, pasted, granularity), Int.MAX_VALUE)
+        }
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  private fun showWordCount() {
+    val words = text.split(Regex("\\s+")).count { it.isNotEmpty() }
+    AlertDialog.Builder(this)
+      .setTitle(R.string.text_editor_word_count)
+      .setMessage(getString(R.string.text_editor_word_count_message, words, text.length))
+      .setPositiveButton(android.R.string.ok, null)
+      .show()
+  }
+
+  private fun confirmDeleteDocument() {
+    val id = documentId ?: return
+    AlertDialog.Builder(this)
+      .setTitle(R.string.text_editor_delete_document)
+      .setMessage(R.string.text_editor_delete_confirm)
+      .setPositiveButton(R.string.granular_editing_delete) { _, _ ->
+        if (!EditorDocuments.delete(id)) return@setPositiveButton
+        val next = EditorDocuments.mostRecent() ?: EditorDocuments.createDefault()
+        if (next == null) {
+          finish()
+        } else {
+          switchToDocument(next.id)
+          list.announceForAccessibility(getString(R.string.granular_editing_deleted))
+        }
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  /** Closes the screen, asking first when the text was changed. A document needs no asking. */
   private fun close() {
+    if (documentId != null) {
+      GranularEditing.close(sessionId)
+      finish()
+      return
+    }
     if (text == GranularEditing.initialText(sessionId)) {
       GranularEditing.close(sessionId)
       finish()

@@ -86,6 +86,21 @@ class TextPiecesTest {
   }
 
   @Test
+  fun replaceFirstReplacesOnlyWithinThePiece() {
+    val words = TextPieces.split("one two one", Granularity.WORDS, Locale.US)
+    assertEquals("one two 1", TextPieces.replaceFirst("one two one", words[2], "one", "1"))
+    assertEquals("1 two one", TextPieces.replaceFirst("one two one", words[0], "ONE", "1"))
+    assertEquals(null, TextPieces.replaceFirst("one two one", words[1], "one", "1"))
+    assertEquals(null, TextPieces.replaceFirst("one two one", words[0], "", "1"))
+  }
+
+  @Test
+  fun replaceFirstKeepsTheRestOfAMultiMatchPiece() {
+    val lines = TextPieces.split("ha ha\nho", Granularity.LINES, Locale.US)
+    assertEquals("ba ha\nho", TextPieces.replaceFirst("ha ha\nho", lines[0], "ha", "ba"))
+  }
+
+  @Test
   fun whiteSpaceOnlyTextHasNoPieces() {
     assertTrue(TextPieces.split("   \n ", Granularity.WORDS, Locale.US).isEmpty())
     assertTrue(TextPieces.split("", Granularity.CHARACTERS, Locale.US).isEmpty())

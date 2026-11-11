@@ -1110,6 +1110,7 @@
         <item>@string/shortcut_value_paste</item>
         <item>@string/shortcut_value_copy_last_spoken_phrase</item>
         <item>@string/shortcut_value_granular_editing</item>
+        <item>@string/shortcut_value_text_editor</item>
         <item>@string/shortcut_value_dictate</item>
     </string-array>
 
@@ -1137,6 +1138,7 @@
   <string name="shortcut_value_toggle_browse_mode" translatable="false">TOGGLE_BROWSE_MODE</string>
   <string name="keycombo_shortcut_other_toggle_browse_mode_extra" translatable="false">keycombo_shortcut_other_toggle_browse_mode_extra</string>
   <string name="shortcut_value_granular_editing" translatable="false">GRANULAR_EDITING</string>
+  <string name="shortcut_value_text_editor" translatable="false">TEXT_EDITOR</string>
   <string name="shortcut_value_dictate" translatable="false">DICTATE</string>
   <string name="pref_ai_dictation_key" translatable="false">pref_ai_dictation</string>
   <bool name="pref_ai_dictation_default">true</bool>

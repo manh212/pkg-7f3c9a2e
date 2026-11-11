@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="text_editor_title">Soạn thảo văn bản</string>
+    <string name="text_editor_new_document">Văn bản mới</string>
+    <string name="text_editor_open_document">Mở văn bản</string>
+    <string name="text_editor_rename">Đổi tên</string>
+    <string name="text_editor_delete_document">Xóa văn bản</string>
+    <string name="text_editor_delete_confirm">Văn bản này và toàn bộ nội dung sẽ bị xóa hẳn.</string>
+    <string name="text_editor_paste_from_clipboard">Dán từ bộ nhớ tạm</string>
+    <string name="text_editor_paste_replace">Thay toàn bộ văn bản</string>
+    <string name="text_editor_share">Chia sẻ</string>
+    <string name="text_editor_word_count">Số từ và ký tự</string>
+    <string name="text_editor_word_count_message">%1$d từ, %2$d ký tự</string>
+    <string name="text_editor_empty_clipboard">Bộ nhớ tạm trống</string>
+    <string name="text_editor_no_other_documents">Không có văn bản khác</string>
+</resources>

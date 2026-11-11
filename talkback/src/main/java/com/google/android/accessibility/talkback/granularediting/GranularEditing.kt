@@ -28,6 +28,7 @@ import java.lang.ref.WeakReference
 import java.util.ArrayDeque
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.utils.ClipboardHistory
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
 
@@ -43,6 +44,7 @@ object GranularEditing {
     val sourceService: WeakReference<AccessibilityService>?,
     val parentId: Int?,
     val parentFieldIndex: Int?,
+    val documentId: String? = null,
   )
 
   internal data class ChildResult(val fieldIndex: Int, val text: String)
@@ -110,6 +112,45 @@ object GranularEditing {
     }
     return true
   }
+
+  /**
+   * Opens the editor on one of the user's own documents, in a task of its own. The document is
+   * saved as it is edited, so nothing here writes back anywhere.
+   */
+  @JvmStatic
+  fun openDocument(context: Context, documentId: String): Boolean {
+    val sessionId = createDocumentSession(documentId) ?: return false
+    return try {
+      context.startActivity(
+        Intent(context, GranularEditingActivity::class.java)
+          .putExtra(EXTRA_SESSION_ID, sessionId)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+      )
+      true
+    } catch (exception: RuntimeException) {
+      sessions.remove(sessionId)
+      throw exception
+    }
+  }
+
+  /** A session on a document, for [openDocument] and for switching documents inside the editor. */
+  internal fun createDocumentSession(documentId: String): Int? {
+    val document = EditorDocuments.get(documentId) ?: return null
+    val sessionId = nextSessionId++
+    sessions[sessionId] =
+      Session(
+        originalText = document.content,
+        target = null,
+        sourceService = null,
+        parentId = null,
+        parentFieldIndex = null,
+        documentId = documentId,
+      )
+    return sessionId
+  }
+
+  /** The document a session is editing, or null when it edits another app's text field. */
+  internal fun documentId(id: Int): String? = sessions[id]?.documentId
 
   internal fun collectVisibleText(root: AccessibilityNodeInfoCompat): String {
     val pending = ArrayDeque<AccessibilityNodeInfoCompat>()

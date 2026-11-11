@@ -25,8 +25,10 @@
     <string name="granular_editing_redo">Làm lại</string>
     <string name="granular_editing_find">Tìm</string>
     <string name="granular_editing_find_next">Tìm tiếp</string>
+    <string name="granular_editing_find_previous">Tìm trước</string>
     <string name="granular_editing_replace">Thay thế</string>
     <string name="granular_editing_replace_with">Thay bằng</string>
+    <string name="granular_editing_replace_one">Thay một</string>
     <string name="granular_editing_replace_all">Thay tất cả</string>
     <string name="granular_editing_add_at_end">Thêm văn bản ở cuối</string>
     <string name="granular_editing_clear_selection">Xóa vùng chọn</string>

@@ -135,6 +135,7 @@ import com.google.android.accessibility.talkback.dictation.AiDictation;
 import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryDialog;
 import com.google.android.accessibility.talkback.timer.CountdownAlarmDialogs;
 import com.google.android.accessibility.talkback.granularediting.GranularEditing;
+import com.google.android.accessibility.talkback.texteditor.TextEditor;
 import com.google.android.accessibility.talkback.selector.NavigationMode;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SoundModeControl;
@@ -972,6 +973,8 @@ public class GestureController {
         target = AccessibilityNodeInfoCompat.wrap(service.getRootInActiveWindow());
       }
       result = GranularEditing.open(service, target);
+    } else if (action.equals(service.getString(R.string.shortcut_value_text_editor))) {
+      result = TextEditor.open(service);
     } else if (action.equals(service.getString(R.string.shortcut_value_choose_keyboard))) {
       InputMethodManager manager = service.getSystemService(InputMethodManager.class);
       if (manager != null) {
