@@ -263,7 +263,7 @@
   <!-- The page title of voice command overview. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_title">Voice command overview</string>
   <!-- The description of voice command overview. [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_description">To use voice commands, swipe right then up. Say \"<xliff:g example="Help">%1$s</xliff:g>\" or \"What can I say?\" anytime for this list of commands.</string>
+  <string name="voice_commands_help_description">To use voice commands, swipe right then up. Say \"<xliff:g example="Help">%1$s</xliff:g>\" or \"What can I say?\" anytime for this list of commands. You can also speak the name of any action that can be assigned to a gesture or a shortcut, such as the name of an app to open it.</string>
   <!-- The hint of triggering voice command. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_hint">For best results, say the exact wording listed on the following screens.</string>
   <!-- The hint of triggering voice command in lock screen mode. [CHAR_LIMIT=NONE] -->
