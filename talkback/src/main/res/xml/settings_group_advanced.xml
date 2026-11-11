@@ -11,5 +11,27 @@
     <com.google.android.accessibility.talkback.wallpaper.MeridianWallpaperPreference
         android:key="pref_meridian_wallpaper"
         android:title="@string/meridian_wallpaper_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:defaultValue="@string/pref_resume_backtalk_default"
+        android:dialogTitle="@string/title_pref_resume_backtalk"
+        android:entries="@array/pref_resume_backtalk_entries"
+        android:entryValues="@array/pref_resume_backtalk_values"
+        android:key="@string/pref_resume_backtalk_key"
+        android:summary="%s"
+        android:title="@string/title_pref_resume_backtalk" />
+    <com.google.android.accessibility.talkback.preference.base.CommandSwitchPreference
+        android:defaultValue="false"
+        android:key="@string/pref_play_installer_key"
+        android:persistent="false"
+        android:summary="@string/summary_pref_play_installer"
+        android:title="@string/title_pref_play_installer" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.BackupResetFragment"
+        android:key="pref_backup_reset_screen"
+        android:title="@string/title_pref_backup_reset" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.AppsGroupFragment"
+        android:key="@string/pref_settings_group_apps_key"
+        android:title="@string/title_pref_scripts_labels" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>
