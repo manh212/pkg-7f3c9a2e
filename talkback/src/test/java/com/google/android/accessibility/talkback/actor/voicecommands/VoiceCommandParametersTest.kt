@@ -41,6 +41,9 @@ class VoiceCommandParametersTest {
       decrease = listOf("giảm"),
       at = "lúc",
       dayParts = listOf("sáng", "trưa", "chiều", "tối", "đêm"),
+      itemGoTo = listOf("đi tới mục", "tới mục", "đến mục"),
+      item = "mục",
+      numberWord = "số",
     )
 
   @Test
@@ -267,6 +270,17 @@ class VoiceCommandParametersTest {
     assertNull(
       VoiceCommandParameters.parseClockAlarmMillis("báo thức lúc 25 giờ", keywords, morning)
     )
+  }
+
+  @Test
+  fun itemNumbers() {
+    assertEquals(5, VoiceCommandParameters.parseItemNumber("đi tới mục số 5", keywords))
+    assertEquals(5, VoiceCommandParameters.parseItemNumber("đi tới mục 5", keywords))
+    assertEquals(12, VoiceCommandParameters.parseItemNumber("mục số mười hai", keywords))
+    assertEquals(3, VoiceCommandParameters.parseItemNumber("tới mục số ba", keywords))
+    assertNull(VoiceCommandParameters.parseItemNumber("đi tới mục số 0", keywords))
+    assertNull(VoiceCommandParameters.parseItemNumber("mục tiêu số 5", keywords))
+    assertNull(VoiceCommandParameters.parseItemNumber("cuộn xuống 5 lần", keywords))
   }
 
   private fun atTime(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long {

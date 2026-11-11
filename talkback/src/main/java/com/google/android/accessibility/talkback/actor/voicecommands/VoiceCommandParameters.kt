@@ -49,6 +49,9 @@ object VoiceCommandParameters {
     decrease: List<String>,
     at: String,
     dayParts: List<String>,
+    itemGoTo: List<String>,
+    item: String,
+    numberWord: String,
   ) {
     val volumeTokens = tokens(volume)
     val mediaVolumeTokens = tokens(mediaVolume)
@@ -65,6 +68,10 @@ object VoiceCommandParameters {
     val decreaseWords: Set<String> = decrease.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val atTokens = tokens(at)
     val dayPartWords: Set<String> = dayParts.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
+    val itemGoToTokens: List<List<String>> =
+      itemGoTo.map { tokens(it) }.filter { it.isNotEmpty() }.sortedByDescending { it.size }
+    val itemTokens = tokens(item)
+    val numberWordTokens = tokens(numberWord)
 
     companion object {
       @JvmStatic
@@ -85,6 +92,9 @@ object VoiceCommandParameters {
           context.getString(R.string.voice_param_decrease).split(','),
           context.getString(R.string.voice_param_at),
           context.getString(R.string.voice_param_day_parts).split(','),
+          context.getString(R.string.voice_param_item_goto).split(','),
+          context.getString(R.string.voice_param_item),
+          context.getString(R.string.voice_param_number_word),
         )
     }
   }
@@ -265,6 +275,27 @@ object VoiceCommandParameters {
       "pm" -> if (hour in 1..11) hour + 12 else hour
       else -> hour
     }
+
+  /**
+   * The item number a command names ("đi tới mục số 5", "mục số 5"), counting from 1,
+   * or null when the command names no item.
+   */
+  @JvmStatic
+  fun parseItemNumber(command: String, keywords: Keywords): Int? {
+    val words = tokens(VietnameseNumbers.convert(plain(command)))
+    // The long form goes to the item ("đi tới mục số 5"); the short form names it
+    // first ("mục số 5").
+    val startIndex =
+      keywords.itemGoToTokens.firstOrNull { words.startsWith(it) }?.size
+        ?: if (words.startsWith(keywords.itemTokens)) keywords.itemTokens.size else return null
+    var rest = words.drop(startIndex)
+    if (rest.startsWith(keywords.numberWordTokens)) {
+      rest = rest.drop(keywords.numberWordTokens.size)
+    }
+    if (rest.size != 1) return null
+    val number = rest[0].toIntOrNull() ?: return null
+    return if (number >= 1) number else null
+  }
 
   /** The countdown duration in [command] in milliseconds, or null when it sets no alarm. */
   @JvmStatic
