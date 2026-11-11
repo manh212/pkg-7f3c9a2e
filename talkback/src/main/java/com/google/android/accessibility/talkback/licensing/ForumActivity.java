@@ -17,6 +17,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import io.meridian.licensing.FirebaseRest;
 import io.meridian.licensing.ForumProtocol;
 import java.text.DateFormat;
@@ -35,6 +36,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public final class ForumActivity extends ComponentActivity {
+  private static final String TAG = "ForumActivity";
   private static final ExecutorService IO = Executors.newSingleThreadExecutor();
   private LinearLayout root;
   private TextView status;
@@ -80,6 +82,7 @@ public final class ForumActivity extends ComponentActivity {
     IO.execute(() -> {
       try { action.run(); }
       catch (Exception error) {
+        LogUtils.w(TAG, error, "Forum action failed");
         ui(expected, () -> status.setText("Không thực hiện được. Thử lại."));
       }
     });
@@ -184,7 +187,7 @@ public final class ForumActivity extends ComponentActivity {
     int count = 0;
     String before = null;
     for (;;) {
-      JSONObject batch = service.recent("forumPosts/" + topicId, "$key", 100, before);
+      JSONObject batch = service.recent("forumPosts/" + topicId, "$key", 50, before);
       List<String> posts = ForumProtocol.newest(batch);
       if (posts.isEmpty()) break;
       boolean finished = false;
