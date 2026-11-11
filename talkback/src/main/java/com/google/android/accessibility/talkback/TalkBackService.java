@@ -218,6 +218,7 @@ import com.google.android.accessibility.talkback.menurules.NodeMenuRuleProcessor
 import com.google.android.accessibility.talkback.monitor.BatteryMonitor;
 import com.google.android.accessibility.talkback.monitor.CallStateMonitor;
 import com.google.android.accessibility.talkback.monitor.DeviceConfigurationMonitor;
+import com.google.android.accessibility.talkback.monitor.FullScreenMonitor;
 import com.google.android.accessibility.talkback.monitor.InputMethodMonitor;
 import com.google.android.accessibility.talkback.monitor.KeyboardLockMonitor;
 import com.google.android.accessibility.talkback.monitor.ProximitySensorMonitor;
@@ -641,6 +642,8 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   /** Staged pipeline for separating interpreters, feedback-mappers, and actors. */
   private Pipeline pipeline;
+  private final FullScreenMonitor fullScreenMonitor =
+      new FullScreenMonitor(this, super::getRootInActiveWindow, this::canReadScreenMonitor);
 
   /** Controller for audio and haptic feedback. */
   private FeedbackController feedbackController;
@@ -940,6 +943,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   public boolean onUnbind(Intent intent) {
+    fullScreenMonitor.stop();
     releaseTouchHandling();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
     com.google.android.accessibility.talkback.licensing.AdminAnnouncement.stopService(this);
@@ -993,6 +997,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   public void onDestroy() {
+    fullScreenMonitor.stop();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
     com.google.android.accessibility.talkback.licensing.AdminAnnouncement.stopService(this);
     SpeechControllerImpl.setParallelBilingualVoice(null);
@@ -1185,10 +1190,23 @@ public class TalkBackService extends AccessibilityServiceCompat
     return (diff & screenConfigFlags) != 0;
   }
 
+  private boolean canReadScreenMonitor() {
+    return isServiceActive()
+        && !PauseController.isPaused()
+        && (ringerModeAndScreenMonitor == null || ringerModeAndScreenMonitor.isInteractive())
+        && !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this);
+  }
+
   @Override
   public void onAccessibilityEvent(AccessibilityEvent event) {
     if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return;
     long receivedAt = SystemClock.uptimeMillis();
+    if (pipeline != null) {
+      fullScreenMonitor.onEvent(event, pipeline.getFeedbackReturner());
+    }
+    if (gestureController != null) {
+      gestureController.onSubtitleAccessibilityEvent(event);
+    }
     boolean strict = backgroundEventGate != null && backgroundEventGate.isStrict();
     if (strict && !backgroundEventGate.onAccessibilityEvent(event, receivedAt)) {
       return;
@@ -1197,9 +1215,6 @@ public class TalkBackService extends AccessibilityServiceCompat
     BrailleImeInputPolicy.onKeyboardPickerClick(this, event);
     if (directTouchController != null) {
       directTouchController.onRawAccessibilityEvent(event);
-    }
-    if (gestureController != null) {
-      gestureController.onSubtitleAccessibilityEvent(event);
     }
     if (event.getEventType() == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START) {
       recordingFocusGuard.onTouchStart();
@@ -1368,10 +1383,6 @@ public class TalkBackService extends AccessibilityServiceCompat
       NotificationReader.onTouchEnded();
     }
 
-    if (pipeline != null) {
-      com.google.android.accessibility.talkback.monitor.FullScreenMonitor.onEvent(
-          this, event, pipeline.getFeedbackReturner());
-    }
     accessibilityEventProcessor.onAccessibilityEvent(event, eventId);
     perf.onHandlerDone(eventId);
 
