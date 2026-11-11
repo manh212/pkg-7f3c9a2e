@@ -18,6 +18,11 @@ public final class SpeechVolumeControl {
     return next;
   }
 
+  /** The current speech volume percentage, clamped to the allowed range. */
+  public static int get(Context context, SharedPreferences prefs) {
+    return current(context, prefs);
+  }
+
   /** Sets the speech volume to the given percentage, clamped to the allowed range. */
   public static int set(Context context, SharedPreferences prefs, int percent) {
     int next = clamp(context, percent);
