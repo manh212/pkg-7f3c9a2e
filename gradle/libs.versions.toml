@@ -13,7 +13,7 @@ camerax = "1.6.2"
 # Google common
 onnxruntime-android = "com.microsoft.onnxruntime:onnxruntime-android:1.23.2"
 opencv = "org.opencv:opencv:4.12.0"
-tesseract4android = "cz.adaptech.tesseract4android:tesseract4android:4.7.0"
+tesseract4android = "cz.adaptech.tesseract4android:tesseract4android:4.9.0"
 mlkit-text-recognition = "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
 mlkit-language-id = "com.google.android.gms:play-services-mlkit-language-id:17.0.0"
 mlkit-translate = "com.google.mlkit:translate:17.0.3"
