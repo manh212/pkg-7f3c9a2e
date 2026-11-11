@@ -24,6 +24,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.calls.CallLimitController
 import com.google.android.accessibility.talkback.calls.CallPermissions
 import com.google.android.accessibility.talkback.notifications.TimerPermissionChecks.Status
+import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import java.util.Locale
 
 /**
@@ -96,6 +97,12 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         getString(R.string.timer_setup_xiaomi_unverified),
       )
     }
+    if (current.title == R.string.timer_setup_autostart_title) {
+      category.information(
+        getString(R.string.timer_setup_autostart_title),
+        getString(R.string.timer_setup_autostart_missing),
+      )
+    }
     if (status != Status.GRANTED) {
       category.action(getString(current.openLabel)) {
         flow.tapOpen()
@@ -106,7 +113,17 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
               rebuild()
             }
           }
+        } else if (current.title == R.string.timer_setup_keep_alive_title) {
+          current.open(context)
+          flow.completeOpen(steps.size)
+          rebuild()
         } else current.open(context)
+      }
+    }
+    if (current.title == R.string.timer_setup_keep_alive_title && status == Status.GRANTED) {
+      category.action(getString(R.string.timer_setup_keep_alive_off)) {
+        TimerKeepAliveService.setAllowed(context, false)
+        rebuild()
       }
     }
     if (flow.reviewing) {
@@ -160,6 +177,22 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   private fun isXiaomiFamily(): Boolean =
     Build.MANUFACTURER.lowercase(Locale.ROOT).trim() in setOf("xiaomi", "redmi", "poco")
 
+  /** The phone makers that gate background starts behind their own autostart page. */
+  private fun isAutoStartFamily(): Boolean =
+    Build.MANUFACTURER.lowercase(Locale.ROOT).trim() in
+      setOf(
+        "xiaomi",
+        "redmi",
+        "poco",
+        "oppo",
+        "realme",
+        "oneplus",
+        "vivo",
+        "iqoo",
+        "huawei",
+        "honor",
+      )
+
   private fun steps(): List<Step> =
     listOf(
       Step(
@@ -179,6 +212,15 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { TimerPermissionChecks.promptForBatteryExemption(it) },
       ),
       Step(
+        R.string.timer_setup_autostart_title,
+        R.string.timer_setup_autostart_granted,
+        R.string.timer_setup_autostart_missing,
+        R.string.timer_setup_autostart_open,
+        { TimerPermissionChecks.autostartStatus(it) },
+        { TimerPermissionChecks.openAutoStartSettings(it) },
+        { isAutoStartFamily() },
+      ),
+      Step(
         R.string.timer_setup_exact_alarm_title,
         R.string.timer_setup_exact_alarm_granted,
         R.string.timer_setup_exact_alarm_missing,
@@ -186,6 +228,14 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { TimerPermissionChecks.exactAlarmStatus(it) },
         { TimerPermissionChecks.openExactAlarmSettings(it) },
         { Build.VERSION.SDK_INT >= Build.VERSION_CODES.S },
+      ),
+      Step(
+        R.string.timer_setup_keep_alive_title,
+        R.string.timer_setup_keep_alive_granted,
+        R.string.timer_setup_keep_alive_missing,
+        R.string.timer_setup_keep_alive_open,
+        { if (TimerKeepAliveService.allowed(it)) Status.GRANTED else Status.MISSING },
+        { TimerKeepAliveService.setAllowed(it, true) },
       ),
       Step(
         R.string.timer_setup_microphone_title,
