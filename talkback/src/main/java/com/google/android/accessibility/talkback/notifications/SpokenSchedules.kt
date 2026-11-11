@@ -146,19 +146,17 @@ class SpokenSchedules(
     val exactAllowed =
       Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
     if (exactAllowed) {
-      if (actionSuffix == AlarmClockIntents.ACTION_SPOKEN_CLOCK) {
-        try {
-          alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-          return
-        } catch (_: SecurityException) {
-          // Access may have changed; try the other exact alarm API, then degrade gracefully.
-        }
-      }
       try {
         alarms.setAlarmClock(
           AlarmManager.AlarmClockInfo(at, AlarmClockIntents.showSettings(context)),
           pending,
         )
+        return
+      } catch (_: SecurityException) {
+        // Access may have changed; try the other exact alarm API, then degrade gracefully.
+      }
+      try {
+        alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
         return
       } catch (_: SecurityException) {
         // Exact access was revoked: use the inexact fallback without a permission prompt.
