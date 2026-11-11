@@ -115,6 +115,19 @@ public class SpeechRateAndPitchActor {
     return true;
   }
 
+  /**
+   * Sets the speech rate to the given percentage of the normal rate, clamped to the rates the
+   * stepper can reach.
+   *
+   * @return the percentage that was applied.
+   */
+  public int setSpeechRatePercent(int percent) {
+    float rate = Math.max(RATE_MINIMUM, Math.min(percent / 100f, RATE_MAXIMUM));
+    speechRatePercent = (int) (rate * 100);
+    applySpeechRateToPrefs(rate, speechRatePercent);
+    return speechRatePercent;
+  }
+
   /** resetSpeechRate: utility to reset speech rate to default. */
   public void resetSpeechRate() {
     float defaultRate = getCurrentOrDefaultSpeechRate(/* isCurrent= */ false);
