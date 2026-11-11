@@ -30,6 +30,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.migration.MigrationFiles
+import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
 import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import com.google.android.accessibility.talkback.timer.TimerSounds
@@ -57,12 +58,15 @@ import org.json.JSONObject
  * The Braille keyboard's settings are in it too, except its custom sound choices and its
  * touch calibration, which belong to the phone they were set on.
  *
+ * The text editor's documents are in it too, as a section of their own next to the files.
+ *
  * A settings file exported from Backtalk can be imported too.
  */
 object SettingsBackup {
   private const val TAG = "SettingsBackup"
   private const val FORMAT = "sandfly-settings"
   private const val VERSION = 1
+  private const val DOCUMENTS_KEY = "editorDocuments"
   private const val FILE_NAME = "sandfly-settings.json"
   private const val INITIAL_SETTINGS_FILE = "initial-settings.json"
   private const val BUNDLED_DEFAULTS_APPLIED = "bundled_defaults_applied"
@@ -224,11 +228,10 @@ object SettingsBackup {
       }
       files.put(storage, storageFiles)
     }
-    return JSONObject()
-      .put("format", FORMAT)
-      .put("version", VERSION)
-      .put("files", files)
-      .toString(2)
+    val root =
+      JSONObject().put("format", FORMAT).put("version", VERSION).put("files", files)
+    EditorDocuments.backupJson(context)?.let { root.put(DOCUMENTS_KEY, JSONArray(it)) }
+    return root.toString(2)
   }
 
   /**
@@ -240,6 +243,7 @@ object SettingsBackup {
     importSettings(context, json, replaceMissing = true)
 
   private fun importSettings(context: Context, json: String, replaceMissing: Boolean): Boolean {
+    var documents: JSONArray? = null
     val files =
       try {
         val root = JSONObject(json)
@@ -247,6 +251,7 @@ object SettingsBackup {
           return importBacktalk(backtalkStores(context), root, context)
         }
         if (root.optString("format") != FORMAT || root.optInt("version") > VERSION) return false
+        documents = root.optJSONArray(DOCUMENTS_KEY)
         root.getJSONObject("files")
       } catch (e: JSONException) {
         return false
@@ -273,6 +278,9 @@ object SettingsBackup {
         }
         edits += prefs to decoded
       }
+    }
+    if (documents != null && !EditorDocuments.restoreBackup(context, documents.toString())) {
+      return false
     }
     for ((prefs, values) in edits) {
       val editor = prefs.edit()
