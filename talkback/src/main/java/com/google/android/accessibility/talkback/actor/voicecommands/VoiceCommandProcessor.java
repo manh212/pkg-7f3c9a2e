@@ -157,10 +157,18 @@ public class VoiceCommandProcessor {
   private List<String> granularityCommandList;
   private List<VoiceCommandMatcher.Entry> catalogEntries;
   private VoiceCommandParameters.Keywords parameterKeywords;
+  private VoiceCommandPhrases.Keywords phraseKeywords;
   private ConfirmationSession confirmationSession;
   private Runnable pendingConfirmationAction;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private final Runnable confirmationTimeout = this::onConfirmationTimeout;
+  private final Runnable phraseDialogueTimeout = this::onPhraseDialogueTimeout;
+  private int phraseStage;
+  private String phraseDraft;
+
+  private static final int PHRASE_STAGE_NONE = 0;
+  private static final int PHRASE_STAGE_PHRASE = 1;
+  private static final int PHRASE_STAGE_ACTION = 2;
 
   private static final long CONFIRMATION_TIMEOUT_MS = 10000;
   private static final long REPEAT_INTERVAL_MS = 350;
@@ -353,6 +361,23 @@ public class VoiceCommandProcessor {
       } else {
         speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
       }
+      return true;
+    }
+
+    // A phrase is being taught: this result is the dialogue's next answer, never a command.
+    if (phraseStage != PHRASE_STAGE_NONE) {
+      if (isPartialResult) {
+        return false;
+      }
+      mainHandler.removeCallbacks(phraseDialogueTimeout);
+      handlePhraseDialogueAnswer(command);
+      return true;
+    }
+
+    // Taught phrases are managed, and a taught phrase said in full is used, before any
+    // built-in command, so a taught phrase wins over a built-in name. Partial results are
+    // not matched: the phrase may still be growing into another command.
+    if (!isPartialResult && handlePhraseCommand(command, eventId)) {
       return true;
     }
 
@@ -912,13 +937,214 @@ public class VoiceCommandProcessor {
 
   /* Asks about a dangerous command by name and holds it until the spoken answer arrives. */
   private void requestConfirmation(String label, Runnable action) {
+    requestConfirmationText(
+        service.getString(R.string.voice_commands_confirm_question, label), action);
+  }
+
+  /* Asks a yes-or-no question by voice and holds [action] until the spoken answer arrives. */
+  private void requestConfirmationText(String question, Runnable action) {
     pendingConfirmationAction = action;
     mainHandler.removeCallbacks(confirmationTimeout);
     mainHandler.postDelayed(confirmationTimeout, CONFIRMATION_TIMEOUT_MS);
-    speakDelayed(service.getString(R.string.voice_commands_confirm_question, label));
+    speakDelayed(question);
     if (confirmationSession != null) {
       confirmationSession.requestListenAgain();
     }
+  }
+
+  private VoiceCommandPhrases.Keywords phraseKeywords() {
+    if (phraseKeywords == null) {
+      phraseKeywords = VoiceCommandPhrases.Keywords.from(service);
+    }
+    return phraseKeywords;
+  }
+
+  /* Asks one step of the phrase dialogue by voice and listens for its answer. */
+  private void askPhraseQuestion(int questionRes) {
+    mainHandler.removeCallbacks(phraseDialogueTimeout);
+    mainHandler.postDelayed(phraseDialogueTimeout, CONFIRMATION_TIMEOUT_MS);
+    speakDelayed(service.getString(questionRes));
+    if (confirmationSession != null) {
+      confirmationSession.requestListenAgain();
+    }
+  }
+
+  /* Runs when a phrase dialogue answer never arrives: the teaching is abandoned. */
+  private void onPhraseDialogueTimeout() {
+    if (phraseStage != PHRASE_STAGE_NONE) {
+      phraseStage = PHRASE_STAGE_NONE;
+      phraseDraft = null;
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+    }
+  }
+
+  /* Takes one spoken answer of the guided phrase dialogue. */
+  private void handlePhraseDialogueAnswer(String command) {
+    if (VoiceCommandPhrases.isCancel(command, phraseKeywords())) {
+      phraseStage = PHRASE_STAGE_NONE;
+      phraseDraft = null;
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+      return;
+    }
+    if (phraseStage == PHRASE_STAGE_PHRASE) {
+      phraseDraft = command.trim();
+      phraseStage = PHRASE_STAGE_ACTION;
+      askPhraseQuestion(R.string.voice_phrase_ask_action);
+      return;
+    }
+    String phraseText = phraseDraft;
+    phraseStage = PHRASE_STAGE_NONE;
+    phraseDraft = null;
+    if (catalogEntries == null) {
+      catalogEntries = VoiceCommandCatalog.entries(service);
+    }
+    VoiceCommandMatcher.Match match =
+        VoiceCommandMatcher.INSTANCE.match(command, catalogEntries);
+    if (match == null) {
+      speakDelayed(service.getString(R.string.voice_phrase_action_not_found));
+      return;
+    }
+    confirmPhraseSave(phraseText, match);
+  }
+
+  /*
+   * Reads a taught phrase and its action back, warning when the phrase collides with a
+   * built-in name or an earlier phrase, and saves only on a spoken yes.
+   */
+  private void confirmPhraseSave(String phraseText, VoiceCommandMatcher.Match match) {
+    if (catalogEntries == null) {
+      catalogEntries = VoiceCommandCatalog.entries(service);
+    }
+    String key = VoiceCommandPhrases.identity(phraseText);
+    boolean collision = false;
+    for (VoiceCommandMatcher.Entry entry : catalogEntries) {
+      if (VoiceCommandPhrases.identity(entry.getPhrase()).equals(key)) {
+        collision = true;
+        break;
+      }
+    }
+    if (!collision) {
+      for (VoiceCommandPhrases.Phrase phrase : VoiceCommandPhrases.load(service)) {
+        if (VoiceCommandPhrases.identity(phrase.getPhrase()).equals(key)) {
+          collision = true;
+          break;
+        }
+      }
+    }
+    String question =
+        service.getString(
+            collision
+                ? R.string.voice_phrase_confirm_assign_collision
+                : R.string.voice_phrase_confirm_assign,
+            phraseText,
+            match.getPhrase());
+    String value = match.getValue();
+    requestConfirmationText(
+        question,
+        () -> {
+          VoiceCommandPhrases.add(service, phraseText, value);
+          speakDelayed(service.getString(R.string.voice_phrase_saved));
+        });
+  }
+
+  /*
+   * Runs the commands that manage taught phrases, and a taught phrase said in full.
+   * Returns true when the command was one of them.
+   */
+  private boolean handlePhraseCommand(String command, EventId eventId) {
+    VoiceCommandPhrases.Keywords keywords = phraseKeywords();
+    if (VoiceCommandPhrases.isCreateOpener(command, keywords)) {
+      phraseStage = PHRASE_STAGE_PHRASE;
+      phraseDraft = null;
+      askPhraseQuestion(R.string.voice_phrase_ask_phrase);
+      return true;
+    }
+    List<kotlin.Pair<String, String>> assignment =
+        VoiceCommandPhrases.splitAssignment(command, keywords);
+    if (assignment != null) {
+      if (catalogEntries == null) {
+        catalogEntries = VoiceCommandCatalog.entries(service);
+      }
+      for (kotlin.Pair<String, String> split : assignment) {
+        VoiceCommandMatcher.Match match =
+            VoiceCommandMatcher.INSTANCE.match(split.getSecond(), catalogEntries);
+        if (match != null) {
+          confirmPhraseSave(split.getFirst(), match);
+          return true;
+        }
+      }
+      speakDelayed(service.getString(R.string.voice_phrase_action_not_found));
+      return true;
+    }
+    if (VoiceCommandPhrases.isListCommand(command, keywords)) {
+      speakPhraseList();
+      return true;
+    }
+    String deleteTarget = VoiceCommandPhrases.deleteTarget(command, keywords);
+    if (deleteTarget != null) {
+      startPhraseDelete(deleteTarget);
+      return true;
+    }
+    // A taught phrase said in full wins over the built-in command of the same words.
+    VoiceCommandParameters.Repeat repeat =
+        VoiceCommandParameters.parseRepeat(command, parameterKeywords());
+    String text = repeat != null ? repeat.getText() : command;
+    String key = VoiceCommandPhrases.identity(text);
+    for (VoiceCommandPhrases.Phrase phrase : VoiceCommandPhrases.load(service)) {
+      if (VoiceCommandPhrases.identity(phrase.getPhrase()).equals(key)) {
+        runCatalogValue(phrase.getValue(), phrase.getPhrase(), repeat, eventId);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* Asks whether the taught phrase [target] names should be deleted, and deletes on a yes. */
+  private void startPhraseDelete(String target) {
+    List<VoiceCommandPhrases.Phrase> phrases = VoiceCommandPhrases.load(service);
+    VoiceCommandMatcher.Match match =
+        VoiceCommandMatcher.INSTANCE.match(target, VoiceCommandPhrases.entries(phrases));
+    if (match == null) {
+      speakDelayed(service.getString(R.string.voice_phrase_not_found));
+      return;
+    }
+    String phraseText = match.getPhrase();
+    requestConfirmationText(
+        service.getString(R.string.voice_phrase_confirm_delete, phraseText),
+        () -> {
+          VoiceCommandPhrases.remove(service, phraseText);
+          speakDelayed(service.getString(R.string.voice_phrase_deleted));
+        });
+  }
+
+  /* Speaks every taught phrase with the name of its action. */
+  private void speakPhraseList() {
+    List<VoiceCommandPhrases.Phrase> phrases = VoiceCommandPhrases.load(service);
+    if (phrases.isEmpty()) {
+      speakDelayed(service.getString(R.string.voice_phrase_list_empty));
+      return;
+    }
+    StringBuilder spoken = new StringBuilder();
+    for (VoiceCommandPhrases.Phrase phrase : phrases) {
+      if (spoken.length() > 0) {
+        spoken.append("; ");
+      }
+      spoken.append(phrase.getPhrase()).append(": ").append(catalogLabel(phrase.getValue()));
+    }
+    speakDelayed(spoken.toString());
+  }
+
+  /* The spoken name of the catalog action [value], or the value itself when unknown. */
+  private String catalogLabel(String value) {
+    if (catalogEntries == null) {
+      catalogEntries = VoiceCommandCatalog.entries(service);
+    }
+    for (VoiceCommandMatcher.Entry entry : catalogEntries) {
+      if (entry.getValue().equals(value)) {
+        return entry.getPhrase();
+      }
+    }
+    return value;
   }
 
   /* Runs when no answer arrives in time: the waiting command is cancelled, and says so. */
@@ -933,6 +1159,9 @@ public class VoiceCommandProcessor {
   public void cancelPendingConfirmation() {
     pendingConfirmationAction = null;
     mainHandler.removeCallbacks(confirmationTimeout);
+    phraseStage = PHRASE_STAGE_NONE;
+    phraseDraft = null;
+    mainHandler.removeCallbacks(phraseDialogueTimeout);
   }
 
   /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
@@ -981,22 +1210,35 @@ public class VoiceCommandProcessor {
     // An action name can carry a repeat count: "<name> <count> <times word>".
     VoiceCommandParameters.Repeat repeat =
         VoiceCommandParameters.parseRepeat(command, parameterKeywords());
-    VoiceCommandMatcher.Match match =
-        VoiceCommandMatcher.INSTANCE.match(
-            repeat != null ? repeat.getText() : command, catalogEntries);
+    String text = repeat != null ? repeat.getText() : command;
+    // Taught phrases are matched before the catalog, so they win over action names.
+    VoiceCommandMatcher.Match match = null;
+    List<VoiceCommandPhrases.Phrase> phrases = VoiceCommandPhrases.load(service);
+    if (!phrases.isEmpty()) {
+      match = VoiceCommandMatcher.INSTANCE.match(text, VoiceCommandPhrases.entries(phrases));
+    }
+    if (match == null) {
+      match = VoiceCommandMatcher.INSTANCE.match(text, catalogEntries);
+    }
     if (match == null) {
       return false;
     }
-    String value = match.getValue();
+    runCatalogValue(match.getValue(), match.getPhrase(), repeat, eventId);
+    return true;
+  }
+
+  /* Runs one catalog action by value, asking first when the action cannot be undone. */
+  private void runCatalogValue(
+      String value, String label, VoiceCommandParameters.Repeat repeat, EventId eventId) {
     // Sending composed text cannot be undone, so it runs only after a spoken confirmation.
     if (value.equals(service.getString(R.string.shortcut_value_submit_text))) {
       requestConfirmation(
-          match.getPhrase(),
+          label,
           () -> {
             service.performCatalogAction(value, eventId);
             handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
           });
-      return true;
+      return;
     }
     service.performCatalogAction(value, eventId);
     handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
@@ -1006,7 +1248,6 @@ public class VoiceCommandProcessor {
             () -> service.performCatalogAction(value, eventId), REPEAT_INTERVAL_MS * i);
       }
     }
-    return true;
   }
 
   private List<String> getCommandList(int[] formattedCommandArray, int[] parameterArrays) {

@@ -151,4 +151,26 @@
   <string name="voice_param_seconds">giây</string>
   <string name="voice_param_times">lần</string>
   <string name="voice_param_media_volume_value">Âm lượng nhạc: %1$d%%</string>
+  <string name="voice_phrase_create_openers">tạo lệnh mới,thêm lệnh mới,đặt lệnh mới</string>
+  <string name="voice_phrase_set_prefixes">đặt lệnh,gán lệnh,tạo lệnh</string>
+  <string name="voice_phrase_separator">cho</string>
+  <string name="voice_phrase_list_commands">liệt kê lệnh của tôi,danh sách lệnh của tôi,liệt kê các lệnh của tôi</string>
+  <string name="voice_phrase_delete_prefixes">xóa lệnh,xóa cụm từ</string>
+  <string name="voice_phrase_cancel_words">hủy,hủy bỏ</string>
+  <string name="voice_phrase_ask_phrase">Nói cụm từ bạn muốn đặt</string>
+  <string name="voice_phrase_ask_action">Cụm từ này cho hành động nào?</string>
+  <string name="voice_phrase_confirm_assign">Gán \'%1$s\' cho %2$s? Nói đúng hoặc có để xác nhận.</string>
+  <string name="voice_phrase_confirm_assign_collision">\'%1$s\' trùng với một lệnh có sẵn và sẽ được ưu tiên. Gán \'%1$s\' cho %2$s? Nói đúng hoặc có để xác nhận.</string>
+  <string name="voice_phrase_saved">Đã lưu cụm từ</string>
+  <string name="voice_phrase_action_not_found">Không tìm thấy hành động đó</string>
+  <string name="voice_phrase_not_found">Không tìm thấy cụm từ đó</string>
+  <string name="voice_phrase_list_empty">Bạn chưa đặt cụm từ nào</string>
+  <string name="voice_phrase_confirm_delete">Xóa cụm từ \'%1$s\'? Nói đúng hoặc có để xác nhận.</string>
+  <string name="voice_phrase_deleted">Đã xóa cụm từ</string>
+  <string name="title_voice_commands_settings">Lệnh thoại</string>
+  <string name="title_voice_command_phrases">Cụm từ tự đặt</string>
+  <string name="voice_command_phrases_count">%1$d cụm từ</string>
+  <string name="voice_command_phrases_empty">Chưa có cụm từ nào. Hãy mở lệnh thoại và nói: tạo lệnh mới.</string>
+  <string name="voice_command_phrase_delete_title">Xóa cụm từ</string>
+  <string name="voice_command_phrase_delete_message">Xóa cụm từ \'%1$s\' (cho %2$s)?</string>
 </resources>
