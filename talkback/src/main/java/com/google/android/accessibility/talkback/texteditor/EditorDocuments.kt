@@ -57,6 +57,7 @@ object EditorDocuments {
   private var readable = false
 
   @Synchronized
+  @JvmStatic
   fun init(directory: File?) {
     documents.clear()
     store = directory?.let { AtomicFile(File(it, FILE_NAME)) }
