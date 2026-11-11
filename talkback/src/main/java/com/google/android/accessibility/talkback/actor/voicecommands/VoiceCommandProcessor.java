@@ -131,7 +131,9 @@ import com.google.android.accessibility.utils.screencapture.ScreenshotCapture;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 // TODO: Refactoring this class as a feedback-mapper class
@@ -158,6 +160,9 @@ public class VoiceCommandProcessor {
   private List<VoiceCommandMatcher.Entry> catalogEntries;
   private VoiceCommandParameters.Keywords parameterKeywords;
   private VoiceCommandPhrases.Keywords phraseKeywords;
+  private VoiceCommandChain.Keywords chainKeywords;
+  private Set<String> continuousStartWords;
+  private int chainGeneration;
   private ConfirmationSession confirmationSession;
   private Runnable pendingConfirmationAction;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -180,6 +185,12 @@ public class VoiceCommandProcessor {
   /** Asks the owner of the listening session to listen once more for a spoken answer. */
   public interface ConfirmationSession {
     void requestListenAgain();
+
+    /** Switches this session to continuous listening, at the user's spoken request. */
+    void enableContinuousListening();
+
+    /** Notes that a command just ran, for the session's continuous-listening idle clock. */
+    void noteCommandRan();
   }
 
   public void setConfirmationSession(ConfirmationSession confirmationSession) {
@@ -345,6 +356,11 @@ public class VoiceCommandProcessor {
   /* Returns true if the recognized string is one of the voice commands. */
   @CanIgnoreReturnValue
   public boolean handleSpeechCommand(String command, boolean isPartialResult) {
+    return handleSpeechCommand(command, isPartialResult, /* chainedPart= */ false);
+  }
+
+  private boolean handleSpeechCommand(
+      String command, boolean isPartialResult, boolean chainedPart) {
     if (TextUtils.isEmpty(command)) {
       return false;
     }
@@ -387,6 +403,16 @@ public class VoiceCommandProcessor {
     // built-in command, so a taught phrase wins over a built-in name. Partial results are
     // not matched: the phrase may still be growing into another command.
     if (!isPartialResult && handlePhraseCommand(command, eventId)) {
+      return true;
+    }
+
+    // Asking for continuous listening switches this session to listen again after every
+    // command, until a stop word or an idle stretch ends it.
+    if (!isPartialResult && isContinuousStartCommand(command)) {
+      if (confirmationSession != null) {
+        confirmationSession.enableContinuousListening();
+      }
+      speakDelayed(service.getString(R.string.voice_continuous_on));
       return true;
     }
 
@@ -917,12 +943,23 @@ public class VoiceCommandProcessor {
       return true;
     }
 
-    // Nothing matched. When the user turned the AI fallback on, the sentence is given to
-    // the AI before it is called unrecognized; the fallback speaks for itself.
-    if (!isPartialResult && startAiFallback(command, eventId)) {
-      return true;
+    if (!isPartialResult && !chainedPart) {
+      // A sentence that matched nothing may still be a chain of commands joined by a
+      // connector: each part runs in order, and a part nothing recognizes is skipped.
+      if (tryChainedCommands(command, eventId)) {
+        return true;
+      }
+      // Nothing matched. When the user turned the AI fallback on, the sentence is given
+      // to the AI before it is called unrecognized; the fallback speaks for itself.
+      if (startAiFallback(command, eventId)) {
+        return true;
+      }
     }
 
+    if (chainedPart) {
+      // One part of a chain that nothing recognized is skipped without a word.
+      return false;
+    }
     speakUnrecognized(command);
     if (!isPartialResult) {
       // To expect further partial/final result from speech recognizer could match the supported
@@ -1201,6 +1238,7 @@ public class VoiceCommandProcessor {
         VoiceCommandParameters.parsePercent(command, keywords);
     if (percent != null) {
       applyPercent(percent);
+      noteCommandRan();
       return true;
     }
     Long alarmMillis = VoiceCommandParameters.parseDurationMillis(command, keywords);
@@ -1209,6 +1247,7 @@ public class VoiceCommandProcessor {
       speakDelayed(
           service.getString(
               R.string.countdown_alarm_added, Stopwatch.formatElapsed(service, alarmMillis)));
+      noteCommandRan();
       return true;
     }
     return false;
@@ -1283,6 +1322,7 @@ public class VoiceCommandProcessor {
   private void handleVoiceCommandRecognized(@VoiceCommandTypeId int type) {
     analytics.onVoiceCommandEvent(VOICE_COMMAND_RECOGNIZED);
     analytics.onVoiceCommandType(type);
+    noteCommandRan();
   }
 
   private boolean containsAll(String command, int stringResId1, int stringResId2) {
@@ -1370,6 +1410,68 @@ public class VoiceCommandProcessor {
     } else {
       speakDelayed(service.getString(R.string.not_editable));
       return null;
+    }
+  }
+
+  /* Whether [command] asks for continuous listening in this session. */
+  private boolean isContinuousStartCommand(String command) {
+    if (continuousStartWords == null) {
+      continuousStartWords = new HashSet<>();
+      for (String word :
+          service.getString(R.string.voice_continuous_start_commands).split(",")) {
+        continuousStartWords.add(VoiceCommandPhrases.identity(word));
+      }
+    }
+    return continuousStartWords.contains(VoiceCommandPhrases.identity(command));
+  }
+
+  private VoiceCommandChain.Keywords chainKeywords() {
+    if (chainKeywords == null) {
+      chainKeywords = VoiceCommandChain.Keywords.from(service);
+    }
+    return chainKeywords;
+  }
+
+  /*
+   * Runs a sentence as a chain of commands joined by a connector word, in order. A part
+   * nothing recognizes is skipped and the rest still run. Returns false when the sentence
+   * is not a chain.
+   */
+  private boolean tryChainedCommands(String command, EventId eventId) {
+    List<String> parts = VoiceCommandChain.split(command, chainKeywords());
+    if (parts.size() < 2) {
+      return false;
+    }
+    final int chainId = ++chainGeneration;
+    for (int i = 0; i < parts.size(); i++) {
+      final String part = parts.get(i);
+      if (i == 0) {
+        handleChainedPart(chainId, part, eventId);
+      } else {
+        mainHandler.postDelayed(
+            () -> handleChainedPart(chainId, part, eventId), REPEAT_INTERVAL_MS * i);
+      }
+    }
+    return true;
+  }
+
+  /* Runs one part of a chain, unless an earlier part took the session over. */
+  private void handleChainedPart(int chainId, String part, EventId eventId) {
+    if (chainId != chainGeneration) {
+      return;
+    }
+    if (pendingConfirmationAction != null || phraseStage != PHRASE_STAGE_NONE) {
+      // A part asked a question: the chain stops there and the rest is dropped.
+      chainGeneration++;
+      return;
+    }
+    handleSpeechCommand(part, /* isPartialResult= */ false, /* chainedPart= */ true);
+  }
+
+  /* Tells the listening session that a command just ran. */
+  private void noteCommandRan() {
+    if (confirmationSession != null) {
+      confirmationSession.noteCommandRan();
     }
   }
 
