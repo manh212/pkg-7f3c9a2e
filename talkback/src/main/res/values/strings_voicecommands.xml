@@ -263,9 +263,9 @@
   <!-- The page title of voice command overview. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_title">Voice command overview</string>
   <!-- The description of voice command overview. [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_description">To use voice commands, swipe right then up. Say \"<xliff:g example="Help">%1$s</xliff:g>\" or \"What can I say?\" anytime for this list of commands. You can also speak the name of any action that can be assigned to a gesture or a shortcut, such as the name of an app to open it.</string>
+  <string name="voice_commands_help_description">To use voice commands, swipe right then up, or use the action you assigned to voice commands. Say \"<xliff:g example="Help">%1$s</xliff:g>\" or \"what can I say\" anytime to see this list again. You do not need the exact words: a close phrasing, or one without diacritics, still works.</string>
   <!-- The hint of triggering voice command. [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_hint">For best results, say the exact wording listed on the following screens.</string>
+  <string name="voice_commands_help_hint">Each page after this one lists a group of commands with a sample phrasing. You can also change how any command is said, in Settings, on the Voice commands page.</string>
   <!-- The hint of triggering voice command in lock screen mode. [CHAR_LIMIT=NONE] -->
   <string name="voice_command_screen_locked_hint">Voice commands are not available while the screen is locked. To use the Meridian menu instead, <xliff:g id="gesture" example="Swipe right then up">%1$s</xliff:g>.</string>
   <!-- The hint of triggering voice command in setup wizard. [CHAR_LIMIT=NONE] -->
@@ -280,16 +280,16 @@
   <!-- The description of voice command - set the navigation granularity. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_navigation">[Word] navigation</string>
   <!-- The description of voice command - change speech rate. [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_speech_rate">Speak [faster]</string>
+  <string name="voice_commands_help_speech_rate">Speech rate [120 percent]</string>
   <!-- The description of voice command - set verbosity. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_verbosity">[Low] verbosity</string>
 
   <!-- The description of voice command "Next". [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_next_description">Go to the next heading, control, list, or landmark</string>
+  <string name="voice_commands_help_next_description">Go to the next heading, control, link, or landmark</string>
   <!-- The description of voice command "Navigation". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_navigation_description">Navigate by words, characters, lines, paragraphs, headings, controls, and more</string>
   <!-- The description of voice command "Speak faster/slower". [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_speech_rate_description">You can also say \"speak slower\"</string>
+  <string name="voice_commands_help_speech_rate_description">You can also say \"faster\", \"slower\", \"increase speech rate\", or \"decrease speech rate\"</string>
   <!-- The description of voice command "Low/High/Custom verbosity". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_verbosity_description">Change to low, high, or custom</string>
   <!-- The description of voice command "First". [CHAR_LIMIT=NONE] -->
@@ -309,21 +309,21 @@
   <!-- The description of voice command "Find [item]". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_find_text_description">Find the first item that includes the text \"save\" on the current screen</string>
   <!-- The description of voice command "Find". [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_find_description">Repeat \"find\" to go to the next item that includes the text \"save\"</string>
+  <string name="voice_commands_help_find_description">Say \"find\" on its own to go to the next item that includes that text</string>
   <!-- The description of voice command "Screen search". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_screen_search_description">Enter a search term to find that text on the screen</string>
 
   <!-- The description of voice command - text editing. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_text_editing_description">Type, select, and copy text</string>
   <!-- The description of voice command - input text. [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_type_text">Type [OK]</string>
+  <string name="voice_commands_help_type_text">Type [text]</string>
 
   <!-- The description of voice command "Copy". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_copy_description">Select text before copying</string>
   <!-- The description of voice command "Cut". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_cut_description">Select text before cutting</string>
   <!-- The description of voice command "Cut". [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_delete_description">Select text before deleting</string>
+  <string name="voice_commands_help_delete_description">Select text before deleting. Meridian asks first; say \"yes\" to go ahead</string>
 
   <!-- The page title of voice command - device navigation. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_device_navigation_title">Device navigation</string>
@@ -351,7 +351,36 @@
   <!-- The description of voice command "Label". [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_help_label_description">Add or edit a custom label to say \"submit\"</string>
   <!-- The description of voice command "Stop". [CHAR_LIMIT=NONE] -->
-  <string name="voice_commands_help_stop_description">Stop current voice command</string>
+  <string name="voice_commands_help_stop_description">Stop speaking right away</string>
+  <string name="voice_commands_help_type_text_description">Say \"type\", \"input\", \"write\", or \"spell\", then the text to enter</string>
+  <string name="voice_commands_help_item_number">Go to item number [5]</string>
+  <string name="voice_commands_help_item_number_description">Jump straight to an item on the screen, counted in reading order</string>
+  <string name="voice_commands_help_numbers_title">Volume, speech rate and alarms</string>
+  <string name="voice_commands_help_volume">Volume [50 percent]</string>
+  <string name="voice_commands_help_volume_description">Set the speech volume. For music and video: \"media volume 30 percent\"</string>
+  <string name="voice_commands_help_volume_step">Increase volume</string>
+  <string name="voice_commands_help_volume_step_description">Raise or lower by 10 points. Say a number to change by more: \"increase volume 20\", \"decrease speech rate 10\"</string>
+  <string name="voice_commands_help_alarm">Alarm [5 minutes]</string>
+  <string name="voice_commands_help_alarm_description">Start a countdown: \"alarm 1 hours 30 minutes\", \"countdown 45 seconds\"</string>
+  <string name="voice_commands_help_alarm_clock">Alarm at [7 hours 30 pm]</string>
+  <string name="voice_commands_help_alarm_clock_description">Start a countdown to a clock time. A time that has already passed today means the same time tomorrow</string>
+  <string name="voice_commands_help_repeat">[Scroll down] 3 times</string>
+  <string name="voice_commands_help_repeat_description">Repeat an action, up to 20 times</string>
+  <string name="voice_commands_help_word_numbers">Numbers as words</string>
+  <string name="voice_commands_help_word_numbers_description">Every number in the commands above can be spoken as words in Vietnamese</string>
+  <string name="voice_commands_help_your_way_title">Commands your way</string>
+  <string name="voice_commands_help_open_app">Open [Facebook]</string>
+  <string name="voice_commands_help_open_app_description">Say the name of any action that can be assigned to a gesture or a shortcut to run it. Say \"open\" and an app name to open that app</string>
+  <string name="voice_commands_help_chain">Several commands in one sentence</string>
+  <string name="voice_commands_help_chain_description">Join commands with \"then\". A part nothing understands is skipped; the rest still run</string>
+  <string name="voice_commands_help_continuous">Continuous listening</string>
+  <string name="voice_commands_help_continuous_description">Give commands one after another without opening voice commands again. Say \"stop\" or \"done\" to end it. It can also be turned on in Settings, on the Voice commands page</string>
+  <string name="voice_commands_help_teach">Create a new command</string>
+  <string name="voice_commands_help_teach_description">Teach Meridian a phrase of your own: say the create-a-command phrase and follow the prompts, or say the set phrase, your phrase, the separator, and the action name. One phrase can run several actions in a row</string>
+  <string name="voice_commands_help_ai">AI fallback</string>
+  <string name="voice_commands_help_ai_description">Turn it on in Settings, on the Voice commands page: when a sentence matches no command, the AI picks the closest action and runs it right away</string>
+  <string name="voice_commands_help_custom_words">Change how commands are said</string>
+  <string name="voice_commands_help_custom_words_description">In Settings, on the Voice commands page, the Voice command keywords and Fixed commands entries let you change how each command is said</string>
 
   <!-- Asks the user to confirm a dangerous voice command before it runs. [CHAR_LIMIT=NONE] -->
   <string name="voice_commands_confirm_question">%1$s? Say "yes" to confirm.</string>
@@ -434,6 +463,7 @@
   <string name="voice_phrase_deleted">Đã xóa cụm từ</string>
   <!-- Title of the voice command settings page. [CHAR_LIMIT=NONE] -->
   <string name="title_voice_commands_settings">Lệnh thoại</string>
+  <string name="title_voice_command_help">Trợ giúp lệnh thoại</string>
   <!-- Title of the taught voice command phrases page. [CHAR_LIMIT=NONE] -->
   <string name="title_voice_command_phrases">Cụm từ tự đặt</string>
   <!-- Summary of the taught phrases row: how many phrases exist. [CHAR_LIMIT=NONE] -->

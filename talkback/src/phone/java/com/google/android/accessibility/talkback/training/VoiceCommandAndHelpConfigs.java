@@ -83,6 +83,8 @@ final class VoiceCommandAndHelpConfigs {
           .addSubText(R.string.voice_commands_help_first_description)
           .addTextWithBullet(R.string.voice_commands_last)
           .addSubText(R.string.voice_commands_help_last_description)
+          .addTextWithBullet(R.string.voice_commands_help_item_number)
+          .addSubText(R.string.voice_commands_help_item_number_description)
           .addTextWithBullet(R.string.voice_commands_languages)
           .addSubText(R.string.voice_commands_help_languages_description);
 
@@ -101,6 +103,7 @@ final class VoiceCommandAndHelpConfigs {
       PageConfig.builder(
               PageId.PAGE_ID_VOICE_COMMAND_TEXT_EDITING, R.string.shortcut_title_text_editing)
           .addTextWithBullet(R.string.voice_commands_help_type_text)
+          .addSubText(R.string.voice_commands_help_type_text_description)
           .addTextWithBullet(android.R.string.selectAll)
           .addTextWithBullet(R.string.voice_commands_select)
           .addTextWithBullet(R.string.voice_commands_deselect)
@@ -144,6 +147,38 @@ final class VoiceCommandAndHelpConfigs {
           .addTextWithBullet(R.string.voice_commands_stop)
           .addSubText(R.string.voice_commands_help_stop_description);
 
+  static final PageConfig.Builder VoiceCommandNumbers =
+      PageConfig.builder(
+              PageId.PAGE_ID_VOICE_COMMAND_NUMBERS, R.string.voice_commands_help_numbers_title)
+          .addTextWithBullet(R.string.voice_commands_help_volume)
+          .addSubText(R.string.voice_commands_help_volume_description)
+          .addTextWithBullet(R.string.voice_commands_help_volume_step)
+          .addSubText(R.string.voice_commands_help_volume_step_description)
+          .addTextWithBullet(R.string.voice_commands_help_alarm)
+          .addSubText(R.string.voice_commands_help_alarm_description)
+          .addTextWithBullet(R.string.voice_commands_help_alarm_clock)
+          .addSubText(R.string.voice_commands_help_alarm_clock_description)
+          .addTextWithBullet(R.string.voice_commands_help_repeat)
+          .addSubText(R.string.voice_commands_help_repeat_description)
+          .addTextWithBullet(R.string.voice_commands_help_word_numbers)
+          .addSubText(R.string.voice_commands_help_word_numbers_description);
+
+  static final PageConfig.Builder VoiceCommandYourWay =
+      PageConfig.builder(
+              PageId.PAGE_ID_VOICE_COMMAND_YOUR_WAY, R.string.voice_commands_help_your_way_title)
+          .addTextWithBullet(R.string.voice_commands_help_open_app)
+          .addSubText(R.string.voice_commands_help_open_app_description)
+          .addTextWithBullet(R.string.voice_commands_help_chain)
+          .addSubText(R.string.voice_commands_help_chain_description)
+          .addTextWithBullet(R.string.voice_commands_help_continuous)
+          .addSubText(R.string.voice_commands_help_continuous_description)
+          .addTextWithBullet(R.string.voice_commands_help_teach)
+          .addSubText(R.string.voice_commands_help_teach_description)
+          .addTextWithBullet(R.string.voice_commands_help_ai)
+          .addSubText(R.string.voice_commands_help_ai_description)
+          .addTextWithBullet(R.string.voice_commands_help_custom_words)
+          .addSubText(R.string.voice_commands_help_custom_words_description);
+
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Training
 
@@ -154,6 +189,8 @@ final class VoiceCommandAndHelpConfigs {
           .addPageEndOfSection(VoiceCommandFindItems)
           .addPageEndOfSection(VoiceCommandTextEditing)
           .addPageEndOfSection(VoiceCommandDeviceNavigation)
+          .addPageEndOfSection(VoiceCommandNumbers)
+          .addPageEndOfSection(VoiceCommandYourWay)
           .addPageEndOfSection(VoiceCommandOtherCommands)
           .setButtons(DEFAULT_BUTTONS)
           .setSupportNavigateUpArrow(true)
