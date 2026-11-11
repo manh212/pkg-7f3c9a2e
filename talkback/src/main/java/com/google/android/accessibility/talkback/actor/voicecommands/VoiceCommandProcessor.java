@@ -170,6 +170,8 @@ public class VoiceCommandProcessor {
   private final Runnable phraseDialogueTimeout = this::onPhraseDialogueTimeout;
   private int phraseStage;
   private String phraseDraft;
+  private final List<String> phraseDraftValues = new ArrayList<>();
+  private final List<String> phraseDraftLabels = new ArrayList<>();
   private int aiRequestId;
   private String aiCommand;
   private final Runnable aiFallbackTimeout = this::onAiFallbackTimeout;
@@ -181,6 +183,8 @@ public class VoiceCommandProcessor {
   private static final long CONFIRMATION_TIMEOUT_MS = 10000;
   private static final long AI_FALLBACK_TIMEOUT_MS = 12000;
   private static final long REPEAT_INTERVAL_MS = 350;
+  private static final long MACRO_STEP_INTERVAL_MS = 500;
+  private static final int MAX_PHRASE_ACTIONS = 10;
 
   /** Asks the owner of the listening session to listen once more for a spoken answer. */
   public interface ConfirmationSession {
@@ -1014,11 +1018,19 @@ public class VoiceCommandProcessor {
     }
   }
 
+  /* Drops the phrase dialogue in progress, with every action it had gathered. */
+  private void clearPhraseDialogue() {
+    phraseStage = PHRASE_STAGE_NONE;
+    phraseDraft = null;
+    phraseDraftValues.clear();
+    phraseDraftLabels.clear();
+    mainHandler.removeCallbacks(phraseDialogueTimeout);
+  }
+
   /* Runs when a phrase dialogue answer never arrives: the teaching is abandoned. */
   private void onPhraseDialogueTimeout() {
     if (phraseStage != PHRASE_STAGE_NONE) {
-      phraseStage = PHRASE_STAGE_NONE;
-      phraseDraft = null;
+      clearPhraseDialogue();
       speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
     }
   }
@@ -1026,37 +1038,59 @@ public class VoiceCommandProcessor {
   /* Takes one spoken answer of the guided phrase dialogue. */
   private void handlePhraseDialogueAnswer(String command) {
     if (VoiceCommandPhrases.isCancel(command, phraseKeywords())) {
-      phraseStage = PHRASE_STAGE_NONE;
-      phraseDraft = null;
+      clearPhraseDialogue();
       speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
       return;
     }
     if (phraseStage == PHRASE_STAGE_PHRASE) {
       phraseDraft = command.trim();
+      phraseDraftValues.clear();
+      phraseDraftLabels.clear();
       phraseStage = PHRASE_STAGE_ACTION;
       askPhraseQuestion(R.string.voice_phrase_ask_action);
       return;
     }
-    String phraseText = phraseDraft;
-    phraseStage = PHRASE_STAGE_NONE;
-    phraseDraft = null;
+    // The action step gathers one action per answer until the finish word ends the
+    // list: the phrase is then read back with every action before it is saved.
+    if (VoiceCommandPhrases.isFinish(command, phraseKeywords())
+        && !phraseDraftValues.isEmpty()) {
+      finishPhraseTeaching();
+      return;
+    }
     if (catalogEntries == null) {
       catalogEntries = VoiceCommandCatalog.entries(service);
     }
     VoiceCommandMatcher.Match match =
         VoiceCommandMatcher.INSTANCE.match(command, catalogEntries);
     if (match == null) {
-      speakDelayed(service.getString(R.string.voice_phrase_action_not_found));
+      askPhraseQuestion(R.string.voice_phrase_action_not_found);
       return;
     }
-    confirmPhraseSave(phraseText, match);
+    phraseDraftValues.add(match.getValue());
+    phraseDraftLabels.add(match.getPhrase());
+    if (phraseDraftValues.size() >= MAX_PHRASE_ACTIONS) {
+      finishPhraseTeaching();
+      return;
+    }
+    askPhraseQuestion(R.string.voice_phrase_more_question);
+  }
+
+  /* Ends the action gathering of the phrase dialogue and reads the phrase back. */
+  private void finishPhraseTeaching() {
+    String phraseText = phraseDraft;
+    List<String> values = new ArrayList<>(phraseDraftValues);
+    List<String> labels = new ArrayList<>(phraseDraftLabels);
+    clearPhraseDialogue();
+    confirmPhraseSave(phraseText, values, labels);
   }
 
   /*
-   * Reads a taught phrase and its action back, warning when the phrase collides with a
-   * built-in name or an earlier phrase, and saves only on a spoken yes.
+   * Reads a taught phrase and its actions back, warning when the phrase collides with a
+   * built-in name or an earlier phrase, and saves only on a spoken yes. More than one
+   * action makes the phrase a macro.
    */
-  private void confirmPhraseSave(String phraseText, VoiceCommandMatcher.Match match) {
+  private void confirmPhraseSave(
+      String phraseText, List<String> values, List<String> labels) {
     if (catalogEntries == null) {
       catalogEntries = VoiceCommandCatalog.entries(service);
     }
@@ -1076,18 +1110,28 @@ public class VoiceCommandProcessor {
         }
       }
     }
-    String question =
-        service.getString(
-            collision
-                ? R.string.voice_phrase_confirm_assign_collision
-                : R.string.voice_phrase_confirm_assign,
-            phraseText,
-            match.getPhrase());
-    String value = match.getValue();
+    String question;
+    if (values.size() == 1) {
+      question =
+          service.getString(
+              collision
+                  ? R.string.voice_phrase_confirm_assign_collision
+                  : R.string.voice_phrase_confirm_assign,
+              phraseText,
+              labels.get(0));
+    } else {
+      question =
+          service.getString(
+              collision
+                  ? R.string.voice_phrase_confirm_macro_collision
+                  : R.string.voice_phrase_confirm_macro_question,
+              phraseText,
+              String.join(", ", labels));
+    }
     requestConfirmationText(
         question,
         () -> {
-          VoiceCommandPhrases.add(service, phraseText, value);
+          VoiceCommandPhrases.add(service, phraseText, values);
           speakDelayed(service.getString(R.string.voice_phrase_saved));
         });
   }
@@ -1114,7 +1158,8 @@ public class VoiceCommandProcessor {
         VoiceCommandMatcher.Match match =
             VoiceCommandMatcher.INSTANCE.match(split.getSecond(), catalogEntries);
         if (match != null) {
-          confirmPhraseSave(split.getFirst(), match);
+          confirmPhraseSave(
+              split.getFirst(), List.of(match.getValue()), List.of(match.getPhrase()));
           return true;
         }
       }
@@ -1137,7 +1182,7 @@ public class VoiceCommandProcessor {
     String key = VoiceCommandPhrases.identity(text);
     for (VoiceCommandPhrases.Phrase phrase : VoiceCommandPhrases.load(service)) {
       if (VoiceCommandPhrases.identity(phrase.getPhrase()).equals(key)) {
-        runCatalogValue(phrase.getValue(), phrase.getPhrase(), repeat, eventId);
+        runPhraseValues(phrase.getValues(), repeat, eventId);
         return true;
       }
     }
@@ -1174,7 +1219,11 @@ public class VoiceCommandProcessor {
       if (spoken.length() > 0) {
         spoken.append("; ");
       }
-      spoken.append(phrase.getPhrase()).append(": ").append(catalogLabel(phrase.getValue()));
+      List<String> labels = new ArrayList<>();
+      for (String value : phrase.getValues()) {
+        labels.add(catalogLabel(value));
+      }
+      spoken.append(phrase.getPhrase()).append(": ").append(String.join(", ", labels));
     }
     speakDelayed(spoken.toString());
   }
@@ -1204,9 +1253,7 @@ public class VoiceCommandProcessor {
   public void cancelPendingConfirmation() {
     pendingConfirmationAction = null;
     mainHandler.removeCallbacks(confirmationTimeout);
-    phraseStage = PHRASE_STAGE_NONE;
-    phraseDraft = null;
-    mainHandler.removeCallbacks(phraseDialogueTimeout);
+    clearPhraseDialogue();
     invalidateAiFallback();
   }
 
@@ -1231,6 +1278,25 @@ public class VoiceCommandProcessor {
     }
   }
 
+  /* Applies a spoken rise or fall to the current value of the volume or rate it names. */
+  private void applyRelativePercent(VoiceCommandParameters.RelativePercent relative) {
+    int current;
+    switch (relative.getKind()) {
+      case SPEECH_VOLUME ->
+          current =
+              SpeechVolumeControl.get(
+                  service, SharedPreferencesUtils.getSharedPreferences(service));
+      case MEDIA_VOLUME -> current = VoiceCommandActions.getMediaVolumePercent(service);
+      case SPEECH_RATE -> current = speechRateAndPitchActor.getSpeechRatePercentage();
+      default -> current = 0;
+    }
+    int target = current + relative.getDelta();
+    if (relative.getKind() != VoiceCommandParameters.PercentKind.SPEECH_RATE) {
+      target = Math.max(0, Math.min(100, target));
+    }
+    applyPercent(new VoiceCommandParameters.Percent(relative.getKind(), target));
+  }
+
   /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
   private boolean handleParameterCommand(String command) {
     VoiceCommandParameters.Keywords keywords = parameterKeywords();
@@ -1241,12 +1307,30 @@ public class VoiceCommandProcessor {
       noteCommandRan();
       return true;
     }
+    VoiceCommandParameters.RelativePercent relative =
+        VoiceCommandParameters.parseRelativePercent(command, keywords);
+    if (relative != null) {
+      applyRelativePercent(relative);
+      noteCommandRan();
+      return true;
+    }
     Long alarmMillis = VoiceCommandParameters.parseDurationMillis(command, keywords);
     if (alarmMillis != null) {
       VoiceCommandActions.startCountdownAlarm(service, alarmMillis);
       speakDelayed(
           service.getString(
               R.string.countdown_alarm_added, Stopwatch.formatElapsed(service, alarmMillis)));
+      noteCommandRan();
+      return true;
+    }
+    Long clockMillis =
+        VoiceCommandParameters.parseClockAlarmMillis(
+            command, keywords, System.currentTimeMillis());
+    if (clockMillis != null) {
+      VoiceCommandActions.startCountdownAlarm(service, clockMillis);
+      speakDelayed(
+          service.getString(
+              R.string.countdown_alarm_added, Stopwatch.formatElapsed(service, clockMillis)));
       noteCommandRan();
       return true;
     }
@@ -1264,9 +1348,11 @@ public class VoiceCommandProcessor {
     String text = repeat != null ? repeat.getText() : command;
     // Taught phrases are matched before the catalog, so they win over action names.
     VoiceCommandMatcher.Match match = null;
+    boolean fromPhrase = false;
     List<VoiceCommandPhrases.Phrase> phrases = VoiceCommandPhrases.load(service);
     if (!phrases.isEmpty()) {
       match = VoiceCommandMatcher.INSTANCE.match(text, VoiceCommandPhrases.entries(phrases));
+      fromPhrase = match != null;
     }
     if (match == null) {
       match = VoiceCommandMatcher.INSTANCE.match(text, catalogEntries);
@@ -1274,8 +1360,37 @@ public class VoiceCommandProcessor {
     if (match == null) {
       return false;
     }
-    runCatalogValue(match.getValue(), match.getPhrase(), repeat, eventId);
+    if (fromPhrase) {
+      runPhraseValues(VoiceCommandPhrases.splitValues(match.getValue()), repeat, eventId);
+    } else {
+      runCatalogValue(match.getValue(), match.getPhrase(), repeat, eventId);
+    }
     return true;
+  }
+
+  /*
+   * Runs what a taught phrase stands for. A single action behaves like the action said
+   * by name, confirmation included. Several actions form a macro and run in order with
+   * no confirmation at all, even for a step that cannot be undone: the user composed
+   * the steps and confirmed them when saving the phrase. A spoken repeat count does
+   * not apply to a macro.
+   */
+  private void runPhraseValues(
+      List<String> values, VoiceCommandParameters.Repeat repeat, EventId eventId) {
+    if (values.size() == 1) {
+      runCatalogValue(values.get(0), catalogLabel(values.get(0)), repeat, eventId);
+      return;
+    }
+    handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
+    for (int i = 0; i < values.size(); i++) {
+      final String value = values.get(i);
+      if (i == 0) {
+        service.performCatalogAction(value, eventId);
+      } else {
+        mainHandler.postDelayed(
+            () -> service.performCatalogAction(value, eventId), MACRO_STEP_INTERVAL_MS * i);
+      }
+    }
   }
 
   /* Runs one catalog action by value, asking first when the action cannot be undone. */
