@@ -16,7 +16,11 @@
 
 package com.google.android.accessibility.talkback.preference.base;
 
+import android.os.Bundle;
+import androidx.preference.Preference;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.training.TutorialInitiator;
+import com.google.android.accessibility.utils.FormFactorUtils;
 
 /** Main settings group holding the tutorial, the about page, logs and community entries. */
 public class HelpCenterGroupFragment extends AdvancedSettingFragment {
@@ -28,5 +32,30 @@ public class HelpCenterGroupFragment extends AdvancedSettingFragment {
   @Override
   public CharSequence getTitle() {
     return getText(R.string.title_pref_group_help_center);
+  }
+
+  @Override
+  public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+    super.onCreatePreferences(savedInstanceState, rootKey);
+    assignTutorialIntent();
+  }
+
+  /**
+   * The Tutorial row opens the tutorial itself instead of an intermediate screen, so it carries
+   * the tutorial intent and no fragment. {@link TalkBackPreferenceFragment} attaches {@link
+   * TutorialAndHelpFragment} to this row while loading the screen, which would win over the
+   * intent when tapped, so the fragment is detached again here. On TV the row keeps the
+   * fragment behaviour it has today.
+   */
+  private void assignTutorialIntent() {
+    if (FormFactorUtils.isAndroidTv()) {
+      return;
+    }
+    final Preference prefTutorial = findPreferenceByResId(R.string.pref_tutorial_and_help_key);
+    if (prefTutorial == null) {
+      return;
+    }
+    prefTutorial.setFragment(null);
+    prefTutorial.setIntent(TutorialInitiator.createTutorialIntent(getActivity()));
   }
 }

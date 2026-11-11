@@ -45,14 +45,6 @@
       android:key="@string/pref_settings_group_tools_key"
       android:title="@string/title_pref_group_tools" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.AppsGroupFragment"
-      android:key="@string/pref_settings_group_apps_key"
-      android:title="@string/title_pref_scripts_labels" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.BackupResetFragment"
-      android:key="pref_backup_reset_screen"
-      android:title="@string/title_pref_backup_reset" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.AdvancedGroupFragment"
       android:key="@string/pref_settings_group_advanced_key"
       android:title="@string/title_pref_advanced_settings" />
