@@ -197,6 +197,13 @@
   <string name="voice_param_item">mục</string>
   <string name="voice_param_number_word">số</string>
   <string name="voice_param_call">gọi đến số,gọi số,quay số</string>
+  <string name="voice_editor_select">chọn câu này,chọn đoạn này,chọn phần này</string>
+  <string name="voice_editor_delete">xóa đoạn,xóa phần đã chọn,xóa câu này</string>
+  <string name="voice_editor_read">đọc lại,đọc câu này,đọc đoạn này</string>
+  <string name="voice_editor_read_all">đọc toàn bộ,đọc toàn văn,đọc hết</string>
+  <string name="voice_editor_undo">hoàn tác</string>
+  <string name="voice_editor_redo">làm lại</string>
+  <string name="voice_editor_find">tìm,tìm kiếm</string>
   <string name="voice_item_not_found">Không có mục số %1$d trên màn hình này</string>
   <string name="voice_call_ask_number">Bạn muốn gọi đến số nào?</string>
   <string name="voice_call_number_not_understood">Không nghe rõ số điện thoại. Đã hủy lệnh gọi.</string>
@@ -251,6 +258,13 @@
   <string name="voice_word_item">Mục</string>
   <string name="voice_word_number_word">Từ chỉ số thứ tự</string>
   <string name="voice_word_call">Gọi đến số</string>
+  <string name="voice_word_editor_select">Chọn câu này</string>
+  <string name="voice_word_editor_delete">Xóa đoạn</string>
+  <string name="voice_word_editor_read">Đọc lại</string>
+  <string name="voice_word_editor_read_all">Đọc toàn bộ</string>
+  <string name="voice_word_editor_undo">Hoàn tác</string>
+  <string name="voice_word_editor_redo">Làm lại</string>
+  <string name="voice_word_editor_find">Tìm trong văn bản</string>
   <string name="voice_word_yes_answers">Câu trả lời đồng ý</string>
   <string name="voice_word_create_openers">Mở hội thoại tạo lệnh mới</string>
   <string name="voice_word_set_prefixes">Tiền tố đặt lệnh</string>
