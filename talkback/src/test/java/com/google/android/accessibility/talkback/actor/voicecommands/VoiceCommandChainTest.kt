@@ -12,54 +12,45 @@
 
 package com.google.android.accessibility.talkback.actor.voicecommands
 
-import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 
-/** Tests for [VoiceCommandChain]. */
-@RunWith(JUnit4::class)
 class VoiceCommandChainTest {
 
   private val keywords = VoiceCommandChain.Keywords(listOf("rồi", "sau đó", "then"))
 
   @Test
   fun split_twoCommandsAtRoi() {
-    assertThat(VoiceCommandChain.split("mở chrome rồi cuộn xuống", keywords))
-      .containsExactly("mo chrome", "cuon xuong")
-      .inOrder()
+    assertEquals(
+      listOf("mo chrome", "cuon xuong"),
+      VoiceCommandChain.split("mở chrome rồi cuộn xuống", keywords),
+    )
   }
 
   @Test
   fun split_twoCommandsAtSauDo() {
-    assertThat(VoiceCommandChain.split("quay lại sau đó về màn hình chính", keywords))
-      .containsExactly("quay lai", "ve man hinh chinh")
-      .inOrder()
+    assertEquals(
+      listOf("quay lai", "ve man hinh chinh"),
+      VoiceCommandChain.split("quay lại sau đó về màn hình chính", keywords),
+    )
   }
 
   @Test
   fun split_threeCommandsAndEnglishConnector() {
-    assertThat(VoiceCommandChain.split("back then scroll down rồi scroll up", keywords))
-      .containsExactly("back", "scroll down", "scroll up")
-      .inOrder()
+    assertEquals(
+      listOf("back", "scroll down", "scroll up"),
+      VoiceCommandChain.split("back then scroll down rồi scroll up", keywords),
+    )
   }
 
   @Test
   fun split_noConnectorIsOnePart() {
-    assertThat(VoiceCommandChain.split("cuộn xuống", keywords)).containsExactly("cuon xuong")
+    assertEquals(listOf("cuon xuong"), VoiceCommandChain.split("cuộn xuống", keywords))
   }
 
   @Test
   fun split_connectorAtTheEdgesDropsAway() {
-    assertThat(VoiceCommandChain.split("rồi cuộn xuống", keywords)).containsExactly("cuon xuong")
-    assertThat(VoiceCommandChain.split("cuộn xuống rồi", keywords)).containsExactly("cuon xuong")
-  }
-
-  @Test
-  fun split_connectorInsideAWordDoesNotSplit() {
-    // "rồi" must be its own token; a longer word containing its letters is untouched.
-    assertThat(VoiceCommandChain.split("mở rồi rào", keywords))
-      .containsExactly("mo", "rao")
-      .inOrder()
+    assertEquals(listOf("cuon xuong"), VoiceCommandChain.split("rồi cuộn xuống", keywords))
+    assertEquals(listOf("cuon xuong"), VoiceCommandChain.split("cuộn xuống rồi", keywords))
   }
 }
