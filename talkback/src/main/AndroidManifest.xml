@@ -214,6 +214,13 @@
             android:exported="false"
             android:process=":ondeviceai" />
 
+        <!-- Runs offline text recognition in its own process, so a failure in its native
+             libraries stops the recognition and not the screen reader. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.imagecaption.OcrService"
+            android:exported="false"
+            android:process=":ocr" />
+
         <!-- The on-device model can run on the GPU when these are present. -->
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
