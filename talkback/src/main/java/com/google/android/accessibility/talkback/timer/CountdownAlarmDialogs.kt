@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
 import android.text.InputType
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -70,7 +71,7 @@ object CountdownAlarmDialogs {
         }
       }
     }
-    dialog.show()
+    showOverlay(dialog)
   }
 
   /** Opens the list of alarms still to fire; choosing one offers to cancel it. */
@@ -95,24 +96,29 @@ object CountdownAlarmDialogs {
             )
         }
         .toTypedArray()
-    AlertDialog.Builder(context)
-      .setTitle(R.string.countdown_alarm_running_category)
-      .setItems(labels) { _, which ->
-        val entry = running[which]
-        val label = entry.name.ifEmpty { Stopwatch.formatElapsed(context, entry.durationMillis) }
-        AlertDialog.Builder(context)
-          .setMessage(context.getString(R.string.countdown_alarm_cancel_confirm, label))
-          .setNegativeButton(android.R.string.cancel, null)
-          .setPositiveButton(R.string.countdown_alarm_cancel_action) { _, _ ->
-            NotificationReader.cancelCountdownAlarm(entry.id)
-            if (NotificationReader.countdownAlarms().any { it.deadlineMillis > now }) {
-              showRunning(context, speaker, eventId)
-            }
-          }
-          .show()
-      }
-      .setNegativeButton(android.R.string.cancel, null)
-      .show()
+    val listDialog =
+      AlertDialog.Builder(context)
+        .setTitle(R.string.countdown_alarm_running_category)
+        .setItems(labels) { _, which ->
+          val entry = running[which]
+          val label =
+            entry.name.ifEmpty { Stopwatch.formatElapsed(context, entry.durationMillis) }
+          val confirmDialog =
+            AlertDialog.Builder(context)
+              .setMessage(context.getString(R.string.countdown_alarm_cancel_confirm, label))
+              .setNegativeButton(android.R.string.cancel, null)
+              .setPositiveButton(R.string.countdown_alarm_cancel_action) { _, _ ->
+                NotificationReader.cancelCountdownAlarm(entry.id)
+                if (NotificationReader.countdownAlarms().any { it.deadlineMillis > now }) {
+                  showRunning(context, speaker, eventId)
+                }
+              }
+              .create()
+          showOverlay(confirmDialog)
+        }
+        .setNegativeButton(android.R.string.cancel, null)
+        .create()
+    showOverlay(listDialog)
   }
 
   /**
@@ -126,6 +132,17 @@ object CountdownAlarmDialogs {
     if (h !in 0..99 || m !in 0..59 || s !in 0..59) return null
     val total = h * 3600L + m * 60L + s
     return if (total > 0) total else null
+  }
+
+  /**
+   * Shows a dialog as an accessibility overlay. These dialogs are opened from the
+   * accessibility service, whose context has no window token: a plain show() throws
+   * BadTokenException and kills the process, so the overlay type is set first, exactly as
+   * the clipboard history dialog does.
+   */
+  private fun showOverlay(dialog: AlertDialog) {
+    dialog.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+    dialog.show()
   }
 
   private fun field(
