@@ -40,10 +40,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlarmManager
 
 /**
- * The spoken schedules' alarms: the spoken clock is an exact alarm when exact-alarm access is
- * granted and an inexact one otherwise, never an alarm clock; the daily summary is an alarm
- * clock when access is granted. Neither ever disturbs the stopwatch's alarm; a day's summary
- * whose alarm was lost is read when the engine next runs.
+ * The spoken schedules' alarms: the spoken clock and the daily summary are alarm clocks when
+ * exact-alarm access is granted, and inexact alarms otherwise. Neither ever disturbs the
+ * stopwatch's alarm; a day's summary whose alarm was lost is read when the engine next runs.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -70,17 +69,17 @@ class SpokenSchedulesAlarmClockTest {
   }
 
   @Test
-  fun clock_setsAnExactAlarmAtTheNextBoundary() {
+  fun clock_setsAnAlarmClockAtTheNextBoundary() {
     ShadowAlarmManager.setCanScheduleExactAlarms(true)
     startSchedules { putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet()) }
 
-    assertNull(alarmManager.nextAlarmClock)
+    val info = alarmManager.nextAlarmClock
+    assertNotNull(info)
     assertEquals(1, shadowAlarms.scheduledAlarms.size)
-    val alarm = shadowAlarms.scheduledAlarms[0]
-    assertNull(alarm.alarmClockInfo)
+    assertNotNull(shadowAlarms.scheduledAlarms[0].alarmClockInfo)
     assertTrue(
-      "trigger ${alarm.triggerAtMs} is a next hourly boundary",
-      alarm.triggerAtMs in
+      "trigger ${info!!.triggerTime} is a next hourly boundary",
+      info.triggerTime in
         setOf(
           SpokenSchedules.nextClockTime(System.currentTimeMillis() - 5_000L, SpokenSchedules.ALL_CLOCK_HOURS),
           SpokenSchedules.nextClockTime(System.currentTimeMillis() + 5_000L, SpokenSchedules.ALL_CLOCK_HOURS),
@@ -200,7 +199,7 @@ class SpokenSchedulesAlarmClockTest {
     assertTrue("the clock speaks when its alarm fires", said.isNotEmpty())
     assertEquals(1, playedClockSounds)
     assertEquals(1, shadowAlarms.scheduledAlarms.size)
-    assertNull(alarmManager.nextAlarmClock)
+    assertNotNull(alarmManager.nextAlarmClock)
   }
 
   @Test
@@ -251,7 +250,7 @@ class SpokenSchedulesAlarmClockTest {
       putString(SpokenSchedules.KEY_SUMMARY_TIME, minutes.toString())
     }
 
-    assertNull(alarmManager.nextAlarmClock)
+    assertNotNull("the one alarm is the clock's alarm clock", alarmManager.nextAlarmClock)
     assertEquals(1, shadowAlarms.scheduledAlarms.size)
     assertEquals(0, said.size)
   }
@@ -270,6 +269,7 @@ class SpokenSchedulesAlarmClockTest {
 
   @Test
   fun theTwoEngines_neverCancelEachOthersAlarm() {
+    ShadowAlarmManager.setCanScheduleExactAlarms(true)
     val before = System.currentTimeMillis()
     startSchedules { putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet()) }
     val spokenTrigger = shadowAlarms.scheduledAlarms.single().triggerAtMs
@@ -291,7 +291,9 @@ class SpokenSchedulesAlarmClockTest {
 
     assertEquals(1, shadowAlarms.scheduledAlarms.size)
     assertEquals(spokenTrigger, shadowAlarms.scheduledAlarms.single().triggerAtMs)
-    assertNull(alarmManager.nextAlarmClock)
+    val info = alarmManager.nextAlarmClock
+    assertNotNull("the remaining alarm is the clock's alarm clock", info)
+    assertEquals(spokenTrigger, info!!.triggerTime)
   }
 
   private fun startSchedules(
