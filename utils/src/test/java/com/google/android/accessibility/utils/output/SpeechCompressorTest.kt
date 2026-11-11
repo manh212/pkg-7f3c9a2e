@@ -133,6 +133,35 @@ class SpeechCompressorTest {
   }
 
   @Test
+  fun streamStartsWithTheUnchangedSpeech() {
+    // A stream's filter starts unsettled, so the processed speech is blended in from the speech
+    // itself; even under the hardest preset the first frames must stay close to the input.
+    // The signal starts at full amplitude, where an unsettled filter would be most wrong.
+    val samples =
+      FloatArray(rate / 2) { (0.6f * kotlin.math.cos(2 * PI * 300.0 * it / rate)).toFloat() }
+    val input = samples.copyOf()
+    SpeechCompressor.Filter(SpeechCompressor.Preset.CLARITY.settings(), rate, 1).process(samples)
+    val window = rate * 10 / 1000
+    var error = 0.0
+    var energy = 0.0
+    for (i in 0 until window) {
+      val diff = (samples[i] - input[i]).toDouble()
+      error += diff * diff
+      energy += input[i].toDouble() * input[i]
+    }
+    assertTrue("was ${10 * log10(error / energy)} dB", 10 * log10(error / energy) < -15.0)
+  }
+
+  @Test
+  fun streamIsCompressedAfterTheBlendIn() {
+    val settings = SpeechCompressor.Preset.CLARITY.settings()
+    val samples = sine(1500.0, amplitude = 0.5f, frames = rate * 2, atRate = rate)
+    val input = rms(samples, samples.size / 2)
+    SpeechCompressor.Filter(settings, rate, 1).process(samples)
+    assertTrue(20 * log10(rms(samples, samples.size / 2) / input) < -2.0)
+  }
+
+  @Test
   fun makeupIsLimited() {
     val settings =
       SpeechCompressor.Settings(
