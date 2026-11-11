@@ -139,6 +139,15 @@
   <string name="voice_commands_confirm_question">%1$s? Nói đúng hoặc có để xác nhận.</string>
   <string name="voice_commands_confirm_cancelled">Đã hủy</string>
   <string name="voice_commands_yes_answers">đúng,có</string>
+  <string name="voice_chain_connectors">rồi,sau đó</string>
+  <string name="voice_continuous_start_commands">nghe liên tục</string>
+  <string name="voice_continuous_stop_words">dừng,xong</string>
+  <string name="voice_continuous_on">Đã bật nghe liên tục</string>
+  <string name="voice_phrase_finish_words">xong</string>
+  <string name="voice_phrase_more_question">Còn hành động nào nữa không? Nói tên hành động, hoặc nói xong.</string>
+  <string name="voice_phrase_confirm_macro_question">Gán \'%1$s\' cho các hành động: %2$s?</string>
+  <string name="title_voice_commands_continuous">Nghe liên tục</string>
+  <string name="summary_voice_commands_continuous">Sau mỗi lệnh, máy tự nghe tiếp lệnh sau. Nói “dừng” hoặc “xong” để thoát; máy cũng tự thoát khi khoảng 30 giây không có lệnh nào chạy.</string>
 
   <string name="voice_param_volume">âm lượng</string>
   <string name="voice_param_media_volume">âm lượng nhạc</string>
