@@ -1,0 +1,666 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.google.android.accessibility.talkback">
+
+    <!-- Strings with the format ${foo}, such as ${applicationId}, are called
+    placeholders, and they get replaced by the build system with the appropriate
+    value when a build executes. -->
+
+    <!-- Used by voice commands. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Special app access for the optional subtitle status overlay. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- Required for fingerprint gesture. -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
+    <!-- Required to monitor phone busy state. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Required for haptic feedback. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Required for back tap: accelerometer readings faster than 200 Hz. -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+
+    <!-- Required for keeping the screen awake during continuous reading and key filtering. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Required for managing audio levels on GB. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Required for changing screen brightness from the reading controls. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+
+    <!-- Required for speech recognition and hearing user's audio -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Required for App Enumeration -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission"/>
+
+    <!-- Required for sending data to Google Analytics. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Notification rules that check the Bluetooth device or Wi-Fi network connected. Asked
+         for only when the user adds such a rule. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Exact alarms, kept although the spoken times are alarm clocks, which need no permission. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Lets a watch ask for Wi-Fi to download an update. -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
+    <!-- Used by the updater to install new development builds. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Used by the status readout for the Wi-Fi state, signal, and network name. Android shows
+    the network name only with location permission. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        tools:remove="android:maxSdkVersion" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:remove="android:maxSdkVersion" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Required for calling Service.startForeground after API 28. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- Required for Primes. -->
+    <uses-permission android:name="android.permission.GET_PACKAGE_SIZE" />
+
+    <!-- Lets the quick settings panel read the state of apps' tiles from SystemUI's dump, which
+         Android allows only with both this and DUMP. Granted through Shizuku or adb. -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Used to control Primes collection using Gservices flags -->
+    <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES" />
+
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <!-- Required for posting notifications, beginning in Android T. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Required for binding AICore service for on-device AI features. -->
+    <uses-permission android:name="com.google.android.apps.aicore.service.BIND_SERVICE"/>
+
+    <!-- Hardware compatibility. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.sensor.accelerometer"
+        android:required="false" />
+    <!-- Android TV is supported, but not needed. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+
+    <!-- Granted by the user with adb, for the speakerphone setting. -->
+    <uses-permission android:name="android.permission.MANAGE_ONGOING_CALLS" />
+
+    <!-- Granted by the user with adb, to move the accessibility shortcut from the old app ID
+         and turn the old screen reader off. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Granted by the user with adb, to read the pointers Android holds down when touch
+         exploration is stuck, so that Backtalk can lift them. -->
+    <uses-permission
+        android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Used to offer to uninstall Backtalk under its old app ID. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+    <application
+        android:supportsRtl="true"
+        android:fullBackupContent="@xml/meridian_backup_rules"
+        android:dataExtractionRules="@xml/meridian_data_extraction_rules">
+        <!-- Gemini 3.5 live internal audio: Activity obtains system capture consent. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service
+            android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.licensing.ForumActivity"
+            android:exported="false"
+            android:label="@string/forum_title" />
+        <activity
+            android:name="com.google.android.accessibility.talkback.licensing.OwnerChatActivity"
+            android:exported="false"
+            android:label="Nhắn tin" />
+        <activity
+            android:name="com.google.android.accessibility.talkback.licensing.SupportActivity"
+            android:exported="false"
+            android:label="@string/support_title" />
+        <service
+            android:name="com.google.android.accessibility.talkback.licensing.SupportJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
+        <activity
+            android:name="com.google.android.accessibility.talkback.licensing.ActivationActivity"
+            android:exported="false"
+            android:label="Kích hoạt Meridian" />
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.taskassistant.TaskVoiceInputActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/BlankActivityTheme" />
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.recognition.LiveRecognitionActivity"
+            android:exported="false"
+            android:label="@string/live_recognition_title"
+            android:launchMode="singleTop"
+            android:theme="@style/TalkBackSettings" />
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.update.UpdateProgressActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/update_progress_title"
+            android:launchMode="singleTop"
+            android:theme="@style/UpdateProgressDialogTheme" />
+
+        <!-- Keeps the on-device model download running and shows its progress. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.actor.gemini.local.ModelDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Moves calls to the speaker when the phone is away from the ear. Android binds it
+             during calls only while the user has granted MANAGE_ONGOING_CALLS with adb. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.speakerphone.SpeakerphoneInCallService"
+            android:permission="android.permission.BIND_INCALL_SERVICE"
+            android:directBootAware="true"
+            android:exported="true">
+            <meta-data android:name="android.telecom.IN_CALL_SERVICE_UI" android:value="false" />
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
+        <!-- Runs the on-device model in its own process, so running out of memory stops the
+             model and not the screen reader. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.actor.gemini.local.LocalModelService"
+            android:exported="false"
+            android:process=":ondeviceai" />
+
+        <!-- Runs offline text recognition in its own process, so a failure in its native
+             libraries stops the recognition and not the screen reader. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.imagecaption.OcrService"
+            android:exported="false"
+            android:process=":ocr" />
+
+        <!-- The on-device model can run on the GPU when these are present. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
+        <!-- Allows local profiling on release builds -->
+        <profileable android:shell="true" />
+
+        <!-- TalkBack -->
+        <service
+            android:icon="@drawable/icon"
+            android:name="com.google.android.marvin.talkback.TalkBackService"
+            android:exported="true"
+            android:label="@string/talkback_title"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:settingsActivity="com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+
+                <category android:name="android.accessibilityservice.category.FEEDBACK_AUDIBLE" />
+                <category android:name="android.accessibilityservice.category.FEEDBACK_HAPTIC" />
+                <category android:name="android.accessibilityservice.category.FEEDBACK_SPOKEN" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibilityservice" />
+        </service>
+
+        <service
+            android:icon="@drawable/icon"
+            android:name="com.google.android.accessibility.talkback.ipc.IpcService"
+            android:enabled="true"
+            android:exported="false"
+            android:label="TalkBackIpcService" />
+
+        <!-- Direct touch quick settings tile -->
+        <service
+            android:name="com.google.android.accessibility.talkback.directtouch.DirectTouchTileService"
+            android:exported="true"
+            android:icon="@drawable/icon"
+            android:label="@string/direct_touch_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Notification speech quick settings tile -->
+        <service
+            android:name="com.google.android.accessibility.talkback.notifications.NotificationSpeechTileService"
+            android:exported="true"
+            android:icon="@drawable/icon"
+            android:label="@string/notification_speech_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Lets automation apps turn notification speech on and off, stop it, or read every
+             notification. -->
+        <receiver
+            android:name="com.google.android.accessibility.talkback.notifications.NotificationAutomationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="${applicationId}.action.NOTIFICATION_SPEECH_ON" />
+                <action android:name="${applicationId}.action.NOTIFICATION_SPEECH_OFF" />
+                <action android:name="${applicationId}.action.NOTIFICATION_SPEECH_TOGGLE" />
+                <action android:name="${applicationId}.action.STOP_NOTIFICATION_SPEECH" />
+                <action android:name="${applicationId}.action.READ_NOTIFICATIONS" />
+            </intent-filter>
+        </receiver>
+
+        <!-- TalkBack Preferences -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="true"
+            android:label="@string/talkback_preferences_title"
+            android:launchMode="singleTop"
+            android:taskAffinity="com.google.android.accessibility.talkback.SettingsAffinity"
+            android:theme="@style/TalkBackSettings"
+            tools:ignore="ExportedActivity" >
+            <intent-filter>
+                <category android:name="android.accessibilityservice.SERVICE_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Puts Backtalk settings on the Android TV home screen, where an accessibility service has
+             no other way in. Phones and watches ignore it. -->
+        <activity-alias
+            android:name="com.google.android.accessibility.talkback.preference.TvSettingsLauncher"
+            android:targetActivity="com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity"
+            android:banner="@drawable/tv_banner"
+            android:exported="true"
+            android:icon="@drawable/icon"
+            android:label="@string/talkback_preferences_title">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- An app icon in the launcher that opens SandFly's settings, so they can be changed while
+             SandFly is off. Android TV uses the banner alias above instead. -->
+        <activity-alias
+            android:name="com.google.android.accessibility.talkback.preference.SettingsLauncher"
+            android:targetActivity="com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity"
+            android:exported="true"
+            android:icon="@drawable/icon"
+            android:label="@string/talkback_title">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.soundthemes.ThemeDraftActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:label="@string/talkback_preferences_title"
+            android:exported="false"
+            android:theme="@style/TalkBackSettings" />
+
+        <!-- TalkBack subsettings Preferences -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity$TalkBackSubSettings"
+            android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:label="@string/talkback_preferences_title"
+            android:theme="@style/TalkBackSettings">
+        </activity>
+
+        <activity android:name="com.google.android.accessibility.talkback.update.UpdateStoragePermissionActivity"
+            android:exported="false" android:excludeFromRecents="true" android:theme="@style/BlankActivityTheme" />
+
+        <!-- TalkBack permission request activity proxy -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.permission.PermissionRequestActivity"
+            android:excludeFromRecents="true"
+            android:theme="@style/BlankActivityTheme"
+            android:directBootAware="true"
+            android:exported="false"
+            android:noHistory="false" >
+        </activity>
+
+        <!-- TalkBack training -->
+        <!-- To prevent slowdown of talkback event-handlers, arrange to run on a separate process. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.trainingcommon.TrainingActivity"
+            android:process=":Tutorial"
+            android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/TrainingActivityTheme"
+            android:windowSoftInputMode="adjustPan"
+            tools:ignore="ExportedActivity"
+            android:directBootAware="true">
+            <intent-filter>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <action android:name="com.google.android.accessibility.talkback.training.START" />
+            </intent-filter>
+        </activity>
+
+        <!-- To choose between touch and keyboard tutorial. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.trainingcommon.TutorialChooserActivity"
+            android:theme="@style/Theme.TutorialChooserDialog"
+            android:exported="false">
+        </activity>
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.tutorial.FirstRunActivity"
+            android:theme="@style/DialogStyle"
+            android:exported="false"
+            android:excludeFromRecents="true">
+        </activity>
+
+        <!-- Absolutely same with TrainingActivity for onboarding link to tutorial without breaking the singleTop launch mode.
+             To prevent slowdown of talkback event-handlers, arrange to run on a separate process. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.trainingcommon.SecondaryTrainingActivity"
+            android:process=":Tutorial"
+            android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="true"
+            android:theme="@style/TrainingActivityTheme"
+            android:windowSoftInputMode="adjustPan"
+            tools:ignore="ExportedActivity"
+            android:directBootAware="true">
+        </activity>
+
+        <activity android:name="com.google.android.accessibility.talkback.labeling.LabelImportActivity"
+            android:excludeFromRecents="true"
+            android:theme="@style/DialogStyle"
+            android:launchMode="singleInstance"
+            android:exported="true" >
+        </activity>
+
+        <!-- Installs sound themes that are opened with or shared to Backtalk. -->
+        <activity android:name="com.google.android.accessibility.talkback.soundthemes.SoundThemeInstallActivity"
+            android:excludeFromRecents="true"
+            android:label="@string/sound_theme_install_label"
+            android:theme="@style/Theme.SoundThemeInstall"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:exported="true" >
+            <intent-filter android:label="@string/sound_theme_install_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+            </intent-filter>
+            <intent-filter android:label="@string/sound_theme_install_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Downloads a sound theme from a link typed into Backtalk. Not exported, so that only
+             Backtalk can start a download this way. -->
+        <activity-alias
+            android:name="com.google.android.accessibility.talkback.soundthemes.SoundThemeLinkInstall"
+            android:targetActivity="com.google.android.accessibility.talkback.soundthemes.SoundThemeInstallActivity"
+            android:exported="false" />
+
+        <!-- Backtalk's own list of notifications, opened instead of the system's shade. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.notificationlist.NotificationListActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/notification_list_title"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.google.android.accessibility.talkback.NotificationListAffinity"
+            android:theme="@style/NotificationListTheme" />
+
+        <!-- Asks for the text of a reply to a notification, in a process of its own so that the
+             keyboard and Backtalk's main thread don't wait for each other. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.notificationlist.NotificationReplyActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/notification_list_title"
+            android:process=":reply"
+            android:taskAffinity="com.google.android.accessibility.talkback.NotificationListAffinity"
+            android:theme="@style/NotificationReplyTheme"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.tutorial.TutorialActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|fontScale"
+            android:exported="false"
+            android:label="@string/sandfly_tutorial_title"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.google.android.accessibility.talkback.TutorialAffinity"
+            android:theme="@style/NotificationListTheme"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Granular editing: the focused text split into pieces to edit one at a time. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.granularediting.GranularEditingActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/granular_editing_title"
+            android:taskAffinity="com.google.android.accessibility.talkback.GranularEditingAffinity"
+            android:theme="@style/NotificationListTheme"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.textcorrection.TextCorrectionActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/correction_title"
+            android:taskAffinity="com.google.android.accessibility.talkback.TextCorrectionAffinity"
+            android:theme="@style/NotificationListTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.google.android.accessibility.talkback.status.CurrentLocationActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/shortcut_read_current_location"
+            android:taskAffinity="com.google.android.accessibility.talkback.CurrentLocationAffinity"
+            android:theme="@style/NotificationListTheme" />
+
+        <!-- SandFly's own quick settings panel, opened instead of the system's quick settings. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.quicksettings.QuickSettingsActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/quick_settings_title"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.google.android.accessibility.talkback.QuickSettingsAffinity"
+            android:theme="@style/NotificationListTheme" />
+
+        <!-- Receives notifications for that list while the user has given notification access. -->
+        <service
+            android:name="com.google.android.accessibility.talkback.notificationlist.NotificationListService"
+            android:exported="true"
+            android:label="@string/talkback_title"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Custom Label Manager - Summary Activity -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.labeling.LabelManagerSummaryActivity"
+            android:exported="false"
+            android:label="@string/label_manager_summary_title"
+            android:launchMode="singleTop"
+            android:theme="@style/TalkBackSettings"
+            android:taskAffinity="com.google.android.accessibility.talkback.SettingsAffinity" >
+        </activity>
+
+        <!-- Custom Label Manager - Package Activity -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.labeling.LabelManagerPackageActivity"
+            android:exported="false"
+            android:label="@string/manage_label"
+            android:launchMode="singleTop"
+            android:theme="@style/TalkBackSettings"
+            android:taskAffinity="com.google.android.accessibility.talkback.SettingsAffinity" />
+
+        <!-- Notification Activity used periodically to inform the user of changes -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.NotificationActivity"
+            android:exported="true"
+            android:theme="@style/DialogStyle"
+            android:directBootAware="true"
+            tools:ignore="ExportedActivity" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.google.android.accessibility.talkback.keyboard.TalkBackKeymapChangesActivity"
+            android:exported="true"
+            android:label="@string/keycombo_keymap_changes_instruction_title"
+            android:launchMode="singleTop"
+            android:theme="@style/TalkBackSettings">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <!-- Content provider for custom label data -->
+        <provider
+            android:name="com.google.android.accessibility.talkback.labeling.LabelProvider"
+            android:authorities="${applicationId}.providers.LabelProvider"
+            android:exported="true"
+            android:directBootAware="true" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.providers.FileProvider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+        <meta-data
+            android:name="support_lift_to_type"
+            android:value="@bool/support_lift_to_type" />
+
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
+
+        <receiver
+            android:name="com.google.android.accessibility.talkback.update.UpdateReceiver"
+            android:exported="false" />
+
+        <!-- Receives Shizuku's binder, for granting the permissions that settings need. Only the
+             system can use it, through INTERACT_ACROSS_USERS_FULL. -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <!-- Shares Backtalk Aaron's settings and custom labels, read-only, with SandFly. SandFly is
+             signed with another key, so the provider checks the caller's certificate itself. -->
+        <provider
+            android:name="com.google.android.accessibility.talkback.migration.SettingsExportProvider"
+            android:authorities="${applicationId}.migration"
+            android:exported="true"
+            android:directBootAware="true" />
+
+        <!-- Turns SandFly off when Meridian is on. The receiver checks that Meridian is on. -->
+        <receiver
+            android:name="com.google.android.accessibility.talkback.migration.HandOverReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.github.aaron_gh.meridian.action.HAND_OVER" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.google.android.libraries.appdoctor.AppDoctorReceiver"
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.INTERNAL_BROADCAST">
+            <intent-filter>
+                <action android:name="com.google.android.libraries.appdoctor.ACTION_TELE_DOCTOR_FIX"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- Braille is a bundled input method; Android controls enabling and selecting it. -->
+        <activity android:name="com.Braille.MainActivity"
+            android:exported="true"
+            android:label="@string/meridian_braille_settings">
+            <intent-filter>
+                <action android:name="com.android.talkback.action.BRAILLE_KEYBOARD_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <service android:name="com.Braille.BrailleKeyboardService"
+            android:label="@string/meridian_braille_keyboard_ime"
+            android:exported="true"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data android:name="android.view.im"
+                android:resource="@xml/meridian_braille_method" />
+        </service>
+    </application>
+</manifest>
+
