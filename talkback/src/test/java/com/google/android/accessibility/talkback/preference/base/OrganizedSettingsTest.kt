@@ -299,7 +299,7 @@ class OrganizedSettingsTest {
 
   @Test
   fun backupAndResetActionsAreGroupedAndResetRequiresConfirmation() {
-    val system = SystemHelpGroupFragment()
+    val system = HelpCenterGroupFragment()
     open(system)
     assertTrue(system.findPreference<Preference>(activity.getString(R.string.pref_export_settings_key)) == null)
     assertTrue(system.findPreference<Preference>(activity.getString(R.string.pref_import_settings_key)) == null)

@@ -121,7 +121,7 @@ class TimerSettingsStructureTest {
   }
 
   @Test
-  fun mainScreen_startsWithUpdates_andKeepsSetupInsideSystemSettings() {
+  fun mainScreen_startsWithUpdatesThenSetup_andUsesTheNewGroups() {
     val topLevel = mutableListOf<Pair<String?, String?>>()
     val parser = context.resources.getXml(R.xml.preferences)
     var event = parser.eventType
@@ -135,9 +135,12 @@ class TimerSettingsStructureTest {
 
     assertEquals("pref_updates_screen", topLevel[0].first)
     assertTrue(topLevel[0].second?.contains("UpdatesFragment") == true)
+    assertEquals(SETUP_KEY, topLevel[1].first)
+    assertTrue(topLevel[1].second?.contains("InitialSetupFragment") == true)
     assertEquals(
       listOf(
         "UpdatesFragment",
+        "InitialSetupFragment",
         "TextToSpeechSettingsFragment",
         "SpeechGroupFragment",
         "NavigationGroupFragment",
@@ -146,39 +149,39 @@ class TimerSettingsStructureTest {
         "NotificationsFragment",
         "TypingGroupFragment",
         "ScreenInfoGroupFragment",
-        "TranslationFragment",
-        "TimerSettingsFragment",
-        "TaskAssistantFragment",
+        "ToolsGroupFragment",
         "AppsGroupFragment",
         "BackupResetFragment",
-        "SystemHelpGroupFragment",
-        "LogAndReportsFragment",
+        "AdvancedGroupFragment",
+        "HelpCenterGroupFragment",
       ),
-      topLevel.filter { it.first != "forum_open" && it.first != "meridian_owner_private_chat" }
-        .map { it.second?.substringAfterLast('.') },
+      topLevel.map { it.second?.substringAfterLast('.') },
     )
-    assertTrue(topLevel.filter { it.first != "forum_open" && it.first != "meridian_owner_private_chat" }
-      .all { !it.second.isNullOrBlank() })
-    assertEquals(18, topLevel.size)
-    assertEquals("forum_open", topLevel[16].first)
-    assertEquals(null, topLevel[16].second)
-    assertEquals("meridian_owner_private_chat", topLevel[17].first)
-    assertEquals(null, topLevel[17].second)
-    assertFalse(topLevel.any { it.first == SETUP_KEY })
+    assertTrue(topLevel.all { !it.second.isNullOrBlank() })
+    assertEquals(15, topLevel.size)
     assertEquals(
+      "one initial setup entry point on the main screen",
       1,
-      topLevel.count { it.second?.endsWith("SystemHelpGroupFragment") == true },
-    )
-    assertEquals(
-      "one initial setup entry point in system settings",
-      1,
-      rowsOf(R.xml.settings_group_system_help).count {
-        it.first == SETUP_KEY && it.second?.contains("SetupFragment") == true
-      },
+      topLevel.count { it.second?.contains("SetupFragment") == true },
     )
     assertTrue(
-      rowsOf(R.xml.settings_group_system_help).any {
+      rowsOf(R.xml.settings_group_tools).any {
+        it.first == "pref_timer_settings_screen" && it.second?.contains("TimerSettingsFragment") == true
+      }
+    )
+    assertTrue(
+      rowsOf(R.xml.settings_group_help_center).any {
         it.first == ACCESSIBILITY_SETTINGS_KEY && it.second == null
+      }
+    )
+    assertTrue(
+      rowsOf(R.xml.settings_group_help_center).any {
+        it.first == "forum_open" && it.second == null
+      }
+    )
+    assertTrue(
+      rowsOf(R.xml.settings_group_help_center).any {
+        it.first == "meridian_owner_private_chat" && it.second == null
       }
     )
   }
