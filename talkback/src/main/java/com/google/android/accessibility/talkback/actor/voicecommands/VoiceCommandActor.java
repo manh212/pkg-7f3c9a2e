@@ -31,6 +31,7 @@ import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRAC
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.annotation.VisibleForTesting;
 import com.google.android.accessibility.talkback.Feedback;
@@ -42,6 +43,7 @@ import com.google.android.accessibility.talkback.gesture.GestureHints;
 import com.google.android.accessibility.talkback.training.VoiceCommandHelpInitiator;
 import com.google.android.accessibility.talkback.utils.SpeechRecognizerPerformer;
 import com.google.android.accessibility.talkback.utils.SpeechRecognizerPerformer.SpeechRecognizerRequester;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.monitor.ScreenMonitor;
 import com.google.android.accessibility.utils.output.FeedbackItem;
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions;
@@ -59,7 +61,20 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   // Listening again for a confirmation answer waits until the spoken question has finished,
   // because starting to listen silences the speech that is still playing.
   private static final int CONFIRMATION_RELISTEN_DELAY_MS = 2000;
+  // Continuous listening uses the same wait, so a command's own speech is not cut at once.
+  private static final int CONTINUOUS_RELISTEN_DELAY_MS = 2000;
+  private static final int CONTINUOUS_ERROR_RELISTEN_DELAY_MS = 800;
+  // Continuous listening ends after this long with no command run.
+  private static final long CONTINUOUS_IDLE_LIMIT_MS = 30000;
+
+  /** The settings switch that makes every voice command session listen continuously. */
+  public static final String PREF_CONTINUOUS = "pref_voice_commands_continuous";
+
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
+  private boolean continuousActive;
+  private boolean awaitingAnswer;
+  private boolean relistenRequested;
+  private long lastCommandRanAtMs;
   private VoiceCommandDialog voiceCommandDialog;
   private final Context talkbackContext;
   private final TalkBackAnalytics analytics;
@@ -72,7 +87,49 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   public boolean onResult(String command, boolean isPartialResult) {
     LogUtils.v(
         TAG, "handleSpeechCommand with command: \"%s\", isPartial:%b", command, isPartialResult);
-    return voiceCommandProcessor.handleSpeechCommand(commandText(command), isPartialResult);
+    String text = commandText(command);
+    if (isPartialResult) {
+      return voiceCommandProcessor.handleSpeechCommand(text, /* isPartialResult= */ true);
+    }
+    boolean wasAwaitingAnswer = awaitingAnswer;
+    awaitingAnswer = false;
+    relistenRequested = false;
+    if (continuousActive && !wasAwaitingAnswer && isContinuousStopWord(text)) {
+      // A stop word ends continuous listening without reaching the processor, unless the
+      // result is the answer to a question the processor asked.
+      continuousActive = false;
+      return true;
+    }
+    boolean handled = voiceCommandProcessor.handleSpeechCommand(text, /* isPartialResult= */ false);
+    if (continuousActive && handled && !relistenRequested) {
+      // The processor did not ask a question of its own: listen for the next command.
+      scheduleContinuousRelisten(CONTINUOUS_RELISTEN_DELAY_MS);
+    }
+    return handled;
+  }
+
+  /* Whether [text] is one of the words that end continuous listening. */
+  private boolean isContinuousStopWord(String text) {
+    String identity = VoiceCommandPhrases.identity(text);
+    for (String word : talkbackContext.getString(R.string.voice_continuous_stop_words).split(",")) {
+      if (VoiceCommandPhrases.identity(word).equals(identity)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean continuousIdleExpired() {
+    return SystemClock.uptimeMillis() - lastCommandRanAtMs > CONTINUOUS_IDLE_LIMIT_MS;
+  }
+
+  /* Listens once more for continuous listening, unless the idle limit has passed. */
+  private void scheduleContinuousRelisten(int delayMs) {
+    if (continuousIdleExpired()) {
+      continuousActive = false;
+      return;
+    }
+    mainHandler.postDelayed(speechRecognizerPerformer::doListening, delayMs);
   }
 
   @VisibleForTesting
@@ -120,6 +177,15 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   @Override
   public void onError(int error) {
     LogUtils.d(TAG, "errorCallback with error: %d", error);
+    if (continuousActive
+        && !awaitingAnswer
+        && (error == ERROR_NO_MATCH || error == ERROR_SPEECH_TIMEOUT)) {
+      // In continuous listening, hearing nothing or nothing understood is not an event
+      // worth a spoken error each round: listen again until the idle limit ends the
+      // session. No confirmation can be pending here; one would be awaiting its answer.
+      scheduleContinuousRelisten(CONTINUOUS_ERROR_RELISTEN_DELAY_MS);
+      return;
+    }
     // The error message below already tells the user; a command waiting for its confirmation
     // is dropped with the failed answer round.
     voiceCommandProcessor.cancelPendingConfirmation();
@@ -157,9 +223,26 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
     this.speechRecognizerPerformer = speechRecognizerPerformer;
     speechRecognizerPerformer.setListener(this);
     voiceCommandProcessor.setConfirmationSession(
-        () ->
+        new VoiceCommandProcessor.ConfirmationSession() {
+          @Override
+          public void requestListenAgain() {
+            relistenRequested = true;
+            awaitingAnswer = true;
             mainHandler.postDelayed(
-                speechRecognizerPerformer::doListening, CONFIRMATION_RELISTEN_DELAY_MS));
+                speechRecognizerPerformer::doListening, CONFIRMATION_RELISTEN_DELAY_MS);
+          }
+
+          @Override
+          public void enableContinuousListening() {
+            continuousActive = true;
+            lastCommandRanAtMs = SystemClock.uptimeMillis();
+          }
+
+          @Override
+          public void noteCommandRan() {
+            lastCommandRanAtMs = SystemClock.uptimeMillis();
+          }
+        });
   }
 
   public void setPipeline(Pipeline.FeedbackReturner pipeline) {
@@ -175,6 +258,12 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
    *     ignore checking dialog display preference, or the dialog would show again.
    */
   public void getSpeechPermissionAndListen(boolean checkDialog) {
+    // A new session listens continuously only when the settings switch says so; the
+    // spoken command can still switch it on for this session alone.
+    continuousActive =
+        SharedPreferencesUtils.getSharedPreferences(talkbackContext)
+            .getBoolean(PREF_CONTINUOUS, false);
+    lastCommandRanAtMs = SystemClock.uptimeMillis();
     if (checkDialog && voiceCommandDialog.getShouldShowDialogPref()) {
       voiceCommandDialog.showDialog();
       return;
