@@ -4903,6 +4903,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     try {
       ClipboardHistory.restoreLegacyHistory(this);
       com.google.android.accessibility.talkback.clipboard.FavoriteTexts.init(getFilesDir());
+      com.google.android.accessibility.talkback.texteditor.EditorDocuments.init(getFilesDir());
       clipboardHistoryCapture = new ClipboardHistoryCapture(this);
       clipboardHistoryCapture.start();
     } catch (RuntimeException e) {
