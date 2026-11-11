@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
+import android.content.res.XmlResourceParser
 import com.google.android.accessibility.talkback.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -127,7 +128,7 @@ class TimerSettingsStructureTest {
     var event = parser.eventType
     while (event != XmlPullParser.END_DOCUMENT) {
       if (event == XmlPullParser.START_TAG && parser.depth == 2) {
-        val currentKey = parser.getAttributeValue(ANDROID_NS, "key")
+        val currentKey = keyOf(parser)
         topLevel += currentKey to parser.getAttributeValue(ANDROID_NS, "fragment")
       }
       event = parser.next()
@@ -205,7 +206,7 @@ class TimerSettingsStructureTest {
     assertEquals(
       listOf(
         "pref_category_group_advanced_key",
-        "pref_category_developer_key",
+        "pref_category_developer",
         "pref_meridian_wallpaper",
         RESUME_KEY,
         PLAY_INSTALLER_KEY,
@@ -218,6 +219,12 @@ class TimerSettingsStructureTest {
     assertTrue(rows[6].second?.contains("AppsGroupFragment") == true)
   }
 
+  /** The android:key of the parser's current tag, resolving @string references to their value. */
+  private fun keyOf(parser: XmlResourceParser): String? {
+    val resId = parser.getAttributeResourceValue(ANDROID_NS, "key", 0)
+    return if (resId != 0) context.getString(resId) else parser.getAttributeValue(ANDROID_NS, "key")
+  }
+
   /** Every row of an XML preference screen, in document order, as key to fragment. */
   private fun rowsOf(xml: Int): List<Pair<String?, String?>> {
     val rows = mutableListOf<Pair<String?, String?>>()
@@ -225,7 +232,7 @@ class TimerSettingsStructureTest {
     var event = parser.eventType
     while (event != XmlPullParser.END_DOCUMENT) {
       if (event == XmlPullParser.START_TAG && parser.name != "PreferenceScreen") {
-        val key = parser.getAttributeValue(ANDROID_NS, "key")
+        val key = keyOf(parser)
         val fragment = parser.getAttributeValue(ANDROID_NS, "fragment")
         if (key != null || fragment != null) rows += key to fragment
       }
@@ -239,8 +246,8 @@ class TimerSettingsStructureTest {
     const val SETUP_KEY = "pref_initial_setup_screen"
     const val ACCESSIBILITY_SETTINGS_KEY = "pref_open_accessibility_settings"
     const val TUTORIAL_KEY = "pref_tutorial_and_help_key"
-    const val RESUME_KEY = "pref_resume_backtalk_key"
-    const val PLAY_INSTALLER_KEY = "pref_play_installer_key"
+    const val RESUME_KEY = "pref_resume_talkback"
+    const val PLAY_INSTALLER_KEY = "pref_play_installer"
     const val BACKUP_RESET_KEY = "pref_backup_reset_screen"
     const val APPS_KEY = "pref_settings_group_apps_key"
   }
