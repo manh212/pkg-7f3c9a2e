@@ -31,6 +31,7 @@ import androidx.preference.PreferenceFragmentCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.migration.MigrationFiles
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
+import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import com.google.android.accessibility.talkback.timer.TimerSounds
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -500,13 +501,15 @@ object SettingsBackup {
   /**
    * The updater's state stays as it is on this phone, and so do the countdown alarms still to
    * fire: their deadlines belong to this phone's timeline, so a backup never carries them to
-   * another phone or brings them back. Null [name] means any file.
+   * another phone or brings them back. The timer keep-alive consent is likewise a leave given
+   * on this phone, so it stays here too. Null [name] means any file.
    */
   private fun isSkipped(context: Context, name: String?, key: String) =
     (name == null || name == defaultName(context)) &&
       (key in MigrationFiles.SKIPPED_PREF_KEYS ||
         key == "pref_gesture_profile" ||
         key == CountdownAlarm.KEY_ALARMS ||
+        key == TimerKeepAliveService.PREF_ALLOWED ||
         key in TimerSounds.Slot.entries.map { it.key })
 
   private fun isBraillePhoneKey(name: String?, key: String) =
