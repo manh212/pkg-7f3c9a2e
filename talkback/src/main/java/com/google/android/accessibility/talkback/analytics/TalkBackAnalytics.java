@@ -255,6 +255,7 @@ public interface TalkBackAnalytics extends OnSharedPreferenceChangeListener {
   int VOICE_COMMAND_TYPE_ASSISTANT = 37;
   int VOICE_COMMAND_TYPE_HELP = 38;
   int VOICE_COMMAND_TYPE_GEMINI = 39;
+  int VOICE_COMMAND_TYPE_ACTION = 40;
 
   /** Defines types of voice command. */
   @IntDef({
@@ -296,7 +297,8 @@ public interface TalkBackAnalytics extends OnSharedPreferenceChangeListener {
     VOICE_COMMAND_TYPE_QUIT,
     VOICE_COMMAND_TYPE_ASSISTANT,
     VOICE_COMMAND_TYPE_HELP,
-    VOICE_COMMAND_TYPE_GEMINI
+    VOICE_COMMAND_TYPE_GEMINI,
+    VOICE_COMMAND_TYPE_ACTION
   })
   @Retention(RetentionPolicy.SOURCE)
   public @interface VoiceCommandTypeId {}
