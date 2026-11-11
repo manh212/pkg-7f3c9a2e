@@ -86,4 +86,11 @@
       android:key="pref_notification_queue"
       android:summary="%s"
       android:title="@string/notification_queue_title" />
+  <ListPreference
+      android:defaultValue="NOW"
+      android:entries="@array/notification_while_reading_entries"
+      android:entryValues="@array/notification_while_reading_values"
+      android:key="pref_notification_while_reading"
+      android:summary="%s"
+      android:title="@string/notification_while_reading_title" />
 </PreferenceScreen>

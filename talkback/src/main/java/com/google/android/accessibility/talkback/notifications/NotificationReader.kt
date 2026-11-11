@@ -143,6 +143,8 @@ object NotificationReader {
   private val waiting = mutableListOf<Readout>()
   /** Notifications for another voice than the one reading, read once it has finished. */
   private val heldForVoice = mutableListOf<Readout>()
+  /** Notifications that arrived while SandFly was reading something else, read once it finishes. */
+  private val heldForSpeech = mutableListOf<Readout>()
   /** Notifications that arrived while the screen was touched, read once the touch ends. */
   private val heldForTouch = mutableListOf<Readout>()
   private val releaseHeld = Runnable { releaseTouchHeld() }
@@ -801,6 +803,10 @@ object NotificationReader {
       heldForVoice.remove(it)
       record(it, Outcome.CANCELLED)
     }
+    heldForSpeech.filter(::matches).forEach {
+      heldForSpeech.remove(it)
+      record(it, Outcome.CANCELLED)
+    }
     queued.filter(::matches).forEach(::stopOne)
     repeating.removeAll(::matches)
     // Only the notification that went; the others waiting are still read.
@@ -822,6 +828,7 @@ object NotificationReader {
   /** Stops [readout] alone, waiting in speech or being read, and goes on with the others. */
   private fun stopOne(readout: Readout) {
     readout.cancelled = true
+    heldForSpeech.remove(readout)
     if (readout.voiceKey.isEmpty()) {
       readout.speechAction?.let { stopSpeechItem?.invoke(it) }
     } else {
@@ -884,6 +891,7 @@ object NotificationReader {
 
   private fun speak(readout: Readout, repeat: Boolean = false) {
     waiting.remove(readout)
+    heldForSpeech.remove(readout)
     if (readout.cancelled) return
     if (readout.automatic && context?.let { settings(it).enabled } != true) {
       readout.cancelled = true
@@ -894,6 +902,29 @@ object NotificationReader {
     val settings = readout.settings
     val voice = voiceFor(readout.decision.voiceProfile ?: settings.voiceProfile)
     readout.voiceKey = voice?.currentProfile?.id().orEmpty()
+    // SandFly is reading something that is not a notification. What happens then is a setting
+    // of its own; a priority notification does not override it.
+    val waitsForReading =
+      readout.automatic && !repeat && settings.busyBehavior == BusyBehavior.AFTER
+    if (readout.automatic && !repeat && reading == null && isSandFlySpeaking()) {
+      if (settings.busyBehavior == BusyBehavior.SKIP) {
+        LogUtils.d(TAG, "Not reading a notification while SandFly is reading something else")
+        record(readout, Outcome.BUSY)
+        return
+      }
+      if (waitsForReading && voice == null) {
+        LogUtils.d(
+          TAG,
+          "Holding a notification of %s until SandFly finishes reading",
+          readout.info.packageName,
+        )
+        queued.remove(readout)
+        while (heldForSpeech.size >= MAX_WAITING) record(heldForSpeech.removeAt(0), Outcome.TOO_MANY)
+        heldForSpeech += readout
+        watchSpeech()
+        return
+      }
+    }
     // Another voice reading, or about to, would talk over this one.
     val others = (listOfNotNull(reading) + queued).filter { !it.cancelled && it.voiceKey != readout.voiceKey }
     val busy = reading != null || others.isNotEmpty()
@@ -938,7 +969,7 @@ object NotificationReader {
     watchSpeech()
     if (voice != null && !isSilenced(overMedia, duringCalls)) {
       if (settings.soundBefore) feedback.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_down))
-      whenSandFlyIsQuiet(SystemClock.uptimeMillis()) {
+      whenSandFlyIsQuiet(SystemClock.uptimeMillis(), waitsForReading) {
         if (readout.cancelled || isSilenced(overMedia, duringCalls)) {
           if (!readout.cancelled) readout.silenced = true
           onDone(readout, SpeechController.STATUS_INTERRUPTED)
@@ -1051,6 +1082,7 @@ object NotificationReader {
       abandonFocus()
     }
     releaseHeldForVoice()
+    releaseHeldForSpeech()
     val context = context ?: return
     val minutes = readout.settings.repeatMinutes
     if (status == SpeechController.STATUS_SPOKEN && readout.started && !readout.cancelled && minutes > 0 &&
@@ -1064,7 +1096,9 @@ object NotificationReader {
 
   private fun watchSpeech() {
     handler.removeCallbacks(checkSpeech)
-    if (reading != null || queued.isNotEmpty()) handler.postDelayed(checkSpeech, SPEECH_CHECK_MS)
+    if (reading != null || queued.isNotEmpty() || heldForSpeech.isNotEmpty()) {
+      handler.postDelayed(checkSpeech, SPEECH_CHECK_MS)
+    }
   }
 
   private fun checkSpeech() {
@@ -1080,13 +1114,19 @@ object NotificationReader {
       }
     }
     if (reading == null) {
-      queued.filter { now - it.handedAt >= START_WAIT_MS }.forEach { readout ->
-        if (readout.done || readout.started) return@forEach
-        LogUtils.e(TAG, "A notification of %s didn't start within %d ms", readout.info.packageName, now - readout.handedAt)
-        readout.cancelled = true
-        onDone(readout, SpeechController.STATUS_INTERRUPTED)
-      }
+      queued
+        .filter {
+          now - it.handedAt >= START_WAIT_MS &&
+            !(it.settings.busyBehavior == BusyBehavior.AFTER && isSandFlySpeaking())
+        }
+        .forEach { readout ->
+          if (readout.done || readout.started) return@forEach
+          LogUtils.e(TAG, "A notification of %s didn't start within %d ms", readout.info.packageName, now - readout.handedAt)
+          readout.cancelled = true
+          onDone(readout, SpeechController.STATUS_INTERRUPTED)
+        }
     }
+    releaseHeldForSpeech()
     watchSpeech()
   }
 
@@ -1157,7 +1197,7 @@ object NotificationReader {
     val settings = settings(ctx)
     val overMedia = settings.media != MediaBehavior.SKIP
     val duringCalls = settings.duringCalls
-    whenSandFlyIsQuiet(SystemClock.uptimeMillis()) {
+    whenSandFlyIsQuiet(SystemClock.uptimeMillis(), waitForever = false) {
       if (!isSilenced(overMedia, duringCalls)) {
         selectedVoice.speak(text, interrupt, null, null)
       }
@@ -1171,7 +1211,7 @@ object NotificationReader {
     val duringCalls = settings.duringCalls
     val voice = voiceFor(settings.voiceProfile)
     if (voice != null && !isSilenced(overMedia, duringCalls)) {
-      whenSandFlyIsQuiet(SystemClock.uptimeMillis()) {
+      whenSandFlyIsQuiet(SystemClock.uptimeMillis(), waitForever = false) {
         if (isSilenced(overMedia, duringCalls)) return@whenSandFlyIsQuiet
         voice.speak(text, interrupt, null, null)
       }
@@ -1232,16 +1272,32 @@ object NotificationReader {
     held.forEach { speak(it) }
   }
 
+  /** Reads the notifications held while SandFly was reading something else, once it finishes. */
+  private fun releaseHeldForSpeech() {
+    if (heldForSpeech.isEmpty() || isSandFlySpeaking()) return
+    val held = heldForSpeech.toList()
+    heldForSpeech.clear()
+    held.forEach { speak(it) }
+  }
+
   /**
    * Runs [then] once SandFly isn't speaking, so another voice doesn't talk over it, or after
-   * [QUIET_WAIT_MS] at most.
+   * [QUIET_WAIT_MS] at most. With [waitForever] there is no time limit: [then] runs only once
+   * SandFly really has finished.
    */
-  private fun whenSandFlyIsQuiet(since: Long, then: () -> Unit) {
-    if (!isSandFlySpeaking() || SystemClock.uptimeMillis() - since >= QUIET_WAIT_MS) {
+  private fun whenSandFlyIsQuiet(since: Long, waitForever: Boolean, then: () -> Unit) {
+    if (
+      !isSandFlySpeaking() ||
+        (!waitForever && SystemClock.uptimeMillis() - since >= QUIET_WAIT_MS)
+    ) {
       then()
       return
     }
-    handler.postAtTime({ whenSandFlyIsQuiet(since, then) }, QUIET_TOKEN, SystemClock.uptimeMillis() + QUIET_CHECK_MS)
+    handler.postAtTime(
+      { whenSandFlyIsQuiet(since, waitForever, then) },
+      QUIET_TOKEN,
+      SystemClock.uptimeMillis() + QUIET_CHECK_MS,
+    )
   }
 
   /** The notification settings, read again only after they change. */
@@ -1271,6 +1327,8 @@ object NotificationReader {
     queued.clear()
     heldForVoice.forEach { record(it, Outcome.CANCELLED) }
     heldForVoice.clear()
+    heldForSpeech.forEach { record(it, Outcome.CANCELLED) }
+    heldForSpeech.clear()
     handler.removeCallbacksAndMessages(QUIET_TOKEN)
     handler.removeCallbacksAndMessages(DND_TOKEN)
     heldForTouch.forEach { record(it, Outcome.CANCELLED) }
