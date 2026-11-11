@@ -135,4 +135,20 @@
   <string name="voice_commands_help_actions_description">Hiển thị các thao tác hiện có đối với mục hiện tại</string>
   <string name="voice_commands_help_label_description">Thêm hoặc chỉnh sửa nhãn tùy chỉnh để nói \"gửi\"</string>
   <string name="voice_commands_help_stop_description">Dừng lệnh thoại hiện tại</string>
+
+  <string name="voice_commands_confirm_question">%1$s? Nói đúng hoặc có để xác nhận.</string>
+  <string name="voice_commands_confirm_cancelled">Đã hủy</string>
+  <string name="voice_commands_yes_answers">đúng,có</string>
+
+  <string name="voice_param_volume">âm lượng</string>
+  <string name="voice_param_media_volume">âm lượng nhạc</string>
+  <string name="voice_param_speech_rate">tốc độ đọc</string>
+  <string name="voice_param_percent">phần trăm</string>
+  <string name="voice_param_alarm">báo thức</string>
+  <string name="voice_param_countdown">đếm ngược</string>
+  <string name="voice_param_hours">giờ</string>
+  <string name="voice_param_minutes">phút</string>
+  <string name="voice_param_seconds">giây</string>
+  <string name="voice_param_times">lần</string>
+  <string name="voice_param_media_volume_value">Âm lượng nhạc: %1$d%%</string>
 </resources>
