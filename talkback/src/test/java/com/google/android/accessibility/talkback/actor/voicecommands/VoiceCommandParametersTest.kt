@@ -37,6 +37,10 @@ class VoiceCommandParametersTest {
       seconds = "giây",
       times = "lần",
       yesAnswers = listOf("đúng", "có"),
+      increase = listOf("tăng"),
+      decrease = listOf("giảm"),
+      at = "lúc",
+      dayParts = listOf("sáng", "trưa", "chiều", "tối", "đêm"),
     )
 
   @Test
@@ -192,5 +196,83 @@ class VoiceCommandParametersTest {
     assertNull(VoiceCommandParameters.parseDurationMillis("hẹn giờ năm phút", keywords))
     // A bare "không" is a negation, not the number zero.
     assertNull(VoiceCommandParameters.parsePercent("âm lượng không phần trăm", keywords))
+  }
+
+  @Test
+  fun wordNumberThousands() {
+    val repeat = VoiceCommandParameters.parseRepeat("cuộn xuống một nghìn lần", keywords)
+    assertEquals("cuon xuong", repeat?.text)
+    assertEquals(20, repeat?.count)
+
+    assertEquals(
+      1_500_000L,
+      VoiceCommandParameters.parseDurationMillis("báo thức một nghìn năm trăm giây", keywords),
+    )
+    val twoThousandTwentyFive =
+      VoiceCommandParameters.parseRepeat("mở mục hai nghìn hai mươi lăm lần", keywords)
+    assertEquals("mo muc", twoThousandTwentyFive?.text)
+    assertEquals(20, twoThousandTwentyFive?.count)
+    assertEquals(
+      1_005_000L,
+      VoiceCommandParameters.parseDurationMillis("báo thức một nghìn lẻ năm giây", keywords),
+    )
+  }
+
+  @Test
+  fun relativePercents() {
+    val up = VoiceCommandParameters.parseRelativePercent("tăng âm lượng 10", keywords)
+    assertEquals(VoiceCommandParameters.PercentKind.SPEECH_VOLUME, up?.kind)
+    assertEquals(10, up?.delta)
+
+    val downNoNumber = VoiceCommandParameters.parseRelativePercent("giảm âm lượng nhạc", keywords)
+    assertEquals(VoiceCommandParameters.PercentKind.MEDIA_VOLUME, downNoNumber?.kind)
+    assertEquals(-10, downNoNumber?.delta)
+
+    val rateWords =
+      VoiceCommandParameters.parseRelativePercent("tăng tốc độ đọc hai mươi phần trăm", keywords)
+    assertEquals(VoiceCommandParameters.PercentKind.SPEECH_RATE, rateWords?.kind)
+    assertEquals(20, rateWords?.delta)
+
+    assertNull(VoiceCommandParameters.parseRelativePercent("âm lượng 50", keywords))
+    assertNull(VoiceCommandParameters.parseRelativePercent("tăng màn hình 10", keywords))
+  }
+
+  @Test
+  fun clockAlarms() {
+    val morning = atTime(2026, 11, 11, 6, 0)
+    assertEquals(
+      1 * 3_600_000L,
+      VoiceCommandParameters.parseClockAlarmMillis("báo thức lúc 7 giờ sáng", keywords, morning),
+    )
+    assertEquals(
+      90 * 60_000L,
+      VoiceCommandParameters.parseClockAlarmMillis(
+        "báo thức lúc 7 giờ 30 phút sáng", keywords, morning
+      ),
+    )
+    // Already past today: the same time tomorrow (25 hours from 6:00 to 7:00 next day).
+    val evening = atTime(2026, 11, 11, 20, 0)
+    assertEquals(
+      23 * 3_600_000L,
+      VoiceCommandParameters.parseClockAlarmMillis("báo thức lúc 7 giờ tối", keywords, evening),
+    )
+    // 11 at night is 23:00, three hours after 20:00.
+    assertEquals(
+      3 * 3_600_000L,
+      VoiceCommandParameters.parseClockAlarmMillis("báo thức lúc 11 giờ đêm", keywords, evening),
+    )
+    assertNull(
+      VoiceCommandParameters.parseClockAlarmMillis("báo thức 5 phút", keywords, morning)
+    )
+    assertNull(
+      VoiceCommandParameters.parseClockAlarmMillis("báo thức lúc 25 giờ", keywords, morning)
+    )
+  }
+
+  private fun atTime(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long {
+    val calendar = java.util.Calendar.getInstance()
+    calendar.set(year, month - 1, day, hour, minute, 0)
+    calendar.set(java.util.Calendar.MILLISECOND, 0)
+    return calendar.timeInMillis
   }
 }
