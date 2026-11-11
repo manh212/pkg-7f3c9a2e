@@ -51,7 +51,7 @@ class VoiceCommandPhraseListFragment : TalkbackBaseFragment() {
     }
     val labels = VoiceCommandCatalog.entries(context).associate { it.value to it.phrase }
     for (phrase in phrases) {
-      val label = labels[phrase.value] ?: phrase.value
+      val label = phrase.values.joinToString(" → ") { value -> labels[value] ?: value }
       val row = AccessibilitySuitePreference(context)
       row.title = phrase.phrase
       row.summary = label
