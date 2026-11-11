@@ -112,6 +112,7 @@ import com.google.android.accessibility.talkback.collapse.CollapsedItemActions;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.contextmenu.ListMenuManager;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
+import com.google.android.accessibility.talkback.granularediting.GranularEditing;
 import com.google.android.accessibility.talkback.menurules.RuleAction;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
@@ -442,6 +443,14 @@ public class VoiceCommandProcessor {
         confirmationSession.enableContinuousListening();
       }
       speakDelayed(service.getString(R.string.voice_continuous_on));
+      return true;
+    }
+
+    // While the text editor is on screen, its own spoken commands drive the editing.
+    // They are heard before the fixed commands, whose Find and Delete would otherwise
+    // take the same words for the screen as a whole. With no editor on screen, or a
+    // sentence that is none of its commands, the sentence falls through unchanged.
+    if (!isPartialResult && GranularEditing.handleVoiceCommand(service, command)) {
       return true;
     }
 

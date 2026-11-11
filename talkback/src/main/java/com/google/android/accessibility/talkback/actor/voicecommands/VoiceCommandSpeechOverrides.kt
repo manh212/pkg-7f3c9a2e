@@ -165,6 +165,41 @@ object VoiceCommandSpeechOverrides {
               R.string.voice_word_help_words,
               listOf(R.string.voice_commands_what, R.string.voice_commands_say),
               true),
+          Item(
+              "editor_select",
+              R.string.voice_word_editor_select,
+              listOf(R.string.voice_editor_select),
+              true),
+          Item(
+              "editor_delete",
+              R.string.voice_word_editor_delete,
+              listOf(R.string.voice_editor_delete),
+              true),
+          Item(
+              "editor_read",
+              R.string.voice_word_editor_read,
+              listOf(R.string.voice_editor_read),
+              true),
+          Item(
+              "editor_read_all",
+              R.string.voice_word_editor_read_all,
+              listOf(R.string.voice_editor_read_all),
+              true),
+          Item(
+              "editor_undo",
+              R.string.voice_word_editor_undo,
+              listOf(R.string.voice_editor_undo),
+              true),
+          Item(
+              "editor_redo",
+              R.string.voice_word_editor_redo,
+              listOf(R.string.voice_editor_redo),
+              true),
+          Item(
+              "editor_find",
+              R.string.voice_word_editor_find,
+              listOf(R.string.voice_editor_find),
+              true),
       )
 
   val COMMAND_ITEMS: List<Item> =
