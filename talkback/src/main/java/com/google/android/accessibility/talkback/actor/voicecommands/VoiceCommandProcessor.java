@@ -59,6 +59,7 @@ import static com.google.android.accessibility.talkback.analytics.TalkBackAnalyt
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_GEMINI;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_GRANULARITY;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_HELP;
+import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_ITEM_NUMBER;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_HIDE_SCREEN;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_HOME;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VOICE_COMMAND_TYPE_INSERT;
@@ -115,6 +116,9 @@ import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
 import com.google.android.accessibility.talkback.selector.SpeechVolumeControl;
 import com.google.android.accessibility.talkback.timer.Stopwatch;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.LocaleUtils;
@@ -126,6 +130,9 @@ import com.google.android.accessibility.utils.SpannableUtils;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.CursorGranularity;
 import com.google.android.accessibility.utils.output.FeedbackItem;
+import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy;
+import com.google.android.accessibility.utils.traversal.TraversalStrategy;
+import com.google.android.accessibility.utils.traversal.TraversalStrategyUtils;
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions;
 import com.google.android.accessibility.utils.screencapture.ScreenshotCapture;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -940,7 +947,7 @@ public class VoiceCommandProcessor {
     // Any other action that a gesture or a shortcut can run can be spoken by its name, with
     // an optional repeat count. Partial results are not matched: the phrase may still be
     // growing into another command.
-    if (!isPartialResult && handleParameterCommand(command)) {
+    if (!isPartialResult && handleParameterCommand(command, eventId)) {
       return true;
     }
     if (!isPartialResult && handleCatalogCommand(command, eventId)) {
@@ -1297,8 +1304,45 @@ public class VoiceCommandProcessor {
     applyPercent(new VoiceCommandParameters.Percent(relative.getKind(), target));
   }
 
+  /*
+   * Moves accessibility focus to the [index]-th item that can take it on the current
+   * screen, counting in reading order from 1. Returns false when there is no window to
+   * count in; a screen with fewer items is answered with spoken feedback instead.
+   */
+  private boolean goToItemNumber(int index, EventId eventId) {
+    AccessibilityNodeInfoCompat root =
+        AccessibilityServiceCompatUtils.getRootInActiveWindow(service);
+    if (root == null) {
+      return false;
+    }
+    OrderedTraversalStrategy strategy = new OrderedTraversalStrategy(root);
+    AccessibilityNodeInfoCompat node =
+        TraversalStrategyUtils.findFirstFocusInNodeTree(
+            strategy,
+            root,
+            TraversalStrategy.SEARCH_FOCUS_FORWARD,
+            AccessibilityNodeInfoUtils.FILTER_SHOULD_FOCUS);
+    for (int i = 1; i < index && node != null; i++) {
+      node =
+          TraversalStrategyUtils.searchFocus(
+              strategy,
+              node,
+              TraversalStrategy.SEARCH_FOCUS_FORWARD,
+              AccessibilityNodeInfoUtils.FILTER_SHOULD_FOCUS);
+    }
+    if (node == null) {
+      speakDelayed(service.getString(R.string.voice_item_not_found, index));
+      return true;
+    }
+    pipeline.returnFeedback(
+        eventId,
+        Feedback.nodeAction(node, AccessibilityNodeInfoCompat.ACTION_ACCESSIBILITY_FOCUS));
+    handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ITEM_NUMBER);
+    return true;
+  }
+
   /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
-  private boolean handleParameterCommand(String command) {
+  private boolean handleParameterCommand(String command, EventId eventId) {
     VoiceCommandParameters.Keywords keywords = parameterKeywords();
     VoiceCommandParameters.Percent percent =
         VoiceCommandParameters.parsePercent(command, keywords);
@@ -1333,6 +1377,10 @@ public class VoiceCommandProcessor {
               R.string.countdown_alarm_added, Stopwatch.formatElapsed(service, clockMillis)));
       noteCommandRan();
       return true;
+    }
+    Integer itemNumber = VoiceCommandParameters.parseItemNumber(command, keywords);
+    if (itemNumber != null) {
+      return goToItemNumber(itemNumber, eventId);
     }
     return false;
   }
