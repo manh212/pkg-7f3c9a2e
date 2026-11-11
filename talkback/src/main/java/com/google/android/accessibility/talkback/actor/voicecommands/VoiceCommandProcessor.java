@@ -160,13 +160,7 @@ public class VoiceCommandProcessor {
   private ConfirmationSession confirmationSession;
   private Runnable pendingConfirmationAction;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
-  private final Runnable confirmationTimeout =
-      () -> {
-        if (pendingConfirmationAction != null) {
-          pendingConfirmationAction = null;
-          speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
-        }
-      };
+  private final Runnable confirmationTimeout = this::onConfirmationTimeout;
 
   private static final long CONFIRMATION_TIMEOUT_MS = 10000;
   private static final long REPEAT_INTERVAL_MS = 350;
@@ -924,6 +918,14 @@ public class VoiceCommandProcessor {
     speakDelayed(service.getString(R.string.voice_commands_confirm_question, label));
     if (confirmationSession != null) {
       confirmationSession.requestListenAgain();
+    }
+  }
+
+  /* Runs when no answer arrives in time: the waiting command is cancelled, and says so. */
+  private void onConfirmationTimeout() {
+    if (pendingConfirmationAction != null) {
+      pendingConfirmationAction = null;
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
     }
   }
 
