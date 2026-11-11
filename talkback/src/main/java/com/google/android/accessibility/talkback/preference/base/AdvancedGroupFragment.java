@@ -18,8 +18,13 @@ package com.google.android.accessibility.talkback.preference.base;
 
 import com.google.android.accessibility.talkback.R;
 
-/** Main settings group holding the developer settings and the Meridian wallpaper. */
-public class AdvancedGroupFragment extends TalkBackPreferenceFragment {
+/**
+ * Main settings group holding the developer settings, the Meridian wallpaper, the resume and
+ * Play-installer rows, and the way into backup &amp; reset and scripts &amp; labels. It extends
+ * {@link AdvancedSettingFragment} so the Play-installer switch on this screen gets the same
+ * on-resume upkeep it had on the Help Center screen.
+ */
+public class AdvancedGroupFragment extends AdvancedSettingFragment {
 
   public AdvancedGroupFragment() {
     super(R.xml.settings_group_advanced);
