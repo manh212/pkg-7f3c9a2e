@@ -16,6 +16,7 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.preference.PreferenceManager
+import com.google.android.accessibility.talkback.R
 
 /**
  * The ways of saying voice commands that the user has replaced with their own.
