@@ -78,7 +78,7 @@ class VoiceCommandMatcherTest {
   }
 
   @Test
-  fun aLoose resemblanceDoesNotMatch() {
+  fun aLooseResemblanceDoesNotMatch() {
     // Only one word in common with any name is never enough.
     assertNull(VoiceCommandMatcher.match("đầu trang", entries))
     assertNull(VoiceCommandMatcher.match("cài nhạc", entries))
