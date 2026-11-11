@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Name of the standalone text editor, its gesture action and the documents it keeps. [CHAR LIMIT=40] -->
+    <string name="text_editor_title">Text editor</string>
+    <!-- Items of the editor's More menu that manage the document being written. [CHAR LIMIT=40] -->
+    <string name="text_editor_new_document">New document</string>
+    <string name="text_editor_open_document">Open document</string>
+    <string name="text_editor_rename">Rename</string>
+    <string name="text_editor_delete_document">Delete document</string>
+    <!-- Message of the dialog that confirms deleting a document, which cannot be undone. [CHAR LIMIT=NONE] -->
+    <string name="text_editor_delete_confirm">This document and its text will be deleted for good.</string>
+    <!-- Items of the editor's More menu that finish with the text. [CHAR LIMIT=40] -->
+    <string name="text_editor_paste_from_clipboard">Paste from clipboard</string>
+    <string name="text_editor_paste_replace">Replace the whole text</string>
+    <string name="text_editor_share">Share</string>
+    <string name="text_editor_word_count">Word and character count</string>
+    <!-- The counts shown by Word and character count. [CHAR LIMIT=NONE] -->
+    <string name="text_editor_word_count_message">%1$d words, %2$d characters</string>
+    <!-- Spoken when there is nothing to paste or no other document to open. [CHAR LIMIT=NONE] -->
+    <string name="text_editor_empty_clipboard">The clipboard is empty</string>
+    <string name="text_editor_no_other_documents">No other documents</string>
+</resources>
