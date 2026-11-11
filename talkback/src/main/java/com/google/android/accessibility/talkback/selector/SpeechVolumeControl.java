@@ -12,11 +12,21 @@ public final class SpeechVolumeControl {
   private SpeechVolumeControl() {}
 
   public static int change(Context context, SharedPreferences prefs, boolean increase) {
+    int current = current(context, prefs);
+    int next = clamp(context, current + (increase ? STEP : -STEP));
+    write(context, prefs, next);
+    return next;
+  }
+
+  /** Sets the speech volume to the given percentage, clamped to the allowed range. */
+  public static int set(Context context, SharedPreferences prefs, int percent) {
+    int next = clamp(context, percent);
+    write(context, prefs, next);
+    return next;
+  }
+
+  private static int current(Context context, SharedPreferences prefs) {
     String profileId = VoiceProfiles.activeId(prefs);
-    String key =
-        profileId.isEmpty()
-            ? context.getString(R.string.pref_speech_volume_key)
-            : VoiceProfiles.key(profileId, VoiceProfiles.VOLUME);
     int current =
         profileId.isEmpty()
             ? SharedPreferencesUtils.getIntFromStringPref(
@@ -25,11 +35,20 @@ public final class SpeechVolumeControl {
                 R.string.pref_speech_volume_key,
                 R.string.pref_speech_volume_default)
             : VoiceProfiles.read(prefs, profileId).volume();
+    return clamp(context, current);
+  }
+
+  private static int clamp(Context context, int value) {
     int minimum = context.getResources().getInteger(R.integer.pref_speech_volume_min);
-    current = Math.max(minimum, Math.min(VoiceProfiles.MAX_VOLUME, current));
-    int next =
-        Math.max(minimum, Math.min(VoiceProfiles.MAX_VOLUME, current + (increase ? STEP : -STEP)));
-    prefs.edit().putString(key, Integer.toString(next)).apply();
-    return next;
+    return Math.max(minimum, Math.min(VoiceProfiles.MAX_VOLUME, value));
+  }
+
+  private static void write(Context context, SharedPreferences prefs, int value) {
+    String profileId = VoiceProfiles.activeId(prefs);
+    String key =
+        profileId.isEmpty()
+            ? context.getString(R.string.pref_speech_volume_key)
+            : VoiceProfiles.key(profileId, VoiceProfiles.VOLUME);
+    prefs.edit().putString(key, Integer.toString(value)).apply();
   }
 }
