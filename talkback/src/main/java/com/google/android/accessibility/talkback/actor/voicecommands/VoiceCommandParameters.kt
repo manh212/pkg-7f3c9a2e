@@ -27,7 +27,8 @@ import com.google.android.accessibility.talkback.timer.CountdownAlarm
  *
  * The words come from string resources, so each language brings its own. Matching runs on the
  * diacritic-free normalized form of both the command and the words, because speech recognizers
- * do not always return Vietnamese diacritics. Only digits are read as numbers.
+ * do not always return Vietnamese diacritics. Numbers are read as digits or as Vietnamese
+ * number words, which [VietnameseNumbers] turns into digits first.
  */
 object VoiceCommandParameters {
 
@@ -107,7 +108,7 @@ object VoiceCommandParameters {
   /** The percentage in [command], or null when the command sets no percentage. */
   @JvmStatic
   fun parsePercent(command: String, keywords: Keywords): Percent? {
-    val tokens = tokens(command)
+    val tokens = tokens(VietnameseNumbers.convert(plain(command)))
     percentAfter(tokens, keywords.mediaVolumeTokens, keywords)?.let {
       if (it in 0..100) return Percent(PercentKind.MEDIA_VOLUME, it)
       return null
@@ -139,7 +140,7 @@ object VoiceCommandParameters {
   /** The countdown duration in [command] in milliseconds, or null when it sets no alarm. */
   @JvmStatic
   fun parseDurationMillis(command: String, keywords: Keywords): Long? {
-    val tokens = tokens(command)
+    val tokens = tokens(VietnameseNumbers.convert(plain(command)))
     val rest =
       when {
         tokens.startsWith(keywords.alarmTokens) -> tokens.drop(keywords.alarmTokens.size)
@@ -173,7 +174,7 @@ object VoiceCommandParameters {
   /** The repeat count at the end of [command], or null when the command repeats nothing. */
   @JvmStatic
   fun parseRepeat(command: String, keywords: Keywords): Repeat? {
-    val tokens = tokens(command)
+    val tokens = tokens(VietnameseNumbers.convert(plain(command)))
     if (tokens.size <= keywords.timesTokens.size + 1) return null
     if (tokens.takeLast(keywords.timesTokens.size) != keywords.timesTokens) return null
     val count = tokens[tokens.size - keywords.timesTokens.size - 1].toIntOrNull() ?: return null
@@ -185,6 +186,109 @@ object VoiceCommandParameters {
 
   private fun List<String>.startsWith(prefix: List<String>): Boolean =
     size >= prefix.size && subList(0, prefix.size) == prefix
+}
+
+/**
+ * Turns Vietnamese number words into digits inside a copy of the diacritic-free text, so the
+ * parsers read "năm mươi" like "50" and "hai mươi mốt" like "21". Only the words of a
+ * well-formed number are replaced; a word that starts no number is left alone. Numbers run
+ * from 1 to 999: a unit, the tens forms "mười"/"mươi", and "<unit> trăm" hundreds with "lẻ"
+ * before a lone final unit. A bare "không" is not read as zero — it is too often a
+ * negation — while a spoken digit 0 already works.
+ */
+internal object VietnameseNumbers {
+
+  private val units =
+    mapOf(
+      "mot" to 1,
+      "hai" to 2,
+      "ba" to 3,
+      "bon" to 4,
+      "nam" to 5,
+      "sau" to 6,
+      "bay" to 7,
+      "tam" to 8,
+      "chin" to 9,
+    )
+
+  /* In the final position of a tens group, 1, 4 and 5 have their own forms: mốt, tư, lăm. */
+  private val afterTens =
+    mapOf(
+      "mot" to 1,
+      "hai" to 2,
+      "ba" to 3,
+      "tu" to 4,
+      "bon" to 4,
+      "lam" to 5,
+      "nam" to 5,
+      "sau" to 6,
+      "bay" to 7,
+      "tam" to 8,
+      "chin" to 9,
+    )
+
+  fun convert(text: String): String {
+    val words = text.split(' ').filter { it.isNotEmpty() }
+    if (words.isEmpty()) return text
+    val result = mutableListOf<String>()
+    var index = 0
+    while (index < words.size) {
+      val number = numberAt(words, index)
+      if (number != null) {
+        result.add(number.first.toString())
+        index += number.second
+      } else {
+        result.add(words[index])
+        index++
+      }
+    }
+    return result.joinToString(" ")
+  }
+
+  /** The value and word count of the number starting at [start], or null when none starts. */
+  private fun numberAt(words: List<String>, start: Int): Pair<Int, Int>? {
+    var index = start
+    var value = 0
+    var consumed = false
+    if (index + 1 < words.size &&
+      units.containsKey(words[index]) &&
+      words[index + 1] == "tram") {
+      value += units.getValue(words[index]) * 100
+      index += 2
+      consumed = true
+      if (index + 1 < words.size &&
+        (words[index] == "le" || words[index] == "linh") &&
+        units.containsKey(words[index + 1])) {
+        return (value + units.getValue(words[index + 1])) to (index + 2 - start)
+      }
+    }
+    when {
+      index < words.size && words[index] == "muoi" -> {
+        value += 10
+        index++
+        afterTens[words.getOrNull(index)]?.let {
+          value += it
+          index++
+        }
+        consumed = true
+      }
+      index + 1 < words.size &&
+        units.containsKey(words[index]) &&
+        words[index + 1] == "muoi" -> {
+        value += units.getValue(words[index]) * 10
+        index += 2
+        afterTens[words.getOrNull(index)]?.let {
+          value += it
+          index++
+        }
+        consumed = true
+      }
+    }
+    if (consumed) {
+      return value to (index - start)
+    }
+    return units[words.getOrNull(start)]?.let { it to 1 }
+  }
 }
 
 /** Runs the effects of the parameterized voice commands that no existing actor covers. */
