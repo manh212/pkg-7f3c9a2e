@@ -530,7 +530,7 @@
         },
         "pref_event_processing_level": {
           "type": "string",
-          "value": "very_low"
+          "value": "medium"
         },
         "pref_selector_granularity_h2_key": {
           "type": "boolean",

@@ -426,6 +426,23 @@ class SettingsBackupTest {
     assertFalse(prefs.getBoolean("a_switch", true))
   }
 
+  @Test
+  fun eventProcessingLevelResetRaisesEveryInstallToMediumOnce() {
+    val state = SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
+    state.edit().clear().commit()
+    prefs.edit().clear().putString("pref_event_processing_level", "very_low").commit()
+
+    SettingsBackup.applyEventProcessingLevelResetIfNeeded(context)
+
+    assertEquals("medium", prefs.getString("pref_event_processing_level", null))
+    assertTrue(state.getBoolean("event_processing_level_reset", false))
+
+    prefs.edit().putString("pref_event_processing_level", "low").commit()
+    SettingsBackup.applyEventProcessingLevelResetIfNeeded(context)
+
+    assertEquals("low", prefs.getString("pref_event_processing_level", null))
+  }
+
   private fun bundledSettings(): String =
     context.assets.open("initial-settings.json").bufferedReader().use { it.readText() }
 
