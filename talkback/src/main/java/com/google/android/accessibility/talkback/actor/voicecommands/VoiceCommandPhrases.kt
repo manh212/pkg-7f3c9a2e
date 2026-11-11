@@ -24,13 +24,28 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
  */
 object VoiceCommandPhrases {
 
-  /** A taught phrase, as the user said it, and the catalog value of its action. */
-  class Phrase(val phrase: String, val value: String)
+  /**
+   * A taught phrase, as the user said it, and the catalog values of its actions, in the
+   * order they run. One action is a plain phrase; several make a macro.
+   */
+  class Phrase(val phrase: String, val values: List<String>)
 
   const val PREF_KEY = "pref_voice_command_phrases"
 
   private const val FIELD_SEPARATOR = "\t"
   private const val ENTRY_SEPARATOR = "\n"
+
+  /** Joins the action values of one phrase inside its stored form and matcher entries. */
+  const val VALUE_SEPARATOR = "\u0002"
+
+  /** The matcher-entry form of a phrase's action values. */
+  @JvmStatic
+  fun joinValues(values: List<String>): String = values.joinToString(VALUE_SEPARATOR)
+
+  /** The action values held in a stored field or a matcher entry's value. */
+  @JvmStatic
+  fun splitValues(joined: String): List<String> =
+    joined.split(VALUE_SEPARATOR).map { it.trim() }.filter { it.isNotEmpty() }
 
   /** The words that drive the phrase dialogue, already normalized without diacritics. */
   class Keywords(
@@ -40,6 +55,7 @@ object VoiceCommandPhrases {
     listCommands: List<String>,
     deletePrefixes: List<String>,
     cancelWords: List<String>,
+    finishWords: List<String>,
   ) {
     val createOpeners: Set<String> = createOpeners.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
     val setPrefixTokens: List<List<String>> =
@@ -49,6 +65,7 @@ object VoiceCommandPhrases {
     val deletePrefixTokens: List<List<String>> =
       deletePrefixes.map { tokens(it) }.filter { it.isNotEmpty() }
     val cancelWords: Set<String> = cancelWords.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
+    val finishWords: Set<String> = finishWords.map { plain(it) }.filter { it.isNotEmpty() }.toSet()
 
     companion object {
       @JvmStatic
@@ -60,6 +77,7 @@ object VoiceCommandPhrases {
           context.getString(R.string.voice_phrase_list_commands).split(','),
           context.getString(R.string.voice_phrase_delete_prefixes).split(','),
           context.getString(R.string.voice_phrase_cancel_words).split(','),
+          context.getString(R.string.voice_phrase_finish_words).split(','),
         )
     }
   }
@@ -83,9 +101,9 @@ object VoiceCommandPhrases {
   @JvmStatic
   fun serialize(phrases: List<Phrase>): String =
     phrases
-      .map { Phrase(clean(it.phrase), clean(it.value)) }
-      .filter { it.phrase.isNotEmpty() && it.value.isNotEmpty() }
-      .joinToString(ENTRY_SEPARATOR) { it.phrase + FIELD_SEPARATOR + it.value }
+      .map { Phrase(clean(it.phrase), it.values.map { value -> clean(value) }) }
+      .filter { it.phrase.isNotEmpty() && it.values.isNotEmpty() && it.values.all { value -> value.isNotEmpty() } }
+      .joinToString(ENTRY_SEPARATOR) { it.phrase + FIELD_SEPARATOR + joinValues(it.values) }
 
   /** The phrases held in the stored form [stored], in their stored order. */
   @JvmStatic
@@ -97,8 +115,8 @@ object VoiceCommandPhrases {
         val fields = line.split(FIELD_SEPARATOR)
         if (fields.size != 2) return@mapNotNull null
         val phrase = clean(fields[0])
-        val value = clean(fields[1])
-        if (phrase.isEmpty() || value.isEmpty()) null else Phrase(phrase, value)
+        val values = splitValues(fields[1])
+        if (phrase.isEmpty() || values.isEmpty()) null else Phrase(phrase, values)
       }
   }
 
@@ -112,15 +130,15 @@ object VoiceCommandPhrases {
   }
 
   /**
-   * Stores [phrase] for the action [value]; a phrase the user already taught, compared
-   * without case or diacritics, is retargeted instead of duplicated.
+   * Stores [phrase] for the actions [values], in order; a phrase the user already
+   * taught, compared without case or diacritics, is retargeted instead of duplicated.
    */
   @JvmStatic
-  fun add(context: Context, phrase: String, value: String) {
+  fun add(context: Context, phrase: String, values: List<String>) {
     val phrases = load(context).toMutableList()
     val key = identity(phrase)
     phrases.removeAll { identity(it.phrase) == key }
-    phrases.add(Phrase(clean(phrase), value))
+    phrases.add(Phrase(clean(phrase), values))
     save(context, phrases)
   }
 
@@ -134,7 +152,12 @@ object VoiceCommandPhrases {
   /** The taught phrases as matcher entries, in the order they were taught. */
   @JvmStatic
   fun entries(phrases: List<Phrase>): List<VoiceCommandMatcher.Entry> =
-    phrases.map { VoiceCommandMatcher.Entry(it.phrase, it.value) }
+    phrases.map { VoiceCommandMatcher.Entry(it.phrase, joinValues(it.values)) }
+
+  /** Whether [command] ends the list of actions being taught for one phrase. */
+  @JvmStatic
+  fun isFinish(command: String, keywords: Keywords): Boolean =
+    plain(command) in keywords.finishWords
 
   /** Whether [command] is one of the spoken phrases that open the guided creation dialogue. */
   @JvmStatic
