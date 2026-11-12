@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.updatetasks;
 
 import android.content.SharedPreferences;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.compositor.UsageHintMode;
 import com.google.android.accessibility.talkback.eventprocessor.PhoneticLetterMode;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 
@@ -34,6 +35,7 @@ public class TalkBackUpdateHelper {
   public void checkUpdate() {
     BatteryOptimizationCheck.check(service, sharedPreferences);
     PhoneticLetterMode.migrate(sharedPreferences, service.getResources());
+    UsageHintMode.migrate(sharedPreferences, service.getResources());
     CacheCleanup.INSTANCE.run(service, sharedPreferences);
     // The Exact times switch is gone: spoken times are always system alarm clocks now, so its
     // saved value has nothing left to drive and is dropped.
