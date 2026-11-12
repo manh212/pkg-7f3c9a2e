@@ -24,6 +24,8 @@ import com.google.android.accessibility.talkback.R
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.math.max
 
 /** The file types the text editor can save a document as. Plain text only: the editor keeps no formatting, so every type is written from the text alone. */
@@ -37,7 +39,12 @@ enum class TextFileFormat(
   CSV("csv", "text/csv", R.string.text_editor_file_type_csv),
   HTML("html", "text/html", R.string.text_editor_file_type_html),
   RTF("rtf", "application/rtf", R.string.text_editor_file_type_rtf),
-  PDF("pdf", "application/pdf", R.string.text_editor_file_type_pdf);
+  PDF("pdf", "application/pdf", R.string.text_editor_file_type_pdf),
+  DOCX(
+    "docx",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    R.string.text_editor_file_type_docx,
+  );
 
   companion object {
     private const val PAGE_WIDTH_PT = 595
@@ -87,6 +94,7 @@ enum class TextFileFormat(
         HTML -> htmlBytes(text, title)
         RTF -> rtfBytes(text)
         PDF -> ByteArrayOutputStream().also { writePdf(it, text) }.toByteArray()
+        DOCX -> docxBytes(text)
       }
 
     private fun htmlBytes(text: String, title: String): ByteArray {
@@ -121,6 +129,73 @@ enum class TextFileFormat(
       return ("{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0\\fnil sans-serif;}}\n\\f0\\fs24 $body}")
         .toByteArray(StandardCharsets.UTF_8)
     }
+
+    /** The document text as a minimal .docx: a ZIP of four XML parts, plain text only. */
+    private fun docxBytes(text: String): ByteArray =
+      ByteArrayOutputStream().also { out ->
+        ZipOutputStream(out).use { zip ->
+          writeZipEntry(zip, "[Content_Types].xml", DOCX_CONTENT_TYPES)
+          writeZipEntry(zip, "_rels/.rels", DOCX_PACKAGE_RELS)
+          writeZipEntry(zip, "word/document.xml", docxDocumentXml(text))
+          writeZipEntry(zip, "word/_rels/document.xml.rels", DOCX_DOCUMENT_RELS)
+        }
+      }.toByteArray()
+
+    private fun writeZipEntry(zip: ZipOutputStream, name: String, content: String) {
+      zip.putNextEntry(ZipEntry(name))
+      zip.write(content.toByteArray(StandardCharsets.UTF_8))
+      zip.closeEntry()
+    }
+
+    private fun docxDocumentXml(text: String): String {
+      val body = StringBuilder()
+      for (line in text.replace("\r", "").split('\n')) {
+        if (line.isEmpty()) {
+          body.append("<w:p/>")
+        } else {
+          body.append("<w:p><w:r><w:t xml:space=\"preserve\">")
+          body.append(escapeXml(line))
+          body.append("</w:t></w:r></w:p>")
+        }
+      }
+      return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+        "<w:body>$body</w:body></w:document>"
+    }
+
+    private fun escapeXml(text: String): String {
+      val escaped = StringBuilder()
+      for (c in text) {
+        when (c) {
+          '&' -> escaped.append("&amp;")
+          '<' -> escaped.append("&lt;")
+          '>' -> escaped.append("&gt;")
+          '"' -> escaped.append("&quot;")
+          '\'' -> escaped.append("&apos;")
+          else -> if (c.code >= 0x20 || c == '\t') escaped.append(c)
+        }
+      }
+      return escaped.toString()
+    }
+
+    private const val DOCX_CONTENT_TYPES =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+        "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+        "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+        "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+        "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
+        "</Types>"
+
+    private const val DOCX_PACKAGE_RELS =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+        "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
+        "</Relationships>"
+
+    private const val DOCX_DOCUMENT_RELS =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+        "</Relationships>"
 
     /**
      * The text split into pages of wrapped lines: each line is wrapped at word boundaries to
