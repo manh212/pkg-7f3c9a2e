@@ -188,8 +188,8 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
 
   private @Nullable NodeMenuProvider nodeMenuProvider;
 
-  // Defaults to true to speak usage hint.
-  private boolean usageHintEnabled = true;
+  // Defaults to all hints, the old on value.
+  private String usageHintMode = UsageHintMode.ALL;
   // It's enabled when [Say capital] is configured.
   private boolean sayCapital = false;
   // How capital letters are told apart, one of SpeechControllerImpl's CAPITAL_LETTERS_TYPE values.
@@ -492,12 +492,22 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
 
   /** Returns if TalkBack usage hint is enabled. */
   public boolean getUsageHintEnabled() {
-    return usageHintEnabled;
+    return !UsageHintMode.OFF.equals(usageHintMode);
   }
 
-  /** Sets if TalkBack usage hint is enabled. */
-  public void setUsageHintEnabled(boolean enabled) {
-    usageHintEnabled = enabled;
+  /** Returns when TalkBack usage hints are spoken. */
+  public String getUsageHintMode() {
+    return usageHintMode;
+  }
+
+  /** Returns if only the actions hint is spoken. */
+  public boolean isUsageHintActionsOnly() {
+    return UsageHintMode.ACTIONS_ONLY.equals(usageHintMode);
+  }
+
+  /** Sets when TalkBack usage hints are spoken. */
+  public void setUsageHintMode(String mode) {
+    usageHintMode = UsageHintMode.fromValue(mode);
   }
 
   /** Returns if TalkBack speaks phonetic letters, with or instead of the letter. */
