@@ -94,8 +94,8 @@ public class SettingsSearchNavigationTest {
     assertEquals(
         Arrays.asList(
             "NavigationPrefFragment",
-            "SmartContextGestureSettingsFragment",
             "TouchActivationFragment",
+            "SmartContextGestureSettingsFragment",
             "DirectTouchFragment",
             "TalkBackGestureShortcutPreferenceFragment",
             "TalkBackKeyboardShortcutPreferenceFragment",

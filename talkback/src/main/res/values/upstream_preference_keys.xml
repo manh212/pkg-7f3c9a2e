@@ -55,7 +55,6 @@
   <item type="id" name="keyboard_echo_braille_keyboard_menu" />
   <item type="id" name="keyboard_echo_braille_display_menu" />
   <item type="id" name="keyboard_echo_handwriting_keyboard_menu" />
-  <string name="pref_multi_tap_timeout_key" translatable="false">pref_multi_tap_timeout</string>
   <string name="pref_typing_focus_time_out_key" translatable="false">pref_typing_focus_time_out_key</string>
   <string name="pref_typing_focus_time_out_first_update_key" translatable="false">pref_typing_focus_time_out_first_update_key</string>
   <string name="pref_touch_focus_time_out_key" translatable="false">pref_touch_focus_time_out_key</string>
@@ -106,29 +105,8 @@
   <string name="keycombo_shortcut_navigate_previous_paragraph" translatable="false">keycombo_shortcut_navigate_previous_paragraph</string>
   <string name="keycombo_shortcut_other_toggle_braille_contracted_mode" translatable="false">keycombo_shortcut_other_toggle_braille_contracted_mode</string>
   <string name="keycombo_shortcut_other_toggle_braille_on_screen_overlay" translatable="false">keycombo_shortcut_other_toggle_braille_on_screen_overlay</string>
-  <string-array name="pref_multi_tap_timeout_entries">
-        <item>@string/value_multi_tap_timeout_100ms</item>
-        <item>@string/value_multi_tap_timeout_150ms</item>
-        <item>@string/value_multi_tap_timeout_200ms</item>
-        <item>@string/value_multi_tap_timeout_250ms</item>
-        <!-- Longer times for slower taps, with the same text as the handwriting waits. -->
-        <item>@string/value_handwriting_wait_300</item>
-        <item>@string/value_handwriting_wait_400</item>
-        <item>@string/value_handwriting_wait_500</item>
-      </string-array>
   
-    <!-- Multi-tap timeout values -->
-      <string-array name="pref_multi_tap_timeout_values">
-        <item>100</item>
-        <item>150</item>
-        <item>200</item>
-        <item>250</item>
-        <item>300</item>
-        <item>400</item>
-        <item>500</item>
-      </string-array>
   
-      <string name="pref_multi_tap_timeout_default" translatable="false">250</string>
   <string name="pref_rotor_step_degrees_key" translatable="false">pref_rotor_step_degrees</string>
   <string-array name="pref_rotor_step_degrees_entries">
         <item>@string/value_rotor_step_15</item>

@@ -26,11 +26,6 @@
         <ignore regexp="title_pref_brightness" />
         <ignore regexp="summary_support_change_brightness" />
         <ignore regexp="title_pref_shortcut_3finger_4tap" />
-        <ignore regexp="title_pref_multi_tap_timeout" />
-        <ignore regexp="value_multi_tap_timeout_100ms" />
-        <ignore regexp="value_multi_tap_timeout_150ms" />
-        <ignore regexp="value_multi_tap_timeout_200ms" />
-        <ignore regexp="value_multi_tap_timeout_250ms" />
         <ignore regexp="item_detail_name" />
         <ignore regexp="item_detail_type" />
         <ignore regexp="item_detail_state" />

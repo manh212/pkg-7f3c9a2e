@@ -333,7 +333,6 @@ pref_low_latency_audio
 pref_manage_labels
 pref_menu_controls_reset
 pref_menu_extra_actions
-pref_multi_tap_timeout
 pref_multiple_gesture_set_key
 pref_mute_screen_reader_sounds_in_silent
 pref_mute_speech_while_recording
