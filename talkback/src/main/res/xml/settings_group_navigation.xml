@@ -29,10 +29,6 @@
       android:fragment="com.google.android.accessibility.talkback.volume.VolumeKeySettingsFragment"
       android:key="pref_volume_key_settings_screen"
       android:title="@string/volume_key_settings_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.NavigationFeedbackFragment"
-      android:key="pref_navigation_feedback_screen"
-      android:title="@string/title_pref_navigation_spoken_feedback" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_touch_stops_speech_default"
       android:key="@string/pref_touch_stops_speech_key"

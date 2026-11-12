@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_speech_text_options">
+    <ListPreference
+        android:defaultValue="@string/pref_capital_letters_default"
+        android:entries="@array/pref_capital_letters_entries"
+        android:entryValues="@array/pref_capital_letters_values"
+        android:key="@string/pref_capital_letters_key"
+        android:summary="%s"
+        android:title="@string/title_pref_capital_letters" />
+    <ListPreference
+        android:defaultValue="@string/pref_phonetic_letters_mode_default"
+        android:dialogTitle="@string/title_pref_phonetic_letters_mode"
+        android:entries="@array/pref_phonetic_letters_mode_entries"
+        android:entryValues="@array/pref_phonetic_letters_mode_values"
+        android:key="@string/pref_phonetic_letters_mode_key"
+        android:summary="%s"
+        android:title="@string/title_pref_phonetic_letters_mode" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_formatting_inline_default"
+        android:key="@string/pref_formatting_inline_key"
+        android:summary="@string/summary_text_formatting_verbosity"
+        android:title="@string/title_text_formatting_inline" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="@string/pref_formatting_inline_detail_key"
+        android:dependency="@string/pref_formatting_inline_key"
+        android:title="@string/title_text_formatting_verbosity_options"
+        android:fragment="com.google.android.accessibility.talkback.preference.base.TextFormattingDetailFragment" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_punctuation_default"
+        android:key="@string/pref_punctuation_key"
+        android:visibility="invisible"
+        android:title="@string/title_pref_punctuation" />
+    <com.google.android.accessibility.talkback.preference.base.PunctuationListPreference
+        android:defaultValue="@string/pref_punctuation_verbosity_default"
+        android:entries="@array/pref_punctuation_entries"
+        android:entryValues="@array/pref_punctuation_values"
+        android:key="@string/pref_punctuation_verbosity"
+        android:summary="%s"
+        android:title="@string/title_pref_punctuation" />
+    <ListPreference
+        android:defaultValue="@string/pref_emoji_speech_default"
+        android:entries="@array/pref_emoji_speech_entries"
+        android:entryValues="@array/pref_emoji_speech_values"
+        android:key="@string/pref_emoji_speech_key"
+        android:summary="%s"
+        android:title="@string/title_pref_emoji_speech" />
+    <ListPreference
+        android:defaultValue="@string/pref_emoji_repeat_count_default"
+        android:entries="@array/pref_emoji_repeat_count_entries"
+        android:entryValues="@array/pref_emoji_repeat_count_values"
+        android:key="@string/pref_emoji_repeat_count_key"
+        android:summary="%s"
+        android:title="@string/title_pref_emoji_repeat_count" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_count_repeated_symbols_default"
+        android:key="@string/pref_count_repeated_symbols_key"
+        android:summary="@string/summary_pref_count_repeated_symbols"
+        android:title="@string/title_pref_count_repeated_symbols" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+</PreferenceScreen>

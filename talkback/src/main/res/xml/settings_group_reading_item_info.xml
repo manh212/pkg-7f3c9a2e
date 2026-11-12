@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_spoken_item_information">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_speak_element_ids_default"
+        android:key="@string/pref_speak_element_ids_key"
+        android:title="@string/title_pref_read_unlabelled_identifiers" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_a11y_hints_default"
+        android:key="@string/pref_a11y_hints_key"
+        android:summary="@string/summary_pref_a11y_hints"
+        android:title="@string/title_pref_a11y_hints" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_speak_roles_default"
+        android:key="@string/pref_speak_roles_key"
+        android:summary="@string/pref_speak_roles_summary"
+        android:title="@string/pref_speak_roles_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.ItemDetailsOrderFragment"
+        android:key="@string/pref_node_desc_order_key"
+        android:persistent="false"
+        android:title="@string/pref_node_desc_order_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+</PreferenceScreen>

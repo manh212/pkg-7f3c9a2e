@@ -52,4 +52,9 @@
       android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAutomationFragment"
       android:key="pref_notification_automation_settings"
       android:title="@string/notification_automation_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.monitor.FullScreenMonitorSettingsFragment"
+      android:key="pref_full_screen_monitor"
+      android:summary="@string/full_screen_monitor_summary"
+      android:title="@string/full_screen_monitor_title" />
 </PreferenceScreen>
