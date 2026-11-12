@@ -361,7 +361,6 @@ data class NotificationSettings(
       const val LOWERCASE = "pref_notification_lowercase"
       const val SEPARATE_DIGITS = "pref_notification_separate_digits"
       const val MIN_DIGITS = "pref_notification_min_digits"
-      const val DIGIT_SEPARATOR = "pref_notification_digit_separator"
       const val URLS = "pref_notification_urls"
       const val URL_TEXT = "pref_notification_url_text"
       const val MAX_WORDS = "pref_notification_max_words"
@@ -436,7 +435,7 @@ data class NotificationSettings(
         lowercase = b(Keys.LOWERCASE, d.lowercase),
         separateDigits = b(Keys.SEPARATE_DIGITS, d.separateDigits),
         minDigits = i(Keys.MIN_DIGITS, d.minDigits).coerceIn(2, 20),
-        digitSeparator = s(Keys.DIGIT_SEPARATOR, d.digitSeparator).ifEmpty { " " },
+        digitSeparator = d.digitSeparator,
         urls = UrlHandling.of(prefs.getString(Keys.URLS, null)),
         urlText = s(Keys.URL_TEXT, d.urlText),
         maxWords = i(Keys.MAX_WORDS, 0).coerceAtLeast(0),
