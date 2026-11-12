@@ -7,7 +7,9 @@ import androidx.fragment.app.FragmentActivity
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
+import androidx.preference.SeekBarPreference
 import androidx.preference.TwoStatePreference
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.directtouch.DirectTouchFragment
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
@@ -261,16 +263,20 @@ class OrganizedSettingsTest {
     val fragment = NavigationGroupFragment()
     open(fragment)
     val screen = fragment.preferenceScreen
-    assertEquals(8, screen.preferenceCount)
+    assertEquals(9, screen.preferenceCount)
     for (index in 0 until screen.preferenceCount) {
       val row = screen.getPreference(index)
-      val destination = requireNotNull(row.fragment)
+      val destination = row.fragment ?: continue
       assertTrue(
         activity.supportFragmentManager.fragmentFactory.instantiate(
           activity.classLoader, destination,
         ) is TalkbackBaseFragment
       )
     }
+    val touchStopsKey = activity.getString(R.string.pref_touch_stops_speech_key)
+    val touchStops = requireNotNull(fragment.findPreference<TwoStatePreference>(touchStopsKey))
+    touchStops.isChecked = !touchStops.isChecked
+    assertEquals(touchStops.isChecked, prefs.getBoolean(touchStopsKey, !touchStops.isChecked))
     val row = requireNotNull(fragment.findPreference<Preference>(activity.getString(R.string.pref_direct_touch_key)))
     val directTouch = activity.supportFragmentManager.fragmentFactory.instantiate(
       activity.classLoader, requireNotNull(row.fragment),
@@ -374,6 +380,31 @@ class OrganizedSettingsTest {
       }
     }
   }
+  @Test
+  fun backtalkDefaultProfilePageEditsTheTextToSpeechSettings() {
+    val fragment = VoiceProfileFragment().apply {
+      arguments = Bundle().apply { putString(VoiceProfileFragment.ARG_PROFILE_ID, "") }
+    }
+    open(fragment)
+    val volumeKey = activity.getString(R.string.pref_speech_volume_key)
+    val volume = requireNotNull(
+      fragment.findPreference<SeekBarPreference>("pref_voice_profile__volume_seekbar"))
+    assertTrue(volume.callChangeListener(150))
+    assertEquals("150", prefs.getString(volumeKey, null))
+    val rateKey = activity.getString(R.string.pref_speech_rate_key)
+    val rate = requireNotNull(
+      fragment.findPreference<SeekBarPreference>("pref_voice_profile__rate_seekbar"))
+    assertTrue(rate.callChangeListener(125))
+    assertEquals("1.25", prefs.getString(rateKey, null))
+    // Backtalk's default follows the language of what is read, so it has no fixed language
+    // or voice, and it can't be deleted.
+    assertTrue(
+      fragment.findPreference<Preference>(VoiceProfiles.key("", VoiceProfiles.LANGUAGE)) == null)
+    val titles = (0 until fragment.preferenceScreen.preferenceCount)
+      .map { fragment.preferenceScreen.getPreference(it).title.toString() }
+    assertFalse(titles.contains(activity.getString(R.string.title_pref_delete_voice_profile)))
+  }
+
   @Test fun callLimitOffersCallScopeWithoutAPermissionMethodSelector() {
     val calls = com.google.android.accessibility.talkback.calls.CallSettingsFragment()
     open(calls)
