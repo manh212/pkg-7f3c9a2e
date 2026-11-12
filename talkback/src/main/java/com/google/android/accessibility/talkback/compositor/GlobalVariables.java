@@ -43,11 +43,15 @@ import com.google.android.accessibility.talkback.compositor.rule.MagnificationSt
 import com.google.android.accessibility.talkback.controlsounds.ControlSounds;
 import com.google.android.accessibility.talkback.eventprocessor.PhoneticLetterMode;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
+import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.TypingMethod;
 import com.google.android.accessibility.talkback.gesture.GestureHints;
 import com.google.android.accessibility.talkback.keyboard.KeyComboManager;
 import com.google.android.accessibility.talkback.keyboard.KeyComboModel;
+import com.google.android.accessibility.talkback.menurules.NodeMenuRule;
+import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator;
+import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator.MenuRules;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
 import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport;
@@ -188,6 +192,10 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
 
   private @Nullable NodeMenuProvider nodeMenuProvider;
 
+  private @Nullable AccessibilityFocusMonitor accessibilityFocusMonitor;
+
+  private @Nullable NodeMenuRuleCreator nodeMenuRuleCreator;
+
   // Defaults to all hints, the old on value.
   private String usageHintMode = UsageHintMode.ALL;
   // It's enabled when [Say capital] is configured.
@@ -253,6 +261,14 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
 
   public void setSelectorController(SelectorController selectorController) {
     this.selectorController = selectorController;
+  }
+
+  public void setAccessibilityFocusMonitor(AccessibilityFocusMonitor accessibilityFocusMonitor) {
+    this.accessibilityFocusMonitor = accessibilityFocusMonitor;
+  }
+
+  public void setNodeMenuRuleCreator(NodeMenuRuleCreator nodeMenuRuleCreator) {
+    this.nodeMenuRuleCreator = nodeMenuRuleCreator;
   }
 
   /**
@@ -1073,6 +1089,41 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
   /** Returns if the reading menu has actions settings. */
   public boolean hasReadingMenuActionSettings() {
     return selectorController != null && selectorController.isSettingAvailable(Setting.ACTIONS);
+  }
+
+  /**
+   * Returns whether the described node offers reading-menu actions. Unlike {@link
+   * #hasReadingMenuActionSettings()}, this evaluates the described node itself instead of
+   * re-deriving it from accessibility focus, so it also covers text fields whose focus sits on a
+   * keyboard key while typing.
+   */
+  public boolean hasActionsForNode(@Nullable AccessibilityNodeInfoCompat node) {
+    if (!isActionsSettingEnabled() || nodeMenuRuleCreator == null) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat targetNode = node;
+    if (targetNode == null && accessibilityFocusMonitor != null) {
+      targetNode = accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ true);
+    }
+    if (targetNode == null) {
+      return false;
+    }
+    if (accessibilityFocusMonitor != null) {
+      AccessibilityNodeInfoCompat editingNode =
+          accessibilityFocusMonitor.getNodeForEditingActions(targetNode);
+      if (editingNode != null) {
+        targetNode = editingNode;
+      }
+    }
+    NodeMenuRule actionRule = nodeMenuRuleCreator.getMenuRule(MenuRules.RULE_CUSTOM_ACTION);
+    return actionRule != null && actionRule.accept(mContext, targetNode);
+  }
+
+  private boolean isActionsSettingEnabled() {
+    return SharedPreferencesUtils.getSharedPreferences(mContext)
+        .getBoolean(
+            mContext.getString(R.string.pref_selector_actions_key),
+            mContext.getResources().getBoolean(R.bool.pref_selector_actions_default));
   }
 
   public boolean isReadingMenuActionCurrentSettings(Context context) {
