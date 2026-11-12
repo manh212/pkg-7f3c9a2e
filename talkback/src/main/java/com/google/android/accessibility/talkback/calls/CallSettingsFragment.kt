@@ -18,7 +18,11 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
 import com.google.android.accessibility.talkback.notifications.NotificationXmlFragment
 import com.google.android.accessibility.talkback.permission.PermissionUtils
+import com.google.android.accessibility.talkback.preference.base.CommandSwitchPreference
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
+import com.google.android.accessibility.talkback.shizuku.ShizukuGrants
+import com.google.android.accessibility.talkback.speakerphone.SpeakerphoneSettings
+import com.google.android.accessibility.utils.PreferenceSettingsUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.VoiceProfiles
 
@@ -116,6 +120,29 @@ class CallSettingsFragment : TalkbackBaseFragment(R.xml.call_preferences) {
     findPreference<Preference>("pref_call_limit_notice")?.title = getString(text)
   }
 
+  private fun updateSpeakerphonePreference() {
+    val pref = findPreference<Preference>(getString(R.string.pref_speakerphone_away_from_ear_key))
+      ?: return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+      PreferenceSettingsUtils.hidePreference(
+        context, preferenceScreen, R.string.pref_speakerphone_away_from_ear_key)
+      return
+    }
+    val context = requireContext()
+    val granted = SpeakerphoneSettings.canControlCalls(context)
+    val command = SpeakerphoneSettings.grantCommand(context)
+    pref.isEnabled = granted || ShizukuGrants.isReady()
+    pref.summary =
+      if (granted) getString(R.string.summary_pref_speakerphone_away_from_ear)
+      else getString(R.string.summary_pref_speakerphone_needs_permission, command)
+    if (pref is CommandSwitchPreference) {
+      pref.command = if (granted) null else command
+      pref.grant = ShizukuGrants.Grant.MANAGE_ONGOING_CALLS
+      pref.needsGrant = true
+      pref.onGrantFinished = Runnable { if (isAdded) updateSpeakerphonePreference() }
+    }
+  }
+
   override fun onResume() {
     super.onResume()
     SharedPreferencesUtils.getSharedPreferences(requireContext())
@@ -126,6 +153,7 @@ class CallSettingsFragment : TalkbackBaseFragment(R.xml.call_preferences) {
       else Toast.makeText(requireContext(), R.string.call_limit_permission_missing, Toast.LENGTH_LONG).show()
     }
     updateLimitNotice()
+    updateSpeakerphonePreference()
   }
 
   override fun onPause() {
