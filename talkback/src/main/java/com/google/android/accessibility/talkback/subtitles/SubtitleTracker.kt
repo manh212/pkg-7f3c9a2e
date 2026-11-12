@@ -7,7 +7,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-internal data class SubtitleLine(val text: String, val bounds: Rect)
+internal data class SubtitleLine(val text: String, val bounds: Rect, val confidence: Int = -1)
 
 // Do not confuse an OCR result containing unrelated interface text with a subtitle.
 internal enum class SubtitleFrameStatus {
@@ -39,12 +39,14 @@ internal class SubtitleTracker(
   private var unchangedFrames = 0
   private var avoidedBounds: Rect? = null
   private var avoidanceFrames = 0
+  private var previousOcrCandidates = emptyList<SubtitleLine>()
 
   fun resize(previous: Rect, next: Rect) {
     lockedBounds = lockedBounds?.let { resizeBounds(it, previous, next) }
     avoidedBounds = avoidedBounds?.let { resizeBounds(it, previous, next) }
     candidateBounds = null
     candidateFrames = 0
+    previousOcrCandidates = emptyList()
   }
 
   fun reset() {
@@ -60,6 +62,7 @@ internal class SubtitleTracker(
     unchangedFrames = 0
     avoidedBounds = null
     avoidanceFrames = 0
+    previousOcrCandidates = emptyList()
     visible = false
   }
 
@@ -75,6 +78,7 @@ internal class SubtitleTracker(
     var lines = input.filter { it.text.isNotBlank() && !it.bounds.isEmpty }
       .sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
     val rawTextPresent = lines.isNotEmpty()
+    if (fastOcr) lines = confirmOcrCandidates(lines)
 
     if (automatic && lockedBounds == null) {
       val group = selectCandidate(lines, viewport)
@@ -83,10 +87,7 @@ internal class SubtitleTracker(
       val previous = candidateBounds
       candidateFrames = if (previous != null && near(previous, box)) candidateFrames + 1 else 1
       candidateBounds = box
-      val strongVideoCandidate = fastOcr &&
-        box.centerY() >= viewport.top + viewport.height() * 55 / 100 &&
-        group.sumOf { it.text.length } >= 4
-      if (candidateFrames < if (strongVideoCandidate) 1 else 2) {
+      if (candidateFrames < 2) {
         return SubtitleFrameObservation(null, SubtitleFrameStatus.WAITING_FOR_STABILITY, group.size)
       }
       val height = max(viewport.height() * 18 / 100, box.height() * 3)
@@ -105,8 +106,8 @@ internal class SubtitleTracker(
     // captions are permitted once the subtitle region is established.
     lines = lines.filter { line ->
       val normalized = normalize(line.text)
-      normalized.any { it.isLetter() } &&
-        line.bounds.height() <= max(1, viewport.height() / 6) &&
+      normalized.any { it.isLetterOrDigit() } &&
+        line.bounds.height() <= max(1, viewport.height() / (if (fastOcr) 6 else 5)) &&
         (!automatic || lockedBounds != null || normalized.length >= 2)
     }
     if (lines.isEmpty()) return noCandidate(rawTextPresent)
@@ -157,6 +158,22 @@ internal class SubtitleTracker(
       SubtitleFrameStatus.DUPLICATE else SubtitleFrameStatus.READY, lines.size)
   }
 
+  private fun confirmOcrCandidates(lines: List<SubtitleLine>): List<SubtitleLine> {
+    val plausible = lines.filter { line ->
+      val text = line.text.filterNot(Char::isWhitespace)
+      val readable = text.count { it.isLetterOrDigit() || it in ".,!?…:'’‘“”()—-" || it == '"' }
+      text.isNotEmpty() && readable * 4 >= text.length * 3 && !isControlTime(line.text) &&
+        (line.confidence < 0 || line.confidence >= 45)
+    }
+    val previous = previousOcrCandidates
+    previousOcrCandidates = plausible
+    return plausible.filter { line ->
+      line.confidence < 0 || line.confidence >= 80 || previous.any {
+        near(it.bounds, line.bounds) && similar(normalize(it.text), normalize(line.text))
+      }
+    }
+  }
+
   private fun noCandidate(rawTextPresent: Boolean): SubtitleFrameObservation {
     visible = false
     candidateText = ""
@@ -181,6 +198,7 @@ internal class SubtitleTracker(
   private fun releaseAutoRegion() {
     avoidedBounds = lockedBounds?.let(::Rect)
     avoidanceFrames = 12
+    previousOcrCandidates = emptyList()
     lockedBounds = null
     visible = false
     missingInLockedRegion = 0
@@ -196,7 +214,7 @@ internal class SubtitleTracker(
       val text = normalize(line.text)
       val isAvoided = avoidanceFrames > 0 &&
         avoidedBounds?.contains(line.bounds.centerX(), line.bounds.centerY()) == true
-      !isAvoided && text.length >= 2 && text.any { it.isLetter() } &&
+      !isAvoided && text.length >= 2 && text.any { it.isLetterOrDigit() } &&
         line.bounds.height() <= max(1, screen.height() / 6) &&
         abs(line.bounds.centerX() - screen.centerX()) < screen.width() * 42 / 100
     }
@@ -214,8 +232,7 @@ internal class SubtitleTracker(
     }
     return groups.maxByOrNull { group ->
       val box = union(group)
-      val lower = if (box.centerY() > screen.top + screen.height() * 55 / 100) 40 else 0
-      lower + min(40, group.sumOf { it.text.length }) -
+      min(40, group.sumOf { it.text.length }) -
         abs(box.centerX() - screen.centerX()) * 20 / max(1, screen.width())
     } ?: emptyList()
   }
@@ -228,6 +245,10 @@ internal class SubtitleTracker(
       abs(a.centerX() - b.centerX()) <= max(a.width(), b.width()) / 2
 
   companion object {
+    private val controlTime = Regex("""\d{1,2}:\d{2}(?::\d{2})?(?:\s*/\s*\d{1,2}:\d{2}(?::\d{2})?)?""")
+
+    internal fun isControlTime(text: String): Boolean = controlTime.matches(text.trim())
+
     internal fun resizeBounds(box: Rect, old: Rect, next: Rect): Rect = Rect(
       next.left + (box.left - old.left) * next.width() / max(1, old.width()),
       next.top + (box.top - old.top) * next.height() / max(1, old.height()),

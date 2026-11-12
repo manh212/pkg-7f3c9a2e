@@ -145,33 +145,50 @@ class SubtitleControllerTest {
     assertFalse(get("active") as Boolean)
   }
 
-  @Test fun automaticReadsUpperCaptionFromChangedContainerAndFollowsItsReplacement() {
+  @Test fun automaticConfirmsChangingJwCaptionAndKeepsItThroughGapsAndRediscovery() {
     service.foregroundBounds = Rect(0, 0, 1000, 560)
     restartWithRegion("auto")
     val first = "Hãy công nhận quyền của robot!"
     val second = "Kiên quyết phản đối!"
-    val source = captionContainer(first)
-    assertFalse(readAccessible(source))
-    assertTrue(readAccessible(captionContainer(first), fromWindow = true))
-    assertTrue(readAccessible(captionContainer(second)))
-    assertTrue(readAccessible(captionContainer(second), fromWindow = true))
-    assertEquals(listOf(first to true, second to true), speaker.spoken)
+    val third = "Chúng ta sẽ quyết định."
+    assertTrue(readAccessible(playerContainer(first)))
+    assertTrue(readAccessible(playerContainer(first)))
+    assertTrue(speaker.spoken.isEmpty())
+    assertTrue(readAccessible(playerContainer(second)))
+    val request = get("generation") as Int
+    assertTrue(readAccessible(playerContainer(null)))
+    frameLines(request, listOf(SubtitleLine("Chữ ngoài video", Rect(100, 400, 900, 440), 95)))
+    controller.findAgain()
+    assertTrue(readAccessible(playerContainer(null)))
+    frameLines(get("generation") as Int,
+      listOf(SubtitleLine("OCR trong khoảng trống", Rect(100, 400, 900, 440), 95)))
+    assertTrue(readAccessible(playerContainer(third)))
+    assertEquals(listOf(second to true, third to true), speaker.spoken)
   }
 
-  @Test fun aNarrowCustomRegionReadsTextAtFullCaptionHeightAndFallsBackToOcr() {
+  @Test fun automaticWaitsForKnownPlayerAndKeepsMarkedCaptionsOutsideTheVideo() {
+    service.foregroundBounds = Rect(0, 0, 1000, 560)
+    restartWithRegion("auto")
+    assertTrue(readAccessible(captionContainer("Tiêu đề trang ngoài video")))
+    val requestWithoutPlayer = get("generation") as Int
+    frameLines(requestWithoutPlayer, listOf(SubtitleLine("Chữ trên trang web", Rect(100, 400, 900, 440), 95)))
+    assertTrue(speaker.spoken.isEmpty())
+
+    val caption = "Dải phụ đề bên dưới video"
+    assertTrue(readAccessible(playerContainer(caption, marked = true)))
+    assertEquals(listOf(caption to true), speaker.spoken)
+  }
+
+  @Test fun aNarrowCustomRegionKeepsTheAccessibleSourceWhenTextIsTemporarilyAbsent() {
     val prefs = SharedPreferencesUtils.getSharedPreferences(service)
     prefs.edit().putInt(SubtitleSettings.TOP, 0).putInt(SubtitleSettings.BOTTOM, 15).commit()
     restartWithRegion("custom")
     val caption = "Một dòng phụ đề cỡ lớn"
-    assertTrue(readAccessible(captionContainer(caption), fromWindow = true))
+    assertTrue(readAccessible(captionContainer(caption)))
     val request = get("generation") as Int
-    frameLines(request, listOf(SubtitleLine("OCR trùng lúc có văn bản", Rect(100, 40, 900, 90))))
+    assertTrue(readAccessible(captionContainer(null)))
+    frameLines(request, listOf(SubtitleLine("OCR đến sau câu chữ", Rect(100, 40, 900, 90), 95)))
     assertEquals(listOf(caption to true), speaker.spoken)
-
-    assertFalse(readAccessible(captionContainer(null), fromWindow = true))
-    val fallback = "Phụ đề tiếp theo nhận dạng bằng OCR"
-    frameLines(request, listOf(SubtitleLine(fallback, Rect(100, 40, 900, 90))))
-    assertEquals(listOf(caption to true, fallback to true), speaker.spoken)
   }
 
   @Test fun subtitleTreeScanFiltersPlayerControlsAndHonorsTheSelectedRegion() {
@@ -179,13 +196,9 @@ class SubtitleControllerTest {
     try {
       val upper = Rect(0, 0, 1000, 200)
       val lower = Rect(0, 800, 1000, 1000)
-      val upperLines = SubtitleAccessibility.findLines(
-        source, upper, maxLineHeight = 100, automatic = false, allowUpper = true,
-        scanChildren = true, scanWindow = true)
-      val lowerLines = SubtitleAccessibility.findLines(
-        source, lower, maxLineHeight = 100, automatic = false, allowUpper = true,
-        scanChildren = true, scanWindow = true)
-      assertEquals(listOf("Phụ đề ở phía trên"), upperLines.map { it.text })
+      val upperLines = SubtitleAccessibility.findPlayerGroups(source, service.foregroundBounds, upper, manual = true)
+      val lowerLines = SubtitleAccessibility.findPlayerGroups(source, service.foregroundBounds, lower, manual = true)
+      assertEquals(listOf("Phụ đề ở phía trên"), upperLines.flatMap { group -> group.lines.map { it.text } })
       assertTrue(lowerLines.isEmpty())
     } finally {
       source.recycle()
@@ -225,12 +238,48 @@ class SubtitleControllerTest {
     }
   }
 
-  private fun readAccessible(source: AccessibilityNodeInfo, fromWindow: Boolean = false): Boolean {
+  private fun playerContainer(caption: String?, marked: Boolean = false): AccessibilityNodeInfo {
+    val captionBounds = if (marked) Rect(100, 470, 900, 515) else Rect(100, 10, 900, 90)
+    val text = if (caption == null) emptyList() else listOf(
+      node(captionBounds, type = "android.widget.TextView", text = caption),
+    )
+    val captionBranch = if (marked) {
+      node(service.foregroundBounds, id = "jw-captions", children = text)
+    } else {
+      val display = node(service.foregroundBounds, children = text)
+      val track = node(service.foregroundBounds, children = listOf(display))
+      val captions = node(service.foregroundBounds, children = listOf(track))
+      node(service.foregroundBounds, children = listOf(captions))
+    }
+    val playerBounds = if (marked) Rect(0, 0, 1000, 445) else service.foregroundBounds
+    val player = node(playerBounds, id = "jw-player-test", children = listOf(captionBranch))
+    val page = node(Rect(100, 400, 900, 440), type = "android.widget.TextView", text = "Tiêu đề trang")
+    return node(service.foregroundBounds, children = listOf(page, player))
+  }
+
+  private fun node(
+    bounds: Rect,
+    type: String = "android.view.View",
+    id: String? = null,
+    text: String? = null,
+    children: List<AccessibilityNodeInfo> = emptyList(),
+  ): AccessibilityNodeInfo = AccessibilityNodeInfo.obtain().apply {
+    isVisibleToUser = true
+    className = type
+    viewIdResourceName = id
+    this.text = text
+    setBoundsInScreen(bounds)
+    children.forEach { shadowOf(this).addChild(it) }
+    ReflectionHelpers.callInstanceMethod<Any>(
+      this, "setSealed", ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+  }
+
+  private fun readAccessible(source: AccessibilityNodeInfo): Boolean {
     val method = SubtitleController::class.java.getDeclaredMethod(
-      "readAccessibleSubtitle", AccessibilityNodeInfo::class.java, Boolean::class.javaPrimitiveType)
+      "readAccessibleSubtitle", AccessibilityNodeInfo::class.java)
     method.isAccessible = true
     return try {
-      method.invoke(controller, source, fromWindow) as Boolean
+      method.invoke(controller, source) as Boolean
     } finally {
       source.recycle()
     }

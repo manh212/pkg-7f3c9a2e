@@ -17,8 +17,9 @@ class SubtitleVideoViewportTest {
       player.viewIdResourceName = "com.google.android.youtube:id/watch_player"
       player.setBoundsInScreen(Rect(20, 100, 1000, 650))
       player.isVisibleToUser = true
-      val found = SubtitleVideoViewport.find(player, Rect(0, 0, 1080, 1920))
-      assertEquals(Rect(20, 100, 1000, 650), found)
+      val found = SubtitleVideoViewport.findPlayer(player, Rect(0, 0, 1080, 1920))
+      assertEquals(Rect(20, 100, 1000, 650), found?.bounds)
+      found?.node?.recycle()
     } finally { player.recycle() }
   }
 
@@ -28,8 +29,9 @@ class SubtitleVideoViewportTest {
       player.viewIdResourceName = "jw-player-episode"
       player.setBoundsInScreen(Rect(20, 100, 1000, 650))
       player.isVisibleToUser = true
-      assertEquals(Rect(20, 100, 1000, 650),
-        SubtitleVideoViewport.find(player, Rect(0, 0, 1080, 1920)))
+      val found = SubtitleVideoViewport.findPlayer(player, Rect(0, 0, 1080, 1920))
+      assertEquals(Rect(20, 100, 1000, 650), found?.bounds)
+      found?.node?.recycle()
     } finally { player.recycle() }
   }
 
@@ -39,7 +41,7 @@ class SubtitleVideoViewportTest {
       label.viewIdResourceName = "com.google.android.youtube:id/video_title"
       label.setBoundsInScreen(Rect(10, 100, 1000, 650))
       label.isVisibleToUser = true
-      assertNull(SubtitleVideoViewport.find(label, Rect(0, 0, 1080, 1920)))
+      assertNull(SubtitleVideoViewport.findPlayer(label, Rect(0, 0, 1080, 1920)))
     } finally { label.recycle() }
   }
 }

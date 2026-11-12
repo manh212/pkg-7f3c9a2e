@@ -237,7 +237,10 @@ object RemoteOcr {
           }
         }
         lines.add(
-          TesseractOcr.TextLine(line.getString(OcrService.KEY_TEXT), bounds(line), words)
+          TesseractOcr.TextLine(
+            line.getString(OcrService.KEY_TEXT), bounds(line), words,
+            line.optInt(OcrService.KEY_CONFIDENCE, -1),
+          )
         )
       }
       lines

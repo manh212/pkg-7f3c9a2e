@@ -71,8 +71,10 @@ class SubtitleTrackerTest {
     assertNull(outcome.text)
   }
 
-  @Test fun fastOcrCanReadBurnedInBottomCaptionOnFirstFrame() {
+  @Test fun fastOcrReadsShortBurnedInCaptionsOnceTheRegionIsConfirmed() {
     val tracker = SubtitleTracker(true, fastOcr = true)
+    assertEquals(SubtitleFrameStatus.WAITING_FOR_STABILITY,
+      tracker.observeFrame(listOf(line("Phụ đề xuất hiện rất nhanh")), screen).status)
     val first = tracker.observeFrame(listOf(line("Phụ đề xuất hiện rất nhanh")), screen)
     assertEquals(SubtitleFrameStatus.READY, first.status)
     assertEquals("Phụ đề xuất hiện rất nhanh", first.text)
@@ -82,9 +84,28 @@ class SubtitleTrackerTest {
     assertEquals("Ừ", shortText.text)
   }
 
+  @Test fun ocrNoiseCannotLockTheRegionAndUncertainTextNeedsAnotherFrame() {
+    val tracker = SubtitleTracker(automatic = false, fastOcr = true)
+    val noise = line("W``").copy(confidence = 95)
+    val tooWeak = line("Chữ sai").copy(confidence = 32)
+    val caption = line("Phụ đề đúng").copy(confidence = 65)
+    assertEquals(SubtitleFrameStatus.NO_SUBTITLE_CANDIDATE,
+      tracker.observeFrame(listOf(noise, tooWeak, line("01:20 / 23:02")), screen).status)
+    assertNull(tracker.observeFrame(listOf(caption), screen).text)
+    assertEquals("Phụ đề đúng", tracker.observeFrame(listOf(caption), screen).text)
+  }
+
+  @Test fun highConfidenceBurnedInCaptionCanStartAboveTheVideoCenter() {
+    val tracker = SubtitleTracker(automatic = true, fastOcr = true)
+    val caption = line("Phụ đề dính vào hình", top = 50).copy(confidence = 95)
+    assertNull(tracker.observeFrame(listOf(caption), screen).text)
+    assertEquals(caption.text, tracker.observeFrame(listOf(caption), screen).text)
+    assertNotNull(tracker.lockedBounds)
+  }
+
   @Test fun wrongLockedRegionIsReleasedEvenIfOcrSeesOtherText() {
     val tracker = SubtitleTracker(true, fastOcr = true)
-    tracker.observeFrame(listOf(line("Lời thoại dưới video")), screen)
+    repeat(2) { tracker.observeFrame(listOf(line("Lời thoại dưới video")), screen) }
     assertNotNull(tracker.lockedBounds)
     val unrelated = listOf(line("Chữ ở giao diện khác", 120))
     repeat(7) {
@@ -99,7 +120,7 @@ class SubtitleTrackerTest {
   @Test fun staticTextIsReleasedInsteadOfBeingLockedForever() {
     val tracker = SubtitleTracker(true, fastOcr = true)
     val staticLabel = listOf(line("Phần mô tả cố định"))
-    tracker.observeFrame(staticLabel, screen)
+    repeat(2) { tracker.observeFrame(staticLabel, screen) }
     repeat(14) { tracker.observeFrame(staticLabel, screen) }
     assertNull(tracker.lockedBounds)
     val next = tracker.observeFrame(staticLabel, screen)

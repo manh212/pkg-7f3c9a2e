@@ -228,7 +228,7 @@ public final class OcrEngine implements AutoCloseable {
       }
       List<TesseractOcr.TextLine> words = includeWords
           ? readWords(corners, lineWidth, image.cols(), image.rows()) : Collections.emptyList();
-      return new TesseractOcr.TextLine(text, bounds, words);
+      return new TesseractOcr.TextLine(text, bounds, words, recognizer.meanConfidence());
     } finally {
       recognizer.clear();
       source.release();

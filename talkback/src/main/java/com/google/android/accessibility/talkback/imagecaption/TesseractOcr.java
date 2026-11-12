@@ -41,15 +41,21 @@ public final class TesseractOcr {
     public final String text;
     public final Rect bounds;
     public final List<TextLine> words;
+    public final int confidence;
 
     public TextLine(String text, Rect bounds) {
       this(text, bounds, Collections.emptyList());
     }
 
     public TextLine(String text, Rect bounds, List<TextLine> words) {
+      this(text, bounds, words, -1);
+    }
+
+    public TextLine(String text, Rect bounds, List<TextLine> words, int confidence) {
       this.text = text;
       this.bounds = new Rect(bounds);
       this.words = new ArrayList<>(words);
+      this.confidence = confidence;
     }
   }
 

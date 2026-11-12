@@ -8,12 +8,16 @@ import java.util.Locale
 
 /** Finds a known video player surface so OCR avoids unrelated page text and controls. */
 internal object SubtitleVideoViewport {
-  fun find(root: AccessibilityNodeInfo, appWindow: Rect): Rect? {
+  class Player(val node: AccessibilityNodeInfo, val bounds: Rect) {
+    val key = node.viewIdResourceName?.takeIf { it.isNotBlank() } ?: node.hashCode().toString()
+  }
+
+  fun findPlayer(root: AccessibilityNodeInfo, appWindow: Rect): Player? {
     val queue = ArrayDeque<AccessibilityNodeInfo>()
     val deadline = SystemClock.uptimeMillis() + 35L
     var current: AccessibilityNodeInfo? = root
     var visited = 0
-    var winner: Rect? = null
+    var winner: Player? = null
     var bestRank = 0
     var bestArea = 0L
     try {
@@ -37,7 +41,8 @@ internal object SubtitleVideoViewport {
             val windowArea = appWindow.width().toLong() * appWindow.height()
             if (area >= windowArea / 15 && box.width() * 2 >= box.height() &&
                 (rank > bestRank || (rank == bestRank && area > bestArea))) {
-              winner = box
+              winner?.node?.recycle()
+              winner = Player(AccessibilityNodeInfo.obtain(node), box)
               bestRank = rank
               bestArea = area
             }
@@ -51,6 +56,9 @@ internal object SubtitleVideoViewport {
         if (node !== root) node.recycle()
         current = if (queue.isEmpty()) null else queue.removeFirst()
       }
+    } catch (error: RuntimeException) {
+      winner?.node?.recycle()
+      throw error
     } finally {
       if (current != null && current !== root) current.recycle()
       while (!queue.isEmpty()) queue.removeFirst().recycle()

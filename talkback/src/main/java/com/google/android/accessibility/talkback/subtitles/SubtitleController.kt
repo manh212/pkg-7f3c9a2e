@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Rect
-import android.net.Uri
 import android.provider.Settings
 import android.os.Build
 import android.os.Handler
@@ -68,15 +67,20 @@ class SubtitleController internal constructor(
   private var active = false
   private var generation = 0
   private var owner = ""
+  private var ownerWindowId = -1
   private var viewport = Rect()
   private var ocrViewport = Rect()
-  private var hasVideoViewport = false
-  private var lastVideoViewportCheck = 0L
+  private var playerKey: String? = null
+  private var playerAvailable = false
   private var focus: Rect? = null
   private var tracker = SubtitleTracker(true)
-  private var accessibilityTracker = SubtitleTracker(true)
-  private var lastAccessibleFrameAt: Long? = null
-  private var lastAccessibilityEventAt: Long? = null
+  private val accessibilityTracker = SubtitleTracker(false)
+  private var captionBranch: SubtitleAccessibility.Branch? = null
+  private var captionSamples = emptyMap<SubtitleAccessibility.Branch, CaptionSample>()
+  private var readPosted = false
+  private var ocrEnabled = false
+  private var ocrUnavailableAnnounced = false
+  private var ocrRetryAfter = 0L
   private val overlay = SubtitleOverlay(service)
   private var capturePending = false
   private var failures = 0
@@ -87,6 +91,7 @@ class SubtitleController internal constructor(
   private var missingWindowSince = 0L
   private var lastDelivered = ""
   private var lastDeliveredAt = 0L
+  private var lastDeliveredSource: Source? = null
   private var status = ""
   private val captureTimeout = Runnable {
     if (active && capturePending) {
@@ -98,15 +103,30 @@ class SubtitleController internal constructor(
     }
   }
   private var pendingText: String? = null
+  private var pendingSource: Source? = null
   private var pendingAt = 0L
   private var quietUntil = 0L
   private var receiverRegistered = false
   private var closed = false
   private val capture = Runnable { captureFrame() }
+  private val readAccessibility = Runnable {
+    readPosted = false
+    if (active && sameApplication()) readAccessibleWindow()
+  }
+
+  private enum class Source { ACCESSIBILITY, OCR }
+
+  private data class CaptionSample(
+    val text: String,
+    val startedAt: Long,
+    val lastSeenAt: Long,
+  )
+
   private companion object {
     const val TAG = "SubtitleController"
     const val CAPTURE_TIMEOUT_MS = 8_000L
-    const val ACCESSIBILITY_EVENT_INTERVAL_MS = 100L
+    const val ACCESSIBILITY_EVENT_INTERVAL_MS = 200L
+    const val CAPTION_CONFIRMATION_MS = 3_000L
   }
   private val speakPending = object : Runnable {
     override fun run() {
@@ -167,38 +187,20 @@ class SubtitleController internal constructor(
       }
       return
     }
-    // The special permission powers the visible overlay, NOT screenshot OCR.
-    if (service is TalkBackService && !Settings.canDrawOverlays(service)) {
-      announce("Hãy cấp quyền Hiển thị trên các ứng dụng khác cho lớp phủ trạng thái phụ đề, rồi bật lại tính năng.")
-      try {
-        service.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-          Uri.parse("package:" + service.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-      } catch (e: RuntimeException) {
-        LogUtils.w(TAG, "Cannot launch overlay permission page: %s", e.message)
-      }
-      return
-    }
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-      announce(service.getString(R.string.subtitle_requires_android))
-      return
-    }
-    if (!TesseractOcr.isDataDownloaded(service)) {
-      announce(service.getString(R.string.subtitle_model_missing))
-      return
-    }
+    ocrEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && TesseractOcr.isDataDownloaded(service)
+    ocrUnavailableAnnounced = false
     val root = foregroundRoot()
     if (root == null) { announce(service.getString(R.string.subtitle_no_window)); return }
     try {
       owner = root.packageName?.toString().orEmpty()
+      ownerWindowId = root.windowId
       root.getBoundsInScreen(viewport)
       focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)?.let { node ->
         try { Rect().also { node.getBoundsInScreen(it) } } finally { node.recycle() }
       }
-      val video = if (SubtitleSettings.region(prefs) == "auto")
-        SubtitleVideoViewport.find(root, viewport) else null
-      hasVideoViewport = video != null
-      ocrViewport = video ?: Rect(viewport)
-      lastVideoViewportCheck = SystemClock.uptimeMillis()
+      ocrViewport = Rect(viewport)
+      playerKey = null
+      playerAvailable = false
     } finally { root.recycle() }
     if (owner.isEmpty() || viewport.isEmpty) {
       announce(service.getString(R.string.subtitle_no_window))
@@ -209,20 +211,23 @@ class SubtitleController internal constructor(
       return
     }
     tracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto", fastOcr = true)
-    accessibilityTracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto")
-    lastAccessibleFrameAt = null
-    lastAccessibilityEventAt = null
+    accessibilityTracker.reset()
+    captionBranch = null
+    captionSamples = emptyMap()
     emptyFrames = 0
     noTextAnnounced = false
     nearDarkFrames = 0
     captureWasDark = false
     missingWindowSince = 0L
     lastDelivered = ""
+    lastDeliveredAt = 0L
+    lastDeliveredSource = null
     active = true
     LogUtils.i(TAG, "Subtitle reading started; interval=%d", SubtitleSettings.interval(prefs))
     setStatus("Đang tìm phụ đề")
     generation++
     failures = 0
+    ocrRetryAfter = 0L
     quietUntil = SystemClock.uptimeMillis() + 1000L
     ContextCompat.registerReceiver(service, screenReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
     receiverRegistered = true
@@ -243,12 +248,15 @@ class SubtitleController internal constructor(
     overlay.restoreAfterCapture()
     tracker.reset()
     accessibilityTracker.reset()
-    lastAccessibleFrameAt = null
-    lastAccessibilityEventAt = null
+    captionSamples = emptyMap()
     pendingText = null
+    pendingSource = null
     handler.removeCallbacks(speakPending)
+    handler.removeCallbacks(readAccessibility)
+    readPosted = false
     speaker.stop()
     announce(service.getString(R.string.subtitle_searching))
+    if (sameApplication()) readAccessibleWindow()
     schedule()
   }
 
@@ -268,12 +276,17 @@ class SubtitleController internal constructor(
     handler.removeCallbacks(capture)
     handler.removeCallbacks(captureTimeout)
     handler.removeCallbacks(speakPending)
+    handler.removeCallbacks(readAccessibility)
+    readPosted = false
     capturePending = false
     pendingText = null
+    pendingSource = null
     tracker.reset()
     accessibilityTracker.reset()
-    lastAccessibleFrameAt = null
-    lastAccessibilityEventAt = null
+    captionBranch = null
+    captionSamples = emptyMap()
+    playerKey = null
+    playerAvailable = false
     overlay.dismiss()
     status = ""
     if (wasActive) LogUtils.i(TAG, "Stopped subtitle reading")
@@ -298,6 +311,7 @@ class SubtitleController internal constructor(
     if (!active) return
     quietUntil = SystemClock.uptimeMillis() + 1200L
     pendingText = null
+    pendingSource = null
     handler.removeCallbacks(speakPending)
     speaker.stop()
   }
@@ -316,15 +330,11 @@ class SubtitleController internal constructor(
     // Ignore focus navigation to avoid reading controls as subtitles.
     if ((event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
       event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) &&
-      event.packageName?.toString() == owner) {
-      val now = SystemClock.uptimeMillis()
-      if (lastAccessibilityEventAt?.let { now - it < ACCESSIBILITY_EVENT_INTERVAL_MS } == true) return
-      refreshVideoViewport()
-      val source = event.source ?: return
-      lastAccessibilityEventAt = now
-      try {
-        readAccessibleSubtitle(source, fromWindow = false)
-      } finally { source.recycle() }
+      event.packageName?.toString() == owner &&
+      (ownerWindowId < 0 || event.windowId < 0 || ownerWindowId == event.windowId) &&
+      !readPosted) {
+      readPosted = true
+      handler.postDelayed(readAccessibility, ACCESSIBILITY_EVENT_INTERVAL_MS)
     }
   }
 
@@ -343,32 +353,49 @@ class SubtitleController internal constructor(
     return activeRoot
   }
 
-  private fun refreshVideoViewport() {
-    if (!active || SubtitleSettings.region(prefs) != "auto") return
-    val now = SystemClock.uptimeMillis()
-    if (now - lastVideoViewportCheck < 3000L) return
-    lastVideoViewportCheck = now
-    val root = foregroundRoot() ?: return
-    try {
-      if (root.packageName?.toString() != owner) return
-      val video = SubtitleVideoViewport.find(root, viewport)
-      val next = video ?: Rect(viewport)
-      val foundVideo = video != null
-      if (next == ocrViewport && foundVideo == hasVideoViewport) return
-      hasVideoViewport = foundVideo
-      LogUtils.i(TAG, "Video viewport changed: %s -> %s", ocrViewport, next)
-      ocrViewport = next
-      generation++
-      capturePending = false
-      handler.removeCallbacks(captureTimeout)
-      overlay.restoreAfterCapture()
-      tracker.reset()
-      accessibilityTracker.reset()
-      lastAccessibleFrameAt = null
-      emptyFrames = 0
-      noTextAnnounced = false
-      schedule()
-    } finally { root.recycle() }
+  private fun invalidateCapture() {
+    generation++
+    capturePending = false
+    handler.removeCallbacks(captureTimeout)
+    overlay.restoreAfterCapture()
+    schedule()
+  }
+
+  private fun resetScope() {
+    invalidateCapture()
+    handler.removeCallbacks(speakPending)
+    tracker.reset()
+    accessibilityTracker.reset()
+    captionBranch = null
+    captionSamples = emptyMap()
+    pendingText = null
+    pendingSource = null
+    if (lastDeliveredSource != null) speaker.stop()
+    lastDelivered = ""
+    lastDeliveredAt = 0L
+    lastDeliveredSource = null
+    emptyFrames = 0
+    noTextAnnounced = false
+    failures = 0
+    ocrRetryAfter = 0L
+  }
+
+  private fun updatePlayer(player: SubtitleVideoViewport.Player?) {
+    val wasAvailable = playerAvailable
+    playerAvailable = player != null
+    if (player == null) {
+      if (wasAvailable && SubtitleSettings.region(prefs) == "auto") invalidateCapture()
+      return
+    }
+    val key = player.key
+    if (key != playerKey) {
+      resetScope()
+      playerKey = key
+    } else if (player.bounds != ocrViewport) {
+      invalidateCapture()
+      tracker.resize(ocrViewport, player.bounds)
+    }
+    ocrViewport = player.bounds
   }
 
   private fun sameApplication(): Boolean {
@@ -386,17 +413,22 @@ class SubtitleController internal constructor(
       }
       missingWindowSince = 0L
       val bounds = Rect().also { root.getBoundsInScreen(it) }
-      if (!bounds.isEmpty && bounds != viewport) {
+      if (root.windowId >= 0 && root.windowId != ownerWindowId) {
+        resetScope()
+        ownerWindowId = root.windowId
+        playerKey = null
+        playerAvailable = false
+        focus = null
+        if (!bounds.isEmpty) viewport = bounds
+        ocrViewport = Rect(viewport)
+        schedule()
+      } else if (!bounds.isEmpty && bounds != viewport) {
         LogUtils.d(TAG, "Viewport changed; invalidating old screenshot")
-        generation++
-        capturePending = false
-        handler.removeCallbacks(captureTimeout)
-        overlay.restoreAfterCapture()
+        invalidateCapture()
         val previousOcrViewport = Rect(ocrViewport)
         ocrViewport = SubtitleTracker.resizeBounds(ocrViewport, viewport, bounds)
         tracker.resize(previousOcrViewport, ocrViewport)
         accessibilityTracker.resize(previousOcrViewport, ocrViewport)
-        lastAccessibleFrameAt = null
         focus = focus?.let { SubtitleTracker.resizeBounds(it, viewport, bounds) }
         viewport = bounds
         schedule()
@@ -422,6 +454,20 @@ class SubtitleController internal constructor(
       schedule()
       return
     }
+    if (!ocrEnabled) {
+      if (!ocrUnavailableAnnounced) {
+        ocrUnavailableAnnounced = true
+        val message = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+          R.string.subtitle_requires_android else R.string.subtitle_model_missing
+        setStatus(service.getString(message))
+      }
+      schedule()
+      return
+    }
+    if (SystemClock.uptimeMillis() < ocrRetryAfter) {
+      schedule()
+      return
+    }
     val request = generation
     capturePending = true
     captureWasDark = false
@@ -444,7 +490,11 @@ class SubtitleController internal constructor(
               return
             }
             val region = Rect(tracker.lockedBounds ?: if (SubtitleSettings.region(prefs) == "auto")
-              ocrViewport else (SubtitleSettings.bounds(prefs, viewport, focus) ?: viewport))
+              ocrViewport else (SubtitleSettings.bounds(prefs, viewport, focus) ?: run {
+                bitmap.recycle()
+                complete(request, emptyList())
+                return
+              }))
             if (!region.intersect(0, 0, bitmap.width, bitmap.height) || region.isEmpty) {
               LogUtils.w(TAG, "Invalid screenshot crop: bitmap=%dx%d", bitmap.width, bitmap.height)
               bitmap.recycle()
@@ -462,7 +512,7 @@ class SubtitleController internal constructor(
             if (cropped !== bitmap) bitmap.recycle()
             val stats = SubtitleImageProcessor.inspect(cropped)
             captureWasDark = stats.nearlyUniformDark
-            val controls = if (SubtitleSettings.region(prefs) == "auto" && tracker.lockedBounds == null) controlBounds() else emptyList()
+            val controls = controlBounds()
             val enhance = emptyFrames >= 3 && emptyFrames % 2 == 1
             LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d enhanced=%s",
               cropped.width, cropped.height, region, stats.darkPercent, stats.contrastRange, enhance)
@@ -490,7 +540,7 @@ class SubtitleController internal constructor(
     val image = prepared.bitmap
     val lines = try {
       TesseractOcr.recognizeSegments(service, image)?.map {
-        SubtitleLine(it.text, prepared.screenBounds(it.bounds, region))
+        SubtitleLine(it.text, prepared.screenBounds(it.bounds, region), it.confidence)
       }
     } finally {
       image.recycle()
@@ -505,13 +555,9 @@ class SubtitleController internal constructor(
   private fun captureFailed(reason: String) {
     failures++
     LogUtils.w(TAG, "OCR failure=%s count=%d", reason, failures)
-    if (failures >= 3) {
-      stop(false)
-      announce(service.getString(R.string.subtitle_failed))
-    } else {
-      setStatus("Đang thử nhận dạng lại")
-      schedule()
-    }
+    if (failures >= 3) ocrRetryAfter = SystemClock.uptimeMillis() + 5_000L
+    setStatus("Đang thử nhận dạng lại")
+    schedule()
   }
 
   private fun complete(request: Int, lines: List<SubtitleLine>?) {
@@ -521,16 +567,14 @@ class SubtitleController internal constructor(
     overlay.restoreAfterCapture()
     if (!sameApplication()) { stop(false); return }
     if (request != generation) { schedule(); return }
-    if (lastAccessibleFrameAt?.let {
-        SystemClock.uptimeMillis() - it <= SubtitleSettings.interval(prefs)
-      } == true) {
+    val automatic = SubtitleSettings.region(prefs) == "auto"
+    if (captionBranch != null || (automatic && !playerAvailable)) {
       schedule()
       return
     }
     if (lines == null) { captureFailed("screenshot/recognizer"); return }
     failures = 0
-    val result = tracker.observeFrame(lines, ocrViewport)
-    val hasCandidate = result.candidateLines > 0
+    val result = tracker.observeFrame(lines, if (automatic) ocrViewport else viewport)
     LogUtils.d(TAG, "OCR frame: rawLines=%d candidateLines=%d state=%s locked=%s released=%s",
       lines.size, result.candidateLines, result.status, tracker.lockedBounds != null, result.regionReleased)
     // Important: unrelated OCR text must NOT reset the missing-caption watchdog.
@@ -564,55 +608,108 @@ class SubtitleController internal constructor(
       pendingText = null
       if (SubtitleSettings.interrupt(prefs)) speaker.stop()
     }
-    result.text?.let { queueSubtitle(it, "ocr") }
+    result.text?.let { queueSubtitle(it, Source.OCR) }
     schedule()
   }
 
   private fun readAccessibleWindow(): Boolean {
-    val mode = SubtitleSettings.region(prefs)
-    if (!canScanWindowForSubtitles(mode)) return false
-    val root = foregroundRoot() ?: return false
+    val root = foregroundRoot() ?: return true
     return try {
-      root.packageName?.toString() == owner && readAccessibleSubtitle(root, fromWindow = true)
+      if (root.packageName?.toString() != owner ||
+        (ownerWindowId >= 0 && root.windowId >= 0 && root.windowId != ownerWindowId)) return true
+      readAccessibleSubtitle(root)
     } finally { root.recycle() }
   }
 
-  private fun canScanWindowForSubtitles(mode: String): Boolean =
-    hasVideoViewport || viewport.width() > viewport.height() || (mode != "auto" && mode != "full")
-
-  private fun readAccessibleSubtitle(source: AccessibilityNodeInfo, fromWindow: Boolean): Boolean {
+  private fun readAccessibleSubtitle(root: AccessibilityNodeInfo): Boolean {
     val mode = SubtitleSettings.region(prefs)
-    val automatic = mode == "auto"
-    val frame = if (automatic) ocrViewport else viewport
-    val region = if (automatic) frame else SubtitleSettings.bounds(prefs, frame, focus) ?: return false
-    val canScanWindow = canScanWindowForSubtitles(mode)
-    val sourceBounds = Rect().also(source::getBoundsInScreen)
-    val scanChildren = canScanWindow || sourceBounds.isEmpty ||
-      sourceBounds.height() <= region.height() / 2
-    val lines = SubtitleAccessibility.findLines(
-      source, region, frame.height() / 6, automatic, allowUpper = canScanWindow,
-      scanChildren = scanChildren, scanWindow = fromWindow || sourceBounds.height() > region.height() / 2)
-    if (lines.isEmpty() && !fromWindow) return false
-    val result = accessibilityTracker.observeFrame(lines, frame, fastText = true)
-    if (result.candidateLines == 0 || !accessibilityTracker.visible) {
-      if (fromWindow) lastAccessibleFrameAt = null
-      return false
+    val player = SubtitleVideoViewport.findPlayer(root, viewport)
+    try {
+      updatePlayer(player)
+      if (player == null && mode == "auto") {
+        if (captionBranch != null) observeAccessible(emptyList())
+        return true
+      }
+      val region = SubtitleSettings.bounds(prefs, viewport, focus) ?: return true
+      val playerGroups = player?.let { SubtitleAccessibility.findPlayerGroups(it.node, it.bounds, region) }.orEmpty()
+      val groups = if (playerGroups.isEmpty() && mode != "auto" && mode != "full" &&
+        (captionBranch == null || captionBranch == SubtitleAccessibility.MANUAL_BRANCH)) {
+        SubtitleAccessibility.findPlayerGroups(root, viewport, region, manual = true)
+      } else playerGroups
+      val selected = captionBranch
+      if (selected != null) {
+        val current = groups.firstOrNull { it.branch == selected }
+        if (current != null) {
+          observeAccessible(current.lines)
+        } else {
+          val replacement = confirmCaption(groups)
+          if (replacement != null) selectCaption(replacement) else observeAccessible(emptyList())
+        }
+        return true
+      }
+      val confirmed = confirmCaption(groups)
+      if (confirmed != null) {
+        selectCaption(confirmed)
+        return true
+      }
+      val now = SystemClock.uptimeMillis()
+      return captionSamples.values.any { now - it.startedAt <= CAPTION_CONFIRMATION_MS }
+    } finally { player?.node?.recycle() }
+  }
+
+  private fun confirmCaption(groups: List<SubtitleAccessibility.Group>): SubtitleAccessibility.Group? {
+    groups.firstOrNull { it.branch.marked }?.let { return it }
+    val now = SystemClock.uptimeMillis()
+    val samples = captionSamples.filterValues { now - it.lastSeenAt <= 10_000L }.toMutableMap()
+    val changed = mutableListOf<SubtitleAccessibility.Group>()
+    for (group in groups) {
+      val text = SubtitleTracker.normalize(group.lines.joinToString(" ") { it.text })
+      if (text.isEmpty()) continue
+      val previous = samples[group.branch]
+      if (previous != null && !SubtitleTracker.similar(previous.text, text)) changed.add(group)
+      samples[group.branch] = CaptionSample(text, previous?.startedAt ?: now, now)
     }
-    lastAccessibleFrameAt = SystemClock.uptimeMillis()
+    captionSamples = samples
+    return changed.singleOrNull()
+  }
+
+  private fun selectCaption(group: SubtitleAccessibility.Group) {
+    captionBranch = group.branch
+    captionSamples = emptyMap()
+    if (pendingSource == Source.OCR) {
+      pendingText = null
+      pendingSource = null
+      handler.removeCallbacks(speakPending)
+    }
+    if (lastDeliveredSource == Source.OCR &&
+      !matchesRecentDelivery(group.lines.joinToString(" ") { it.text })) speaker.stop()
     failures = 0
     emptyFrames = 0
     nearDarkFrames = 0
     noTextAnnounced = false
-    result.text?.let { queueSubtitle(it, "accessibility") }
-    return true
+    observeAccessible(group.lines)
   }
 
-  private fun queueSubtitle(text: String, source: String) {
-    val key = SubtitleTracker.normalize(text)
+  private fun observeAccessible(lines: List<SubtitleLine>) {
+    val frame = accessibilityTracker.observeFrame(lines, viewport, fastText = true)
+    if (lines.isEmpty() && pendingSource == Source.ACCESSIBILITY) {
+      pendingText = null
+      pendingSource = null
+    }
+    frame.text?.let { queueSubtitle(it, Source.ACCESSIBILITY) }
+  }
+
+  private fun matchesRecentDelivery(text: String): Boolean =
+    SystemClock.uptimeMillis() - lastDeliveredAt < 1500L &&
+      SubtitleTracker.similar(SubtitleTracker.normalize(text), lastDelivered)
+
+  private fun queueSubtitle(text: String, source: Source) {
     val now = SystemClock.uptimeMillis()
-    if (key.isEmpty() || (key == lastDelivered && now - lastDeliveredAt < 10_000L)) return
-    LogUtils.d(TAG, "Subtitle queued source=%s length=%d", source, text.length)
+    if (SubtitleTracker.normalize(text).isEmpty() ||
+      (lastDeliveredSource != source && matchesRecentDelivery(text))) return
+    LogUtils.d(TAG, "Subtitle queued source=%s length=%d", source.name.lowercase(), text.length)
     pendingText = text
+    pendingSource = source
     pendingAt = now
     handler.removeCallbacks(speakPending)
     setStatus("Đang đọc phụ đề")
@@ -623,10 +720,15 @@ class SubtitleController internal constructor(
   private fun deliverPending() {
     if (!canUseFeature("ocr")) { stop(false); return }
     val text = pendingText ?: return
+    val source = pendingSource ?: return
+    val request = generation
     pendingText = null
+    pendingSource = null
     if (!active || !sameApplication()) { stop(false); return }
+    if (request != generation || (source == Source.OCR && captionBranch != null)) return
     lastDelivered = SubtitleTracker.normalize(text)
     lastDeliveredAt = SystemClock.uptimeMillis()
+    lastDeliveredSource = source
     speaker.speak(text, SubtitleSettings.interrupt(prefs))
   }
 
@@ -648,7 +750,7 @@ class SubtitleController internal constructor(
       while (queue.isNotEmpty() && visited++ < 250 && SystemClock.uptimeMillis() < deadline) {
         val node = queue.removeFirst()
         try {
-          if (node.isVisibleToUser && (node.isClickable || node.isEditable)) {
+          if (node.isVisibleToUser && (node.isClickable || node.isEditable || node.rangeInfo != null)) {
             val box = Rect().also { node.getBoundsInScreen(it) }
             if (box.width().toLong() * box.height() < viewport.width().toLong() * viewport.height() / 10) boxes.add(box)
           }

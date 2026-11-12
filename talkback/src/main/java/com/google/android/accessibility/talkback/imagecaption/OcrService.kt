@@ -134,6 +134,7 @@ class OcrService : Service() {
           .put(KEY_RIGHT, line.bounds.right)
           .put(KEY_BOTTOM, line.bounds.bottom)
           .put(KEY_WORDS, words)
+          .put(KEY_CONFIDENCE, line.confidence)
       )
     }
     return array.toString()
@@ -164,5 +165,6 @@ class OcrService : Service() {
     const val KEY_RIGHT = "right"
     const val KEY_BOTTOM = "bottom"
     const val KEY_WORDS = "words"
+    const val KEY_CONFIDENCE = "confidence"
   }
 }
