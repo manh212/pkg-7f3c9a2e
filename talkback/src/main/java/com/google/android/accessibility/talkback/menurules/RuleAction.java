@@ -25,6 +25,7 @@ import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.collapse.CollapsedItemActions;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
+import com.google.android.accessibility.talkback.quickactions.SettingsQuickActions;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +38,7 @@ import java.util.List;
 public class RuleAction extends NodeMenuRule {
   private final CustomActionMenu customActionMenu;
   private final CollapsedItemActions collapsedItemActions;
+  private final SettingsQuickActions settingsQuickActions;
   private final EditingAndSelectingMenu editingAndSelectingMenu;
   private final TypoSuggestionMenu typoSuggestionMenu;
   private final LinkMenu linkMenu;
@@ -53,6 +55,7 @@ public class RuleAction extends NodeMenuRule {
         R.bool.pref_show_context_menu_custom_action_default);
     customActionMenu = new CustomActionMenu(pipeline, analytics);
     collapsedItemActions = new CollapsedItemActions(pipeline, analytics);
+    settingsQuickActions = new SettingsQuickActions(pipeline, analytics);
     editingAndSelectingMenu =
         new EditingAndSelectingMenu(pipeline, actorState, accessibilityFocusMonitor, analytics);
     typoSuggestionMenu = new TypoSuggestionMenu(pipeline, actorState, accessibilityFocusMonitor);
@@ -65,6 +68,7 @@ public class RuleAction extends NodeMenuRule {
   public boolean accept(Context context, AccessibilityNodeInfoCompat node) {
     return customActionMenu.accept(context, node)
         || collapsedItemActions.accept(context, node)
+        || settingsQuickActions.accept(context, node)
         || editingAndSelectingMenu.accept(context, node)
         || typoSuggestionMenu.accept(context, node)
         || linkMenu.accept(context, node)
@@ -88,6 +92,11 @@ public class RuleAction extends NodeMenuRule {
     if (collapsedItemActions.accept(context, node)) {
       actionItems.addAll(
           collapsedItemActions.getMenuItemsForNode(context, node, includeAncestors));
+    }
+
+    if (settingsQuickActions.accept(context, node)) {
+      actionItems.addAll(
+          settingsQuickActions.getMenuItemsForNode(context, node, includeAncestors));
     }
 
     if (editingAndSelectingMenu.accept(context, node)) {

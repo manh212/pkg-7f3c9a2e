@@ -24,6 +24,7 @@ import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.contextmenu.ListSubMenu;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator.MenuRules;
+import com.google.android.accessibility.talkback.quickactions.SettingsQuickActions;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,7 +69,8 @@ public class NodeMenuRuleProcessor implements NodeMenuProvider {
     }
 
     for (ContextMenuItem menuItem : menuItems) {
-      if (CollapsedItemActions.isCollapsedActionItem(menuItem)) {
+      if (CollapsedItemActions.isCollapsedActionItem(menuItem)
+          || SettingsQuickActions.isQuickActionItem(menuItem)) {
         continue;
       }
       setNodeMenuDefaultCloseRules(menuItem);
@@ -108,7 +110,10 @@ public class NodeMenuRuleProcessor implements NodeMenuProvider {
       return;
     }
 
-    menuItems.removeIf(CollapsedItemActions::isCollapsedActionItem);
+    menuItems.removeIf(
+        item ->
+            CollapsedItemActions.isCollapsedActionItem(item)
+                || SettingsQuickActions.isQuickActionItem(item));
     if (menuItems.isEmpty()) {
       return;
     }
@@ -177,7 +182,10 @@ public class NodeMenuRuleProcessor implements NodeMenuProvider {
       List<ContextMenuItem> ruleResults =
           nodeMenuRule.getMenuItemsForNode(service, node, /* includeAncestors= */ false);
       if (ruleResults != null) {
-        ruleResults.removeIf(CollapsedItemActions::isCollapsedActionItem);
+        ruleResults.removeIf(
+            item ->
+                CollapsedItemActions.isCollapsedActionItem(item)
+                    || SettingsQuickActions.isQuickActionItem(item));
       }
       if (ruleResults == null || ruleResults.isEmpty()) {
         continue;
