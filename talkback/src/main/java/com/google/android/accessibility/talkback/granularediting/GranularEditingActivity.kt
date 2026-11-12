@@ -914,7 +914,7 @@ ${JSONObject().put("source", target)}"""
     val nameField = editText(R.string.text_editor_save_as_file_name, savedName)
     val typeSpinner =
       Spinner(this).apply {
-        id = View.generateViewId()
+        this.id = View.generateViewId()
         adapter =
           ArrayAdapter(
               this@GranularEditingActivity,
