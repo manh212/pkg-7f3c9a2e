@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:defaultValue="@string/pref_audio_output_device_default"
+      android:dialogTitle="@string/dialog_title_audio_output_device"
+      android:entries="@array/pref_audio_output_device_entries"
+      android:entryValues="@array/pref_audio_output_device_values"
+      android:key="@string/pref_audio_output_device_key"
+      android:summary="%s"
+      android:title="@string/title_pref_audio_output_device" />
+  <MultiSelectListPreference
+      android:dialogTitle="@string/title_pref_speaker_devices"
+      android:key="@string/pref_speaker_devices_key"
+      android:title="@string/title_pref_speaker_devices" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:title="@string/title_pref_low_latency_audio"
+      android:summary="@string/summary_pref_low_latency_audio"
+      android:key="pref_low_latency_audio" />
+</PreferenceScreen>
