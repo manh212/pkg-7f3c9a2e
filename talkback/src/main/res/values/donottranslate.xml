@@ -147,6 +147,20 @@
     <string name="pref_emoji_repeat_count_key" translatable="false">pref_emoji_repeat_count</string>
     <string name="pref_capital_letters_key">pref_capital_letters</string>
     <string name="pref_a11y_hints_key">pref_a11y_hints</string>
+    <!-- The values of the usage-hints mode: read every hint, only the actions hint, none. -->
+    <string name="value_a11y_hints_all" translatable="false">all</string>
+    <string name="value_a11y_hints_actions" translatable="false">actions</string>
+    <string name="value_a11y_hints_off" translatable="false">off</string>
+    <string-array name="pref_a11y_hints_entries">
+        <item>@string/pref_a11y_hints_entry_all</item>
+        <item>@string/pref_a11y_hints_entry_actions</item>
+        <item>@string/pref_a11y_hints_entry_off</item>
+    </string-array>
+    <string-array name="pref_a11y_hints_values" translatable="false">
+        <item>@string/value_a11y_hints_all</item>
+        <item>@string/value_a11y_hints_actions</item>
+        <item>@string/value_a11y_hints_off</item>
+    </string-array>
     <string name="pref_speak_container_element_positions_key">pref_speak_container_element_positions_key</string>
     <string name="pref_table_headers_category_key">pref_table_headers_category_key</string>
     <string name="pref_table_column_headers_key">pref_table_column_headers_key</string>
@@ -1459,7 +1473,7 @@
     <string name="pref_typing_confirmation_default">@string/typing_type_lift_to_type</string>
     <string name="pref_typing_long_press_duration_default">@string/typing_long_press_default</string>
     <bool name="pref_phonetic_letters_default">true</bool>
-    <bool name="pref_a11y_hints_default">true</bool>
+    <string name="pref_a11y_hints_default" translatable="false">actions</string>
     <bool name="pref_speak_container_element_positions_default">true</bool>
     <bool name="pref_table_speak_row_column_numbers_default">true</bool>
     <bool name="pref_tell_time_default">true</bool>

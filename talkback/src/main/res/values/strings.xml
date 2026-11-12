@@ -594,6 +594,13 @@
       Description: Explains when usage hints will be spoken. [CHAR LIMIT=NONE]
     -->
     <string name="summary_pref_a11y_hints">After an item is described, say how to use it</string>
+    <!--
+      Source: Choices for when usage hints are spoken.
+      Description: Read every hint, only the hint that the item has actions, or none. [CHAR LIMIT=40]
+    -->
+    <string name="pref_a11y_hints_entry_all">Read hints</string>
+    <string name="pref_a11y_hints_entry_actions">Actions only</string>
+    <string name="pref_a11y_hints_entry_off">Off</string>
 
     <!--
       Source: Preference for speaking positions of element in lists or grids or containers when moving accessibility focus.

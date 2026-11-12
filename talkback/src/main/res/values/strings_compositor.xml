@@ -735,6 +735,8 @@
 
   <!-- Hint spoken when suggestions are available for a mis-spelled word or phrase. [CHAR_LIMIT=NONE] -->
   <string name="hint_suggestion">Proofreading is available</string>
+  <!-- Hint spoken when the focused item has actions and usage hints are set to actions only. [CHAR_LIMIT=NONE] -->
+  <string name="hint_actions_available">Actions available, swipe up or down to choose</string>
   <!-- The hint to notify the total number of typos are in the edit text and introduce how to use typo granularity. This is spoken to the user.[CHAR_LIMIT=NONE] -->
   <string name="template_hint_edit_text_containing_typo">Proofreading is available. <xliff:g id="typo_count">%1$d</xliff:g> misspelled words. <xliff:g example="Swipe right" id="reading_menu_down_gesture">%2$s</xliff:g> and use \"Proofread\" to view</string>
   <!-- The hint to notify typo is added and introduce how to choose a spelling suggestion. This is spoken to the user. [CHAR_LIMIT=NONE] -->
