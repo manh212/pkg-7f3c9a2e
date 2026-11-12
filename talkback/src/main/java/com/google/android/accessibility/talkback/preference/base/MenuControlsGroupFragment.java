@@ -35,7 +35,6 @@ public class MenuControlsGroupFragment extends TalkBackPreferenceFragment {
         findPreference(getString(R.string.pref_category_manage_selector_menu_key));
     if (selector != null && SelectorGroupManager.isSupported()) {
       SelectorGroupManager.ensureInitialized(requireContext());
-      selector.setTitle(R.string.selector_groups_title);
       selector.setFragment(SelectorGroupsFragment.class.getName());
     }
 
