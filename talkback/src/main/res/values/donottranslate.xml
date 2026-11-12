@@ -61,6 +61,16 @@
     <string name="pref_switch_languages_key">pref_switch_languages</string>
     <string name="pref_switch_dialects_key">pref_switch_dialects</string>
     <string name="pref_voice_profiles_screen_key">pref_tts_voice_profiles</string>
+    <string name="pref_voice_engine_stream_screen_key" translatable="false">pref_voice_engine_stream_screen</string>
+    <string name="pref_voice_language_screen_key" translatable="false">pref_voice_language_screen</string>
+    <string name="pref_voice_pronunciation_screen_key" translatable="false">pref_voice_pronunciation_screen</string>
+    <string name="pref_voice_feature_voices_screen_key" translatable="false">pref_voice_feature_voices_screen</string>
+    <string name="pref_voice_feature_notification_key" translatable="false">pref_voice_feature_notification</string>
+    <string name="pref_voice_feature_clock_key" translatable="false">pref_voice_feature_clock</string>
+    <string name="pref_voice_feature_stopwatch_key" translatable="false">pref_voice_feature_stopwatch</string>
+    <string name="pref_voice_feature_alarm_key" translatable="false">pref_voice_feature_alarm</string>
+    <string name="pref_voice_feature_bilingual_original_key" translatable="false">pref_voice_feature_bilingual_original</string>
+    <string name="pref_voice_feature_bilingual_translated_key" translatable="false">pref_voice_feature_bilingual_translated</string>
     <string name="pref_speech_pitch_seekbar_key_int" translatable="false">pref_speech_pitch_seekbar_key_int</string>
     <string name="pref_speech_volume_seekbar_key_int" translatable="false">pref_speech_volume_seekbar_key_int</string>
     <string name="pref_intonation_key">pref_intonation</string>
@@ -169,6 +179,7 @@
     <string name="pref_category_group_tools_key" translatable="false">pref_category_group_tools_key</string>
     <string name="pref_category_group_advanced_key" translatable="false">pref_category_group_advanced_key</string>
     <string name="pref_category_group_help_center_key" translatable="false">pref_category_group_help_center_key</string>
+    <string name="pref_category_group_voice_key" translatable="false">pref_category_group_voice_key</string>
     <string name="pref_settings_group_speech_key" translatable="false">pref_settings_group_speech_key</string>
     <string name="pref_settings_group_navigation_key" translatable="false">pref_settings_group_navigation_key</string>
     <string name="pref_settings_group_gestures_shortcuts_key" translatable="false">pref_settings_group_gestures_shortcuts_key</string>
