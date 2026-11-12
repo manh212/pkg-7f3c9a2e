@@ -6,13 +6,13 @@
       android:key="pref_navigation_movement"
       android:title="@string/title_pref_navigation_movement" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.SmartContextGestureSettingsFragment"
-      android:key="pref_smart_context_settings"
-      android:title="@string/smart_context_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.TouchActivationFragment"
       android:key="@string/pref_touch_activation_key"
       android:title="@string/title_pref_touch_activation" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.preference.base.SmartContextGestureSettingsFragment"
+      android:key="pref_smart_context_settings"
+      android:title="@string/smart_context_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.directtouch.DirectTouchFragment"
       android:key="@string/pref_direct_touch_key"
@@ -29,8 +29,4 @@
       android:fragment="com.google.android.accessibility.talkback.volume.VolumeKeySettingsFragment"
       android:key="pref_volume_key_settings_screen"
       android:title="@string/volume_key_settings_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="@bool/pref_touch_stops_speech_default"
-      android:key="@string/pref_touch_stops_speech_key"
-      android:title="@string/title_pref_touch_stops_speech" />
 </PreferenceScreen>

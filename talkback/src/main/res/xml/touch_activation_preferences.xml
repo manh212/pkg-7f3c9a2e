@@ -23,6 +23,7 @@
       android:summary="@string/summary_pref_speak_nav_bar_buttons"
       android:title="@string/title_pref_speak_nav_bar_buttons" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:key="pref_extended_two_finger_gestures" android:defaultValue="false"
-      android:title="@string/extended_gestures_title" android:summary="@string/extended_gestures_summary" />
+      android:defaultValue="@bool/pref_touch_stops_speech_default"
+      android:key="@string/pref_touch_stops_speech_key"
+      android:title="@string/title_pref_touch_stops_speech" />
 </PreferenceScreen>
