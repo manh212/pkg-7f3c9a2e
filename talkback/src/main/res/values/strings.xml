@@ -1634,7 +1634,7 @@
       Source: Preference title.
       Description: This preference that shows current supported typing confirmation type. [CHAR_LIMIT=60]
     -->
-    <string name="title_pref_typing_confirmation">Typing method</string>
+    <string name="title_pref_typing_confirmation">How to confirm keys</string>
 
     <!--
       Source: Preference title.
@@ -3258,6 +3258,27 @@
   Description: The user can set sound. [CHAR_LIMIT=NONE]
   -->
   <string name="title_pref_sound">Sound</string>
+
+  <!-- Title for the sound sub-screen holding feedback sounds. [CHAR LIMIT=NONE] -->
+  <string name="title_pref_sound_feedback">Feedback sounds</string>
+  <!-- Title for the sound sub-screen holding the audio output and latency. [CHAR LIMIT=NONE] -->
+  <string name="title_pref_sound_output">Output and latency</string>
+  <!-- Title for the sound sub-screen holding audio ducking and muting. [CHAR LIMIT=NONE] -->
+  <string name="title_pref_sound_ducking">Ducking and muting</string>
+  <!-- Title for the sound sub-screen holding vibration feedback. [CHAR LIMIT=NONE] -->
+  <string name="title_pref_sound_vibration">Vibration</string>
+  <!-- Title for the sound sub-screen listing the sound of each feature. [CHAR LIMIT=NONE] -->
+  <string name="title_pref_sound_feature_sounds">Sounds for each feature</string>
+  <!-- Summary of a feature sound row when the feature makes no sound. [CHAR LIMIT=NONE] -->
+  <string name="sound_feature_no_sound">No sound</string>
+  <!-- Summary of a feature sound row when the feature vibrates. [CHAR LIMIT=NONE] -->
+  <string name="sound_feature_vibration_on">Vibration</string>
+  <!-- Summary of a feature sound row when the feature does not vibrate. [CHAR LIMIT=NONE] -->
+  <string name="sound_feature_vibration_off">No vibration</string>
+  <!-- Summary of a feature sound row when the feature's sound is on. [CHAR LIMIT=NONE] -->
+  <string name="sound_feature_on">On</string>
+  <!-- Summary of a feature sound row when the feature's sound is off. [CHAR LIMIT=NONE] -->
+  <string name="sound_feature_off">Off</string>
 
   <!--
     Source: An utterance template for announcing copy of text (during edit).
