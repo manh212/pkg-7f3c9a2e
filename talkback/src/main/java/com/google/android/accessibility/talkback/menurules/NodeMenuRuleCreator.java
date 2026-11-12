@@ -101,7 +101,7 @@ public class NodeMenuRuleCreator {
     return getMenuRule(MenuRules.getRuleById(ruleId));
   }
 
-  @Nullable NodeMenuRule getMenuRule(@Nullable MenuRules rule) {
+  public @Nullable NodeMenuRule getMenuRule(@Nullable MenuRules rule) {
     if (rule == null) {
       return null;
     }
