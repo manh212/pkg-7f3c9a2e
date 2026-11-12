@@ -1,6 +1,7 @@
 package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
+import android.content.res.XmlResourceParser
 import android.util.Xml
 import androidx.annotation.XmlRes
 import com.google.android.accessibility.talkback.R
@@ -125,7 +126,7 @@ class VoiceSettingsStructureTest {
     val rows = mutableListOf<Pair<String, String?>>()
     while (parser.next() != XmlPullParser.END_DOCUMENT) {
       if (parser.eventType == XmlPullParser.START_TAG && parser.name != "PreferenceScreen") {
-        val key = keyOf(parser.getAttributeValue(NAMESPACE, "key"))
+        val key = keyOf(parser)
         if (key != null) {
           rows.add(key to parser.getAttributeValue(NAMESPACE, "fragment"))
         }
@@ -135,19 +136,12 @@ class VoiceSettingsStructureTest {
   }
 
   /**
-   * Robolectric's getAttributeValue does not resolve @string keys, so look the resource up by
-   * name instead.
+   * Robolectric's getAttributeValue does not resolve @string keys, so read the resource id
+   * directly from the parser and resolve it instead.
    */
-  private fun keyOf(raw: String?): String? {
-    if (raw == null) {
-      return null
-    }
-    if (!raw.startsWith("@string/")) {
-      return raw
-    }
-    val name = raw.removePrefix("@string/")
-    val resId = context.resources.getIdentifier(name, "string", context.packageName)
-    return if (resId == 0) raw else context.getString(resId)
+  private fun keyOf(parser: XmlResourceParser): String? {
+    val resId = parser.getAttributeResourceValue(NAMESPACE, "key", 0)
+    return if (resId != 0) context.getString(resId) else parser.getAttributeValue(NAMESPACE, "key")
   }
 
   companion object {
