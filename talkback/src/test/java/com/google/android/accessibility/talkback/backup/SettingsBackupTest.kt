@@ -19,11 +19,13 @@ package com.google.android.accessibility.talkback.backup
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.gesture.GestureProfiles
 import com.google.android.accessibility.talkback.migration.MigrationFiles
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.talkback.preference.ItemOrder
 import com.google.android.accessibility.talkback.update.Updater
+import com.google.android.accessibility.talkback.utils.VerbosityPreferences
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -495,6 +497,39 @@ class SettingsBackupTest {
     SettingsBackup.applyEventProcessingLevelResetIfNeeded(context)
 
     assertEquals("low", prefs.getString("pref_event_processing_level", null))
+  }
+
+  @Test
+  fun usageHintsResetSetsEveryInstallToActionsOnlyOnce() {
+    val state = SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
+    state.edit().clear().commit()
+    prefs.edit().clear().putBoolean("pref_a11y_hints", true).commit()
+
+    SettingsBackup.applyUsageHintsResetIfNeeded(context)
+
+    assertEquals("actions", prefs.getString("pref_a11y_hints", null))
+    assertTrue(state.getBoolean("usage_hints_reset", false))
+
+    prefs.edit().putString("pref_a11y_hints", "off").commit()
+    SettingsBackup.applyUsageHintsResetIfNeeded(context)
+
+    assertEquals("off", prefs.getString("pref_a11y_hints", null))
+  }
+
+  @Test
+  fun usageHintsResetMigratesOldValuesBeforeForcingActionsOnly() {
+    val state = SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
+    state.edit().clear().commit()
+    val customKey =
+      VerbosityPreferences.toVerbosityPrefKey(
+        context.getString(R.string.pref_verbosity_preset_value_custom), "pref_a11y_hints")
+    prefs.edit().clear().putBoolean("pref_a11y_hints", false).putBoolean(customKey, true).commit()
+
+    SettingsBackup.applyUsageHintsResetIfNeeded(context)
+
+    assertEquals("actions", prefs.getString("pref_a11y_hints", null))
+    assertEquals("all", prefs.getString(customKey, null))
+    assertTrue(state.getBoolean("usage_hints_reset", false))
   }
 
   private fun bundledSettings(): String =
