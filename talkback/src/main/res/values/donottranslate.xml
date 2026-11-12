@@ -1121,6 +1121,7 @@
         <item>@android:string/paste</item>
         <item>@string/title_copy_last_spoken_phrase</item>
         <item>@string/granular_editing_title</item>
+        <item>@string/text_editor_title</item>
         <item>@string/shortcut_dictate</item>
     </string-array>
 
