@@ -185,7 +185,6 @@ import com.google.android.accessibility.talkback.gesture.GestureController;
 import com.google.android.accessibility.talkback.gesture.GestureHistory;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.TwoFingerRotationSettings;
-import com.google.android.accessibility.talkback.gesture.VibrationWatchGestureSettings;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionStorage;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.CaptionType;
 import com.google.android.accessibility.talkback.imagecaption.ImageContents;
@@ -2142,10 +2141,6 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     // Return before feedback, training, menus and gesture recording. Both callback overloads
     // use this entry point; ignoring an action in GestureController still reports it as handled.
-    if (VibrationWatchGestureSettings.shouldReserve(
-        prefs, FormFactorUtils.isAndroidWear(), gestureId)) {
-      return false;
-    }
     if (accessibilityFocusInterpreter != null) {
       accessibilityFocusInterpreter.finishWebScrollFocus();
     }

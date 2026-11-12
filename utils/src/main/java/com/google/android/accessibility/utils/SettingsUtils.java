@@ -28,12 +28,6 @@ public class SettingsUtils {
   /** Value of hidden constant {@code android.provider.Settings.Secure.USER_SETUP_COMPLETE} */
   public static final String USER_SETUP_COMPLETE = "user_setup_complete";
 
-  /**
-   * Value of hidden constant {@code
-   * android.provider.Settings.Global.ACCESSIBILITY_VIBRATION_WATCH_ENABLED}
-   */
-  public static final String VIBRATION_WATCH_ENABLED = "a11y_vibration_watch_enabled";
-
   /** Tethered Configuration state. */
   public static final String TETHER_CONFIG_STATE = "tethered_config_state";
 
@@ -94,16 +88,6 @@ public class SettingsUtils {
     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     context.startActivity(intent);
     return false;
-  }
-
-  /** Works only when the caller is a system app. */
-  public static boolean isVibrationWatchEnabled(Context context) {
-    try {
-      return Settings.Global.getInt(context.getContentResolver(), VIBRATION_WATCH_ENABLED, 0) != 0;
-    } catch (SecurityException e) {
-      // The setting is hidden, so only system apps can read it. Without it, assume it is off.
-      return false;
-    }
   }
 
   /** Returns whether the device is in standalone or restricted connectivity mode */
