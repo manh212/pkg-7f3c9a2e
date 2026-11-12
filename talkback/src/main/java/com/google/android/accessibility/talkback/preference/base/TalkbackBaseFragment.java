@@ -23,6 +23,8 @@ import androidx.preference.PreferenceScreen;
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferenceFilter;
+import com.google.android.accessibility.talkback.quickactions.QuickActionSections;
+import com.google.android.accessibility.talkback.quickactions.SettingsQuickActions;
 import com.google.android.accessibility.utils.preference.BasePreferencesFragment;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -47,6 +49,13 @@ public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
     if (getView() != null) {
       getView().post(() -> SettingsSearchNavigation.focusTarget(this));
     }
+    SettingsQuickActions.setCurrentSection(QuickActionSections.forFragment(getClass()));
+  }
+
+  @Override
+  public void onPause() {
+    SettingsQuickActions.setCurrentSection(null);
+    super.onPause();
   }
 
   /**

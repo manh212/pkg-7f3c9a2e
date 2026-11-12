@@ -92,8 +92,9 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
     }
   }
 
+  /** The title of the typing confirmation method, for the settings quick action. */
   @StringRes
-  static int titleForMethod(int method) {
+  public static int titleForMethod(int method) {
     for (TypingMethodPref candidate : TypingMethodPref.values()) {
       if (candidate.getMethod() == method) {
         return candidate.getTitleId();

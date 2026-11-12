@@ -64,7 +64,7 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   private static final String TAG = "VoiceProfileFragment";
 
   /** The ID of the profile to show. */
-  static final String ARG_PROFILE_ID = "profile_id";
+  public static final String ARG_PROFILE_ID = "profile_id";
 
   private SharedPreferences prefs;
   private String id = "";
@@ -419,6 +419,11 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
     return list;
   }
 
+  /** The preference key of a profile's seek bar row, without the "_seekbar" suffix. */
+  public static String seekBarKey(String profileId, String field) {
+    return VoiceProfiles.key(profileId, field);
+  }
+
   private void addSeekBar(
       SeekBarPreference seekBar,
       PreferenceScreen screen,
@@ -427,7 +432,7 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
       int min,
       int max,
       IntFunction<String> toPrefValue) {
-    seekBar.setKey(VoiceProfiles.key(id, field) + "_seekbar");
+    seekBar.setKey(seekBarKey(id, field) + "_seekbar");
     seekBar.setPersistent(false);
     seekBar.setTitle(titleResId);
     seekBar.setMin(min);
