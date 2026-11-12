@@ -48,7 +48,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * Exports SandFly's settings to a file and imports them from one, so that a phone can be set up
+ * Exports Meridian's settings to a file and imports them from one, so that a phone can be set up
  * like another. The file holds every preference file, in device-protected and in
  * credential-protected storage, except the updater's state, the state of the move from Backtalk
  * Aaron, and API keys.
@@ -64,10 +64,11 @@ import org.json.JSONObject
  */
 object SettingsBackup {
   private const val TAG = "SettingsBackup"
-  private const val FORMAT = "sandfly-settings"
+  private const val FORMAT = "meridian-settings"
+  private const val LEGACY_FORMAT = "sandfly-settings"
   private const val VERSION = 1
   private const val DOCUMENTS_KEY = "editorDocuments"
-  private const val FILE_NAME = "sandfly-settings.json"
+  private const val FILE_NAME = "meridian-settings.json"
   private const val INITIAL_SETTINGS_FILE = "initial-settings.json"
   private const val BUNDLED_DEFAULTS_APPLIED = "bundled_defaults_applied"
   private const val EVENT_PROCESSING_LEVEL_RESET = "event_processing_level_reset"
@@ -237,7 +238,7 @@ object SettingsBackup {
   /**
    * Replaces the settings in each preference file of [json] with the file's. Files that [json]
    * doesn't hold, API keys and the updater's state are kept. Returns false if [json] is not a
-   * SandFly settings file, and then changes nothing.
+   * Meridian settings file, and then changes nothing.
    */
   fun import(context: Context, json: String): Boolean =
     importSettings(context, json, replaceMissing = true)
@@ -250,7 +251,8 @@ object SettingsBackup {
         if (isBacktalkFile(root)) {
           return importBacktalk(backtalkStores(context), root, context)
         }
-        if (root.optString("format") != FORMAT || root.optInt("version") > VERSION) return false
+        val format = root.optString("format")
+        if ((format != FORMAT && format != LEGACY_FORMAT) || root.optInt("version") > VERSION) return false
         documents = root.optJSONArray(DOCUMENTS_KEY)
         root.getJSONObject("files")
       } catch (e: JSONException) {
@@ -391,7 +393,7 @@ object SettingsBackup {
   private fun isBacktalkFile(root: JSONObject) =
     root.opt("format") is Int && root.optJSONObject("stores") != null
 
-  /** SandFly's preference files for the stores in Backtalk's file, by their names there. */
+  /** Meridian's preference files for the stores in Backtalk's file, by their names there. */
   private fun backtalkStores(context: Context): Map<String, SharedPreferences> =
     mapOf(
       "main" to SharedPreferencesUtils.getSharedPreferences(context),
@@ -401,7 +403,7 @@ object SettingsBackup {
 
   /**
    * Sets the settings in a file exported from Backtalk, [root], in [stores]. Settings that the file
-   * doesn't hold, such as SandFly's own, are kept. Returns false if the file can't be read, and then
+   * doesn't hold, such as Meridian's own, are kept. Returns false if the file can't be read, and then
    * changes nothing.
    */
   @VisibleForTesting
@@ -469,7 +471,7 @@ object SettingsBackup {
   }
 
   /**
-   * Whether [value] can be stored under [key] in [prefs]. SandFly reads each setting as one type, so
+   * Whether [value] can be stored under [key] in [prefs]. Meridian reads each setting as one type, so
    * a value of another type, or text where a number is stored as text, would throw when read. The
    * type comes from the setting's current value, or else from its default resource.
    */
