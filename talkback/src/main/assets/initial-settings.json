@@ -885,8 +885,8 @@
           "value": true
         },
         "pref_a11y_hints": {
-          "type": "boolean",
-          "value": true
+          "type": "string",
+          "value": "actions"
         },
         "new_key_combo_model|keycombo_shortcut_other_read_current_url|key_combo_code": {
           "type": "long",
@@ -2200,8 +2200,8 @@
           "value": true
         },
         "pref_verbosity_preset_value_custom_pref_a11y_hints": {
-          "type": "boolean",
-          "value": false
+          "type": "string",
+          "value": "actions"
         },
         "new_key_combo_model|keycombo_shortcut_navigate_next_radio|trigger_modifier_used": {
           "type": "boolean",
