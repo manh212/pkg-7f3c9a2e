@@ -106,6 +106,18 @@ public class SettingsSearchIndexTest {
   }
 
   @Test
+  public void soundSubScreensAreIndexedUnderSoundAndVibration() {
+    Context context = RuntimeEnvironment.getApplication();
+    List<SettingsSearchIndex.Entry> entries = build(context);
+    assertTrue(entries.stream().anyMatch(entry -> entry.title.equals("Âm thanh phản hồi")
+        && entry.path.equals("Âm thanh và rung")));
+    assertTrue(entries.stream().anyMatch(entry -> entry.title.equals("Âm thanh cho từng tính năng")
+        && entry.path.equals("Âm thanh và rung")));
+    assertTrue(entries.stream().anyMatch(entry -> entry.title.equals("Vẫn đọc loại chế độ điều khiển")
+        && entry.fragment.endsWith("SoundThemesFragment")));
+  }
+
+  @Test
   public void indexingDoesNotChangePreferencesAndKeepsDeveloperNoticeMetadata() {
     Context context = RuntimeEnvironment.getApplication();
     SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(context);
