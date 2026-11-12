@@ -59,7 +59,7 @@ public class AccessibilityFocusHintForTV extends AccessibilityFocusHint {
 
     if (globalVariables.isUsageHintActionsOnly() && isEnabled && isAccessibilityFocused) {
       CharSequence actionsHint =
-          globalVariables.hasReadingMenuActionSettings()
+          globalVariables.hasActionsForNode(node)
               ? context.getString(R.string.hint_actions_available)
               : "";
       LogUtils.v(
