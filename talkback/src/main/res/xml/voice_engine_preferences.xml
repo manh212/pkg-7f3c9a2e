@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:defaultValue=""
+      android:key="@string/pref_tts_engine_key"
+      android:title="@string/title_pref_tts_engine" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:key="@string/pref_speech_stream_key"
+      android:title="@string/title_pref_speech_stream"
+      android:entries="@array/pref_speech_stream_entries"
+      android:entryValues="@array/pref_speech_stream_values"
+      android:summary="%s" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:key="@string/pref_system_tts_settings_key"
+      android:title="@string/title_pref_system_tts_settings"
+      android:summary="@string/summary_tts_settings" />
+</PreferenceScreen>

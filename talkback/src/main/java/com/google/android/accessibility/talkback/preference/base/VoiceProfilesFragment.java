@@ -61,9 +61,10 @@ import com.google.android.accessibility.utils.widget.KeyboardSafeEditText;
 /**
  * The voice profiles: the one in use, then Backtalk default and each profile in the order the
  * reading control goes through them, then a way to add one. A profile opens its settings when
- * tapped. It can be moved, renamed and deleted with actions from a screen reader, or renamed and
- * deleted from the menu that a long press shows. Holding a profile and dragging it moves it.
- * Nothing moves above Backtalk default, which uses the text-to-speech settings.
+ * tapped, Backtalk default included: its volume, rate, pitch and adjustment are the
+ * text-to-speech settings. A profile can be moved, renamed and deleted with actions from a
+ * screen reader, or renamed and deleted from the menu that a long press shows. Holding a
+ * profile and dragging it moves it. Nothing moves above Backtalk default.
  *
  * <p>Watches draw settings rows with Compose, so there the rows are ordinary preferences, without
  * dragging or actions, and a profile moves up and down from its own settings.
@@ -171,13 +172,12 @@ public class VoiceProfilesFragment extends TalkbackBaseFragment {
         screen.removePreference(preference);
       }
     }
-    // Backtalk default's settings are the text-to-speech settings this screen came from.
     screen.addPreference(
         watchRow(
             context,
             getString(R.string.voice_profile_default),
             null,
-            () -> requireActivity().getOnBackPressedDispatcher().onBackPressed()));
+            () -> open("")));
     for (String id : VoiceProfiles.ids(prefs)) {
       screen.addPreference(
           watchRow(
@@ -469,9 +469,6 @@ public class VoiceProfilesFragment extends TalkbackBaseFragment {
             }
             if (position == rows.size()) {
               askForNewName();
-            } else if (position == 0) {
-              // Backtalk default's settings are the text-to-speech settings this screen came from.
-              requireActivity().getOnBackPressedDispatcher().onBackPressed();
             } else {
               open(rows.get(position));
             }

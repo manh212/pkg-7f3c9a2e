@@ -39,6 +39,8 @@ import com.google.android.accessibility.talkback.speech.VoiceProfileNames;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech;
+import com.google.android.accessibility.utils.output.SpeechCompressor;
+import com.google.android.accessibility.utils.output.SpeechEqualizer;
 import com.google.android.accessibility.utils.output.VoiceProfiles;
 import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -82,11 +84,23 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
 
   private final OnSharedPreferenceChangeListener prefsListener =
       (sharedPrefs, key) -> {
-        if (key != null && key.startsWith(VoiceProfiles.key(id, ""))) {
+        if (key != null && isRelevantKey(key)) {
           updateSeekBars();
           updateEqualizerSummary();
         }
       };
+
+  /** Whether a changed preference affects this profile's sliders or adjustment summary. */
+  private boolean isRelevantKey(String key) {
+    if (isDefault()) {
+      return key.equals(getString(R.string.pref_speech_volume_key))
+          || key.equals(getString(R.string.pref_speech_rate_key))
+          || key.equals(getString(R.string.pref_speech_pitch_key))
+          || SpeechEqualizer.isKey(key)
+          || SpeechCompressor.isKey(key);
+    }
+    return key.startsWith(VoiceProfiles.key(id, ""));
+  }
 
   @Override
   public CharSequence getTitle() {
@@ -109,27 +123,38 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
     getPreferenceManager().setStorageDeviceProtected();
     PreferenceScreen screen = getPreferenceManager().createPreferenceScreen(context);
     setPreferenceScreen(screen);
-    if (!VoiceProfiles.ids(prefs).contains(id)) {
+    if (!isDefault() && !VoiceProfiles.ids(prefs).contains(id)) {
       return;
     }
 
     addName(context, screen);
     addEngine(context, screen);
-    languagePref =
-        addList(
-            context, screen, VoiceProfiles.LANGUAGE, R.string.title_pref_voice_profile_language);
-    languagePref.setOnPreferenceChangeListener(
-        (preference, newValue) -> {
-          String language = (String) newValue;
-          String voice = profile().voice();
-          if (!voice.isEmpty() && !hasVoice(language, voice)) {
-            voicePref.setValue("");
-          }
-          updateVoiceLists(language);
-          return true;
-        });
-    voicePref =
-        addList(context, screen, VoiceProfiles.VOICE, R.string.title_pref_voice_profile_voice);
+    if (!isDefault()) {
+      // Backtalk's default follows the language of what is read, so it has no fixed language
+      // or voice of its own.
+      languagePref =
+          addList(
+              context,
+              screen,
+              VoiceProfiles.key(id, VoiceProfiles.LANGUAGE),
+              R.string.title_pref_voice_profile_language);
+      languagePref.setOnPreferenceChangeListener(
+          (preference, newValue) -> {
+            String language = (String) newValue;
+            String voice = profile().voice();
+            if (!voice.isEmpty() && !hasVoice(language, voice)) {
+              voicePref.setValue("");
+            }
+            updateVoiceLists(language);
+            return true;
+          });
+      voicePref =
+          addList(
+              context,
+              screen,
+              VoiceProfiles.key(id, VoiceProfiles.VOICE),
+              R.string.title_pref_voice_profile_voice);
+    }
     addSeekBar(
         new AccessibilitySeekBarPreference(context),
         screen,
@@ -165,32 +190,63 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
     }
 
     AccessibilitySuiteSwitchPreference phrases = new AccessibilitySuiteSwitchPreference(context);
-    phrases.setKey(VoiceProfiles.key(id, VoiceProfiles.PHRASES));
+    phrases.setKey(settingKey(VoiceProfiles.PHRASES));
     phrases.setDefaultValue(false);
     phrases.setTitle(R.string.title_pref_speak_in_phrases);
     phrases.setSummary(R.string.summary_pref_speak_in_phrases);
     phrases.setIconSpaceReserved(false);
     screen.addPreference(phrases);
 
-    if (FormFactorUtils.isAndroidWear()) {
-      // Phones move profiles in the list, by dragging or with actions; watches move them here.
-      moveUp = addMove(context, screen, R.string.voice_profile_move_up, -1);
-      moveDown = addMove(context, screen, R.string.voice_profile_move_down, 1);
-      updateMoves();
+    if (!isDefault()) {
+      if (FormFactorUtils.isAndroidWear()) {
+        // Phones move profiles in the list, by dragging or with actions; watches move them here.
+        moveUp = addMove(context, screen, R.string.voice_profile_move_up, -1);
+        moveDown = addMove(context, screen, R.string.voice_profile_move_down, 1);
+        updateMoves();
+      }
+
+      Preference delete = new AccessibilitySuitePreference(context);
+      delete.setTitle(R.string.title_pref_delete_voice_profile);
+      delete.setPersistent(false);
+      delete.setIconSpaceReserved(false);
+      delete.setOnPreferenceClickListener(
+          preference -> {
+            confirmDelete();
+            return true;
+          });
+      screen.addPreference(delete);
+
+      loadVoices(profile().engine());
     }
+  }
 
-    Preference delete = new AccessibilitySuitePreference(context);
-    delete.setTitle(R.string.title_pref_delete_voice_profile);
-    delete.setPersistent(false);
-    delete.setIconSpaceReserved(false);
-    delete.setOnPreferenceClickListener(
-        preference -> {
-          confirmDelete();
-          return true;
-        });
-    screen.addPreference(delete);
+  /** Whether this page is Backtalk's default, which has no profile of its own. */
+  private boolean isDefault() {
+    return id.isEmpty();
+  }
 
-    loadVoices(profile().engine());
+  /**
+   * The preference holding {@code field} of this profile. Backtalk's default has no profile of
+   * its own, so its volume, rate, pitch, phrases and engine are the text-to-speech settings.
+   */
+  private String settingKey(String field) {
+    if (!isDefault()) {
+      return VoiceProfiles.key(id, field);
+    }
+    switch (field) {
+      case VoiceProfiles.VOLUME:
+        return getString(R.string.pref_speech_volume_key);
+      case VoiceProfiles.RATE:
+        return getString(R.string.pref_speech_rate_key);
+      case VoiceProfiles.PITCH:
+        return getString(R.string.pref_speech_pitch_key);
+      case VoiceProfiles.PHRASES:
+        return getString(R.string.pref_speak_in_phrases_key);
+      case VoiceProfiles.ENGINE:
+        return getString(R.string.pref_tts_engine_key);
+      default:
+        return VoiceProfiles.key(id, field);
+    }
   }
 
   @Override
@@ -275,11 +331,14 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
     name.setSummary(VoiceProfileNames.nameOf(context, prefs, id));
     name.setPersistent(false);
     name.setIconSpaceReserved(false);
-    name.setOnPreferenceClickListener(
-        preference -> {
-          askForName(preference);
-          return true;
-        });
+    if (!isDefault()) {
+      // Backtalk's default has a fixed name.
+      name.setOnPreferenceClickListener(
+          preference -> {
+            askForName(preference);
+            return true;
+          });
+    }
     screen.addPreference(name);
   }
 
@@ -303,6 +362,12 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   private void addEngine(Context context, PreferenceScreen screen) {
     List<String> engines = FailoverTextToSpeech.getInstalledTtsEngines(context.getPackageManager());
     String current = profile().engine();
+    if (isDefault()) {
+      current = FailoverTextToSpeech.getSelectedEngine(context);
+      if (current == null) {
+        current = "";
+      }
+    }
     List<CharSequence> entries = new ArrayList<>();
     List<CharSequence> values = new ArrayList<>();
     for (String engine : engines) {
@@ -314,10 +379,14 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
       values.add(current);
     }
     ListPreference enginePref =
-        addList(context, screen, VoiceProfiles.ENGINE, R.string.title_pref_tts_engine);
+        addList(context, screen, settingKey(VoiceProfiles.ENGINE), R.string.title_pref_tts_engine);
     enginePref.setEntries(entries.toArray(new CharSequence[0]));
     enginePref.setEntryValues(values.toArray(new CharSequence[0]));
     enginePref.setSummary("%s");
+    if (isDefault()) {
+      // Backtalk's default has no fixed language or voice to clear when the engine changes.
+      return;
+    }
     enginePref.setOnPreferenceChangeListener(
         (preference, newValue) -> {
           String engine = (String) newValue;
@@ -339,9 +408,9 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   }
 
   private ListPreference addList(
-      Context context, PreferenceScreen screen, String field, int titleResId) {
+      Context context, PreferenceScreen screen, String key, int titleResId) {
     ListPreference list = new AccessibilitySuiteListPreference(context);
-    list.setKey(VoiceProfiles.key(id, field));
+    list.setKey(key);
     list.setDefaultValue("");
     list.setTitle(titleResId);
     list.setDialogTitle(titleResId);
@@ -368,7 +437,7 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
         (preference, newValue) -> {
           prefs
               .edit()
-              .putString(VoiceProfiles.key(id, field), toPrefValue.apply((Integer) newValue))
+              .putString(settingKey(field), toPrefValue.apply((Integer) newValue))
               .apply();
           return true;
         });
@@ -376,7 +445,33 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
   }
 
   private void updateSeekBars() {
-    if (!VoiceProfiles.ids(prefs).contains(id)) {
+    if (!isDefault() && !VoiceProfiles.ids(prefs).contains(id)) {
+      return;
+    }
+    if (isDefault()) {
+      setSeekBarValue(
+          VoiceProfiles.VOLUME,
+          SharedPreferencesUtils.getIntFromStringPref(
+              prefs,
+              getResources(),
+              R.string.pref_speech_volume_key,
+              R.string.pref_speech_volume_default));
+      setSeekBarValue(
+          VoiceProfiles.RATE,
+          TextToSpeechSettingsFragment.toPercent(
+              SharedPreferencesUtils.getFloatFromStringPref(
+                  prefs,
+                  getResources(),
+                  R.string.pref_speech_rate_key,
+                  R.string.pref_speech_rate_default)));
+      setSeekBarValue(
+          VoiceProfiles.PITCH,
+          TextToSpeechSettingsFragment.toPercent(
+              SharedPreferencesUtils.getFloatFromStringPref(
+                  prefs,
+                  getResources(),
+                  R.string.pref_speech_pitch_key,
+                  R.string.pref_speech_pitch_default)));
       return;
     }
     VoiceProfile profile = profile();

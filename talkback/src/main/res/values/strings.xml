@@ -64,6 +64,14 @@
       engine, language, voice, volume, rate and pitch, that the user can switch between. [CHAR LIMIT=NONE]
     -->
     <string name="title_pref_voice_profiles">Voice profiles</string>
+    <!-- Title for the voice sub-screen holding the reader, the speech stream and the system TTS settings. [CHAR LIMIT=NONE] -->
+    <string name="title_pref_voice_engine_stream">Reader and speech stream</string>
+    <!-- Title for the voice sub-screen holding language switching and the voice order. [CHAR LIMIT=NONE] -->
+    <string name="title_pref_voice_language">Language and voice selection</string>
+    <!-- Title for the voice sub-screen holding intonation and sentence sending. [CHAR LIMIT=NONE] -->
+    <string name="title_pref_voice_pronunciation">Intonation and reading style</string>
+    <!-- Title for the voice sub-screen listing the voice of each feature. [CHAR LIMIT=NONE] -->
+    <string name="title_pref_voice_feature_voices">Voices for each feature</string>
     <!-- Name of the voice profile that uses the text-to-speech settings. It can't be removed. [CHAR LIMIT=NONE] -->
     <string name="voice_profile_default">Meridian default</string>
     <!--

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_switch_languages_default"
+      android:key="@string/pref_switch_languages_key"
+      android:title="@string/title_pref_switch_languages" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_switch_dialects_default"
+      android:key="@string/pref_switch_dialects_key"
+      android:title="@string/title_pref_switch_dialects" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.preference.base.VoiceSwitchingFragment"
+      android:key="pref_voice_switching_screen"
+      android:persistent="false"
+      android:title="@string/voice_switch_title" />
+</PreferenceScreen>
