@@ -20,7 +20,7 @@
     <item>@string/pref_text_formatting_announcement_mode_value_speech</item>
     <item>@string/pref_text_formatting_announcement_mode_value_sound</item>
   </string-array>
-  <string name="title_pref_navigation_movement" translatable="false">Di chuyển và chuyển cửa sổ</string>
+  <string name="title_pref_navigation_movement" translatable="false">Di chuyển và tiêu điểm</string>
   <string name="title_pref_backup_reset" translatable="false">Sao lưu và đặt lại</string>
   <string name="title_pref_backup_settings" translatable="false">Sao lưu cài đặt</string>
   <string name="title_pref_restore_settings" translatable="false">Khôi phục cài đặt từ bản sao lưu</string>

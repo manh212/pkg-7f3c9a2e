@@ -2671,13 +2671,9 @@
     <string name="value_typing_long_press_500ms">0.5 seconds</string>
     <!-- Title for the maximum time between taps of a one-finger multi-tap gesture. [CHAR LIMIT=NONE]-->
     <!-- Label for multi-tap timeout. [CHAR LIMIT=NONE]-->
-    <string name="value_multi_tap_timeout_100ms">0.1 seconds</string>
     <!-- Label for multi-tap timeout. [CHAR LIMIT=NONE]-->
-    <string name="value_multi_tap_timeout_150ms">0.15 seconds</string>
     <!-- Label for multi-tap timeout. [CHAR LIMIT=NONE]-->
-    <string name="value_multi_tap_timeout_200ms">0.2 seconds</string>
     <!-- Label for multi-tap timeout. [CHAR LIMIT=NONE]-->
-    <string name="value_multi_tap_timeout_250ms">0.25 seconds (default)</string>
     <!-- Title for how far 2 fingers must turn on the screen to move the rotor by one reading control. [CHAR LIMIT=NONE]-->
     <!-- Title for how far a finger slides in from the edge of the screen to the first click of an edge gesture. [CHAR LIMIT=NONE]-->
     <!-- Title for how far a finger slides on from the first click of an edge gesture to its second click. [CHAR LIMIT=NONE]-->
@@ -2821,7 +2817,7 @@
     <!-- Summary of the switch that makes the volume keys move the cursor in the focused text field. [CHAR LIMIT=NONE] -->
     <string name="summary_pref_volume_keys_move_cursor">When a text field has focus, volume up moves the cursor back a character and volume down moves it on</string>
     <!-- Title of the volume key settings, and of the screen they open. [CHAR LIMIT=NONE] -->
-    <string name="volume_key_settings_title">Volume key settings</string>
+    <string name="volume_key_settings_title">Volume keys</string>
     <!-- Title of the switch that gives Meridian the volume keys to handle itself. [CHAR LIMIT=NONE] -->
     <string name="volume_keys_managed_title">Meridian manages volume keys</string>
     <!-- Summary of the switch that gives Meridian the volume keys to handle itself. [CHAR LIMIT=NONE] -->

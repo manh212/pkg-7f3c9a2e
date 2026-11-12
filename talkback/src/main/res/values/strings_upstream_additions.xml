@@ -139,7 +139,6 @@
   <string name="title_pref_shortcut_edge_right_bottom_long_left">Vuốt dài sang trái từ nửa dưới của cạnh phải</string>
   <string name="gesture_name_2finger_tap_hold">Nhấn và giữ bằng 2 ngón tay</string>
   <string name="value_type_confirmation_tap_to_type">Nhấn vào phím bất kỳ để nhập, hoặc giữ ngón tay để chọn phím bất kỳ rồi nhấc ngón tay</string>
-  <string name="title_pref_multi_tap_timeout">Thời gian giữa các lần nhấn bằng một ngón tay</string>
   <string name="title_pref_rotor_step_degrees">Góc xoay cho mỗi bước của núm xoay</string>
   <string name="title_pref_edge_first_click_mm">Khoảng cách đến tiếng tách đầu tiên</string>
   <string name="title_pref_edge_second_click_mm">Khoảng cách từ tiếng tách thứ nhất đến thứ hai</string>
