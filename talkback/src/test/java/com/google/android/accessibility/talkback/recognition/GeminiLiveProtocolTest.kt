@@ -58,13 +58,18 @@ class GeminiLiveProtocolTest {
 
   @Test fun plainPromptAsksShortQuestionsForEachMode() {
     val prompt = GeminiLiveProtocol.plainPrompt(
-      setOf(RecognitionMode.DOORS, RecognitionMode.POINT_AND_SPEAK, RecognitionMode.TEXT), false, "en-GB")
+      setOf(RecognitionMode.DOORS, RecognitionMode.POINT_AND_SPEAK,
+        RecognitionMode.TEXT, RecognitionMode.LIGHT), false, "en-GB")
     assertEquals("What text is below the pointing finger? Is there a door in this image? Where is it, and is it open? " +
       "Answer in one short sentence, in en-GB.", prompt)
   }
 
   @Test(expected = IllegalArgumentException::class) fun textAloneNeverCreatesCloudRequest() {
     GeminiLiveProtocol.request(setOf(RecognitionMode.TEXT), true)
+  }
+
+  @Test(expected = IllegalArgumentException::class) fun lightAloneNeverCreatesCloudRequest() {
+    GeminiLiveProtocol.request(setOf(RecognitionMode.LIGHT), true)
   }
 
   @Test fun pointingRequiresPhysicalFingerAndUsesChosenSide() {
