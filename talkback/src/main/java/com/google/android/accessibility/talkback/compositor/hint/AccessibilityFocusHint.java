@@ -78,6 +78,15 @@ public class AccessibilityFocusHint {
         .append(String.format("enableUsageHint=%s", enableUsageHint))
         .append(String.format(", isEnabled=%s", isEnabled))
         .append(String.format(", isAccessibilityFocused=%s", isAccessibilityFocused));
+    if (globalVariables.isUsageHintActionsOnly() && isEnabled && isAccessibilityFocused) {
+      CharSequence actionsHint =
+          globalVariables.hasReadingMenuActionSettings()
+              ? context.getString(R.string.hint_actions_available)
+              : "";
+      logString.append(String.format("\n    actionsHint={%s}", actionsHint));
+      LogUtils.v(TAG, "    getHint: %s", logString);
+      return actionsHint;
+    }
     if (enableUsageHint && isEnabled && isAccessibilityFocused) {
       CharSequence scriptHint = Scripts.ruleHint(node);
       if (scriptHint != null) {
