@@ -28,7 +28,6 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
-import com.google.android.accessibility.talkback.quickactions.SettingsQuickActions;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +48,7 @@ import org.robolectric.annotation.Config;
 @Config(sdk = 34)
 public class NodeMenuRuleProcessorQuickActionsTest {
   private static final int NORMAL_ITEM_ID = 12345;
-  private static final int QUICK_ACTION_ITEM_ID = SettingsQuickActions.ACTION_ID_BASE + 1;
+  private static final int QUICK_ACTION_ITEM_ID = 0x5e000001;
 
   /** Minimal service for the processor to use as a context. */
   public static class TestService extends AccessibilityService {
