@@ -20,6 +20,11 @@
       android:key="pref_mute_screen_reader_sounds_in_silent"
       android:title="@string/silent_sounds_title"
       android:summary="@string/silent_sounds_summary" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_mute_speech_while_recording_default"
+      android:key="@string/pref_mute_speech_while_recording_key"
+      android:title="@string/title_pref_mute_speech_while_recording"
+      android:summary="@string/summary_pref_mute_speech_while_recording" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:defaultValue="@string/pref_audio_output_device_default"
       android:dialogTitle="@string/dialog_title_audio_output_device"
