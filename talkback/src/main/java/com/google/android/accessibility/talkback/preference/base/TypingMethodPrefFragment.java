@@ -25,10 +25,12 @@ import static com.google.android.accessibility.talkback.focusmanagement.FocusPro
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Bundle;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import android.text.TextUtils;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference;
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory;
@@ -42,9 +44,21 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
   private static final String TAG = "TypingMethodPrefFragment";
   private AccessibilitySuitePreferenceCategory typingMethodPrefCategory;
   private AccessibilitySeekBarPreference tapDelayPref;
+  private ListPreference longPressPref;
   private boolean tapDelayShown = true;
   private Context context;
   private SharedPreferences prefs;
+
+  /** Refreshes the long-press row when the typing method changes elsewhere. */
+  private final OnSharedPreferenceChangeListener onSharedPreferenceChangeListener =
+      (sharedPrefs, key) -> {
+        if (!isAdded() || getActivity() == null) {
+          return;
+        }
+        if (TextUtils.equals(key, getString(R.string.pref_typing_confirmation_key))) {
+          updateLongPressPreference();
+        }
+      };
 
   /** Preference items for typing method. */
   public enum TypingMethodPref {
@@ -112,6 +126,23 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
         (AccessibilitySeekBarPreference)
             findPreference(getString(R.string.pref_direct_input_tap_delay_key));
     updateTapDelayVisibility(currentTypingMethod());
+    longPressPref =
+        (ListPreference)
+            findPreference(getString(R.string.pref_typing_long_press_duration_key));
+    updateLongPressPreference();
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
+    prefs.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
+    updateLongPressPreference();
+  }
+
+  @Override
+  public void onPause() {
+    super.onPause();
+    prefs.unregisterOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
   }
 
   private int currentTypingMethod() {
@@ -161,9 +192,22 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
             String.valueOf(source.getMethod()));
         updateCheckedState(value);
         updateTapDelayVisibility(source.getMethod());
+        updateLongPressPreference();
         break;
       }
     }
+  }
+
+  private void updateLongPressPreference() {
+    if (longPressPref == null) {
+      return;
+    }
+    int method = currentTypingMethod();
+    longPressPref.setValue(
+        prefs.getString(
+            getString(R.string.pref_typing_long_press_duration_key),
+            getString(R.string.pref_typing_long_press_duration_default)));
+    longPressPref.setEnabled(method != DOUBLE_TAP);
   }
 
   private void initTypingMethodPref() {
