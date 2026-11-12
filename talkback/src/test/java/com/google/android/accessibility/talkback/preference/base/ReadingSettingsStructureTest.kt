@@ -122,7 +122,7 @@ class ReadingSettingsStructureTest {
     assertEquals("CallSettingsFragment", main[calls].second?.substringAfterLast('.'))
 
     assertTrue(
-      rowsOf(R.xml.notification_preferences).any {
+      rowsOf(R.xml.notification_group_automation_monitor_preferences).any {
         it.first == "pref_full_screen_monitor"
             && it.second?.contains("FullScreenMonitorSettingsFragment") == true
       },
