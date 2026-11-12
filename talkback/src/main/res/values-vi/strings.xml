@@ -1299,6 +1299,10 @@
     <string name="summary_selector_switch_tts_engine">Chuyển đổi giữa các công cụ lời nói đã cài đặt</string>
     <string name="title_selector_voice_profile">Hồ sơ giọng nói</string>
     <string name="title_pref_voice_profiles">Hồ sơ giọng nói</string>
+    <string name="title_pref_voice_engine_stream">Bộ đọc và kênh giọng nói</string>
+    <string name="title_pref_voice_language">Ngôn ngữ và chọn giọng đọc</string>
+    <string name="title_pref_voice_pronunciation">Ngữ điệu và cách đọc</string>
+    <string name="title_pref_voice_feature_voices">Giọng cho từng tính năng</string>
     <string name="voice_profile_default">Mặc định của Meridian</string>
     <string name="voice_profile_in_use">Đang dùng: <xliff:g id="name" example="Reading">%1$s</xliff:g></string>
     <string name="spoken_language_unavailable_with_profile">Không thể đổi ngôn ngữ đọc khi đang dùng hồ sơ giọng nói</string>
