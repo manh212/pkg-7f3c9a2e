@@ -49,9 +49,9 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.gesture.GestureHints;
 import com.google.android.accessibility.talkback.keyboard.KeyComboManager;
 import com.google.android.accessibility.talkback.keyboard.KeyComboModel;
-import com.google.android.accessibility.talkback.menurules.NodeMenuRule;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator.MenuRules;
+import com.google.android.accessibility.talkback.menurules.TextEntityMenu;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
 import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport;
@@ -1095,7 +1095,9 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
    * Returns whether the described node offers reading-menu actions. Unlike {@link
    * #hasReadingMenuActionSettings()}, this evaluates the described node itself instead of
    * re-deriving it from accessibility focus, so it also covers text fields whose focus sits on a
-   * keyboard key while typing.
+   * keyboard key while typing. The check is whether the actions menu for the node is actually
+   * non-empty — the rule's accept() alone is not enough, since almost every node reports a
+   * non-empty action list while its menu holds no items.
    */
   public boolean hasActionsForNode(@Nullable AccessibilityNodeInfoCompat node) {
     if (!isActionsSettingEnabled() || nodeMenuRuleCreator == null) {
@@ -1115,8 +1117,11 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
         targetNode = editingNode;
       }
     }
-    NodeMenuRule actionRule = nodeMenuRuleCreator.getMenuRule(MenuRules.RULE_CUSTOM_ACTION);
-    return actionRule != null && actionRule.accept(mContext, targetNode);
+    return TextEntityMenu.withoutWaiting(
+        () ->
+            !nodeMenuRuleCreator
+                .getNodeMenuByRule(MenuRules.RULE_CUSTOM_ACTION, mContext, targetNode, true)
+                .isEmpty());
   }
 
   private boolean isActionsSettingEnabled() {
