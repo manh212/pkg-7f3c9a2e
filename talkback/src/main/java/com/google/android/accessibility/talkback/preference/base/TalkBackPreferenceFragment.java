@@ -23,6 +23,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,8 +33,10 @@ import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.PreferenceGroup;
+import androidx.preference.PreferenceGroupAdapter;
 import androidx.preference.PreferenceScreen;
 import androidx.preference.TwoStatePreference;
+import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity.HatsRequesterViewModel;
 import com.google.android.accessibility.talkback.HatsSurveyRequester;
@@ -44,6 +47,8 @@ import com.google.android.accessibility.talkback.backup.SettingsBackup;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.actor.ImageCaptioner;
 import com.google.android.accessibility.talkback.preference.base.PreferenceActionHelper.WebPage;
+import com.google.android.accessibility.talkback.quickactions.QuickActionSections;
+import com.google.android.accessibility.talkback.quickactions.SettingsQuickActions;
 import com.google.android.accessibility.talkback.recognition.LiveRecognition;
 import com.google.android.accessibility.talkback.training.OnboardingInitiator;
 import com.google.android.accessibility.talkback.trainingcommon.tv.TvTutorialInitiator;
@@ -90,11 +95,60 @@ public class TalkBackPreferenceFragment extends TalkbackBaseFragment {
     if (getXmlResId() != R.xml.preferences) {
       return preferences;
     }
+    attachQuickActionFocusTracker();
     if (savedInstanceState != null) {
       searchQuery = savedInstanceState.getString("settings_search_query", searchQuery);
     }
     settingsSearch = new SettingsSearchController(this, searchQuery);
     return settingsSearch.wrap(preferences);
+  }
+
+  /**
+   * Publishes the focused main-screen row's section as the quick-actions section, so the
+   * Actions reading control offers that section's actions without entering it. Only the main
+   * screen tracks focus: inside a sub-screen no quick actions are offered at all.
+   */
+  private void attachQuickActionFocusTracker() {
+    RecyclerView listView = getListView();
+    if (listView == null) {
+      return;
+    }
+    listView.setAccessibilityDelegate(
+        new View.AccessibilityDelegate() {
+          @Override
+          public boolean onRequestSendAccessibilityEvent(
+              ViewGroup host, View child, AccessibilityEvent event) {
+            if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED) {
+              publishSectionForRow(child);
+            } else if (event.getEventType()
+                == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) {
+              SettingsQuickActions.setCurrentSection(null);
+            }
+            return super.onRequestSendAccessibilityEvent(host, child, event);
+          }
+        });
+  }
+
+  /** Publishes the section of the focused row, or clears it when the row opens no section. */
+  private void publishSectionForRow(View rowView) {
+    RecyclerView listView = getListView();
+    if (listView == null) {
+      SettingsQuickActions.setCurrentSection(null);
+      return;
+    }
+    int position = listView.getChildAdapterPosition(rowView);
+    if (position == RecyclerView.NO_POSITION) {
+      SettingsQuickActions.setCurrentSection(null);
+      return;
+    }
+    RecyclerView.Adapter<?> adapter = listView.getAdapter();
+    if (!(adapter instanceof PreferenceGroupAdapter)) {
+      SettingsQuickActions.setCurrentSection(null);
+      return;
+    }
+    Preference preference = ((PreferenceGroupAdapter) adapter).getItem(position);
+    SettingsQuickActions.setCurrentSection(
+        QuickActionSections.forMainScreenRow(preference, rootSearchScreen));
   }
 
   @Override
