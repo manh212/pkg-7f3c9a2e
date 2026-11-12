@@ -138,9 +138,6 @@ public class VerbosityPrefFragment extends TalkbackBaseFragment {
     switchPreferenceKeyValueMap =
         ImmutableMap.<String, Boolean>builder()
             .put(
-                getString(R.string.pref_a11y_hints_key),
-                getResources().getBoolean(R.bool.pref_a11y_hints_default))
-            .put(
                 getString(R.string.pref_intonation_key),
                 getResources().getBoolean(R.bool.pref_intonation_default))
             .put(
@@ -179,6 +176,8 @@ public class VerbosityPrefFragment extends TalkbackBaseFragment {
 
     listPreferenceKeyValueMap =
         ImmutableMap.<String, Integer>builder()
+            .put(
+                getString(R.string.pref_a11y_hints_key), R.string.pref_a11y_hints_default)
             .put(
                 getString(R.string.pref_capital_letters_key), R.string.pref_capital_letters_default)
             .put(
