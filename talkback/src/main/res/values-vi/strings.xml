@@ -374,7 +374,6 @@
   <string name="shortcut_title_special_features">Khác</string>
   <string name="shortcut_unassigned">Nhấn để gán</string>
   <string name="shortcut_not_customizable">%1$s, không tùy chỉnh được</string>
-  <string name="shortcut_disabled_due_to_vibration_watch">Không sử dụng được khi chế độ rung của đồng hồ đang bật</string>
   <string name="shortcut_next">Mục tiếp theo</string>
   <string name="shortcut_previous">Mục trước</string>
   <string name="shortcut_scroll_forward">Di chuyển về phía trước</string>
@@ -1376,9 +1375,6 @@
     <string name="title_pref_group_tools">Công cụ</string>
     <string name="title_pref_group_help_center">Trung tâm trợ giúp</string>
     <string name="title_pref_calls">Cuộc gọi</string>
-    <string name="title_pref_reserve_vibration_watch_gestures">Dành cử chỉ cho Vibration Watch</string>
-    <string name="summary_pref_reserve_vibration_watch_gestures">Meridian ngừng xử lý thao tác nhấn một lần và nhấn đúp bằng hai ngón tay để Samsung Vibration Watch có thể dùng các cử chỉ này. Hãy bật Vibration Watch trong phần cài đặt hỗ trợ tiếp cận của đồng hồ.</string>
-    <string name="shortcut_reserved_for_vibration_watch">Dành cho Vibration Watch trong phần Cài đặt nâng cao</string>
     <string name="title_pref_speakerphone_away_from_ear">Dùng loa ngoài khi đưa điện thoại ra xa tai</string>
     <string name="summary_pref_speakerphone_away_from_ear">Trong cuộc gọi, chuyển sang loa ngoài khi bạn đưa điện thoại ra xa tai, và chuyển lại loa trong khi bạn áp điện thoại lên tai.</string>
     <string name="summary_pref_speakerphone_needs_permission">Cần một quyền mà Android không cấp cho trình đọc màn hình. Để cấp quyền, hãy chạy lệnh này bằng adb hoặc Shizuku rồi quay lại màn hình này: %1$s</string>
