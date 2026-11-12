@@ -1584,6 +1584,12 @@
     <string name="title_pref_collapse_list_item_actions">Sử dụng danh sách thao tác cho các ứng dụng được hỗ trợ</string>
     <string name="summary_pref_collapse_list_item_actions">Trong các ứng dụng được hỗ trợ, mỗi mục danh sách chỉ còn một điểm dừng, và các nút của mục chuyển vào chế độ điều khiển Thao tác.</string>
     <string name="title_collapse_action_long_press">%1$s, nhấn giữ</string>
+    <!-- Spoken state of a settings quick action toggle: on. [CHAR LIMIT=NONE]-->
+    <string name="quick_action_state_on">đang bật</string>
+    <!-- Spoken state of a settings quick action toggle: off. [CHAR LIMIT=NONE]-->
+    <string name="quick_action_state_off">đang tắt</string>
+    <!-- Spoken when a settings quick action opener could not open its feature. [CHAR LIMIT=NONE]-->
+    <string name="quick_action_open_failed">không mở được</string>
     <string name="title_collapse_menu_play_on_device">Phát trên thiết bị khác</string>
     <string name="title_collapse_menu_play_next">Phát tiếp theo trong danh sách chờ</string>
     <string name="title_collapse_menu_play_last">Phát cuối cùng trong danh sách chờ</string>
