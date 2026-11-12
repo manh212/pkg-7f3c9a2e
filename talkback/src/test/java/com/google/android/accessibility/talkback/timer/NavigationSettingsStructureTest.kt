@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.XmlResourceParser
 import android.util.Xml
 import androidx.annotation.XmlRes
+import com.google.android.accessibility.talkback.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
