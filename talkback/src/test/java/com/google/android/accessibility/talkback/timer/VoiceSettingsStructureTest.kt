@@ -3,6 +3,7 @@ package com.google.android.accessibility.talkback.timer
 import android.content.Context
 import android.util.Xml
 import androidx.annotation.XmlRes
+import com.google.android.accessibility.talkback.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
