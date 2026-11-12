@@ -807,6 +807,7 @@ object Commands {
           Key.SCREEN_OVERVIEW,
           available = captions && GeminiConfiguration.screenOverviewEnabled(context),
         )
+        gesture(R.string.shortcut_value_read_captcha, R.string.shortcut_read_captcha)
         // SandFly Pro's screen recognition commands, named by the module.
         SandflyAi.features?.let {
           for ((value, label) in it.commands(context)) {

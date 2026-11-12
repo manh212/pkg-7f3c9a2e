@@ -25,7 +25,11 @@ enum class RecognitionMode(val label: Int, val usesAi: Boolean) {
   POINT_AND_SPEAK(R.string.live_recognition_point, true),
   PEOPLE(R.string.live_recognition_people, true),
   DOORS(R.string.live_recognition_doors, true),
-  CURRENCY(R.string.live_recognition_currency, false);
+  CURRENCY(R.string.live_recognition_currency, false),
+  LIGHT(R.string.live_recognition_light, false);
+
+  val usesCamera: Boolean
+    get() = this != LIGHT
 
   fun step(forward: Boolean): RecognitionMode =
     entries[Math.floorMod(ordinal + if (forward) 1 else -1, entries.size)]

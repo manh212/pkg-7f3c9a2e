@@ -22,6 +22,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -93,6 +97,21 @@ class LiveRecognitionActivity : ComponentActivity() {
   private val currencyTracker = CurrencyTracker()
   private var currencyRecognizer: CurrencyRecognizer? = null
   private val announcements = RecognitionAnnouncements()
+  private val lightListener = object : SensorEventListener {
+    override fun onSensorChanged(event: SensorEvent) {
+      if (!resumed || RecognitionMode.LIGHT !in enabled) return
+      val lux = event.values.firstOrNull() ?: return
+      if (!lux.isFinite() || lux < 0) return
+      val label = when {
+        lux < 10f -> R.string.live_recognition_light_dark
+        lux < 100f -> R.string.live_recognition_light_dim
+        else -> R.string.live_recognition_light_bright
+      }
+      announceResult(SOURCE_LIGHT, getString(label))
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+  }
   private val pendingResults = linkedMapOf<String, Pair<String, Long>>()
   private val prefs by lazy { SharedPreferencesUtils.getSharedPreferences(this) }
   // Read by the camera thread, to encode a frame only when it can be described.
@@ -245,7 +264,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       flashOn = false
       updateFlashSwitch()
       boundCamera?.cameraControl?.enableTorch(false)
-      if (enabled.isEmpty()) reconcile()
+      if (enabled.none { it.usesCamera }) reconcile()
       return
     }
     if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -256,7 +275,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     flashOn = true
     updateFlashSwitch()
-    if (boundCamera == null && enabled.isEmpty()) reconcile() else applyTorch()
+    if (boundCamera == null && enabled.none { it.usesCamera }) reconcile() else applyTorch()
   }
 
   private fun updateFlashSwitch() { flashSwitch.isChecked = flashOn }
@@ -268,7 +287,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       flashOn = false
       updateFlashSwitch()
       report(R.string.live_recognition_flash_unavailable)
-      if (enabled.isEmpty()) reconcile()
+      if (enabled.none { it.usesCamera }) reconcile()
       return
     }
     val operation = camera.cameraControl.enableTorch(flashOn)
@@ -282,7 +301,7 @@ class LiveRecognitionActivity : ComponentActivity() {
           flashOn = false
           updateFlashSwitch()
           report(R.string.live_recognition_flash_unavailable)
-          if (enabled.isEmpty()) reconcile()
+          if (enabled.none { it.usesCamera }) reconcile()
         }
       }, ContextCompat.getMainExecutor(this))
     }
@@ -296,6 +315,11 @@ class LiveRecognitionActivity : ComponentActivity() {
       speakMode(mode)
       return
     }
+    if (mode == RecognitionMode.LIGHT && LiveRecognition.lightSensor(this) == null) {
+      updateSwitches()
+      report(R.string.live_recognition_light_unavailable)
+      return
+    }
     if (mode == RecognitionMode.CURRENCY && !CurrencyRecognizer.isAvailable(this)) {
       updateSwitches()
       report(R.string.live_recognition_currency_model_missing)
@@ -306,7 +330,8 @@ class LiveRecognitionActivity : ComponentActivity() {
       report(R.string.ocr_offline_model_missing)
       return
     }
-    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+    if (mode.usesCamera &&
+        checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
       pendingPermission = mode
       updateSwitches()
       cameraPermission.launch(Manifest.permission.CAMERA)
@@ -318,7 +343,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     enabled.add(mode)
     reconcile()
-    speakMode(mode)
+    if (mode in enabled) speakMode(mode)
   }
 
   /**
@@ -374,6 +399,16 @@ class LiveRecognitionActivity : ComponentActivity() {
   /** Invalidates old OCR/network callbacks before replacing the enabled modes or camera. */
   private fun reconcile() {
     val token = ++generation
+    val sensors = getSystemService(SensorManager::class.java)
+    sensors?.unregisterListener(lightListener)
+    val lightFailed = resumed && RecognitionMode.LIGHT in enabled && (
+      LiveRecognition.lightSensor(this)?.let {
+        sensors?.registerListener(lightListener, it, SensorManager.SENSOR_DELAY_NORMAL)
+      } != true)
+    if (lightFailed) {
+      enabled.remove(RecognitionMode.LIGHT)
+      speak(getString(R.string.live_recognition_light_unavailable), true)
+    }
     LogUtils.i(TAG, "Modes: %s", enabled)
     TalkBackService.getInstance()?.speechController?.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_LIVE_RECOGNITION)
     describer?.close()
@@ -394,21 +429,27 @@ class LiveRecognitionActivity : ComponentActivity() {
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     if (!resumed || (enabled.isEmpty() && !flashOn)) {
       loadingFeedback.stop()
-      status.setText(R.string.live_recognition_camera_off)
+      status.setText(if (lightFailed) R.string.live_recognition_light_unavailable
+        else R.string.live_recognition_camera_off)
       return
     }
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    if (enabled.isNotEmpty()) {
+    if (enabled.isNotEmpty()) handler.post(runningCheck)
+    val cameraRecognition = enabled.any { it.usesCamera }
+    if (!cameraRecognition && !flashOn) {
+      loadingFeedback.stop()
+      status.setText(R.string.live_recognition_light)
+      return
+    }
+    if (cameraRecognition) {
       loadingFeedback.start()
-      handler.post(runningCheck)
       status.setText(R.string.live_recognition_camera_on)
       if (enabled.any { it.usesAi }) describer = createDescriber(token)
     } else {
-      // With all modes disabled, only the camera preview/torch is active.
       loadingFeedback.stop()
       status.setText(R.string.live_recognition_flash_only)
     }
-    startCamera(token)
+    startCamera(token, cameraRecognition)
   }
 
   /** Describes frames with what Describe image uses: see [AiBackend]. */
@@ -459,7 +500,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
   }
 
-  private fun startCamera(token: Int) {
+  private fun startCamera(token: Int, cameraRecognition: Boolean) {
     val future = ProcessCameraProvider.getInstance(this)
     future.addListener({
       if (generation != token || !resumed) return@addListener
@@ -473,7 +514,8 @@ class LiveRecognitionActivity : ComponentActivity() {
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
         val text = RecognitionMode.TEXT in enabled
         val currency = RecognitionMode.CURRENCY in enabled
-        val captureInterval = if (enabled.size == 1 && currency) CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
+        val captureInterval = if (currency && enabled.count { it.usesCamera } == 1)
+          CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
         var lastFrame = -FRAME_INTERVAL_MS
         newAnalysis.setAnalyzer(worker) { frame ->
           val now = SystemClock.elapsedRealtime()
@@ -503,8 +545,8 @@ class LiveRecognitionActivity : ComponentActivity() {
           } finally { frame.close() }
         }
         preview = newPreview
-        analysis = if (enabled.isNotEmpty()) newAnalysis else null
-        val camera = if (enabled.isEmpty()) {
+        analysis = if (cameraRecognition) newAnalysis else null
+        val camera = if (!cameraRecognition) {
           provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, newPreview)
         } else {
           provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, newPreview, newAnalysis)
@@ -530,7 +572,8 @@ class LiveRecognitionActivity : ComponentActivity() {
   private fun cameraFailed() {
     flashOn = false
     updateFlashSwitch()
-    stopRecognition()
+    enabled.removeAll { it.usesCamera }
+    reconcile()
     report(R.string.live_recognition_camera_error)
   }
 
@@ -638,6 +681,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     /** Whether the user agreed to camera images being sent to Gemini. */
     private const val CLOUD_CONSENT_PREF = "pref_live_recognition_cloud_consent"
     private const val SOURCE_TEXT = "text"
+    private const val SOURCE_LIGHT = "light"
     private const val SOURCE_AI = "ai"
     private const val SOURCE_CURRENCY = "currency"
     /** The first part of the key that says the user agreed to images going to an AI service. */

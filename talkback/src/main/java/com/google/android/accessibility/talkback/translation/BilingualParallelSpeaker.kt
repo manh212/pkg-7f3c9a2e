@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.translation
 
 import android.content.Context
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notifications.NotificationVoice
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech
@@ -35,31 +36,67 @@ class BilingualParallelSpeaker(private val context: Context) :
   private var voice: NotificationVoice? = null
   private var voiceKey: String? = null
 
-  override fun speak(text: CharSequence, profileId: String, audioStream: String) {
+  override fun speak(
+    text: CharSequence,
+    profileId: String,
+    audioStream: String,
+    originalStarted: Runnable,
+    originalFailed: Runnable,
+  ) {
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     val profile =
       profileId
         .takeIf { it.isNotEmpty() && it in VoiceProfiles.ids(prefs) }
         ?.let { VoiceProfiles.read(prefs, it) }
+        ?: VoiceProfiles.readActive(prefs)
+        ?: VoiceProfiles.VoiceProfile(
+          "",
+          "",
+          FailoverTextToSpeech.getSelectedEngine(context).orEmpty(),
+          "",
+          "",
+          SharedPreferencesUtils.getIntFromStringPref(
+            prefs, context.resources, R.string.pref_speech_volume_key, R.string.pref_speech_volume_default,
+          ),
+          SharedPreferencesUtils.getFloatFromStringPref(
+            prefs, context.resources, R.string.pref_speech_rate_key, R.string.pref_speech_rate_default,
+          ),
+          SharedPreferencesUtils.getFloatFromStringPref(
+            prefs, context.resources, R.string.pref_speech_pitch_key, R.string.pref_speech_pitch_default,
+          ),
+          false,
+        )
     val stream =
       audioStream
         .takeIf { it.isNotEmpty() }
         ?.let { FailoverTextToSpeech.audioStreamForValue(it) }
         ?: FailoverTextToSpeech.getSpeechAudioStream(context)
-    val key = "${profile?.id}:$stream"
+    val key = "${profile.id}:$stream"
     if (voice == null || voiceKey != key) {
       voice?.shutdown()
       voice = NotificationVoice(context, stream)
       voiceKey = key
     }
     val selected = voice ?: return
-    if (profile != null && selected.currentProfile != profile) selected.use(profile)
+    if (selected.currentProfile != profile) selected.use(profile)
     val locale =
-      profile
-        ?.language()
-        ?.takeIf { it.isNotEmpty() }
+      profile.language()
+        .takeIf { it.isNotEmpty() }
         ?.let { Locale.forLanguageTag(it.replace('_', '-')) }
-    selected.speak(text, true, locale, null)
+    selected.speak(text, true, locale, object : NotificationVoice.Listener {
+      private var started = false
+
+      override fun onStart() {
+        started = true
+        originalStarted.run()
+      }
+
+      override fun onDone(spoken: Boolean) {
+        if (!started) originalFailed.run()
+      }
+
+      override fun onUnavailable() = originalFailed.run()
+    })
   }
 
   override fun stop() {

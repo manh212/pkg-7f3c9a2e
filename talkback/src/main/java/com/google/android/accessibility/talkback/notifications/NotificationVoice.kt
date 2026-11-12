@@ -47,7 +47,7 @@ import java.util.Locale
  */
 class NotificationVoice(
   private val context: Context,
-  private val audioStream: Int = AudioManager.STREAM_ACCESSIBILITY,
+  private val audioStream: Int? = null,
 ) {
   /** Told when an utterance starts and when it ends, on the main thread. */
   interface Listener {
@@ -187,10 +187,13 @@ class NotificationVoice(
     }
     ready = true
     val attributes = AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-    when (audioStream) {
-      AudioManager.STREAM_MUSIC -> attributes.setUsage(AudioAttributes.USAGE_MEDIA)
-      AudioManager.STREAM_RING -> attributes.setLegacyStreamType(AudioManager.STREAM_RING)
-      else -> attributes.setUsage(FailoverTextToSpeech.speechUsage(context))
+    if (audioStream == AudioManager.STREAM_RING) {
+      attributes.setLegacyStreamType(AudioManager.STREAM_RING)
+    } else {
+      attributes.setUsage(
+        audioStream?.let(FailoverTextToSpeech::audioUsageForStream)
+          ?: FailoverTextToSpeech.speechUsage(context),
+      )
     }
     tts.setAudioAttributes(attributes.build())
     tts.setOnUtteranceProgressListener(

@@ -17,6 +17,7 @@
     <item name="copy_full_screen_menu" type="id" />
     <item name="take_focus_screenshot_menu" type="id" />
     <item name="screen_recognition_menu" type="id" />
+    <item name="read_captcha_menu" type="id" />
     <item name="task_assistant_menu" type="id" />
     <item name="selector_group_action_add" type="id" />
     <item name="selector_group_action_edit" type="id" />

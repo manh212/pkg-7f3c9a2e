@@ -308,7 +308,7 @@ public class TraversalStrategyUtils {
     AccessibilityNodeInfoCompat webViewNode = null;
 
     boolean cursorNodeNotContainedInScrollableList =
-        !scrollableNode.isScrollable()
+        !AccessibilityNodeInfoUtils.isScrollable(scrollableNode)
             || !(AccessibilityNodeInfoUtils.hasAncestor(cursor, scrollableNode)
                 || scrollableNode.equals(cursor));
 

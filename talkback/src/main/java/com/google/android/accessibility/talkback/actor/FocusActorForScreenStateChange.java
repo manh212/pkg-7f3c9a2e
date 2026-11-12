@@ -194,9 +194,11 @@ public class FocusActorForScreenStateChange {
     if (lastFocusAction == null) {
       lastFocusAction = history.getLastFocusActionRecordInWindow(windowIdentifier);
     }
-    if (lastFocusAction == null) {
-      return false;
+    boolean exactCollectionMatch = lastFocusAction == null;
+    if (exactCollectionMatch && windowType == AccessibilityWindowInfo.TYPE_APPLICATION) {
+      lastFocusAction = history.getLastFocusActionRecordInWindow(windowId);
     }
+    if (lastFocusAction == null) return false;
 
     int lastFocusedWindowType =
         AccessibilityWindowInfoUtils.getType(
@@ -218,8 +220,9 @@ public class FocusActorForScreenStateChange {
 
     long startTime = primesController.getTime();
 
-    AccessibilityNodeInfoCompat nodeToRestoreFocus =
-        history.getFocusableNodeFromFocusRecord(root, focusFinder, lastFocusAction);
+    AccessibilityNodeInfoCompat nodeToRestoreFocus = exactCollectionMatch
+        ? lastFocusAction.findMatchingCollectionItem(root)
+        : history.getFocusableNodeFromFocusRecord(root, focusFinder, lastFocusAction);
 
     boolean firstTime = screenState.isInterpretFirstTimeWhenWakeUp();
     boolean forceMuteFeedback =

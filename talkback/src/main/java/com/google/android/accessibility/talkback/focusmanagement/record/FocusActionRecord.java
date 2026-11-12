@@ -51,6 +51,7 @@ public class FocusActionRecord {
   /** Unique id for the node */
   private final String uniqueId;
   private final @Nullable EventId originEventId;
+  private final boolean collectionItem;
 
   public @Nullable EventId getOriginEventId() {
     return originEventId;
@@ -62,6 +63,10 @@ public class FocusActionRecord {
       long actionTime,
       @Nullable EventId originEventId) {
     this.focusedNode = focusedNode;
+    collectionItem = !WebInterfaceUtils.supportsWebActions(focusedNode)
+        && (AccessibilityNodeInfoUtils.isInCollection(focusedNode)
+            || AccessibilityNodeInfoUtils.hasMatchingAncestor(
+                focusedNode, AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL));
     if (WebInterfaceUtils.supportsWebActions(focusedNode)) {
       nodePathDescription = NodePathDescription.obtainWithoutSiblingContext(focusedNode);
       siblingContext = new PathWithSiblingContext(nodePathDescription);
@@ -109,7 +114,8 @@ public class FocusActionRecord {
       @NonNull FocusActionInfo extraInfo,
       long actionTime,
       String uniqueId,
-      @Nullable EventId originEventId) {
+      @Nullable EventId originEventId,
+      boolean collectionItem) {
     this.focusedNode = focusedNode;
     this.nodePathDescription = new NodePathDescription(nodePathDescription);
     this.siblingContext = siblingContext;
@@ -117,6 +123,7 @@ public class FocusActionRecord {
     this.actionTime = actionTime;
     this.uniqueId = uniqueId;
     this.originEventId = originEventId;
+    this.collectionItem = collectionItem;
   }
 
   /** Returns an instance of the focused node. */
@@ -166,7 +173,16 @@ public class FocusActionRecord {
         record.extraInfo,
         record.actionTime,
         record.uniqueId,
-        record.originEventId);
+        record.originEventId,
+        record.collectionItem);
+  }
+
+  public @Nullable AccessibilityNodeInfoCompat findMatchingCollectionItem(
+      AccessibilityNodeInfoCompat root) {
+    return collectionItem
+        ? nodePathDescription.findUniqueCollectionItem(
+            root, focusedNode.getPackageName(), Deadline.afterSearchTimeLimit())
+        : null;
   }
 
   /**
@@ -216,6 +232,7 @@ public class FocusActionRecord {
     // views.
     if (lastFocusedNode.refresh()
         && AccessibilityNodeInfoUtils.shouldFocusNode(lastFocusedNode)
+        && !focusActionRecord.collectionItem
         && !AccessibilityNodeInfoUtils.isInCollection(lastFocusedNode)) {
       LogUtils.d(
           TAG,
@@ -235,6 +252,12 @@ public class FocusActionRecord {
     }
     @Nullable AccessibilityNodeInfoCompat nodeAtSamePosition =
         nodePath.findNodeToRefocus(root, focusFinder, deadline);
+    if (focusActionRecord.collectionItem
+        && (nodeAtSamePosition == null || !nodePath.matchesLeafText(nodeAtSamePosition))) {
+      AccessibilityNodeInfoCompat matchingItem =
+          nodePath.findUniqueCollectionItem(root, lastFocusedNode.getPackageName(), deadline);
+      if (matchingItem != null) return matchingItem;
+    }
     if ((nodeAtSamePosition != null)
         && AccessibilityNodeInfoUtils.shouldFocusNode(nodeAtSamePosition)) {
       LogUtils.d(

@@ -17,6 +17,8 @@
 package com.google.android.accessibility.talkback.recognition
 
 import android.Manifest
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -30,6 +32,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSensor
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -47,6 +50,17 @@ class LiveRecognitionActivityTest {
       it.text == activity.getString(R.string.live_recognition_flash) && !it.isChecked
     })
     assertFalse(activity.isFlashEnabled())
+    controller.pause().stop().destroy()
+  }
+
+  @Test fun lightRecognitionDoesNotRequestCameraPermission() {
+    val controller = Robolectric.buildActivity(LiveRecognitionActivity::class.java).setup()
+    val activity = controller.get()
+    val sensors = activity.getSystemService(SensorManager::class.java)!!
+    shadowOf(sensors).addSensor(ShadowSensor.newInstance(Sensor.TYPE_LIGHT))
+    activity.toggle(RecognitionMode.LIGHT)
+    assertTrue(activity.isEnabled(RecognitionMode.LIGHT))
+    assertNull(shadowOf(activity).lastRequestedPermission)
     controller.pause().stop().destroy()
   }
 

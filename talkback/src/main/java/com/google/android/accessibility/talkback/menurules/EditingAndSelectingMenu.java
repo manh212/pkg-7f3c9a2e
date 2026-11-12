@@ -336,7 +336,7 @@ public class EditingAndSelectingMenu implements NodeMenu {
           TalkBackService service = TalkBackService.getInstance();
           result = service != null;
           if (result) {
-            service.performEditorAction(
+            service.performCatalogActionOnNode(
                 service.getString(
                     itemId == R.id.edittext_breakout_correct_text
                         ? R.string.shortcut_value_correct_text

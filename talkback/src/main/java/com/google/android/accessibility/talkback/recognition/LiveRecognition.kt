@@ -21,6 +21,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.actor.gemini.ImageQuestions
@@ -53,12 +55,15 @@ object LiveRecognition {
         .setQueueMode(if (interrupt) SpeechController.QUEUE_MODE_INTERRUPT else SpeechController.QUEUE_MODE_QUEUE))
   }
 
-  // Uses the rear camera only.
   @SuppressLint("UnsupportedChromeOsCameraSystemFeature")
   @JvmStatic fun isSupported(context: Context): Boolean =
     !FormFactorUtils.isAndroidWear() &&
       !FormFactorUtils.isAndroidTv() &&
-      context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA)
+      (context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA) ||
+        lightSensor(context) != null)
+
+  internal fun lightSensor(context: Context): Sensor? =
+    context.getSystemService(SensorManager::class.java)?.getDefaultSensor(Sensor.TYPE_LIGHT)
 
   @JvmStatic fun selection(context: Context): String = context.getString(
     R.string.live_recognition_mode_state,

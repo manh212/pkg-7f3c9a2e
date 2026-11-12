@@ -535,6 +535,9 @@ public class AccessibilityNodeInfoUtils {
               || role == Role.ROLE_GRID
               || role == Role.ROLE_SCROLL_VIEW
               || role == Role.ROLE_HORIZONTAL_SCROLL_VIEW
+              || ((role == Role.ROLE_NONE || role == Role.ROLE_VIEW_GROUP)
+                  && (node.getCollectionInfo() != null
+                      || (node.isScrollable() && node.getChildCount() > 0)))
               || AccessibilityNodeInfoUtils.nodeMatchesAnyClassByType(
                   node, CLASS_TOUCHWIZ_TWADAPTERVIEW);
         }

@@ -980,6 +980,10 @@ public class TalkbackMenuProcessor {
         node ->
             service.performCatalogAction(
                 service.getString(R.string.shortcut_value_screen_recognition)));
+    addAfterMenuCloses(
+        menu, R.id.read_captcha_menu, 28, service.getString(R.string.shortcut_read_captcha),
+        node -> service.performCatalogActionOnNode(
+            service.getString(R.string.shortcut_value_read_captcha), node));
     addAfterMenuCloses(menu, R.id.subtitles_menu, 28, service.getString(R.string.subtitle_toggle),
         node -> service.performCatalogAction(service.getString(R.string.shortcut_value_subtitles)));
     addAfterMenuCloses(menu, R.id.subtitle_find_again_menu, 28, service.getString(R.string.subtitle_find_again),

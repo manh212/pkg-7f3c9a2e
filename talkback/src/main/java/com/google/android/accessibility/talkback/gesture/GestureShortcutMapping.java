@@ -560,6 +560,7 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     SUBTITLE_FIND_AGAIN(R.string.shortcut_value_subtitle_find_again, R.string.subtitle_find_again),
     SCREEN_RECOGNITION(
         R.string.shortcut_value_screen_recognition, R.string.shortcut_screen_recognition),
+    READ_CAPTCHA(R.string.shortcut_value_read_captcha, R.string.shortcut_read_captcha),
     VOICE_INPUT(R.string.shortcut_value_voice_input, R.string.shortcut_voice_input),
     MEDIA_CONTROL_OR_VOICE_INPUT(
         R.string.shortcut_value_media_control_or_voice_input,

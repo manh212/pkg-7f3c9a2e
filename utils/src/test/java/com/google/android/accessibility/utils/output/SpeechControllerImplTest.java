@@ -122,6 +122,7 @@ public class SpeechControllerImplTest {
 
   @After
   public void tearDown() {
+    SpeechControllerImpl.setParallelBilingualVoice(null);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.IMMEDIATE_SPEECH, false);
     setAlwaysInterruptPreference(false);
     SpeechControllerImpl.navigationSpeechInterruptsAnnouncements = true;
@@ -393,6 +394,49 @@ public class SpeechControllerImplTest {
 
     assertEquals(List.of("a globally protected utterance"), failoverTts.spokenTexts);
     assertEquals(0, Performance.getInstance().getSpeechWaitCapFlushCount());
+  }
+
+  @Test
+  public void parallelTranslationWaitsForOriginalPlayback() {
+    Runnable originalStarted = startParallelReading();
+    Robolectric.getForegroundThreadScheduler().advanceBy(1, TimeUnit.SECONDS);
+    assertTrue(failoverTts.spokenTexts.isEmpty());
+
+    originalStarted.run();
+    Robolectric.getForegroundThreadScheduler().advanceBy(749, TimeUnit.MILLISECONDS);
+    assertTrue(failoverTts.spokenTexts.isEmpty());
+    Robolectric.getForegroundThreadScheduler().advanceBy(1, TimeUnit.MILLISECONDS);
+    assertEquals(List.of("Bản dịch"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void interruptedParallelReadingDoesNotSpeakDelayedTranslation() {
+    Runnable originalStarted = startParallelReading();
+    originalStarted.run();
+    speechController.interrupt(true);
+    Robolectric.getForegroundThreadScheduler().advanceBy(750, TimeUnit.MILLISECONDS);
+    assertTrue(failoverTts.spokenTexts.isEmpty());
+  }
+
+  private Runnable startParallelReading() {
+    List<Runnable> starts = new ArrayList<>();
+    SpeechControllerImpl.setParallelBilingualVoice(new SpeechControllerImpl.ParallelBilingualVoice() {
+      @Override
+      public void speak(
+          CharSequence text, String profileId, String audioStream, Runnable onStart,
+          Runnable onFailure) {
+        assertEquals("Original", text.toString());
+        assertEquals("media", audioStream);
+        starts.add(onStart);
+      }
+
+      @Override
+      public void stop() {}
+    });
+    speechController.speak(
+        new BilingualSpeechText("Original", "Bản dịch", "", "", true, true, "media"),
+        SpeechController.QUEUE_MODE_INTERRUPT, 0, null, Performance.EVENT_ID_UNTRACKED);
+    return starts.get(0);
   }
 
   @Test

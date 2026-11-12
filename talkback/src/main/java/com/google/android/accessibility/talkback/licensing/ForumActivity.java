@@ -40,6 +40,8 @@ public final class ForumActivity extends ComponentActivity {
   private static final ExecutorService IO = Executors.newSingleThreadExecutor();
   private LinearLayout root;
   private TextView status;
+  private Button homeNotices;
+  private boolean foreground;
   private int generation, screen;
   private String category = "", topic = "";
   private String focusAfterRefresh;
@@ -58,6 +60,17 @@ public final class ForumActivity extends ComponentActivity {
     String requested = getIntent().getStringExtra("forumTopic");
     if (ForumProtocol.validId(requested)) thread(requested, null);
     else home();
+  }
+
+  @Override protected void onResume() {
+    super.onResume();
+    foreground = true;
+    if (homeNotices != null) refreshNoticeCount(homeNotices);
+  }
+
+  @Override protected void onPause() {
+    foreground = false;
+    super.onPause();
   }
 
   private void back() {
@@ -90,6 +103,7 @@ public final class ForumActivity extends ComponentActivity {
 
   private void page(String heading) {
     generation++;
+    homeNotices = null;
     ScrollView scroll = new ScrollView(this);
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
@@ -258,7 +272,8 @@ public final class ForumActivity extends ComponentActivity {
     screen = 0;
     page("Diễn đàn cộng đồng");
     button("Hồ sơ", this::profile);
-    button("Thông báo", this::notices);
+    homeNotices = button("Thông báo", this::notices);
+    if (foreground) refreshNoticeCount(homeNotices);
     button("Tất cả chủ đề", () -> topics("", null));
     for (int i = 0; i < ForumProtocol.categories().size(); i++) {
       String code = ForumProtocol.categories().get(i);
@@ -1089,6 +1104,98 @@ public final class ForumActivity extends ComponentActivity {
     });
   }
 
+  private void refreshNoticeCount(Button noticeButton) {
+    int target = generation;
+    IO.execute(() -> {
+      try {
+        FirebaseRest service = Enrollment.service(this);
+        String uid = service.uid();
+        String path = "forumNotices/" + uid;
+        JSONObject records = service.recent(path, "$key", 100, null);
+        Set<String> announcements = announcementVersions(service.get("forumAnnouncements"));
+        SharedPreferences state = readState();
+        String lastSeen = state.getString("notice:" + uid, null);
+        if (lastSeen == null) {
+          ui(target, () -> markNoticesSeen(uid, records, announcements));
+          return;
+        }
+        announcements.removeAll(state.getStringSet("announcements:" + uid, Collections.emptySet()));
+        int count = announcements.size() + countNewNotices(service, path, lastSeen, records);
+        ui(target, () -> noticeButton.setText(count == 0
+            ? "Thông báo" : "Thông báo (" + count + " mới)"));
+      } catch (Exception error) {
+        LogUtils.w(TAG, error, "Forum notice count failed");
+      }
+    });
+  }
+
+  private static int countNewNotices(
+      FirebaseRest service, String path, String lastSeen, JSONObject records) throws Exception {
+    int count = 0;
+    String before = null;
+    for (;;) {
+      List<String> keys = noticeKeys(records);
+      for (String key : keys) {
+        if (key.equals(before)) continue;
+        if (key.compareTo(lastSeen) <= 0) return count;
+        if (isForumNotice(records.optJSONObject(key))) count++;
+      }
+      if (keys.size() < 100) return count;
+      String oldest = keys.get(keys.size() - 1);
+      if (oldest.equals(before)) return count;
+      before = oldest;
+      records = service.recent(path, "$key", 100, before);
+    }
+  }
+
+  private static List<String> noticeKeys(JSONObject records) {
+    List<String> keys = new ArrayList<>();
+    records.keys().forEachRemaining(keys::add);
+    keys.sort(Collections.reverseOrder());
+    return keys;
+  }
+
+  private static boolean isForumNotice(JSONObject entry) {
+    if (entry == null || !ForumProtocol.validId(entry.optString("topic"))) return false;
+    String kind = entry.optString("kind");
+    return "reply".equals(kind) || "mention".equals(kind);
+  }
+
+  private static Set<String> announcementVersions(JSONObject announcements) {
+    Set<String> versions = new HashSet<>();
+    announcements.keys().forEachRemaining(id -> {
+      JSONObject item = announcements.optJSONObject(id);
+      if (ForumProtocol.validId(id) && item != null) {
+        versions.add(id + ":" + item.optLong("createdAt"));
+      }
+    });
+    return versions;
+  }
+
+  private void markNoticesSeen(String uid, JSONObject records, Set<String> announcements) {
+    String key = "notice:" + uid;
+    SharedPreferences state = readState();
+    String previous = state.getString(key, "");
+    List<String> keys = noticeKeys(records);
+    String newest = keys.isEmpty() || keys.get(0).compareTo(previous) <= 0 ? previous : keys.get(0);
+    state.edit().putString(key, newest).putStringSet("announcements:" + uid, announcements).apply();
+  }
+
+  private static String noticeAuthor(
+      FirebaseRest service, JSONObject entry, Map<String, String> names) {
+    String uid = entry.optString("by");
+    if (!ForumProtocol.validUid(uid)) return "Thành viên";
+    return names.computeIfAbsent(uid, key -> {
+      try {
+        String name = service.get("forumProfiles/" + key).optString("name").trim();
+        if (!name.isEmpty()) return name;
+      } catch (Exception error) {
+        LogUtils.w(TAG, error, "Forum notice author lookup failed");
+      }
+      return "Thành viên";
+    });
+  }
+
   private void notices() {
     screen = 1;
     page("Thông báo");
@@ -1096,24 +1203,33 @@ public final class ForumActivity extends ComponentActivity {
     int target = generation;
     work(() -> {
       FirebaseRest service = Enrollment.service(this);
-      JSONObject records = service.recent("forumNotices/" + service.uid(), "$key", 40, null);
+      String uid = service.uid();
+      JSONObject records = service.recent("forumNotices/" + uid, "$key", 40, null);
       JSONObject announcements = service.get("forumAnnouncements");
-      List<String> keys = new ArrayList<>();
-      for (java.util.Iterator<String> iterator = records.keys(); iterator.hasNext();) keys.add(iterator.next());
-      Collections.sort(keys, Collections.reverseOrder());
+      Set<String> versions = announcementVersions(announcements);
+      Map<String, String> names = new HashMap<>();
+      List<String> topics = new ArrayList<>();
+      List<String> labels = new ArrayList<>();
+      for (String key : noticeKeys(records)) {
+        JSONObject entry = records.optJSONObject(key);
+        if (!isForumNotice(entry)) continue;
+        topics.add(entry.optString("topic"));
+        labels.add(noticeAuthor(service, entry, names) + ("mention".equals(entry.optString("kind"))
+            ? " đã nhắc đến bạn" : " đã trả lời bạn"));
+      }
+      announcements.keys().forEachRemaining(id -> {
+        if (ForumProtocol.validId(id) && announcements.optJSONObject(id) != null) {
+          topics.add(id);
+          labels.add("Thông báo quan trọng");
+        }
+      });
       ui(target, () -> {
-        for (String key : keys) {
-          JSONObject entry = records.optJSONObject(key);
-          if (entry == null || !ForumProtocol.validId(entry.optString("topic"))) continue;
-          String id = entry.optString("topic");
-          button("mention".equals(entry.optString("kind")) ? "Nhắc đến bạn" : "Trả lời bạn",
-              () -> thread(id, null));
+        for (int i = 0; i < topics.size(); i++) {
+          String id = topics.get(i);
+          button(labels.get(i), () -> thread(id, null));
         }
-        for (java.util.Iterator<String> iterator = announcements.keys(); iterator.hasNext();) {
-          String id = iterator.next();
-          if (ForumProtocol.validId(id)) button("Thông báo quan trọng", () -> thread(id, null));
-        }
-        if (keys.isEmpty() && announcements.length() == 0) status.setText("Không có thông báo.");
+        if (topics.isEmpty()) status.setText("Không có thông báo.");
+        markNoticesSeen(uid, records, versions);
       });
     });
   }

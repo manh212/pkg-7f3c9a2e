@@ -8,6 +8,11 @@
     <string translatable="false" name="live_recognition_people">Phát hiện người</string>
     <string translatable="false" name="live_recognition_doors">Phát hiện cửa</string>
     <string translatable="false" name="live_recognition_currency">Đọc tiền</string>
+    <string translatable="false" name="live_recognition_light">Nhận biết ánh sáng</string>
+    <string translatable="false" name="live_recognition_light_unavailable">Không dùng được cảm biến ánh sáng.</string>
+    <string translatable="false" name="live_recognition_light_dark">Xung quanh tối.</string>
+    <string translatable="false" name="live_recognition_light_dim">Xung quanh hơi tối.</string>
+    <string translatable="false" name="live_recognition_light_bright">Xung quanh sáng.</string>
     <string translatable="false" name="live_recognition_currency_model_missing">Chưa có mô hình đọc tiền ngoại tuyến. Cần thêm tệp mô hình vào ứng dụng.</string>
     <string translatable="false" name="live_recognition_currency_error">Không tải hoặc chạy được mô hình đọc tiền ngoại tuyến. Đã tắt Đọc tiền.</string>
     <string translatable="false" name="live_recognition_mode_state"><xliff:g id="mode" example="Scenes">%1$s</xliff:g>, <xliff:g id="state" example="on">%2$s</xliff:g></string>

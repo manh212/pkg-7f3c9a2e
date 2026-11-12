@@ -2010,9 +2010,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
-  public void performEditorAction(String action, AccessibilityNodeInfoCompat editor) {
+  public void performCatalogActionOnNode(
+      String action, @Nullable AccessibilityNodeInfoCompat node) {
     if (gestureController != null) {
-      gestureController.performMenuAction(action, EVENT_ID_UNTRACKED, editor);
+      gestureController.performMenuAction(action, EVENT_ID_UNTRACKED, node);
     }
   }
 

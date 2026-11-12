@@ -185,7 +185,9 @@ public final class NodePathDescription {
     @Nullable AccessibilityNode targetUp = matchAncestorUniqueId(deadline);
     if (targetUp != null && lastFocusedNode != null) {
       if (lastFocusedNode.refresh()
-          && AccessibilityNodeInfoUtils.shouldFocusNode(lastFocusedNode)) {
+          && AccessibilityNodeInfoUtils.shouldFocusNode(lastFocusedNode)
+          && (!AccessibilityNodeInfoUtils.isInCollection(lastFocusedNode)
+              || matchesLeafText(lastFocusedNode))) {
         return lastFocusedNode;
       }
     }
@@ -215,6 +217,35 @@ public final class NodePathDescription {
     }
 
     return (targetDown == null) ? targetUp.obtainCopyCompat() : targetDown.obtainCopyCompat();
+  }
+
+  boolean matchesLeafText(AccessibilityNodeInfoCompat node) {
+    if (nodeDescriptions.isEmpty()) return false;
+    NodeDescription leaf = nodeDescriptions.get(0);
+    return leaf.identityMatches(node)
+        && isTextMatchingNonEmptyText(
+            leaf.text, NodeDescription.getText(AccessibilityNode.takeOwnership(node), true));
+  }
+
+  @Nullable AccessibilityNodeInfoCompat findUniqueCollectionItem(
+      AccessibilityNodeInfoCompat root, CharSequence packageName, Deadline deadline) {
+    if (nodeDescriptions.isEmpty() || TextUtils.isEmpty(nodeDescriptions.get(0).text)) {
+      return null;
+    }
+    ArrayList<AccessibilityNodeInfoCompat> matches = new ArrayList<>(2);
+    AccessibilityNodeInfoUtils.searchFromBfs(root, Filter.node(node -> {
+      if (deadline.shouldStop()) return true;
+      if (TextUtils.equals(packageName, node.getPackageName())
+          && matchesLeafText(node)
+          && AccessibilityNodeInfoUtils.shouldFocusNode(node)
+          && (AccessibilityNodeInfoUtils.isInCollection(node)
+              || AccessibilityNodeInfoUtils.hasMatchingAncestor(
+                  node, AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL))) {
+        matches.add(node);
+      }
+      return matches.size() == 2;
+    }));
+    return !deadline.stopped() && matches.size() == 1 ? matches.get(0) : null;
   }
 
   private @Nullable AccessibilityNode matchAncestorUniqueId(@NonNull Deadline deadline) {

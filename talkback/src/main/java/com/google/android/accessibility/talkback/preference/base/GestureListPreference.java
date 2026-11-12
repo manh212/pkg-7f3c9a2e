@@ -446,6 +446,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     if (matchesAction(value,
         R.string.shortcut_value_take_focus_screenshot,
         R.string.shortcut_value_screen_recognition,
+        R.string.shortcut_value_read_captcha,
         R.string.shortcut_value_subtitles,
         R.string.shortcut_value_subtitle_find_again,
         R.string.shortcut_value_auto_translate,
@@ -995,6 +996,9 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
             resources.getString(R.string.shortcut_screen_recognition),
             resources.getString(R.string.shortcut_value_screen_recognition),
             TYPE_ACTION_ITEM));
+
+    builder.add(new ActionItem(resources.getString(R.string.shortcut_read_captcha),
+        resources.getString(R.string.shortcut_value_read_captcha), TYPE_ACTION_ITEM));
 
     builder.add(new ActionItem(resources.getString(R.string.subtitle_toggle),
         resources.getString(R.string.shortcut_value_subtitles), TYPE_ACTION_ITEM));

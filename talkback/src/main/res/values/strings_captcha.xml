@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="shortcut_read_captcha" translatable="false">Đọc CAPTCHA</string>
+  <string name="captcha_focus_image" translatable="false">Đưa tiêu điểm đến ảnh CAPTCHA rồi thử lại.</string>
+  <string name="captcha_unreadable" translatable="false">Không đọc được mã CAPTCHA.</string>
+  <string name="captcha_ocr_unavailable" translatable="false">Không dùng được nhận dạng văn bản ngoại tuyến.</string>
+  <string name="captcha_reading" translatable="false">Đang đọc CAPTCHA.</string>
+  <string name="captcha_result" translatable="false">Mã CAPTCHA. %1$s</string>
+  <string name="captcha_uppercase" translatable="false">chữ hoa %1$s</string>
+</resources>

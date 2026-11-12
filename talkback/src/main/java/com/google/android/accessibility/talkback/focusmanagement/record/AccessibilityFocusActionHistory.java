@@ -89,6 +89,10 @@ public final class AccessibilityFocusActionHistory {
           windowIdentifier);
     }
 
+    public @Nullable FocusActionRecord getLastFocusActionRecordInWindow(int windowId) {
+      return AccessibilityFocusActionHistory.this.getLastFocusActionRecordInWindow(windowId);
+    }
+
     public @Nullable FocusActionRecord getLastEditableFocusActionRecord() {
       return AccessibilityFocusActionHistory.this.getLastEditableFocusActionRecord();
     }

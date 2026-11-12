@@ -424,6 +424,9 @@ public class TalkBackPreferenceFragment extends TalkbackBaseFragment {
         public boolean onPreferenceChange(Preference preference, Object newValue) {
           if (preference instanceof ListPreference && newValue instanceof String) {
             final ListPreference listPreference = (ListPreference) preference;
+            if (listPreference.getSummaryProvider() != null) {
+              return true;
+            }
             final int index = listPreference.findIndexOfValue((String) newValue);
             final CharSequence[] entries = listPreference.getEntries();
 

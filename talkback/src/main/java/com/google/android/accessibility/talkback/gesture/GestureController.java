@@ -191,6 +191,7 @@ public class GestureController {
   // Member variables
 
   private final TalkBackService service;
+  private final CaptchaReader captchaReader = new CaptchaReader();
   private final Pipeline.FeedbackReturner pipeline;
   private final ActorState actorState;
   private final ListMenuManager menuManager;
@@ -370,14 +371,14 @@ public class GestureController {
   }
 
   public void performMenuAction(
-      String action, EventId eventId, AccessibilityNodeInfoCompat menuTarget) {
+      String action, EventId eventId, @Nullable AccessibilityNodeInfoCompat menuTarget) {
     performAction(action, eventId, menuTarget, true);
   }
 
   private void performAction(
       String action,
       EventId eventId,
-      AccessibilityNodeInfoCompat menuTarget,
+      @Nullable AccessibilityNodeInfoCompat menuTarget,
       boolean fromCustomMenu) {
     RecentUserInput.mark();
     NotificationReader.onUserAction();
@@ -582,6 +583,11 @@ public class GestureController {
       result = true;
     } else if (action.equals(service.getString(R.string.shortcut_value_subtitle_find_again))) {
       subtitleController.findAgain();
+      result = true;
+    } else if (action.equals(service.getString(R.string.shortcut_value_read_captcha))) {
+      AccessibilityNodeInfoCompat node = fromCustomMenu ? menuTarget
+          : accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
+      captchaReader.read(service, node, this::speak);
       result = true;
     } else if (action.equals(service.getString(R.string.shortcut_value_screen_recognition))) {
       screenRecognitionController.toggle();

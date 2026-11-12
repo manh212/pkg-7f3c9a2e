@@ -602,12 +602,14 @@ public class FailoverTextToSpeech {
   private final Map<String, TextToSpeech> warmEngines = new HashMap<>();
   private final Map<String, ProfileSpeechEngine> bilingualEngines = new HashMap<>();
   private int bilingualSpeechGeneration;
+  private @Nullable Locale failoverLocale;
 
   private static final class ProfileSpeechEngine {
     final VoiceProfile profile;
     final List<Runnable> pending = new ArrayList<>();
     TextToSpeech engine;
     boolean ready;
+    int stream = -1;
 
     ProfileSpeechEngine(VoiceProfile profile) {
       this.profile = profile;
@@ -811,10 +813,14 @@ public class FailoverTextToSpeech {
    * volume like a call, on the earpiece when no headset is connected.
    */
   public static int speechUsage(Context context) {
-    return switch (speechStream(context)) {
-      case STREAM_VALUE_MEDIA -> AudioAttributes.USAGE_MEDIA;
-      case STREAM_VALUE_RING -> AudioAttributes.USAGE_NOTIFICATION_RINGTONE;
-      case STREAM_VALUE_CALL -> AudioAttributes.USAGE_VOICE_COMMUNICATION;
+    return audioUsageForStream(getSpeechAudioStream(context));
+  }
+
+  public static int audioUsageForStream(int stream) {
+    return switch (stream) {
+      case AudioManager.STREAM_MUSIC -> AudioAttributes.USAGE_MEDIA;
+      case AudioManager.STREAM_RING -> AudioAttributes.USAGE_NOTIFICATION_RINGTONE;
+      case AudioManager.STREAM_VOICE_CALL -> AudioAttributes.USAGE_VOICE_COMMUNICATION;
       default -> AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY;
     };
   }
@@ -1055,6 +1061,10 @@ public class FailoverTextToSpeech {
       if (profileEngine.ready) {
         try {
           TextToSpeech voice = profileEngine.engine;
+          if (profileEngine.stream != stream
+              && voice.setAudioAttributes(speechAttributes(stream)) == TextToSpeech.SUCCESS) {
+            profileEngine.stream = stream;
+          }
           voice.setSpeechRate(rate * defaultRate);
           voice.setPitch(pitch * defaultPitch);
           Bundle bundle = new Bundle();
@@ -1090,11 +1100,6 @@ public class FailoverTextToSpeech {
     if (status == TextToSpeech.SUCCESS && engine != null) {
       selected.ready = true;
       engine.setOnUtteranceProgressListener(lowLatencyRouter);
-      engine.setAudioAttributes(
-          new AudioAttributes.Builder()
-              .setUsage(speechUsage(context))
-              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-              .build());
       VoiceProfile profile = selected.profile;
       boolean found = false;
       try {
@@ -1437,7 +1442,8 @@ public class FailoverTextToSpeech {
       Locale previousLocale = getUsedLocale();
       boolean changeLocale = false;
       int queueMode = flushGlobalTtsQueue ? SPEECH_FLUSH_ALL : QUEUE_ADD;
-      SpeechCacheManager speechCacheManager = usableSpeechCache();
+      SpeechCacheManager speechCacheManager =
+          stream == getSpeechAudioStream(context) ? usableSpeechCache() : null;
       if (isLocaleAttached
           && speechCacheManager != null
           && speechCacheManager.hasCache(
@@ -1707,6 +1713,11 @@ public class FailoverTextToSpeech {
           }
           LogUtils.w(TAG, "Voice profile language %s is not available", language);
         }
+        if (profile.language().isEmpty() && failoverLocale != null
+            && !isNotAvailableStatus(tts.setLanguage(failoverLocale))) {
+          cachedTtsLocale = failoverLocale;
+          return cachedTtsLocale;
+        }
         Voice engineDefault = tts.getDefaultVoice();
         if (engineDefault != null && tts.setVoice(engineDefault) == TextToSpeech.SUCCESS) {
           LogUtils.i(TAG, "Voice profile voice: engine default %s", engineDefault.getName());
@@ -1837,7 +1848,10 @@ public class FailoverTextToSpeech {
     if (utteranceId != null) {
       utteranceTexts.put(utteranceId, text);
     }
-    SpeechCacheManager speechCacheManager = usableSpeechCache();
+    int globalStream = getSpeechAudioStream(context);
+    SpeechCacheManager speechCacheManager =
+        bundle.getInt(Engine.KEY_PARAM_STREAM, globalStream) == globalStream
+            ? usableSpeechCache() : null;
     if (speechCacheManager == null) {
       return speakInChunks(text, queueMode, bundle, utteranceId, locale, firstChunkEnd);
     }
@@ -2022,9 +2036,11 @@ public class FailoverTextToSpeech {
    */
   private int ttsSpeak(
       CharSequence text, int queueMode, Bundle bundle, @Nullable String utteranceId) {
+    int requestedStream = bundle.getInt(Engine.KEY_PARAM_STREAM, getSpeechAudioStream(context));
     @Nullable LowLatencyAudio player =
         lowLatencyPlayer(
-            floatParam(bundle, SpeechParam.VOLUME, 1f) > 1f || !lowLatencyRequests.isEmpty());
+            floatParam(bundle, SpeechParam.VOLUME, 1f) > 1f || !lowLatencyRequests.isEmpty(),
+            requestedStream);
     if (player == null || utteranceId == null || TextUtils.isEmpty(text)) {
       if (queueMode != QUEUE_ADD) {
         stopLowLatencySpeech();
@@ -2032,10 +2048,17 @@ public class FailoverTextToSpeech {
       Bundle nativeParams = new Bundle(bundle);
       nativeParams.putFloat(SpeechParam.VOLUME,
           Math.max(0f, Math.min(1f, floatParam(bundle, SpeechParam.VOLUME, 1f))));
-      return tts.speak(text, queueMode, nativeParams, utteranceId);
+      return speakOnRequestedStream(text, queueMode, nativeParams, utteranceId);
     }
     NavigationPcmCache cache = navigationPcmCache;
-    if (equalizerGains == null && compressorSettings == null && cache != null && ttsEngine != null && LatencyExperiments.preparePcm() && (!VoiceProfiles.isProfileActive() && !hasSelectedEngineVoice())
+    if (requestedStream == getSpeechAudioStream(context)
+        && equalizerGains == null
+        && compressorSettings == null
+        && cache != null
+        && ttsEngine != null
+        && LatencyExperiments.preparePcm()
+        && !VoiceProfiles.isProfileActive()
+        && !hasSelectedEngineVoice()
         && (!(text instanceof android.text.Spanned spanned)
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
       float[] prepared = cache.find(text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate());
@@ -2138,10 +2161,10 @@ public class FailoverTextToSpeech {
 
   /** The player for speech, or null if speech should play the usual way. */
   private @Nullable LowLatencyAudio lowLatencyPlayer() {
-    return lowLatencyPlayer(false);
+    return lowLatencyPlayer(false, getSpeechAudioStream(context));
   }
 
-  private @Nullable LowLatencyAudio lowLatencyPlayer(boolean amplify) {
+  private @Nullable LowLatencyAudio lowLatencyPlayer(boolean amplify, int stream) {
     if ((!lowLatencyAudio && !(amplify && speechAmplificationAllowed))
         || LowLatencyAudio.isMicrophoneInUse()
         || inCall()
@@ -2151,12 +2174,29 @@ public class FailoverTextToSpeech {
         || (ttsEngine != null && enginesWithoutFileAudio.contains(ttsEngine))) {
       return null;
     }
-    return LowLatencyAudio.get(context, speechAttributes());
+    return LowLatencyAudio.get(context, speechAttributes(stream));
   }
 
-  private AudioAttributes speechAttributes() {
+  private int speakOnRequestedStream(
+      CharSequence text, int queueMode, Bundle params, @Nullable String utteranceId) {
+    synchronized (ttsLock) {
+      int globalStream = getSpeechAudioStream(context);
+      int stream = params.getInt(Engine.KEY_PARAM_STREAM, globalStream);
+      if (stream == globalStream) {
+        return tts.speak(text, queueMode, params, utteranceId);
+      }
+      tts.setAudioAttributes(speechAttributes(stream));
+      try {
+        return tts.speak(text, queueMode, params, utteranceId);
+      } finally {
+        applyAudioAttributes();
+      }
+    }
+  }
+
+  private static AudioAttributes speechAttributes(int stream) {
     return new AudioAttributes.Builder()
-        .setUsage(speechUsage(context))
+        .setUsage(audioUsageForStream(stream))
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build();
   }
@@ -2479,7 +2519,10 @@ public class FailoverTextToSpeech {
 
   /** Notes that the engine said something about {@code utteranceId}, so it is not hung. */
   private void engineResponded(String utteranceId, boolean finished) {
-    engineQuietSince = 0;
+    if (Objects.equals(engineQuietUtteranceId, utteranceId)) {
+      engineQuietSince = 0;
+      engineQuietUtteranceId = null;
+    }
     if (finished) {
       unfinishedUtterances.remove(utteranceId);
     }
@@ -2511,10 +2554,14 @@ public class FailoverTextToSpeech {
       return;
     }
     @Nullable String hungUtteranceId = engineQuietUtteranceId;
-    LogUtils.e(TAG, "TTS engine %s said nothing for %d ms, so it is hung", ttsEngine, quiet);
+    LogUtils.e(TAG, "TTS engine %s said nothing for %d ms", ttsEngine, quiet);
     engineQuietSince = 0;
+    engineQuietUtteranceId = null;
     unfinishedUtterances.clear();
-    boolean lowLatency = hungUtteranceId != null && lowLatencyRequests.containsKey(hungUtteranceId);
+    if (hungUtteranceId != null && lowLatencyRequests.containsKey(hungUtteranceId)) {
+      speakAgainWithoutLowLatency(hungUtteranceId, lowLatencyStreams.get(hungUtteranceId), true);
+      return;
+    }
     // Speech waiting on the hung engine stops, so that it holds up nothing.
     mHandler.removeCallbacks(dropHeldSpeech);
     heldUtteranceId = null;
@@ -2527,8 +2574,8 @@ public class FailoverTextToSpeech {
     // Restarting the same engine does not help, since its process stays hung.
     ttsFailures = Math.max(ttsFailures, MAX_TTS_FAILURES - 1);
     attemptTtsFailover(ttsEngine);
-    if (hungUtteranceId != null && !lowLatency) {
-      utteranceProgressCallback.onError(hungUtteranceId);
+    if (hungUtteranceId != null) {
+      utteranceProgressCallback.onError(reportedId(hungUtteranceId, true));
     }
   }
 
@@ -2583,7 +2630,12 @@ public class FailoverTextToSpeech {
           if (onlyThis) {
             tts.stop();
           }
-          tts.speak(request.first, QUEUE_ADD, request.second, RESPOKEN_ID_PREFIX + utteranceId);
+          String retryId = RESPOKEN_ID_PREFIX + utteranceId;
+          watchForEngineHang(QUEUE_ADD, retryId);
+          if (speakOnRequestedStream(request.first, QUEUE_ADD, request.second, retryId)
+              != TextToSpeech.SUCCESS) {
+            lowLatencyRouter.onError(retryId);
+          }
         });
   }
 
@@ -2867,9 +2919,14 @@ public class FailoverTextToSpeech {
       installedTtsEngines.addLast(failedEngine);
     }
 
-    // Try to use the first available TTS engine.
     final String nextEngine = installedTtsEngines.getFirst();
-
+    if (failoverLocale == null && tts != null) {
+      VoiceProfile profile = VoiceProfiles.active();
+      Locale currentLocale = getUsedLocale();
+      failoverLocale = profile != null && !profile.language().isEmpty()
+          ? Locale.forLanguageTag(profile.language())
+          : currentLocale != null ? currentLocale : mDefaultLocale;
+    }
     setTtsEngine(nextEngine, true);
   }
 
@@ -2954,6 +3011,9 @@ public class FailoverTextToSpeech {
       ttsEngine = engine;
     }
 
+    if (Objects.equals(ttsEngine, getTargetEngine())) {
+      failoverLocale = null;
+    }
     updateDefaultLocale();
 
     applyAudioAttributes();
@@ -3357,6 +3417,13 @@ public class FailoverTextToSpeech {
     VoiceProfile profile = VoiceProfiles.active();
     if (profile != null) {
       return attemptSetProfileVoice(profile);
+    }
+    if (failoverLocale != null) {
+      Locale preserved = attemptSetLanguage(failoverLocale);
+      if (preserved != null) {
+        LanguageSwitch.setVoiceLanguage(preserved);
+        return preserved;
+      }
     }
     Locale selected = restoreSelectedEngineVoice(null);
     if (selected != null) return selected;
