@@ -10,4 +10,8 @@
       android:key="@string/pref_speak_in_phrases_key"
       android:title="@string/title_pref_speak_in_phrases"
       android:summary="@string/summary_pref_speak_in_phrases" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="false"
+      android:key="@string/pref_keep_screen_on_while_speaking_key"
+      android:title="@string/title_pref_keep_screen_on_while_speaking" />
 </PreferenceScreen>
