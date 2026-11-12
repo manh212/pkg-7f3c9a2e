@@ -16,8 +16,6 @@
 
 package com.google.android.accessibility.talkback.preference.base;
 
-import static com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP;
-
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
@@ -64,9 +62,6 @@ public class OnScreenKeyboardFragment extends TalkBackPreferenceFragment {
               list.setValue(value);
             }
           }
-        }
-        if (TextUtils.equals(key, getString(R.string.pref_typing_confirmation_key))) {
-          updateLongPressPreference();
         }
       };
 
@@ -128,7 +123,6 @@ public class OnScreenKeyboardFragment extends TalkBackPreferenceFragment {
             R.string.pref_verbosity_preset_key,
             R.string.pref_verbosity_preset_value_default);
     updateSpeakPhoneticLetters(verbosityValue);
-    updateLongPressPreference();
     updateKeyboardCachePreference();
     prefs.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
   }
@@ -156,20 +150,6 @@ public class OnScreenKeyboardFragment extends TalkBackPreferenceFragment {
     preference.setValue(PhoneticLetterMode.read(prefs, getResources()));
     // Disable default verbosity preference details if it is high or low.
     preference.setEnabled(!VerbosityPreferences.isVerbosityValueHighOrLow(verbosityValue, context));
-  }
-
-  private void updateLongPressPreference() {
-    Preference preference = findPreference(getString(R.string.pref_typing_long_press_duration_key));
-    if (!(preference instanceof ListPreference list)) {
-      return;
-    }
-    int method = SharedPreferencesUtils.getIntFromStringPref(
-        prefs, getResources(), R.string.pref_typing_confirmation_key,
-        R.string.pref_typing_confirmation_default);
-    list.setValue(prefs.getString(
-        getString(R.string.pref_typing_long_press_duration_key),
-        getString(R.string.pref_typing_long_press_duration_default)));
-    list.setEnabled(method != DOUBLE_TAP);
   }
 
   private void updateKeyboardCachePreference() {

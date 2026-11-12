@@ -126,6 +126,7 @@ public class TalkBackPreferenceFilter {
     A11Y_VOLUME(R.string.pref_a11y_volume_key, HIDE_NO_ACCESSIBILITY_AUDIO_STREAM),
     AUDIO_DUCKING(R.string.pref_use_audio_focus_key, HIDDEN_ON_TV),
     VIBRATION_FEEDBACK(R.string.pref_vibration_key, HIDDEN_NO_VIBRATION),
+    SOUND_VIBRATION_SCREEN(R.string.pref_sound_vibration_screen_key, HIDDEN_NO_VIBRATION),
     SPEECH_FOOTER(
         R.string.pref_speech_footer_key, HIDE_NO_ACCESSIBILITY_AUDIO_STREAM | HIDDEN_ON_XR),
     // Advanced settings.

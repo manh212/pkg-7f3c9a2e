@@ -19,10 +19,11 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
 import com.google.android.accessibility.talkback.notifications.NotificationReadingFragment
 import com.google.android.accessibility.talkback.notifications.NotificationWhenFragment
-import com.google.android.accessibility.talkback.notifications.NotificationRepeatsFragment
+import com.google.android.accessibility.talkback.notifications.NotificationSkipFilterFragment
 import com.google.android.accessibility.talkback.notifications.NotificationStopFragment
 import com.google.android.accessibility.talkback.utils.VerbosityPreferences
 import com.google.android.accessibility.utils.FormFactorUtils
+import com.google.android.accessibility.utils.FeatureSupport
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -164,17 +165,19 @@ class OrganizedSettingsTest {
 
   @Test
   fun typingSwitchesAndExternalKeyboardEchoChangesStayUsable() {
-    val fragment = TypingGroupFragment()
-    open(fragment)
+    val interrupt = TypingInterruptFragment()
+    open(interrupt)
     val enterKey = activity.getString(R.string.pref_interrupt_enter_key)
-    val enter = requireNotNull(fragment.findPreference<TwoStatePreference>(enterKey))
+    val enter = requireNotNull(interrupt.findPreference<TwoStatePreference>(enterKey))
     enter.isChecked = !enter.isChecked
     assertEquals(enter.isChecked, prefs.getBoolean(enterKey, !enter.isChecked))
+    val echo = TypingEchoFragment()
+    open(echo)
     val echoKey = activity.getString(R.string.pref_echo_physical_keyboard_key)
-    val echo = requireNotNull(fragment.findPreference<ListPreference>(echoKey))
+    val echoRow = requireNotNull(echo.findPreference<ListPreference>(echoKey))
     val value = activity.resources.getStringArray(R.array.pref_keyboard_echo_values).last()
     prefs.edit().putString(echoKey, value).commit()
-    assertEquals(value, echo.value)
+    assertEquals(value, echoRow.value)
   }
 
   @Test
@@ -210,7 +213,7 @@ class OrganizedSettingsTest {
     val durationKey = activity.getString(R.string.pref_typing_long_press_duration_key)
     val duration = activity.resources.getStringArray(R.array.pref_typing_long_press_values).last()
     prefs.edit().putString(methodKey, DOUBLE_TAP.toString()).putString(durationKey, duration).commit()
-    val fragment = TypingGroupFragment()
+    val fragment = TypingMethodPrefFragment()
     open(fragment)
     val row = requireNotNull(fragment.findPreference<ListPreference>(durationKey))
     assertFalse(row.isEnabled)
@@ -223,7 +226,7 @@ class OrganizedSettingsTest {
   fun notificationTimingChoicesRetainSavedValuesOnTheirRelatedPages() {
     val cases = listOf(
       Triple(NotificationWhenFragment(), "pref_notification_delay", "5"),
-      Triple(NotificationRepeatsFragment(), "pref_notification_repeat_minutes", "2"),
+      Triple(NotificationSkipFilterFragment(), "pref_notification_repeat_minutes", "2"),
       Triple(NotificationStopFragment(), "pref_notification_max_seconds", "30"),
     )
     for ((fragment, key, value) in cases) {
@@ -365,6 +368,45 @@ class OrganizedSettingsTest {
     assertEquals(
       "com.google.android.accessibility.talkback.notifications.InitialSetupFragment",
       calls.findPreference<Preference>("pref_call_permissions")!!.fragment)
+  }
+
+  @Test
+  fun soundLandingLinksSevenSubScreensAndFeedbackToggleWritesItsKey() {
+    val landing = SoundAndVibrationFragment()
+    open(landing)
+    val links = listOf(
+      "pref_sound_feedback_screen" to
+        "com.google.android.accessibility.talkback.preference.base.SoundFeedbackFragment",
+      "pref_sound_output_screen" to
+        "com.google.android.accessibility.talkback.preference.base.SoundOutputFragment",
+      "pref_sound_ducking_screen" to
+        "com.google.android.accessibility.talkback.preference.base.SoundDuckingFragment",
+      "pref_sound_themes" to
+        "com.google.android.accessibility.talkback.soundthemes.SoundThemesFragment",
+      "pref_individual_feedback" to
+        "com.google.android.accessibility.talkback.individualfeedback.IndividualFeedbackFragment",
+      "pref_sound_feature_sounds_screen" to
+        "com.google.android.accessibility.talkback.preference.base.SoundFeatureSoundsFragment",
+    )
+    for ((key, fragment) in links) {
+      assertEquals(fragment, landing.findPreference<Preference>(key)?.fragment)
+    }
+    if (FeatureSupport.isVibratorSupported(activity)) {
+      assertEquals(
+        "com.google.android.accessibility.talkback.preference.base.SoundVibrationFragment",
+        landing.findPreference<Preference>("pref_sound_vibration_screen")?.fragment)
+    }
+    val feedback = SoundFeedbackFragment()
+    open(feedback)
+    val soundbackKey = activity.getString(R.string.pref_soundback_key)
+    val toggle = requireNotNull(feedback.findPreference<TwoStatePreference>(soundbackKey))
+    assertTrue(toggle.isChecked)
+    toggle.isChecked = false
+    assertFalse(prefs.getBoolean(soundbackKey, true))
+    val calls = com.google.android.accessibility.talkback.calls.CallSettingsFragment()
+    open(calls)
+    assertTrue(
+      calls.findPreference<CommandSwitchPreference>("pref_speakerphone_away_from_ear") != null)
   }
 
   @Test

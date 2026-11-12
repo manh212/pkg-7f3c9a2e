@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationWhenFragment"
+      android:key="pref_notification_when_screen"
+      android:title="@string/notification_when_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationStopFragment"
+      android:key="pref_notification_stop_screen"
+      android:title="@string/notification_stop_title" />
+</PreferenceScreen>

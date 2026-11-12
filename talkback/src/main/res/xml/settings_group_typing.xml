@@ -4,66 +4,29 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_typing_key">
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.dictation.DictationFragment"
-        android:key="pref_dictation_screen"
-        android:title="@string/title_pref_dictation" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="@string/pref_physical_keyboard_key"
-        android:title="@string/title_pref_physical_keyboard" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.TypingMethodPrefFragment"
         android:key="@string/pref_typing_confirmation_key"
         android:title="@string/title_pref_typing_confirmation"
         app:summary="%s" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-        android:defaultValue="@string/pref_keyboard_echo_default"
-        android:entries="@array/pref_keyboard_echo_entries"
-        android:entryValues="@array/pref_keyboard_echo_values"
-        android:key="@string/pref_echo_on_screen_keyboard_key"
-        android:summary="%s"
-        android:title="@string/title_pref_echo_virtual_keyboard" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-        android:defaultValue="@string/pref_keyboard_echo_default"
-        android:entries="@array/pref_keyboard_echo_entries"
-        android:entryValues="@array/pref_keyboard_echo_values"
-        android:key="@string/pref_echo_physical_keyboard_key"
-        android:summary="%s"
-        android:title="@string/title_pref_echo_hardware_keyboard" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-        android:defaultValue="@string/pref_keyboard_echo_default"
-        android:entries="@array/pref_keyboard_echo_entries"
-        android:entryValues="@array/pref_keyboard_echo_values"
-        android:key="@string/pref_echo_braille_keyboard_key"
-        android:summary="%s"
-        android:title="@string/title_pref_braille_keyboard_echo" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.dictation.DictationFragment"
+        android:key="pref_dictation_screen"
+        android:title="@string/title_pref_dictation" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.TypingEchoFragment"
+        android:key="pref_typing_echo_screen"
+        android:title="@string/title_pref_typing_echo" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="meridian_braille_settings"
         android:title="@string/meridian_braille_settings">
       <intent android:action="com.android.talkback.action.BRAILLE_KEYBOARD_SETTINGS" />
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreference>
-    <ListPreference
-        android:defaultValue="@string/pref_interrupt_typing_default"
-        android:entries="@array/pref_interrupt_typing_entries"
-        android:entryValues="@array/pref_interrupt_typing_values"
-        android:key="@string/pref_interrupt_typing_key"
-        android:summary="%s"
-        android:title="@string/title_pref_interrupt_typing" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="@bool/pref_interrupt_enter_default"
-        android:key="@string/pref_interrupt_enter_key"
-        android:title="@string/title_pref_interrupt_enter" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="@bool/pref_cache_keyboard_keys_default"
-        android:title="@string/title_pref_cache_keyboard_keys"
-        android:summary="@string/summary_cache_keyboard_keys"
-        android:key="@string/pref_cache_keyboard_keys" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-        android:defaultValue="@string/pref_typing_long_press_duration_default"
-        android:dialogTitle="@string/title_pref_typing_long_tap_duration"
-        android:entries="@array/pref_typing_long_press_entries"
-        android:entryValues="@array/pref_typing_long_press_values"
-        android:key="@string/pref_typing_long_press_duration_key"
-        android:summary="%s"
-        android:title="@string/title_pref_typing_long_tap_duration" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.TypingInterruptFragment"
+        android:key="pref_typing_interrupt_screen"
+        android:title="@string/title_pref_typing_interrupt" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="@string/pref_physical_keyboard_key"
+        android:title="@string/title_pref_physical_keyboard" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

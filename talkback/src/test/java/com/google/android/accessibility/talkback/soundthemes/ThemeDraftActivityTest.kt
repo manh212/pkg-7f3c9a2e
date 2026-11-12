@@ -17,6 +17,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
 import androidx.appcompat.app.AlertDialog
+import androidx.preference.PreferenceCategory
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -48,7 +49,18 @@ class ThemeDraftActivityTest {
     discard.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
     shadowOf(Looper.getMainLooper()).idle()
     val fragment = activity.supportFragmentManager.findFragmentById(android.R.id.content) as ThemeSoundsFragment
-    assertFalse(fragment.findPreference<androidx.preference.Preference>(ControlSoundsSettings.PREF_ON)!!.callChangeListener(true))
+    // The control-sounds toggle was removed from the draft composer, so the
+    // "edits are refused after discard" check now taps a sound row instead:
+    // no choices dialog may appear once the draft is discarded.
+    val screen = fragment.preferenceScreen
+    val soundsCategory = (0 until screen.preferenceCount)
+      .map { screen.getPreference(it) }
+      .filterIsInstance<PreferenceCategory>()
+      .single()
+    val dialogBefore = ShadowDialog.getLatestDialog()
+    soundsCategory.getPreference(0).performClick()
+    shadowOf(Looper.getMainLooper()).idle()
+    assertSame(dialogBefore, ShadowDialog.getLatestDialog())
     fragment.executor.submit {}.get()
     shadowOf(Looper.getMainLooper()).idle()
     assertTrue(activity.isFinishing)

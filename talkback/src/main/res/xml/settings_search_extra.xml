@@ -66,6 +66,7 @@
     <item title="@string/title_pref_sound_theme_install_link" />
     <item title="@string/title_pref_sound_theme_install_source" />
     <item title="@string/title_pref_control_sounds" />
+    <item title="@string/title_pref_control_sounds_speak_roles" />
     <item title="@string/title_pref_control_sounds_3d" />
     <item title="@string/title_pref_theme_sounds" />
     <item title="@string/sound_theme_use" />

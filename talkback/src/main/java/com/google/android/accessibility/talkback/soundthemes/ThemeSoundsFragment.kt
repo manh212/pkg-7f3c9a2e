@@ -42,12 +42,9 @@ import androidx.core.view.accessibility.AccessibilityViewCommand
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceViewHolder
-import com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-import com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.controlsounds.ControlSounds
-import com.google.android.accessibility.talkback.controlsounds.ControlSoundsSettings
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.individualfeedback.FeedbackItem
 import com.google.android.accessibility.talkback.individualfeedback.SoundPreview
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
@@ -140,41 +137,6 @@ class ThemeSoundsFragment : TalkbackBaseFragment() {
           showMessage(getString(R.string.sound_theme_no_picker))
         }
       }
-    }
-
-    if (draftId != null) {
-      screen.addPreference(AccessibilitySuiteSwitchPreference(context).apply {
-        key = ControlSoundsSettings.PREF_ON
-        isPersistent = false
-        isChecked = prefs.getBoolean(key, false)
-        setOnPreferenceChangeListener { _, value ->
-          if (closing || !available()) return@setOnPreferenceChangeListener false
-          prefs.edit().putBoolean(key, value as Boolean).apply()
-          true
-        }
-        setTitle(R.string.title_pref_control_sounds)
-        setSummary(R.string.summary_pref_control_sounds)
-        isIconSpaceReserved = false
-      })
-      screen.addPreference(AccessibilitySuiteListPreference(context).apply {
-        key = ControlSoundsSettings.PREF_3D
-        isPersistent = false
-        value = prefs.getString(key, ControlSoundsSettings.VALUE_3D_WITH_HEADPHONES)
-        setOnPreferenceChangeListener { _, value ->
-          if (closing || !available()) return@setOnPreferenceChangeListener false
-          prefs.edit().putString(key, value as String).apply()
-          true
-        }
-        setTitle(R.string.title_pref_control_sounds_3d)
-        setDialogTitle(R.string.title_pref_control_sounds_3d)
-        setEntries(R.array.pref_control_sounds_3d_entries)
-        setEntryValues(R.array.pref_control_sounds_3d_values)
-        summary = "%s"
-        isIconSpaceReserved = false
-      })
-      // Placed sounds only play with control sounds on.
-      findPreference<Preference>(ControlSoundsSettings.PREF_3D)?.dependency =
-        ControlSoundsSettings.PREF_ON
     }
 
     val reset =
@@ -404,10 +366,6 @@ class ThemeSoundsFragment : TalkbackBaseFragment() {
     val context = context ?: return
     val theme = resolveTheme() ?: return
     val custom = SoundThemes.soundFiles(theme)
-    if (draftId != null && !prefs.contains(ControlSoundsSettings.PREF_ON)) {
-      findPreference<AccessibilitySuiteSwitchPreference>(ControlSoundsSettings.PREF_ON)?.isChecked =
-        custom.keys.any { it in ControlSounds.SOUNDS }
-    }
     for (row in rows) {
       row.summary =
         context.getString(

@@ -1,7 +1,6 @@
 package com.google.android.accessibility.talkback.screenrecognition
 
 import android.os.Bundle
-import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKeyPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
@@ -13,7 +12,6 @@ class ScreenRecognitionSettingsFragment : TalkbackBaseFragment(R.xml.screen_reco
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
-    GeminiApiKeyPreference.setUp(this)
     val method = findPreference<ListPreference>("pref_screen_recognition_method")
     method?.summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
     val ocrSettings = findPreference<Preference>("pref_screen_recognition_ocr_settings")

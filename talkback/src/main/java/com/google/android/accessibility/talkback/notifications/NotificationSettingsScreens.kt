@@ -269,9 +269,6 @@ class NotificationReadingFragment :
   }
 }
 
-class NotificationFilterFragment :
-  NotificationXmlFragment(R.xml.notification_filter_preferences, R.string.notification_filter_title)
-
 class NotificationListSettingsFragment :
   TalkbackBaseFragment(R.xml.notification_list_preferences) {
   override fun getTitle(): CharSequence = getText(R.string.title_pref_notification_list_settings)
@@ -285,14 +282,8 @@ class NotificationAutomationFragment :
   }
 }
 
-class NotificationKindsFragment :
-  NotificationXmlFragment(R.xml.notification_kinds_preferences, R.string.notification_kinds_title)
-
 class NotificationWhenFragment :
   NotificationXmlFragment(R.xml.notification_when_preferences, R.string.notification_when_title)
-
-class NotificationRepeatsFragment :
-  NotificationXmlFragment(R.xml.notification_repeats_preferences, R.string.notification_repeats_title)
 
 class NotificationStopFragment :
   NotificationXmlFragment(R.xml.notification_stop_preferences, R.string.notification_stop_title)
@@ -313,4 +304,27 @@ class NotificationSchedulesFragment :
       ExactAlarmSettingsRow.refresh(it, requireContext())
     }
   }
+}
+
+class NotificationAppsWordsFragment :
+  TalkbackBaseFragment(R.xml.notification_group_apps_words_preferences) {
+  override fun getTitle(): CharSequence = getText(R.string.notification_group_apps_words_title)
+}
+
+class NotificationSkipFilterFragment :
+  NotificationXmlFragment(R.xml.notification_group_skip_filter_preferences, R.string.notification_group_skip_filter_title)
+
+class NotificationWhenStopFragment :
+  TalkbackBaseFragment(R.xml.notification_group_when_stop_preferences) {
+  override fun getTitle(): CharSequence = getText(R.string.notification_group_when_stop_title)
+}
+
+class NotificationSummaryHistoryFragment :
+  TalkbackBaseFragment(R.xml.notification_group_summary_history_preferences) {
+  override fun getTitle(): CharSequence = getText(R.string.notification_group_summary_history_title)
+}
+
+class NotificationAutomationMonitorFragment :
+  TalkbackBaseFragment(R.xml.notification_group_automation_monitor_preferences) {
+  override fun getTitle(): CharSequence = getText(R.string.notification_group_automation_monitor_title)
 }

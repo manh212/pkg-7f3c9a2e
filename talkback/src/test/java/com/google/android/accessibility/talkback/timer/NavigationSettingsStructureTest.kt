@@ -93,7 +93,7 @@ class NavigationSettingsStructureTest {
   @Test
   fun speakVolumeChangesMovedToSoundAndVibration() {
     assertTrue(
-      rowsOf(R.xml.sound_and_vibration_preferences)
+      rowsOf(R.xml.sound_feedback_preferences)
         .any { it.first == "pref_speak_volume_changes" && it.second == null })
     assertFalse(
       rowsOf(R.xml.volume_key_preferences).any { it.first == "pref_speak_volume_changes" })

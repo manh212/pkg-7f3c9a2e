@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_use_audio_focus_default"
+      android:key="@string/pref_use_audio_focus_key"
+      android:title="@string/title_pref_use_audio_focus"
+      android:summary="@string/summary_audio_ducking" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_proximity_default"
+      android:key="@string/pref_proximity_key"
+      android:title="@string/title_pref_cover_proximity_sensor" />
+</PreferenceScreen>
