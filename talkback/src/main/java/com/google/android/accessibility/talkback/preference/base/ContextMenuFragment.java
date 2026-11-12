@@ -20,7 +20,9 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
 import androidx.preference.Preference;
+import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceScreen;
+import com.google.android.accessibility.material.preference.AccessibilitySuitePreference;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.actor.ImageCaptioner;
 import com.google.android.accessibility.talkback.actor.gemini.GeminiConfiguration;
@@ -50,6 +52,13 @@ public class ContextMenuFragment extends ItemListFragment {
   public void onCreate(Bundle bundle) {
     PreferencesActivityUtils.removeEditingKey(getContext());
     super.onCreate(bundle);
+  }
+
+  @Override
+  public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+    super.onCreatePreferences(savedInstanceState, rootKey);
+    addNavigationDetailRow();
+    updateNavigationOptions(getPreferenceScreen());
   }
 
   @Override
@@ -125,6 +134,29 @@ public class ContextMenuFragment extends ItemListFragment {
   protected void onMembershipChanged(String key, boolean inList) {
     if (TextUtils.equals(key, getString(R.string.pref_show_context_menu_granularity_setting_key))) {
       updateNavigationOptions(getPreferenceScreen());
+    }
+  }
+
+  private void addNavigationDetailRow() {
+    PreferenceScreen screen = getPreferenceScreen();
+    if (screen == null) {
+      return;
+    }
+    String granularityTitle = getString(R.string.title_granularity);
+    for (int i = 0; i < screen.getPreferenceCount(); i++) {
+      Preference group = screen.getPreference(i);
+      if (!(group instanceof PreferenceGroup)
+          || !TextUtils.equals(granularityTitle, group.getTitle())) {
+        continue;
+      }
+      AccessibilitySuitePreference detail = new AccessibilitySuitePreference(requireContext());
+      detail.setKey(getString(R.string.pref_show_context_menu_granularity_detail_setting_key));
+      detail.setTitle(R.string.title_pref_category_navigation_menu);
+      detail.setFragment(NavigationMenuFragment.class.getName());
+      detail.setOrder(7);
+      detail.setIconSpaceReserved(false);
+      ((PreferenceGroup) group).addPreference(detail);
+      return;
     }
   }
 

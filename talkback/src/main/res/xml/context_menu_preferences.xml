@@ -86,6 +86,11 @@
             android:title="@string/title_granularity"
             app:singleLineTitle="false"
             android:summary="@string/summary_granularity"/>
+        <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+            android:key="@string/pref_show_context_menu_granularity_detail_setting_key"
+            android:title="@string/title_pref_category_navigation_menu"
+            android:fragment="com.google.android.accessibility.talkback.preference.base.NavigationMenuFragment"
+            android:visibility="invisible" />
 
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory

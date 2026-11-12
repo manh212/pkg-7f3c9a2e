@@ -8,11 +8,7 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.SelectorMenuFragment"
         android:key="@string/pref_category_manage_selector_menu_key"
-        android:title="@string/title_pref_category_selector_menu" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="@string/pref_show_context_menu_granularity_detail_setting_key"
-        android:title="@string/title_pref_category_navigation_menu"
-        android:fragment="com.google.android.accessibility.talkback.preference.base.NavigationMenuFragment" />
+        android:title="@string/selector_groups_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.CustomMenusFragment"
         android:key="pref_custom_menus_screen"

@@ -93,6 +93,19 @@ public class SettingsSearchIndexTest {
   }
 
   @Test
+  public void granularityDetailRowIsIndexedUnderTheContextMenu() {
+    Context context = RuntimeEnvironment.getApplication();
+    List<SettingsSearchIndex.Entry> entries = build(context);
+    assertTrue(
+        entries.stream()
+            .anyMatch(
+                entry ->
+                    entry.fragment.endsWith("NavigationMenuFragment")
+                        && entry.title.equals(
+                            context.getString(R.string.title_pref_category_navigation_menu))));
+  }
+
+  @Test
   public void indexingDoesNotChangePreferencesAndKeepsDeveloperNoticeMetadata() {
     Context context = RuntimeEnvironment.getApplication();
     SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(context);
