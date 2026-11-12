@@ -17,6 +17,7 @@ package com.google.android.accessibility.talkback.compositor.hint.tv;
 
 import android.content.Context;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.compositor.GlobalVariables;
 import com.google.android.accessibility.talkback.compositor.hint.AccessibilityFocusHint;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -56,6 +57,17 @@ public class AccessibilityFocusHintForTV extends AccessibilityFocusHint {
         .append(String.format(", isEnabled=%s", isEnabled))
         .append(String.format(", isAccessibilityFocused=%s", isAccessibilityFocused));
 
+    if (globalVariables.isUsageHintActionsOnly() && isEnabled && isAccessibilityFocused) {
+      CharSequence actionsHint =
+          globalVariables.hasReadingMenuActionSettings()
+              ? context.getString(R.string.hint_actions_available)
+              : "";
+      LogUtils.v(
+          TAG,
+          "tv    getHint: %s",
+          logString.append(String.format("\n    actionsHint={%s}", actionsHint)).toString());
+      return actionsHint;
+    }
     if (enableUsageHint && isEnabled && isAccessibilityFocused) {
       // Prepare hint for the node role.
       CharSequence nodeRoleHint = roleHint.getHint(node);
