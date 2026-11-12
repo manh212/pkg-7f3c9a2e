@@ -256,6 +256,23 @@ class SettingsBackupTest {
   }
 
   @Test
+  fun exportWritesMeridianFormatAndOlderSandflyFilesStillImport() {
+    prefs.edit().clear().putBoolean("a_switch", true).commit()
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("meridian-settings"))
+
+    prefs.edit().clear().commit()
+    assertTrue(SettingsBackup.import(context, exported))
+    assertEquals(true, prefs.getBoolean("a_switch", false))
+
+    val older =
+      """{"format":"sandfly-settings","version":1,"files":{"device":{"default":{"a_switch":{"type":"boolean","value":true}}}}}"""
+    prefs.edit().clear().commit()
+    assertTrue(SettingsBackup.import(context, older))
+    assertEquals(true, prefs.getBoolean("a_switch", false))
+  }
+
+  @Test
   fun brailleKeyboardSettingsRoundTripWhilePhoneSettingsStayOnThePhone() {
     val braillePrefs =
       context.getSharedPreferences("BraillePhoneBreakthroughV2Prefs", Context.MODE_PRIVATE)

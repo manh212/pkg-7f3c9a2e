@@ -173,7 +173,7 @@ public class CustomLabelMigrationManager {
     File outputDir = context.getExternalCacheDir();
     String fileName =
         String.format(
-            "Talkback_custom_labels_%s.tbl", new SimpleDateFormat("MMddyyyy").format(new Date()));
+            "Meridian_custom_labels_%s.tbl", new SimpleDateFormat("MMddyyyy").format(new Date()));
     return new File(outputDir, fileName);
   }
 

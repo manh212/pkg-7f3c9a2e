@@ -36,7 +36,7 @@ public class ScreenshotSaver {
       return;
     }
     String name =
-        "sandfly-screenshot-"
+        "meridian-screenshot-"
             + new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date())
             + ".png";
     ContentValues values = new ContentValues();
