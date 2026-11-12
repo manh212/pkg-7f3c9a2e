@@ -32,7 +32,7 @@ import com.google.android.accessibility.talkback.menurules.NodeMenu;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.ArrayList;
 import java.util.List;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import androidx.annotation.Nullable;
 
 /**
  * Generates the settings quick actions of the current section for the Actions reading control,
