@@ -2748,6 +2748,12 @@
     <string name="summary_pref_collapse_list_item_actions">In supported apps, each list item is one stop, and its buttons move to the Actions reading control.</string>
     <!-- Title of a synthesized action that long-presses a button inside a collapsed list item. [CHAR LIMIT=NONE]-->
     <string name="title_collapse_action_long_press">%1$s, long press</string>
+    <!-- Spoken state of a settings quick action toggle: on. [CHAR LIMIT=NONE]-->
+    <string name="quick_action_state_on">on</string>
+    <!-- Spoken state of a settings quick action toggle: off. [CHAR LIMIT=NONE]-->
+    <string name="quick_action_state_off">off</string>
+    <!-- Spoken when a settings quick action opener could not open its feature. [CHAR LIMIT=NONE]-->
+    <string name="quick_action_open_failed">could not open</string>
     <!-- Titles of the items of a video's own menu, offered as synthesized actions inside a collapsed YouTube item. Each one must match the label YouTube itself shows for that menu item, except the two state-dependent items (Watch later, downloads): YouTube words those by the video's current state, so they are offered under a neutral toggle title instead and matched by their state variants when the menu opens. [CHAR LIMIT=NONE]-->
     <string name="title_collapse_menu_play_on_device">Play on another device</string>
     <string name="title_collapse_menu_play_next">Play next in queue</string>
