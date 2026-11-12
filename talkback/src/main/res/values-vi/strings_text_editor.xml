@@ -9,6 +9,17 @@
     <string name="text_editor_paste_from_clipboard">Dán từ bộ nhớ tạm</string>
     <string name="text_editor_paste_replace">Thay toàn bộ văn bản</string>
     <string name="text_editor_share">Chia sẻ</string>
+    <string name="text_editor_save_as_file">Lưu thành tệp</string>
+    <string name="text_editor_save_as_file_name">Tên tệp</string>
+    <string name="text_editor_save_as_file_type">Loại tệp</string>
+    <string name="text_editor_file_type_txt">Văn bản (.txt)</string>
+    <string name="text_editor_file_type_md">Markdown (.md)</string>
+    <string name="text_editor_file_type_csv">CSV (.csv)</string>
+    <string name="text_editor_file_type_html">Trang web (.html)</string>
+    <string name="text_editor_file_type_rtf">Rich Text (.rtf)</string>
+    <string name="text_editor_file_type_pdf">PDF (.pdf)</string>
+    <string name="text_editor_save_done">Đã lưu %1$s</string>
+    <string name="text_editor_save_failed">Không lưu được tệp</string>
     <string name="text_editor_word_count">Số từ và ký tự</string>
     <string name="text_editor_word_count_message">%1$d từ, %2$d ký tự</string>
     <string name="text_editor_empty_clipboard">Bộ nhớ tạm trống</string>

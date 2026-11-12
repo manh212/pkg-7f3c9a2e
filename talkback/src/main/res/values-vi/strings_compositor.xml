@@ -175,6 +175,7 @@
   <string name="template_hint_menu_type_high_verbosity">Có %1$s, hãy %2$s để xem</string>
   <string name="template_hint_for_reading_control_actions_in_high_verbosity">Bạn có thể sử dụng %1$s, %2$s rồi nhấn đúp để kích hoạt</string>
   <string name="hint_suggestion">Bạn có thể sử dụng tính năng Hiệu đính</string>
+  <string name="hint_actions_available">Có thao tác, vuốt lên hoặc xuống để chọn</string>
   <string name="template_hint_edit_text_containing_typo">Bạn có thể sử dụng tính năng Hiệu đính. Có %1$d từ viết sai chính tả. %2$s rồi dùng tính năng \"Hiệu đính\" để xem</string>
   <string name="template_hint_reading_menu_spelling_suggestion">Bạn có thể sử dụng tính năng Hiệu đính. %1$s rồi dùng các thao tác để xem</string>
   <string name="template_hint_reading_menu_actions_for_spelling_suggestion">Bạn có thể sử dụng tính năng Hiệu đính. %1$s để biết thông tin cụ thể</string>

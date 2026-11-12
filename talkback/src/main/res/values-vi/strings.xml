@@ -48,6 +48,9 @@
   <string name="capital_letters_sound_feedback">Phát âm thanh</string>
   <string name="title_pref_a11y_hints">Nói gợi ý sử dụng</string>
   <string name="summary_pref_a11y_hints">Sau khi mô tả một mục, đọc cách sử dụng mục đó</string>
+  <string name="pref_a11y_hints_entry_all">Đọc gợi ý</string>
+  <string name="pref_a11y_hints_entry_actions">Chỉ có thao tác</string>
+  <string name="pref_a11y_hints_entry_off">Tắt</string>
   <string name="pref_speak_container_element_positions_title">Đọc thông tin về vùng chứa</string>
   <string name="pref_speak_time_title">Đọc to thời gian</string>
   <string name="pref_speak_time_summary">Khi bạn bật màn hình</string>
