@@ -145,6 +145,7 @@ import com.google.android.accessibility.talkback.compositor.EarlyFocusSpeech;
 import com.google.android.accessibility.talkback.compositor.EventFilter;
 import com.google.android.accessibility.talkback.compositor.GlobalVariables;
 import com.google.android.accessibility.talkback.compositor.PreparedFocusSpeech;
+import com.google.android.accessibility.talkback.compositor.UsageHintMode;
 import com.google.android.accessibility.talkback.compositor.roledescription.RoleDescriptionExtractor.DescriptionOrder;
 import com.google.android.accessibility.talkback.contextmenu.ListMenuManager;
 import com.google.android.accessibility.talkback.controller.TelevisionNavigationController;
@@ -4377,13 +4378,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       globalVariables.setSpeakElementIds(speakElementIds);
 
       // Update preference: speak usage hints.
-      boolean speakUsageHints =
-          VerbosityPreferences.getPreferenceValueBool(
-              prefs,
-              res,
-              res.getString(R.string.pref_a11y_hints_key),
-              res.getBoolean(R.bool.pref_a11y_hints_default));
-      globalVariables.setUsageHintEnabled(speakUsageHints);
+      globalVariables.setUsageHintMode(UsageHintMode.read(prefs, res));
 
       // Update preference: speak phonetic letters.
       globalVariables.setPhoneticLetterMode(PhoneticLetterMode.read(prefs, res));

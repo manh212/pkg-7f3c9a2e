@@ -31,11 +31,11 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.Feedback.InterruptLevel;
 import com.google.android.accessibility.talkback.audio.AudioDeviceRouter;
 import com.google.android.accessibility.talkback.compositor.Compositor;
+import com.google.android.accessibility.talkback.compositor.UsageHintMode;
 import com.google.android.accessibility.talkback.eventprocessor.AccessibilityEventProcessor.AccessibilityEventIdleListener;
 import com.google.android.accessibility.talkback.monitor.ProximitySensorMonitor;
 import com.google.android.accessibility.talkback.pause.PauseController;
 import com.google.android.accessibility.talkback.utils.DiagnosticOverlayControllerImpl;
-import com.google.android.accessibility.talkback.utils.VerbosityPreferences;
 import com.google.android.accessibility.utils.AccessibilityEventListener;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -460,11 +460,9 @@ public class Pipeline implements AccessibilityEventListener, AccessibilityEventI
   }
 
   private static boolean speakUsageHints(Context context) {
-    return VerbosityPreferences.getPreferenceValueBool(
-        SharedPreferencesUtils.getSharedPreferences(context),
-        context.getResources(),
-        context.getString(R.string.pref_a11y_hints_key),
-        context.getResources().getBoolean(R.bool.pref_a11y_hints_default));
+    return !UsageHintMode.OFF.equals(
+        UsageHintMode.read(
+            SharedPreferencesUtils.getSharedPreferences(context), context.getResources()));
   }
 
   private void displayFeedbackForDiagnosticOverlay(Feedback feedback) {

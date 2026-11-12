@@ -46,6 +46,7 @@ public class TalkBackApplication extends Application {
       SettingsImporter.importIfNeeded(this);
       SettingsBackup.applyInitialDefaultsIfNeeded(this);
       SettingsBackup.applyEventProcessingLevelResetIfNeeded(this);
+      SettingsBackup.applyUsageHintsResetIfNeeded(this);
       DeviceLicenseManager.prepareDirectBoot(this);
     }
 
