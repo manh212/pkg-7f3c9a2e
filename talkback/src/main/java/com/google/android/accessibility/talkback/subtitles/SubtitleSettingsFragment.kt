@@ -7,7 +7,6 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.SeekBarPreference
 import com.google.android.accessibility.talkback.R
-import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKeyPreference
 import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
@@ -19,7 +18,6 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
-    GeminiApiKeyPreference.setUp(this)
     for (key in listOf(SubtitleSettings.ENGINE, SubtitleSettings.REGION,
         SubtitleSettings.SPEECH, SubtitleSettings.INTERVAL,
         SubtitleSettings.GEMINI_VOICE, SubtitleSettings.GEMINI_CHANNEL)) {
@@ -80,7 +78,6 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
   override fun onResume() {
     super.onResume()
     refresh()
-    GeminiApiKeyPreference.refresh(this)
   }
 
   private fun refreshDownload(download: Preference, status: OcrModelDownload.Status) {
@@ -113,6 +110,5 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
     findPreference<Preference>(SubtitleSettings.GEMINI_VOICE)?.isVisible = gemini
     findPreference<Preference>(SubtitleSettings.GEMINI_CHANNEL)?.isVisible =
       gemini && voice == SubtitleSettings.VOICE_GEMINI
-    findPreference<Preference>(com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey.PREF_KEY)?.isVisible = gemini
   }
 }
