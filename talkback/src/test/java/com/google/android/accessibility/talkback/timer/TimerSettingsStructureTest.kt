@@ -144,6 +144,7 @@ class TimerSettingsStructureTest {
         "InitialSetupFragment",
         "TextToSpeechSettingsFragment",
         "SpeechGroupFragment",
+        "CallSettingsFragment",
         "NavigationGroupFragment",
         "MenuControlsGroupFragment",
         "SoundAndVibrationFragment",
@@ -157,7 +158,7 @@ class TimerSettingsStructureTest {
       topLevel.map { it.second?.substringAfterLast('.') },
     )
     assertTrue(topLevel.all { !it.second.isNullOrBlank() })
-    assertEquals(13, topLevel.size)
+    assertEquals(14, topLevel.size)
     assertEquals(
       "one initial setup entry point on the main screen",
       1,

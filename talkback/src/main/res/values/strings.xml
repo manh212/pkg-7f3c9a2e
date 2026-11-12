@@ -423,6 +423,7 @@
     <string name="title_pref_group_tools">Tools</string>
     <!-- Main settings group for the tutorial, the about page, logs and the community. [CHAR LIMIT=40] -->
     <string name="title_pref_group_help_center">Help center</string>
+    <string name="title_pref_calls">Calls</string>
     <!-- Main settings group for items that belong to no other group. [CHAR LIMIT=40] -->
     <!-- Title for preference that controls the volume of TalkBack's speech output. [CHAR LIMIT=25] -->
     <string name="title_pref_speech_volume">Speech volume</string>

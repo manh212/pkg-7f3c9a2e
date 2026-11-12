@@ -126,7 +126,7 @@ class OrganizedSettingsTest {
   fun speechControlsFollowPresetChangesAndRestoreCustomValues() {
     val customKey = presetKey(R.string.pref_verbosity_preset_value_custom, R.string.pref_a11y_hints_key)
     prefs.edit().putBoolean(customKey, false).commit()
-    val fragment = SpeechGroupFragment()
+    val fragment = ReadingItemInfoFragment()
     open(fragment)
     for (preset in listOf(R.string.pref_verbosity_preset_value_high, R.string.pref_verbosity_preset_value_low)) {
       prefs.edit().putString(
@@ -148,7 +148,7 @@ class OrganizedSettingsTest {
   @Test
   fun phoneticLetterModeLivesWithReadingTextOptions() {
     val key = activity.getString(R.string.pref_phonetic_letters_mode_key)
-    val reading = SpeechGroupFragment()
+    val reading = ReadingTextFragment()
     open(reading)
     // Reading preferences are scoped to the active verbosity preset.
     val customKey = presetKey(
@@ -263,7 +263,7 @@ class OrganizedSettingsTest {
     val fragment = NavigationGroupFragment()
     open(fragment)
     val screen = fragment.preferenceScreen
-    assertEquals(9, screen.preferenceCount)
+    assertEquals(8, screen.preferenceCount)
     for (index in 0 until screen.preferenceCount) {
       val row = screen.getPreference(index)
       val destination = row.fragment ?: continue
@@ -335,7 +335,7 @@ class OrganizedSettingsTest {
   fun unlabelledButtonReadingLivesInSpeechAndKeepsItsSavedValue() {
     val key = activity.getString(R.string.pref_speak_element_ids_key)
     prefs.edit().putBoolean(key, true).commit()
-    val fragment = SpeechGroupFragment()
+    val fragment = ReadingItemInfoFragment()
     open(fragment)
     val row = requireNotNull(fragment.findPreference<TwoStatePreference>(key))
     assertTrue(row.isChecked)
@@ -347,10 +347,10 @@ class OrganizedSettingsTest {
   }
 
   @Test
-  fun callSettingsBelongToReadingContentAndStartWithIndependentDefaults() {
-    val reading = SpeechGroupFragment()
-    open(reading)
-    val link = reading.findPreference<Preference>("pref_call_settings")
+  fun callSettingsBelongToMainScreenAndStartWithIndependentDefaults() {
+    val main = TalkBackPreferenceFragment()
+    open(main)
+    val link = main.findPreference<Preference>("pref_call_settings")
     assertEquals(
       "com.google.android.accessibility.talkback.calls.CallSettingsFragment", link?.fragment)
     val calls = com.google.android.accessibility.talkback.calls.CallSettingsFragment()
