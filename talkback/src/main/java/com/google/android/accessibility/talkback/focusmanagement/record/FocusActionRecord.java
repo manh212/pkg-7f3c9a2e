@@ -63,17 +63,15 @@ public class FocusActionRecord {
       long actionTime,
       @Nullable EventId originEventId) {
     this.focusedNode = focusedNode;
-    collectionItem = !WebInterfaceUtils.supportsWebActions(focusedNode)
-        && (AccessibilityNodeInfoUtils.isInCollection(focusedNode)
-            || AccessibilityNodeInfoUtils.hasMatchingAncestor(
-                focusedNode, AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL));
-    if (WebInterfaceUtils.supportsWebActions(focusedNode)) {
+    boolean isWeb = WebInterfaceUtils.supportsWebActions(focusedNode);
+    if (isWeb) {
       nodePathDescription = NodePathDescription.obtainWithoutSiblingContext(focusedNode);
       siblingContext = new PathWithSiblingContext(nodePathDescription);
     } else {
       nodePathDescription = NodePathDescription.obtain(focusedNode);
       siblingContext = null;
     }
+    collectionItem = !isWeb && nodePathDescription.hasCollectionItemAncestor();
     this.extraInfo = extraInfo;
     this.actionTime = actionTime;
     this.uniqueId = compoundPackageNameAndUniqueId(focusedNode);

@@ -162,6 +162,31 @@ public final class NodePathDescription {
     return nodePath;
   }
 
+  /**
+   * Returns whether an ancestor on this path is a collection or an auto-scroll container. Checked
+   * against the path's own saved nodes, without reading live parents.
+   */
+  boolean hasCollectionItemAncestor() {
+    for (int i = 1; i < nodeDescriptions.size(); i++) {
+      NodeDescription description = nodeDescriptions.get(i);
+      if (description.savedNode == null) {
+        continue;
+      }
+      AccessibilityNodeInfoCompat ancestor = description.savedNode.obtainCopyCompat();
+      if (ancestor == null) {
+        continue;
+      }
+      int role = Role.getRole(ancestor);
+      if (role == Role.ROLE_LIST
+          || role == Role.ROLE_GRID
+          || ancestor.getCollectionInfo() != null
+          || AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL.accept(ancestor)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Methods for finding a node matching an old tree-path
 
