@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.timer.SpokenClockSettingsFragment"
+      android:key="@string/pref_sound_feature_clock_key"
+      android:persistent="false"
+      android:title="@string/spoken_clock_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.timer.StopwatchSettingsFragment"
+      android:key="@string/pref_sound_feature_stopwatch_key"
+      android:persistent="false"
+      android:title="@string/stopwatch_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.timer.CountdownAlarmSettingsFragment"
+      android:key="@string/pref_sound_feature_alarm_key"
+      android:persistent="false"
+      android:title="@string/countdown_alarm_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationReadingFragment"
+      android:key="@string/pref_sound_feature_notification_key"
+      android:persistent="false"
+      android:title="@string/notification_sound_before_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.translation.BilingualTranslationFragment"
+      android:key="@string/pref_sound_feature_bilingual_key"
+      android:persistent="false"
+      android:title="@string/title_pref_translation_bilingual_stream" />
+</PreferenceScreen>
