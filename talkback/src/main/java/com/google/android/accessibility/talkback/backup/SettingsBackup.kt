@@ -35,6 +35,7 @@ import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
 import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import com.google.android.accessibility.talkback.timer.TimerSounds
+import com.google.android.accessibility.talkback.utils.VerbosityPreferences
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -73,7 +74,7 @@ object SettingsBackup {
   private const val INITIAL_SETTINGS_FILE = "initial-settings.json"
   private const val BUNDLED_DEFAULTS_APPLIED = "bundled_defaults_applied"
   private const val EVENT_PROCESSING_LEVEL_RESET = "event_processing_level_reset"
-  private const val USAGE_HINTS_RESET = "usage_hints_reset"
+  private const val USAGE_HINTS_RESET = "usage_hints_reset_2"
   private const val KEY_EVENT_PROCESSING_LEVEL = "pref_event_processing_level"
   private const val MAX_BYTES = 5 * 1024 * 1024
   private const val PREFS_SUFFIX = ".xml"
@@ -374,7 +375,13 @@ object SettingsBackup {
       SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
     if (statePrefs.getBoolean(USAGE_HINTS_RESET, false)) return
     val key = context.getString(R.string.pref_a11y_hints_key)
-    if (!prefs.edit().putString(key, UsageHintMode.ACTIONS_ONLY).commit()) {
+    val customKey =
+      VerbosityPreferences.toVerbosityPrefKey(
+        context.getString(R.string.pref_verbosity_preset_value_custom), key)
+    if (!prefs.edit()
+        .putString(key, UsageHintMode.ACTIONS_ONLY)
+        .putString(customKey, UsageHintMode.ACTIONS_ONLY)
+        .commit()) {
       LogUtils.e(TAG, "Cannot set usage hints to actions only")
       return
     }
