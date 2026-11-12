@@ -118,15 +118,15 @@ class MenuSettingsStructureTest {
         .any { it.first == DETAIL_KEY })
     val parser = context.resources.getXml(R.xml.context_menu_preferences)
     var found = false
-    var visibility: String? = null
+    var visible = true
     while (parser.next() != XmlPullParser.END_DOCUMENT) {
       if (parser.eventType == XmlPullParser.START_TAG && keyOf(parser) == DETAIL_KEY) {
         found = true
-        visibility = parser.getAttributeValue(NAMESPACE, "visibility")
+        visible = parser.getAttributeBooleanValue(APP_NAMESPACE, "isPreferenceVisible", true)
       }
     }
     assertTrue(found)
-    assertEquals("invisible", visibility)
+    assertFalse(visible)
   }
 
   @Test
@@ -187,6 +187,7 @@ class MenuSettingsStructureTest {
 
   private companion object {
     private const val NAMESPACE = "http://schemas.android.com/apk/res/android"
+    private const val APP_NAMESPACE = "http://schemas.android.com/apk/res-auto"
     private const val DETAIL_KEY = "pref_granularity_menu_detail_setting_key"
   }
 }

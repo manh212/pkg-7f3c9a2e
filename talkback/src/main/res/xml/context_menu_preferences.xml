@@ -90,7 +90,7 @@
             android:key="@string/pref_show_context_menu_granularity_detail_setting_key"
             android:title="@string/title_pref_category_navigation_menu"
             android:fragment="com.google.android.accessibility.talkback.preference.base.NavigationMenuFragment"
-            android:visibility="invisible" />
+            app:isPreferenceVisible="false" />
 
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
