@@ -20,6 +20,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Rect
 import android.icu.text.ListFormatter
+import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.text.SpannableString
@@ -33,13 +34,17 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -54,6 +59,7 @@ import com.google.android.accessibility.talkback.actor.gemini.AiTextRequests
 import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandEditor
 import com.google.android.accessibility.talkback.textcorrection.CorrectionPrompt
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
+import com.google.android.accessibility.talkback.texteditor.TextFileFormat
 import com.google.android.accessibility.talkback.translation.AutomaticTranslation
 import com.google.android.accessibility.talkback.translation.Translation
 import com.google.android.accessibility.talkback.translation.TranslationFailure
@@ -67,6 +73,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.widget.KeyboardSafeEditText
+import java.io.IOException
 import java.util.Locale
 import java.util.function.Consumer
 import org.json.JSONObject
@@ -93,6 +100,21 @@ class GranularEditingActivity : AppCompatActivity() {
   private var lastFind = ""
   private var translator: Translator? = null
   private var aiRequests: AiTextRequests? = null
+
+  /** One system file picker per file type, each remembering the type it saves. */
+  private val saveFileLaunchers: Map<TextFileFormat, ActivityResultLauncher<String>> =
+    TextFileFormat.values().associateWith { format ->
+      registerForActivityResult(ActivityResultContracts.CreateDocument(format.mimeType)) { uri ->
+        val fileName = pendingSaveFileName
+        pendingSaveFileName = null
+        if (uri != null && fileName != null) {
+          writeExportFile(uri, format, fileName)
+        }
+      }
+    }
+
+  /** The file name the open file picker will save, set just before launching it. */
+  private var pendingSaveFileName: String? = null
 
   /** The styles Rewrite offers, the same wordings as the text correction screen's. */
   private val rewriteStyles =
@@ -522,6 +544,7 @@ class GranularEditingActivity : AppCompatActivity() {
       add(R.string.text_editor_rename) { renameDocument() }
       add(R.string.text_editor_paste_from_clipboard) { pasteFromClipboard() }
       add(R.string.text_editor_share) { shareDocument() }
+      add(R.string.text_editor_save_as_file) { saveDocumentAsFile() }
       add(R.string.text_editor_word_count) { showWordCount() }
       add(R.string.text_editor_delete_document) { confirmDeleteDocument() }
     }
@@ -881,6 +904,107 @@ ${JSONObject().put("source", target)}"""
     val intent =
       Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
     startActivity(Intent.createChooser(intent, getString(R.string.text_editor_share)))
+  }
+
+  /** Asks for a file name and a file type, then saves this document as a file of that type. */
+  private fun saveDocumentAsFile() {
+    val id = documentId ?: return
+    val current = EditorDocuments.get(id)?.name ?: return
+    val savedName = TextFileFormat.sanitizeFileName(current)
+    val nameField = editText(R.string.text_editor_save_as_file_name, savedName)
+    val typeSpinner =
+      Spinner(this).apply {
+        id = View.generateViewId()
+        adapter =
+          ArrayAdapter(
+              this@GranularEditingActivity,
+              android.R.layout.simple_spinner_item,
+              TextFileFormat.values().map { getString(it.labelRes) },
+            )
+            .apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        prompt = getString(R.string.text_editor_save_as_file_type)
+      }
+    val box =
+      LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(8), dp(16), 0)
+        addView(
+          nameField,
+          LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+          ),
+        )
+        val typeLabel =
+          TextView(this@GranularEditingActivity).apply {
+            text = getString(R.string.text_editor_save_as_file_type)
+            labelFor = typeSpinner.id
+            setPadding(0, dp(12), 0, dp(4))
+          }
+        addView(
+          typeLabel,
+          LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+          ),
+        )
+        addView(
+          typeSpinner,
+          LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+          ),
+        )
+      }
+    val confirm = {
+      val name = nameField.text.toString().trim().ifEmpty { savedName }
+      val format =
+        TextFileFormat.values().getOrElse(typeSpinner.selectedItemPosition) { TextFileFormat.TXT }
+      val fileName = TextFileFormat.fileName(name, format)
+      pendingSaveFileName = fileName
+      saveFileLaunchers[format]?.launch(fileName)
+    }
+    val dialog =
+      AlertDialog.Builder(this)
+        .setTitle(R.string.text_editor_save_as_file)
+        .setView(box)
+        .setPositiveButton(R.string.granular_editing_save) { _, _ -> confirm() }
+        .setNegativeButton(android.R.string.cancel, null)
+        .show()
+    trackDialogInputs(dialog, listOf(nameField)) {
+      confirm()
+      dialog.dismiss()
+    }
+    nameField.requestFocus()
+    dialog.window?.setSoftInputMode(
+      WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
+        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+    )
+    nameField.post { getSystemService(InputMethodManager::class.java)?.showSoftInput(nameField, InputMethodManager.SHOW_IMPLICIT) }
+  }
+
+  /** Writes the document's text as a file of [format] at [uri], on a background thread. */
+  private fun writeExportFile(uri: Uri, format: TextFileFormat, fileName: String) {
+    val currentText = text
+    val title = fileName.substringBeforeLast('.')
+    Thread {
+      val written =
+        try {
+          contentResolver.openOutputStream(uri, "wt")?.use { out ->
+            out.write(TextFileFormat.toBytes(currentText, format, title))
+          } != null
+        } catch (e: IOException) {
+          false
+        } catch (e: SecurityException) {
+          false
+        }
+      runOnUiThread {
+        list.announceForAccessibility(
+          getString(
+            if (written) R.string.text_editor_save_done else R.string.text_editor_save_failed,
+            fileName,
+          )
+        )
+      }
+    }
+      .start()
   }
 
   private fun pasteFromClipboard() {
