@@ -296,7 +296,7 @@ class DirectTouchFragment : TalkbackBaseFragment() {
 
   companion object {
     const val ARG_BACKUP_ONLY = "backup_only"
-    const val BACKUP_FILE_NAME = "backtalk-direct-touch.json"
+    const val BACKUP_FILE_NAME = "meridian-direct-touch.json"
     const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
     val ACTION_TYPING = R.id.accessibility_custom_action_0
     val executor =
