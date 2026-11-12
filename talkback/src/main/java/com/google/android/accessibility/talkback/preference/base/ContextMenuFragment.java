@@ -162,8 +162,8 @@ public class ContextMenuFragment extends ItemListFragment {
 
   private void updateNavigationOptions(PreferenceScreen screen) {
     Preference navigationOptions =
-        screen.findPreference(
-            getString(R.string.pref_show_context_menu_granularity_detail_setting_key));
+        findVisiblePreference(
+            screen, getString(R.string.pref_show_context_menu_granularity_detail_setting_key));
     if (navigationOptions == null) {
       return;
     }
@@ -174,5 +174,21 @@ public class ContextMenuFragment extends ItemListFragment {
             getResources(),
             R.string.pref_show_context_menu_granularity_setting_key,
             R.bool.pref_show_context_menu_granularity_default));
+  }
+
+  private static Preference findVisiblePreference(PreferenceGroup group, String key) {
+    for (int i = 0; i < group.getPreferenceCount(); i++) {
+      Preference preference = group.getPreference(i);
+      if (TextUtils.equals(key, preference.getKey()) && preference.isVisible()) {
+        return preference;
+      }
+      if (preference instanceof PreferenceGroup) {
+        Preference found = findVisiblePreference((PreferenceGroup) preference, key);
+        if (found != null) {
+          return found;
+        }
+      }
+    }
+    return null;
   }
 }
