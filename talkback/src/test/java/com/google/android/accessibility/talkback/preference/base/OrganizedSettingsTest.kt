@@ -126,23 +126,28 @@ class OrganizedSettingsTest {
   @Test
   fun speechControlsFollowPresetChangesAndRestoreCustomValues() {
     val customKey = presetKey(R.string.pref_verbosity_preset_value_custom, R.string.pref_a11y_hints_key)
-    prefs.edit().putBoolean(customKey, false).commit()
+    prefs.edit()
+      .putString(customKey, activity.getString(R.string.value_a11y_hints_off))
+      .commit()
     val fragment = ReadingItemInfoFragment()
     open(fragment)
-    for (preset in listOf(R.string.pref_verbosity_preset_value_high, R.string.pref_verbosity_preset_value_low)) {
+    for ((preset, expected) in listOf(
+      R.string.pref_verbosity_preset_value_high to R.string.value_a11y_hints_all,
+      R.string.pref_verbosity_preset_value_low to R.string.value_a11y_hints_off,
+    )) {
       prefs.edit().putString(
         activity.getString(R.string.pref_verbosity_preset_key), activity.getString(preset),
       ).commit()
-      val row = requireNotNull(fragment.findPreference<TwoStatePreference>(presetKey(preset, R.string.pref_a11y_hints_key)))
-      assertEquals(preset == R.string.pref_verbosity_preset_value_high, row.isChecked)
+      val row = requireNotNull(fragment.findPreference<ListPreference>(presetKey(preset, R.string.pref_a11y_hints_key)))
+      assertEquals(activity.getString(expected), row.value)
       assertFalse(row.isEnabled)
     }
     prefs.edit().putString(
       activity.getString(R.string.pref_verbosity_preset_key),
       activity.getString(R.string.pref_verbosity_preset_value_custom),
     ).commit()
-    val restored = requireNotNull(fragment.findPreference<TwoStatePreference>(customKey))
-    assertFalse(restored.isChecked)
+    val restored = requireNotNull(fragment.findPreference<ListPreference>(customKey))
+    assertEquals(activity.getString(R.string.value_a11y_hints_off), restored.value)
     assertTrue(restored.isEnabled)
   }
 
