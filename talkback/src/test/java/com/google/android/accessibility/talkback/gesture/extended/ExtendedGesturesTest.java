@@ -44,8 +44,9 @@ public class ExtendedGesturesTest {
     assertFalse(TwoFingerRotationSettings.isEnabled(prefs));
   }
 
-  @Test public void rotationSwitchBelongsToMovementSettings() throws Exception {
-    assertTrue(keys(R.xml.navigation_preferences).contains(TwoFingerRotationSettings.ENABLED));
+  @Test public void rotationSwitchBelongsToGestureSettings() throws Exception {
+    assertTrue(keys(R.xml.gesture_preferences).contains(TwoFingerRotationSettings.ENABLED));
+    assertFalse(keys(R.xml.navigation_preferences).contains(TwoFingerRotationSettings.ENABLED));
     assertFalse(keys(R.xml.settings_group_navigation).contains(TwoFingerRotationSettings.ENABLED));
     assertFalse(keys(R.xml.touch_activation_preferences).contains(TwoFingerRotationSettings.ENABLED));
   }
@@ -65,8 +66,9 @@ public class ExtendedGesturesTest {
     assertFalse(ExtendedGestures.isEnabled(prefs));
   }
 
-  @Test public void switchIsInsideTouchSettingsAndAssignmentsStayInTheExistingTwoFingerGroup() throws Exception {
-    assertTrue(keys(R.xml.touch_activation_preferences).contains(ExtendedGestures.ENABLED));
+  @Test public void switchIsInsideGestureSettingsAndAssignmentsStayInTheExistingTwoFingerGroup() throws Exception {
+    assertTrue(keys(R.xml.gesture_preferences).contains(ExtendedGestures.ENABLED));
+    assertFalse(keys(R.xml.touch_activation_preferences).contains(ExtendedGestures.ENABLED));
     assertFalse(keys(R.xml.settings_group_navigation).contains(ExtendedGestures.ENABLED));
     Set<String> names = new HashSet<>();
     String category = null;
