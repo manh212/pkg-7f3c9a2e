@@ -111,7 +111,9 @@ public class VerbosityPreferences {
   }
 
   private static String getVerbosityValueHighFromListPreference(String key, Resources resources) {
-    if (key.equals(resources.getString(R.string.pref_keyboard_echo_on_screen_key))
+    if (key.equals(resources.getString(R.string.pref_a11y_hints_key))) {
+      return resources.getString(R.string.value_a11y_hints_all);
+    } else if (key.equals(resources.getString(R.string.pref_keyboard_echo_on_screen_key))
         || key.equals(resources.getString(R.string.pref_keyboard_echo_physical_key))) {
       String[] keyboardEchoValues = resources.getStringArray(R.array.pref_keyboard_echo_values);
       return (keyboardEchoValues == null || keyboardEchoValues.length == 0)
@@ -131,7 +133,9 @@ public class VerbosityPreferences {
   }
 
   private static String getVerbosityValueLowFromListPreference(String key, Resources resources) {
-    if (key.equals(resources.getString(R.string.pref_keyboard_echo_on_screen_key))
+    if (key.equals(resources.getString(R.string.pref_a11y_hints_key))) {
+      return resources.getString(R.string.value_a11y_hints_off);
+    } else if (key.equals(resources.getString(R.string.pref_keyboard_echo_on_screen_key))
         || key.equals(resources.getString(R.string.pref_keyboard_echo_physical_key))) {
       String[] keyboardEchoValues = resources.getStringArray(R.array.pref_keyboard_echo_values);
       return (keyboardEchoValues == null || keyboardEchoValues.length == 0)
