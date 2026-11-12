@@ -258,6 +258,15 @@ class SoundThemesFragment : TalkbackBaseFragment() {
       }
     )
     settings.addPreference(
+      AccessibilitySuiteSwitchPreference(context).apply {
+        key = "pref_control_sounds_speak_roles"
+        setDefaultValue(false)
+        setTitle(R.string.title_pref_control_sounds_speak_roles)
+        setSummary(R.string.summary_pref_control_sounds_speak_roles)
+        isIconSpaceReserved = false
+      }
+    )
+    settings.addPreference(
       AccessibilitySuiteListPreference(context).apply {
         key = ControlSoundsSettings.PREF_3D
         setDefaultValue(ControlSoundsSettings.VALUE_3D_WITH_HEADPHONES)
