@@ -114,7 +114,7 @@ class VoiceSettingsStructureTest {
     assertFalse(voiceRows.any { it.first == "pref_touch_stops_speech_key" })
     assertFalse(voiceRows.any { it.first == "pref_mute_speech_while_recording" })
     assertTrue(
-      rowsOf(R.xml.settings_group_navigation)
+      rowsOf(R.xml.touch_activation_preferences)
         .any { it.first == "pref_touch_stops_speech_key" && it.second == null })
     assertTrue(
       rowsOf(R.xml.sound_and_vibration_preferences)
