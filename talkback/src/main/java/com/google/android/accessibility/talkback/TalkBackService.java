@@ -2948,6 +2948,8 @@ public class TalkBackService extends AccessibilityServiceCompat
             analytics);
     nodeMenuRuleProcessor = new NodeMenuRuleProcessor(this, nodeMenuCreator);
     globalVariables.setNodeMenuProvider(nodeMenuRuleProcessor);
+    globalVariables.setAccessibilityFocusMonitor(accessibilityFocusMonitor);
+    globalVariables.setNodeMenuRuleCreator(nodeMenuCreator);
 
     menuManager =
         new ListMenuManager(
