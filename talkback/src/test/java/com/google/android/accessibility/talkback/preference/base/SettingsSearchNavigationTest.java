@@ -99,8 +99,7 @@ public class SettingsSearchNavigationTest {
             "DirectTouchFragment",
             "TalkBackGestureShortcutPreferenceFragment",
             "TalkBackKeyboardShortcutPreferenceFragment",
-            "VolumeKeySettingsFragment",
-            "NavigationFeedbackFragment"),
+            "VolumeKeySettingsFragment"),
         fragments);
 
     try (XmlResourceParser parser = context.getResources().getXml(R.xml.preferences)) {
