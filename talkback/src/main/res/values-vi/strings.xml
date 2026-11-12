@@ -1375,6 +1375,7 @@
     <string name="title_pref_group_system_help">Hệ thống và trợ giúp</string>
     <string name="title_pref_group_tools">Công cụ</string>
     <string name="title_pref_group_help_center">Trung tâm trợ giúp</string>
+    <string name="title_pref_calls">Cuộc gọi</string>
     <string name="title_pref_reserve_vibration_watch_gestures">Dành cử chỉ cho Vibration Watch</string>
     <string name="summary_pref_reserve_vibration_watch_gestures">Meridian ngừng xử lý thao tác nhấn một lần và nhấn đúp bằng hai ngón tay để Samsung Vibration Watch có thể dùng các cử chỉ này. Hãy bật Vibration Watch trong phần cài đặt hỗ trợ tiếp cận của đồng hồ.</string>
     <string name="shortcut_reserved_for_vibration_watch">Dành cho Vibration Watch trong phần Cài đặt nâng cao</string>
