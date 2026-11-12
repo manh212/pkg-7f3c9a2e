@@ -16,6 +16,8 @@
 
 package com.google.android.accessibility.talkback.quickactions;
 
+import androidx.preference.Preference;
+import androidx.preference.PreferenceScreen;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.actor.gemini.local.OnDeviceAiFragment;
 import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandSettingsFragment;
@@ -261,6 +263,32 @@ public final class QuickActionSections {
   /** The section the fragment's screen belongs to, or null when it is none (main screen). */
   public static @Nullable Section forFragment(Class<?> fragmentClass) {
     return FRAGMENT_SECTIONS.get(fragmentClass);
+  }
+
+  /**
+   * The section of a main-screen row, or null when the row opens no section. The row must be one
+   * of the main screen's own rows (matched by instance, never by title), and its section comes
+   * from the fragment the row opens. Search-result rows and rows of other screens are not
+   * main-screen rows and map to null.
+   */
+  public static @Nullable Section forMainScreenRow(
+      @Nullable Preference preference, @Nullable PreferenceScreen mainScreen) {
+    if (preference == null || mainScreen == null) {
+      return null;
+    }
+    String key = preference.getKey();
+    if (key == null || mainScreen.findPreference(key) != preference) {
+      return null;
+    }
+    String fragmentName = preference.getFragment();
+    if (fragmentName == null) {
+      return null;
+    }
+    try {
+      return forFragment(Class.forName(fragmentName));
+    } catch (ClassNotFoundException e) {
+      return null;
+    }
   }
 
   /** The section's quick actions, in the order they are offered. */
