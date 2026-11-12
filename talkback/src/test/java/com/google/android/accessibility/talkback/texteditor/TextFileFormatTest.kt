@@ -16,7 +16,10 @@
 
 package com.google.android.accessibility.talkback.texteditor
 
+import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
+import java.util.zip.ZipInputStream
+import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,6 +48,8 @@ class TextFileFormatTest {
     assertEquals("NOTES.MD", TextFileFormat.fileName("NOTES.MD", TextFileFormat.MD))
     assertEquals("document.txt", TextFileFormat.fileName("", TextFileFormat.TXT))
     assertEquals("11-11-2026 21-05.pdf", TextFileFormat.fileName("11/11/2026 21:05", TextFileFormat.PDF))
+    assertEquals("notes.docx", TextFileFormat.fileName("notes", TextFileFormat.DOCX))
+    assertEquals("notes.docx", TextFileFormat.fileName("notes.docx", TextFileFormat.DOCX))
   }
 
   @Test
@@ -99,9 +104,72 @@ class TextFileFormatTest {
   }
 
   @Test
+  fun docxIsAZipWithFourParts() {
+    val entries = docxEntries("one\ntwo")
+    assertEquals(
+      listOf(
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "word/document.xml",
+        "word/_rels/document.xml.rels",
+      ),
+      entries.keys.toList())
+    assertTrue(
+      entries.getValue("[Content_Types].xml")
+        .contains("wordprocessingml.document.main+xml"))
+    assertTrue(entries.getValue("_rels/.rels").contains("word/document.xml"))
+  }
+
+  @Test
+  fun docxDocumentXmlIsWellFormedAndHoldsTheText() {
+    val xml = docxEntries("one\n\ntwo").getValue("word/document.xml")
+    val document = parseXml(xml)
+    assertEquals(3, document.getElementsByTagName("w:p").length)
+    val texts = document.getElementsByTagName("w:t")
+    assertEquals(2, texts.length)
+    assertEquals("one", texts.item(0).textContent)
+    assertEquals("two", texts.item(1).textContent)
+  }
+
+  @Test
+  fun docxEscapesSpecialCharacters() {
+    val text = "a<b>&\"c\" 'd' Tiếng Việt"
+    val xml = docxEntries(text).getValue("word/document.xml")
+    assertTrue(xml.contains("a&lt;b&gt;&amp;&quot;c&quot; &apos;d&apos; Tiếng Việt"))
+    val texts = parseXml(xml).getElementsByTagName("w:t")
+    assertEquals(1, texts.length)
+    assertEquals(text, texts.item(0).textContent)
+  }
+
+  @Test
+  fun docxEmptyDocumentIsAValidFile() {
+    val xml = docxEntries("").getValue("word/document.xml")
+    val document = parseXml(xml)
+    assertEquals(1, document.getElementsByTagName("w:p").length)
+    assertEquals(0, document.getElementsByTagName("w:t").length)
+  }
+
+  private fun docxEntries(text: String): Map<String, String> {
+    val entries = LinkedHashMap<String, String>()
+    val bytes = TextFileFormat.toBytes(text, TextFileFormat.DOCX, "doc")
+    ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
+      var entry = zip.nextEntry
+      while (entry != null) {
+        entries[entry.name] = String(zip.readBytes(), StandardCharsets.UTF_8)
+        entry = zip.nextEntry
+      }
+    }
+    return entries
+  }
+
+  private fun parseXml(xml: String) =
+    DocumentBuilderFactory.newInstance().newDocumentBuilder()
+      .parse(ByteArrayInputStream(xml.toByteArray(StandardCharsets.UTF_8)))
+
+  @Test
   fun formatsHaveDistinctExtensionsAndMimeTypes() {
     val formats = TextFileFormat.values()
-    assertEquals(6, formats.size)
+    assertEquals(7, formats.size)
     assertEquals(formats.size, formats.map { it.extension }.toSet().size)
     assertEquals(formats.size, formats.map { it.mimeType }.toSet().size)
     assertEquals(formats.size, formats.map { it.labelRes }.toSet().size)
