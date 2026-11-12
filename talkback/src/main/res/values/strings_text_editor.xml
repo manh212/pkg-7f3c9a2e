@@ -24,6 +24,7 @@
     <string name="text_editor_file_type_html">Web page (.html)</string>
     <string name="text_editor_file_type_rtf">Rich Text (.rtf)</string>
     <string name="text_editor_file_type_pdf">PDF (.pdf)</string>
+    <string name="text_editor_file_type_docx">Word (.docx)</string>
     <!-- Spoken when saving as a file finishes, with the file name, or fails. [CHAR LIMIT=NONE] -->
     <string name="text_editor_save_done">Saved %1$s</string>
     <string name="text_editor_save_failed">Could not save the file</string>
