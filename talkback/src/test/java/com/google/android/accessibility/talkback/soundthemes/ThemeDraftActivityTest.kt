@@ -52,8 +52,11 @@ class ThemeDraftActivityTest {
     // The control-sounds toggle was removed from the draft composer, so the
     // "edits are refused after discard" check now taps a sound row instead:
     // no choices dialog may appear once the draft is discarded.
-    val soundsCategory = fragment.preferenceScreen.preferences
-      .filterIsInstance<PreferenceCategory>().single()
+    val screen = fragment.preferenceScreen
+    val soundsCategory = (0 until screen.preferenceCount)
+      .map { screen.getPreference(it) }
+      .filterIsInstance<PreferenceCategory>()
+      .single()
     val dialogBefore = ShadowDialog.getLatestDialog()
     soundsCategory.getPreference(0).performClick()
     shadowOf(Looper.getMainLooper()).idle()
