@@ -95,7 +95,6 @@
   <string name="title_pref_shortcut_edge_top_left_down">Vuốt xuống từ phía trên bên trái</string>
   <string name="title_pref_shortcut_edge_top_right_down">Vuốt xuống từ phía trên bên phải</string>
   <string name="value_type_confirmation_tap_to_type">Nhấn vào phím bất kỳ để nhập, hoặc giữ ngón tay để chọn phím bất kỳ rồi nhấc ngón tay</string>
-  <string name="title_pref_multi_tap_timeout">Thời gian giữa các lần nhấn bằng một ngón tay</string>
   <string name="title_pref_rotor_step_degrees">Góc xoay cho mỗi bước của núm xoay</string>
   <string name="title_selector_tablet_held_up_faces_away">Màn hình máy tính bảng hướng ra xa khi cầm thẳng đứng</string>
   <string name="summary_support_tablet_held_up_faces_away">Dành cho bàn phím chữ nổi trên máy tính bảng hoặc điện thoại đang mở</string>
