@@ -11,10 +11,6 @@
       android:fragment="com.google.android.accessibility.talkback.preference.base.OcrSettingsFragment"
       android:title="@string/title_pref_ocr_settings" />
   <Preference
-      android:key="pref_gemini_api_key"
-      android:title="@string/title_pref_gemini_api_key"
-      android:summary="@string/ai_provider_not_set" />
-  <Preference
       android:key="screen_recognition_privacy"
       android:selectable="false"
       android:title="@string/screen_recognition_ai_privacy_title"
