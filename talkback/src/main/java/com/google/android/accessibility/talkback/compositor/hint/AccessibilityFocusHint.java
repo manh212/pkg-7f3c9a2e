@@ -81,7 +81,7 @@ public class AccessibilityFocusHint {
         .append(String.format(", isAccessibilityFocused=%s", isAccessibilityFocused));
     if (globalVariables.isUsageHintActionsOnly() && isEnabled && isAccessibilityFocused) {
       CharSequence actionsHint =
-          globalVariables.hasReadingMenuActionSettings()
+          globalVariables.hasActionsForNode(node)
               ? context.getString(R.string.hint_actions_available)
               : "";
       logString.append(String.format("\n    actionsHint={%s}", actionsHint));
