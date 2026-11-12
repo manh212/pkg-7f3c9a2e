@@ -28,11 +28,4 @@
       android:fragment="com.google.android.accessibility.talkback.preference.base.OcrSettingsFragment"
       android:key="pref_ocr_settings_screen"
       android:title="@string/title_pref_ocr_settings" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
-      android:key="pref_ai_services"
-      android:title="@string/title_pref_category_ai_services">
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="pref_ai_provider_choice"
-        android:title="@string/title_pref_ai_provider" />
-  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>
