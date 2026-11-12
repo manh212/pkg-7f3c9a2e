@@ -6,10 +6,12 @@
         android:defaultValue="@bool/pref_speak_element_ids_default"
         android:key="@string/pref_speak_element_ids_key"
         android:title="@string/title_pref_read_unlabelled_identifiers" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="@bool/pref_a11y_hints_default"
+    <ListPreference
+        android:defaultValue="@string/pref_a11y_hints_default"
+        android:entries="@array/pref_a11y_hints_entries"
+        android:entryValues="@array/pref_a11y_hints_values"
         android:key="@string/pref_a11y_hints_key"
-        android:summary="@string/summary_pref_a11y_hints"
+        android:summary="%s"
         android:title="@string/title_pref_a11y_hints" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_speak_roles_default"
