@@ -18,6 +18,7 @@
     <string name="text_editor_file_type_html">Trang web (.html)</string>
     <string name="text_editor_file_type_rtf">Rich Text (.rtf)</string>
     <string name="text_editor_file_type_pdf">PDF (.pdf)</string>
+    <string name="text_editor_file_type_docx">Word (.docx)</string>
     <string name="text_editor_save_done">Đã lưu %1$s</string>
     <string name="text_editor_save_failed">Không lưu được tệp</string>
     <string name="text_editor_word_count">Số từ và ký tự</string>
