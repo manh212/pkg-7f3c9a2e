@@ -44,7 +44,7 @@
     <!-- Settings screen: what is said for a notification, in which voice, and when. -->
     <string name="notification_reading_title">Reading notifications</string>
     <!-- Settings screen: how each app\'s notifications are read. -->
-    <string name="notification_apps_title">Apps</string>
+    <string name="notification_apps_title">Notifications per app</string>
     <!-- Settings screen: words that a notification must have, that stop it being read, that keep it private, and text that is said differently. -->
     <string name="notification_words_title">Words and replacements</string>
     <!-- Settings screen: kinds of notifications that are not read, such as ongoing ones. -->
@@ -52,21 +52,31 @@
     <!-- Settings screen: the device states in which notifications are read. -->
     <string name="notification_when_title">When to read</string>
     <!-- Settings screen: rules that change how notifications are read in some conditions. -->
-    <string name="notification_rules_title">Rules</string>
-    <!-- Settings screen: notifications that come again, and apps that post many. -->
-    <string name="notification_repeats_title">Repeats</string>
+    <string name="notification_rules_title">Notification reading rules</string>
     <!-- Settings screen: what stops a notification being read. -->
     <string name="notification_stop_title">Stop reading</string>
-    <!-- Settings screen: reading all notifications at once, and saying the time. -->
-    <string name="notification_schedules_title">Summary and time</string>
+    <!-- Settings screen: the daily summary of the notifications that arrived. -->
+    <string name="notification_schedules_title">Daily notification summary</string>
     <!-- Settings screen: the notifications that arrived lately, and whether each was read. -->
-    <string name="notification_history_title">History</string>
+    <string name="notification_history_title">Notification history</string>
     <!-- Settings entry that posts a notification after 5 seconds, to try the settings. -->
     <string name="notification_test_title">Send a test notification</string>
     <!-- Settings entry that lists the broadcasts that apps such as Tasker can send to Meridian. -->
-    <string name="notification_automation_title">Automation</string>
+    <string name="notification_automation_title">Automation commands</string>
     <!-- Setting: whether apps such as Tasker may turn notification speech on or off, stop it, or have notifications read. -->
     <string name="notification_automation_allowed_title">Allow automation apps</string>
+    <!-- Notifications group: how notifications are read. -->
+    <string name="notification_group_reading_title">How notifications are read</string>
+    <!-- Notifications group: which apps are read, and which words. -->
+    <string name="notification_group_apps_words_title">Apps and words</string>
+    <!-- Notifications group: which notifications are not read. -->
+    <string name="notification_group_skip_filter_title">Skipping and filtering notifications</string>
+    <!-- Notifications group: when notifications are read, and when reading stops. -->
+    <string name="notification_group_when_stop_title">When to read and when to stop</string>
+    <!-- Notifications group: the notifications that arrived, read together or looked back at. -->
+    <string name="notification_group_summary_history_title">Summary, history and notification list</string>
+    <!-- Notifications group: letting other apps and the full-screen monitor act for the user. -->
+    <string name="notification_group_automation_monitor_title">Automation and monitoring</string>
     <!-- Heading of the settings for the text said for a notification. -->
     <string name="notification_category_said">What is said</string>
     <!-- Setting: the text said for a notification, with placeholders. -->
@@ -124,7 +134,7 @@
     <!-- Setting: how long to wait after a notification arrives before reading it. -->
     <string name="notification_delay_title">Wait before reading</string>
     <!-- Setting: what happens to a notification that arrives while another is being read. -->
-    <string name="notification_queue_title">When another notification is read</string>
+    <string name="notification_queue_title">While reading another notification</string>
     <!-- Setting: what happens to a notification that arrives while something else is being read. -->
     <string name="notification_while_reading_title">While something else is being read</string>
     <!-- Setting: notifications read with the screen off are read again at this interval until the screen turns on. -->
@@ -136,7 +146,7 @@
     <!-- Summary of the skip ongoing switch. -->
     <string name="notification_skip_ongoing_summary">Such as navigation and timers</string>
     <!-- Switch: notifications that show an app is running in the background are not read. -->
-    <string name="notification_skip_foreground_title">Skip running app notifications</string>
+    <string name="notification_skip_foreground_title">Skip foreground-service notifications</string>
     <!-- Summary of the skip foreground service switch. -->
     <string name="notification_skip_foreground_summary">Such as a VPN or a recorder</string>
     <!-- Switch: notifications with a progress bar, such as downloads, are not read. -->
@@ -223,6 +233,8 @@
     <string name="notification_pocket_summary">A sensor that is covered when reading starts, as in a pocket, doesn\'t stop it</string>
     <!-- Switch: pressing volume up and volume down together stops a notification being read. -->
     <string name="notification_volume_keys_title">Press both volume keys</string>
+    <!-- Link to the volume key settings, from the stop-reading screen. -->
+    <string name="notification_stop_volume_keys_title">Stop reading with the volume keys</string>
     <!-- Switch: dismissing a notification stops it being read. -->
     <string name="notification_dismiss_title">Stop when dismissed</string>
     <!-- Switch: dismissing a notification on a watch also stops it being read. -->
@@ -231,12 +243,14 @@
     <string name="notification_app_cancel_title">Stop when the app removes it</string>
     <!-- Heading of the settings for reading all notifications at once. -->
     <string name="notification_category_summary">Summary</string>
+    <!-- Heading of the settings for reading a notification again. -->
+    <string name="notification_category_reread">Read again</string>
     <!-- Settings entry that reads every notification in the notification shade. -->
     <string name="notification_summary_now_title">Read notifications now</string>
     <!-- Switch: every notification is read once a day at a set time. -->
     <string name="notification_summary_daily_title">Read notifications every day</string>
     <!-- Setting: the time of day the notifications are read. -->
-    <string name="notification_summary_time_title">Time</string>
+    <string name="notification_summary_time_title">Summary time</string>
     <!-- Switch: the summary reads the newest notification first. -->
     <string name="notification_summary_newest_first_title">Newest first</string>
     <!-- Setting: the name the summary greets the user with. -->
@@ -485,7 +499,7 @@
     <!-- Shown while the list of apps loads. -->
     <string name="notification_apps_loading">Loading apps</string>
     <!-- Setting of one app: how its notifications are read. -->
-    <string name="notification_app_mode_title">Notifications</string>
+    <string name="notification_app_mode_title">Notification mode</string>
     <!-- How an app\'s notifications are read: as the setting for other apps says. -->
     <string name="notification_app_mode_default">As other apps</string>
     <!-- How an app\'s notifications are read: read in full. -->
