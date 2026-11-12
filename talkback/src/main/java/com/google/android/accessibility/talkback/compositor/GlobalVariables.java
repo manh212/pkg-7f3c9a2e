@@ -1117,10 +1117,11 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
         targetNode = editingNode;
       }
     }
+    final AccessibilityNodeInfoCompat resolvedNode = targetNode;
     return TextEntityMenu.withoutWaiting(
         () ->
             !nodeMenuRuleCreator
-                .getNodeMenuByRule(MenuRules.RULE_CUSTOM_ACTION, mContext, targetNode, true)
+                .getNodeMenuByRule(MenuRules.RULE_CUSTOM_ACTION, mContext, resolvedNode, true)
                 .isEmpty());
   }
 
