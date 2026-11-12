@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationSchedulesFragment"
+      android:key="pref_notification_schedules_screen"
+      android:title="@string/notification_schedules_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationHistoryFragment"
+      android:key="pref_notification_history_screen"
+      android:title="@string/notification_history_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationListSettingsFragment"
+      android:key="pref_notification_list_settings"
+      android:title="@string/title_pref_notification_list_settings" />
+</PreferenceScreen>
