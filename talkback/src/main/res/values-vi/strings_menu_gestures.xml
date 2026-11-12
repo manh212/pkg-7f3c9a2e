@@ -7,7 +7,7 @@
   <string name="menu_gesture_labeling_breakout_add_label">Thêm hoặc sửa nhãn</string>
   <string name="menu_gesture_image_caption_menu">Mô tả hình ảnh</string>
   <string name="menu_gesture_summarize_view_menu">Mô tả màn hình</string>
-  <string name="menu_gesture_granularity_menu">Chọn mức độ điều hướng</string>
+  <string name="menu_gesture_granularity_menu">Chọn điều hướng</string>
   <string name="menu_gesture_read_from_top">Đọc từ đầu</string>
   <string name="menu_gesture_read_from_current">Đọc từ mục hiện tại</string>
   <string name="menu_gesture_copy_last_utterance_to_clipboard">Sao chép lời đọc gần nhất</string>
