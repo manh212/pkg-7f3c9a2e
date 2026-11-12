@@ -29,6 +29,7 @@ import androidx.core.os.UserManagerCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.compositor.UsageHintMode
 import com.google.android.accessibility.talkback.migration.MigrationFiles
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
@@ -72,6 +73,7 @@ object SettingsBackup {
   private const val INITIAL_SETTINGS_FILE = "initial-settings.json"
   private const val BUNDLED_DEFAULTS_APPLIED = "bundled_defaults_applied"
   private const val EVENT_PROCESSING_LEVEL_RESET = "event_processing_level_reset"
+  private const val USAGE_HINTS_RESET = "usage_hints_reset"
   private const val KEY_EVENT_PROCESSING_LEVEL = "pref_event_processing_level"
   private const val MAX_BYTES = 5 * 1024 * 1024
   private const val PREFS_SUFFIX = ".xml"
@@ -355,6 +357,29 @@ object SettingsBackup {
     }
     if (!statePrefs.edit().putBoolean(EVENT_PROCESSING_LEVEL_RESET, true).commit()) {
       LogUtils.e(TAG, "Cannot record the event processing level reset")
+    }
+  }
+
+  /**
+   * Sets every existing install to speak usage hints only when the focused item has actions,
+   * once. Values stored by the old on/off setting are turned into the matching mode first, so
+   * no stored value is left unreadable. The reset runs a single time; a mode the user picks
+   * afterwards in the reading settings is left alone.
+   */
+  @JvmStatic
+  fun applyUsageHintsResetIfNeeded(context: Context) {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    UsageHintMode.migrate(prefs, context.resources)
+    val statePrefs =
+      SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
+    if (statePrefs.getBoolean(USAGE_HINTS_RESET, false)) return
+    val key = context.getString(R.string.pref_a11y_hints_key)
+    if (!prefs.edit().putString(key, UsageHintMode.ACTIONS_ONLY).commit()) {
+      LogUtils.e(TAG, "Cannot set usage hints to actions only")
+      return
+    }
+    if (!statePrefs.edit().putBoolean(USAGE_HINTS_RESET, true).commit()) {
+      LogUtils.e(TAG, "Cannot record the usage hints reset")
     }
   }
 
