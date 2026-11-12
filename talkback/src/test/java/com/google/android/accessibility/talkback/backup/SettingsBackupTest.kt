@@ -503,17 +503,22 @@ class SettingsBackupTest {
   fun usageHintsResetSetsEveryInstallToActionsOnlyOnce() {
     val state = SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
     state.edit().clear().commit()
-    prefs.edit().clear().putBoolean("pref_a11y_hints", true).commit()
+    val customKey =
+      VerbosityPreferences.toVerbosityPrefKey(
+        context.getString(R.string.pref_verbosity_preset_value_custom), "pref_a11y_hints")
+    prefs.edit().clear().putBoolean("pref_a11y_hints", true).putBoolean(customKey, false).commit()
 
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("actions", prefs.getString("pref_a11y_hints", null))
-    assertTrue(state.getBoolean("usage_hints_reset", false))
+    assertEquals("actions", prefs.getString(customKey, null))
+    assertTrue(state.getBoolean("usage_hints_reset_2", false))
 
     prefs.edit().putString("pref_a11y_hints", "off").commit()
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("off", prefs.getString("pref_a11y_hints", null))
+    assertEquals("actions", prefs.getString(customKey, null))
   }
 
   @Test
@@ -528,8 +533,8 @@ class SettingsBackupTest {
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("actions", prefs.getString("pref_a11y_hints", null))
-    assertEquals("all", prefs.getString(customKey, null))
-    assertTrue(state.getBoolean("usage_hints_reset", false))
+    assertEquals("actions", prefs.getString(customKey, null))
+    assertTrue(state.getBoolean("usage_hints_reset_2", false))
   }
 
   private fun bundledSettings(): String =
