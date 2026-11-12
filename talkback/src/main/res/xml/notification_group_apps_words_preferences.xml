@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAppsFragment"
+      android:key="pref_notification_apps_screen"
+      android:title="@string/notification_apps_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationWordsFragment"
+      android:key="pref_notification_words_screen"
+      android:title="@string/notification_words_title" />
+</PreferenceScreen>
