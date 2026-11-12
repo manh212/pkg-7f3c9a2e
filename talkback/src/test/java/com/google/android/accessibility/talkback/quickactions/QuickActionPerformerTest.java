@@ -81,7 +81,7 @@ public class QuickActionPerformerTest {
   }
 
   private String spokenText() {
-    return returner.lastPart.speech().text();
+    return returner.lastPart.speech().text().toString();
   }
 
   private QuickAction soundFeedbackToggle() {
