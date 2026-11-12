@@ -263,7 +263,7 @@ class OrganizedSettingsTest {
     val fragment = NavigationGroupFragment()
     open(fragment)
     val screen = fragment.preferenceScreen
-    assertEquals(8, screen.preferenceCount)
+    assertEquals(7, screen.preferenceCount)
     for (index in 0 until screen.preferenceCount) {
       val row = screen.getPreference(index)
       val destination = row.fragment ?: continue
@@ -273,10 +273,6 @@ class OrganizedSettingsTest {
         ) is TalkbackBaseFragment
       )
     }
-    val touchStopsKey = activity.getString(R.string.pref_touch_stops_speech_key)
-    val touchStops = requireNotNull(fragment.findPreference<TwoStatePreference>(touchStopsKey))
-    touchStops.isChecked = !touchStops.isChecked
-    assertEquals(touchStops.isChecked, prefs.getBoolean(touchStopsKey, !touchStops.isChecked))
     val row = requireNotNull(fragment.findPreference<Preference>(activity.getString(R.string.pref_direct_touch_key)))
     val directTouch = activity.supportFragmentManager.fragmentFactory.instantiate(
       activity.classLoader, requireNotNull(row.fragment),
@@ -301,6 +297,12 @@ class OrganizedSettingsTest {
       (0 until backupOnly.preferenceScreen.preferenceCount)
         .map { backupOnly.preferenceScreen.getPreference(it).title.toString() },
     )
+    val touch = TouchActivationFragment()
+    open(touch)
+    val touchStopsKey = activity.getString(R.string.pref_touch_stops_speech_key)
+    val touchStops = requireNotNull(touch.findPreference<TwoStatePreference>(touchStopsKey))
+    touchStops.isChecked = !touchStops.isChecked
+    assertEquals(touchStops.isChecked, prefs.getBoolean(touchStopsKey, !touchStops.isChecked))
   }
 
   @Test
