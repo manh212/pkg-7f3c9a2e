@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.os.Build;
 import android.os.Bundle;
 import androidx.fragment.app.Fragment;
 import android.text.TextUtils;
@@ -37,6 +38,7 @@ import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.ReverseSwipeSettings;
 import com.google.android.accessibility.talkback.gesture.VibrationWatchGestureSettings;
+import com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures;
 import com.google.android.accessibility.talkback.training.TutorialInitiator;
 import com.google.android.accessibility.utils.Consumer;
 import com.google.android.accessibility.utils.FeatureSupport;
@@ -200,6 +202,7 @@ public class TalkBackGestureShortcutPreferenceFragment extends TalkbackBaseFragm
       }
     }
     updateExtendedGestureVisibility();
+    updateTwoFingerSwitches();
     updateSwipeTitles(getPreferenceScreen());
     getCustomizationMap().forEach(this::runPreferencesCustomization);
     searchableGestures.clear();
@@ -237,6 +240,24 @@ public class TalkBackGestureShortcutPreferenceFragment extends TalkbackBaseFragm
     }
   }
 
+  private void updateTwoFingerSwitches() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      Preference rotation =
+          findPreference(getString(R.string.pref_two_finger_rotation_key));
+      if (rotation != null) {
+        rotation.setEnabled(false);
+        rotation.setSummary(R.string.extended_gestures_unsupported);
+      }
+    }
+    Preference extended = findPreference(ExtendedGestures.ENABLED);
+    if (extended != null) {
+      extended.setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU);
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        extended.setSummary(R.string.extended_gestures_unsupported);
+      }
+    }
+  }
+
   private HashMap<List<Integer>, Consumer<Preference>> getCustomizationMap() {
     HashMap<List<Integer>, Consumer<Preference>> customizations = new HashMap<>();
     if (FormFactorUtils.isAndroidWear()) {
@@ -270,6 +291,7 @@ public class TalkBackGestureShortcutPreferenceFragment extends TalkbackBaseFragm
     prefs.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
     updatePreferencesOnResume();
     updateExtendedGestureVisibility();
+    updateTwoFingerSwitches();
     updateSwipeTitles(getPreferenceScreen());
     searchableGestures.clear();
     collectAssignableGestures(getPreferenceScreen(), searchableGestures);
@@ -365,6 +387,8 @@ public class TalkBackGestureShortcutPreferenceFragment extends TalkbackBaseFragm
           updateSwipeTitles(getPreferenceScreen());
         } else if (TextUtils.equals(key, VibrationWatchGestureSettings.PREF_RESERVED)) {
           updatePreferencesForVibrationWatchIfNeeded();
+        } else if (TextUtils.equals(key, ExtendedGestures.ENABLED)) {
+          updateExtendedGestureVisibility();
         }
       };
 

@@ -16,10 +16,8 @@
 
 package com.google.android.accessibility.talkback.preference.base;
 
-import android.os.Build;
 import android.os.Bundle;
 import androidx.preference.ListPreference;
-import androidx.preference.Preference;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.keyboard.BrowseModeApps;
@@ -77,14 +75,6 @@ public class NavigationPrefFragment extends VerbosityPrefFragment {
     }
     if (!FeatureFlagReader.enableBrowseMode(getContext()) && remember != null) {
       remember.setVisible(false);
-    }
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-      Preference rotation =
-          findPreference(getString(R.string.pref_two_finger_rotation_key));
-      if (rotation != null) {
-        rotation.setEnabled(false);
-        rotation.setSummary(R.string.extended_gestures_unsupported);
-      }
     }
   }
 }
