@@ -315,7 +315,7 @@
   <string name="summary_pref_tree_debug_tv">Sử dụng phím tìm kiếm bằng giọng nói để in cây nút thay vì tìm kiếm</string>
   <string name="title_pref_performance_stats">Bật thống kê hiệu suất</string>
   <string name="title_pref_log_overlay">Bật lớp phủ nhật ký gỡ lỗi</string>
-  <string name="title_pref_typing_confirmation">Phương thức nhập</string>
+  <string name="title_pref_typing_confirmation">Cách xác nhận phím khi nhập</string>
   <string name="title_pref_typing_long_tap_duration">Độ trễ của thao tác chạm và giữ khi nhập</string>
   <string name="title_pref_direct_input_tap_delay">Độ trễ bấm phím của Nhập phím trực tiếp</string>
   <string name="summary_pref_direct_input_tap_delay">Khoảng chờ từ lúc nhấc ngón tay khỏi phím đến khi phím được nhập. Chỉ áp dụng cho Nhập phím trực tiếp.</string>
@@ -796,6 +796,16 @@
   <string name="title_pref_cache_keyboard_keys">Thông báo các phím trên bàn phím nhanh hơn</string>
   <string name="title_pref_sound_and_vibration">Âm thanh và rung</string>
   <string name="title_pref_sound">Âm thanh</string>
+  <string name="title_pref_sound_feedback">Âm thanh phản hồi</string>
+  <string name="title_pref_sound_output">Đầu ra và độ trễ</string>
+  <string name="title_pref_sound_ducking">Giảm âm và tắt tiếng</string>
+  <string name="title_pref_sound_vibration">Rung</string>
+  <string name="title_pref_sound_feature_sounds">Âm thanh cho từng tính năng</string>
+  <string name="sound_feature_no_sound">Không phát âm thanh</string>
+  <string name="sound_feature_vibration_on">Rung</string>
+  <string name="sound_feature_vibration_off">Không rung</string>
+  <string name="sound_feature_on">Bật</string>
+  <string name="sound_feature_off">Tắt</string>
   <string name="template_text_copied">đã sao chép, %1$s</string>
   <string name="title_cancel_screen_search">Đóng tìm kiếm</string>
   <string name="title_clear_keyword">Xóa văn bản nhập</string>
