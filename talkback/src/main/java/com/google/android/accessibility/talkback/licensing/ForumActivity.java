@@ -6,10 +6,13 @@ import android.content.SharedPreferences;
 import android.content.Intent;
 import androidx.core.view.ViewCompat;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputFilter;
+import android.text.TextWatcher;
 import android.text.InputType;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -38,6 +41,7 @@ import org.json.JSONObject;
 public final class ForumActivity extends ComponentActivity {
   private static final String TAG = "ForumActivity";
   private static final ExecutorService IO = Executors.newSingleThreadExecutor();
+  private static final Set<String> PUBLISHING_DRAFTS = new HashSet<>();
   private LinearLayout root;
   private TextView status;
   private Button homeNotices;
@@ -464,20 +468,66 @@ public final class ForumActivity extends ComponentActivity {
     EditText title = input("Tiêu đề", 140, false);
     EditText body = input("Nội dung", 5000, true);
     EditText poll = input("Phương án bình chọn", 800, true);
+    SharedPreferences drafts = ForumTopicDraft.preferences(this);
+    ForumTopicDraft saved = ForumTopicDraft.load(drafts);
+    choice.setSelection(Math.max(0, ForumProtocol.categories().indexOf(saved.category())));
+    title.setText(saved.title());
+    body.setText(saved.body());
+    poll.setText(saved.poll());
+    int expected = generation;
+    TextWatcher watcher = new TextWatcher() {
+      @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) {}
+      @Override public void onTextChanged(CharSequence text, int start, int before, int count) {}
+      @Override public void afterTextChanged(Editable text) {
+        if (generation == expected) saveTopicDraft(drafts, choice, title, body, poll);
+      }
+    };
+    title.addTextChangedListener(watcher);
+    body.addTextChangedListener(watcher);
+    poll.addTextChangedListener(watcher);
+    choice.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        if (generation == expected) saveTopicDraft(drafts, choice, title, body, poll);
+      }
+      @Override public void onNothingSelected(AdapterView<?> parent) {}
+    });
     button("Đăng chủ đề", () -> {
-      String heading = title.getText().toString(), content = body.getText().toString();
+      ForumTopicDraft submitted = saveTopicDraft(drafts, choice, title, body, poll);
+      if (!PUBLISHING_DRAFTS.add(submitted.revision())) {
+        status.setText("Đang đăng chủ đề…");
+        return;
+      }
       List<String> options = new ArrayList<>();
-      for (String line : poll.getText().toString().split("\\n")) if (!line.trim().isEmpty()) options.add(line.trim());
-      int index = choice.getSelectedItemPosition();
+      for (String line : submitted.poll().split("\\n")) {
+        if (!line.trim().isEmpty()) options.add(line.trim());
+      }
       status.setText("Đang đăng chủ đề…");
-      int expected = generation;
       work(() -> {
-        ForumCommunityService client = new ForumCommunityService(this);
-        String id = client.createTopic(ForumProtocol.categories().get(index), heading, content, options);
-        ui(expected, () -> thread(id, null));
+        try {
+          ForumCommunityService client = new ForumCommunityService(this);
+          String id = client.createTopic(submitted.category(), submitted.title(), submitted.body(), options);
+          runOnUiThread(() -> {
+            boolean cleared = submitted.clearAfterPublishing(drafts);
+            if (cleared && generation != expected && screen == 4
+                && !isFinishing() && !isDestroyed()) {
+              composeTopic();
+            } else {
+              ui(expected, () -> thread(id, null));
+            }
+          });
+        } finally {
+          runOnUiThread(() -> PUBLISHING_DRAFTS.remove(submitted.revision()));
+        }
       });
     });
     button("Tên hiển thị", this::profile);
+  }
+
+  private static ForumTopicDraft saveTopicDraft(
+      SharedPreferences drafts, Spinner choice, EditText title, EditText body, EditText poll) {
+    int index = Math.max(0, choice.getSelectedItemPosition());
+    return ForumTopicDraft.save(drafts, ForumProtocol.categories().get(index),
+        title.getText().toString(), body.getText().toString(), poll.getText().toString());
   }
 
   private void thread(String id, String before) {

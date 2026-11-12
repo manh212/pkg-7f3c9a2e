@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.os.PowerManager;
 import android.view.accessibility.AccessibilityEvent;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
@@ -249,6 +250,48 @@ public class SpeechControllerImplTest {
     speak(speechController, "waiting utterance", SpeechController.QUEUE_MODE_FLUSH_ALL);
 
     assertEquals(List.of("an uninterruptible announcement"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void waitForReadingQueuesWindowNamesAndInterruptRequests() {
+    speechController.setWaitForCurrentSpeech(true);
+    speak(speechController, "reading", SpeechController.QUEUE_MODE_QUEUE);
+    speakWindowChange(speechController, "Notification center");
+    speak(speechController, "other source", SpeechController.QUEUE_MODE_FLUSH_ALL);
+
+    Robolectric.getForegroundThreadScheduler().advanceBy(300, TimeUnit.MILLISECONDS);
+
+    assertEquals(List.of("reading"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void waitForReadingQueuesMainSpeechWhileSeparateVoiceIsActive() {
+    speechController.setWaitForCurrentSpeech(true);
+    Object separateVoice = new Object();
+    speechController.setExternalSpeechState(separateVoice, true, true);
+    speak(speechController, "waiting", SpeechController.QUEUE_MODE_INTERRUPT);
+    assertTrue(failoverTts.spokenTexts.isEmpty());
+
+    speechController.setExternalSpeechState(separateVoice, false, false);
+    Robolectric.getForegroundThreadScheduler().advanceBy(10, TimeUnit.MILLISECONDS);
+    assertEquals(List.of("waiting"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void screenStaysAwakeAcrossLongSpeechAndReleasesWhenDisabled() throws Exception {
+    PowerManager power = context.getSystemService(PowerManager.class);
+    org.robolectric.Shadows.shadowOf(power).setIsInteractive(true);
+    speechController.setKeepScreenOnWhileSpeaking(true);
+    speak(speechController, "reading", SpeechController.QUEUE_MODE_QUEUE);
+    java.lang.reflect.Field field =
+        SpeechControllerImpl.class.getDeclaredField("speakingScreenLock");
+    field.setAccessible(true);
+    PowerManager.WakeLock lock = (PowerManager.WakeLock) field.get(speechController);
+    Robolectric.getForegroundThreadScheduler().advanceBy(20, TimeUnit.MINUTES);
+    assertTrue(lock.isHeld());
+
+    speechController.setKeepScreenOnWhileSpeaking(false);
+    assertTrue(!lock.isHeld());
   }
 
   @Test

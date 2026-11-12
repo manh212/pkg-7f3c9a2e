@@ -1033,6 +1033,10 @@ class Actors {
    * </ul>
    */
   public void interruptGentle(EventId eventId) {
+    if (speaker.waitsForCurrentSpeech()) {
+      interruptSoundAndVibration();
+      return;
+    }
     // Every item touch exploration moves to interrupts gently, so asking the app for its focus
     // here was a round trip on each one, the largest part of handling a hover. When dragging, that
     // was slower than the hovers came, so Backtalk fell further and further behind. The focus

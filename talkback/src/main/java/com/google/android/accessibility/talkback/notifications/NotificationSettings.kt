@@ -406,6 +406,10 @@ data class NotificationSettings(
       const val RULES = "pref_notification_rules"
     }
 
+    @JvmStatic
+    fun waitsForCurrentSpeech(prefs: SharedPreferences): Boolean =
+      BusyBehavior.AFTER.name == prefs.getString(Keys.WHILE_READING, null)
+
     /** Reads the settings from [prefs]. */
     @JvmStatic
     fun read(prefs: SharedPreferences): NotificationSettings {

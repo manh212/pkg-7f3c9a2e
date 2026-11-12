@@ -1417,6 +1417,7 @@
 
     <!-- Default preferences -->
     <string name="pref_speech_rate_default">1.0</string>
+    <string name="pref_keep_screen_on_while_speaking_key" translatable="false">pref_keep_screen_on_while_speaking</string>
     <integer name="pref_speech_rate_default_int">100</integer>
     <string name="pref_speech_pitch_default">1.0</string>
     <bool name="pref_use_accessibility_stream_default">true</bool>

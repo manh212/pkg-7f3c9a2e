@@ -36,6 +36,7 @@ import android.media.AudioPlaybackConfiguration;
 import android.media.AudioRecordingConfiguration;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.TextToSpeech.Engine;
@@ -149,6 +150,11 @@ public class SpeechControllerImpl implements SpeechController {
   public static final String SPEECH_PARAM_AUDIO_STREAM = "sandfly.audioStream";
   private static final long BILINGUAL_PAUSE_MS = 750;
   private long bilingualInterruptionGeneration;
+  private boolean waitForCurrentSpeech;
+  private final Set<Object> externalSpeech = new HashSet<>();
+  private final Set<Object> blockingExternalSpeech = new HashSet<>();
+  private boolean keepScreenOnWhileSpeaking;
+  private @Nullable PowerManager.WakeLock speakingScreenLock;
 
   private static volatile @Nullable SpeechHold speechHold;
 
@@ -551,6 +557,64 @@ public class SpeechControllerImpl implements SpeechController {
   @Override
   public boolean isSpeaking() {
     return mIsSpeaking;
+  }
+
+  public void setWaitForCurrentSpeech(boolean wait) {
+    if (waitForCurrentSpeech == wait) return;
+    waitForCurrentSpeech = wait;
+    if (!wait) resumeQueuedSpeechAfterExternalVoice();
+  }
+
+  public boolean waitsForCurrentSpeech() {
+    return waitForCurrentSpeech;
+  }
+
+  public boolean shouldWaitForExternalSpeech(Object source) {
+    return waitForCurrentSpeech
+        && (isSpeakingOrSpeechQueued()
+            || externalSpeech.stream().anyMatch(voice -> voice != source)
+            || blockingExternalSpeech.stream().anyMatch(voice -> voice != source));
+  }
+
+  public void setExternalSpeechState(Object source, boolean speaking, boolean blocksQueue) {
+    if (speaking) externalSpeech.add(source);
+    else externalSpeech.remove(source);
+    if (blocksQueue) blockingExternalSpeech.add(source);
+    else if (blockingExternalSpeech.remove(source)) resumeQueuedSpeechAfterExternalVoice();
+    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty());
+  }
+
+  private void resumeQueuedSpeechAfterExternalVoice() {
+    if (!isSpeechQueued() || currentFeedbackItem != null) return;
+    mHandler.post(() -> {
+      if (currentFeedbackItem == null && isSpeechQueued() && failoverTts.isReady()) {
+        speakNextItem();
+      }
+    });
+  }
+
+  public void setKeepScreenOnWhileSpeaking(boolean keepOn) {
+    keepScreenOnWhileSpeaking = keepOn;
+    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty());
+  }
+
+  @SuppressLint({"WakelockTimeout", "Deprecated"})
+  private void updateSpeakingScreenLock(boolean speaking) {
+    if (!speaking || !keepScreenOnWhileSpeaking) {
+      if (speakingScreenLock != null && speakingScreenLock.isHeld()) {
+        speakingScreenLock.release();
+      }
+      return;
+    }
+    PowerManager power = mContext.getSystemService(PowerManager.class);
+    if (power == null || !power.isInteractive()) return;
+    if (speakingScreenLock == null) {
+      speakingScreenLock = power.newWakeLock(
+          PowerManager.SCREEN_DIM_WAKE_LOCK | PowerManager.ON_AFTER_RELEASE,
+          "Meridian:ReadingScreen");
+      speakingScreenLock.setReferenceCounted(false);
+    }
+    if (!speakingScreenLock.isHeld()) speakingScreenLock.acquire();
   }
 
   @Override
@@ -1275,7 +1339,7 @@ public class SpeechControllerImpl implements SpeechController {
       CharSequence text,
       @Nullable Set<Integer> earcons,
       @Nullable Set<Integer> haptics,
-      int queueMode,
+      int requestedQueueMode,
       int flags,
       int utteranceGroup,
       @Nullable Bundle speechParams,
@@ -1295,13 +1359,19 @@ public class SpeechControllerImpl implements SpeechController {
       return;
     }
 
+    int queueMode = queueModeForSpeech(requestedQueueMode);
     if (text instanceof BilingualSpeechText bilingual) {
       if ((queueMode & QUEUE_MODE_BIT_INTERRUPT) != 0) {
         bilingualInterruptionGeneration++;
       }
-      speakBilingual(
+      Runnable startBilingual = () -> speakBilingual(
           bilingual, queueMode, flags, utteranceGroup, speechParams, nonSpeechParams,
           startAction, rangeStartCallback, completedAction, eventId);
+      if (bilingual.isParallel() && shouldWaitForExternalSpeech(this)) {
+        startWhenSpeechIsIdle(bilingualInterruptionGeneration, startBilingual, completedAction);
+      } else {
+        startBilingual.run();
+      }
       return;
     }
 
@@ -1400,6 +1470,23 @@ public class SpeechControllerImpl implements SpeechController {
     updateInlineFormattingHistory(text, flags);
     makeSpeakablePunctuation(pendingItem);
     speak(pendingItem, queueMode, startAction, rangeStartCallback, completedAction);
+  }
+
+  private int queueModeForSpeech(int mode) {
+    return waitForCurrentSpeech
+        ? mode & ~(QUEUE_MODE_BIT_INTERRUPT | QUEUE_MODE_BIT_FLUSH_ALL)
+        : mode;
+  }
+
+  private void startWhenSpeechIsIdle(
+      long generation, Runnable speak, @Nullable UtteranceCompleteRunnable onComplete) {
+    if (generation != bilingualInterruptionGeneration) {
+      if (onComplete != null) onComplete.run(STATUS_INTERRUPTED);
+    } else if (shouldWaitForExternalSpeech(this)) {
+      mHandler.postDelayed(() -> startWhenSpeechIsIdle(generation, speak, onComplete), 100);
+    } else {
+      speak.run();
+    }
   }
 
   private void speakBilingual(
@@ -1647,6 +1734,7 @@ public class SpeechControllerImpl implements SpeechController {
     if (failoverTts.isAlwaysInterruptSpeechOn()) {
       queueMode |= QUEUE_MODE_BIT_INTERRUPT;
     }
+    queueMode = queueModeForSpeech(queueMode);
 
     // If this FeedbackItem is flagged as NO_SPEECH, ignore speech and
     // immediately process earcons and haptics without disrupting the speech
@@ -1696,7 +1784,7 @@ public class SpeechControllerImpl implements SpeechController {
     item.setCompletedAction(completedAction);
 
     boolean currentFeedbackInterrupted = false;
-    if (shouldClearQueue(item, queueMode)) {
+    if (!waitForCurrentSpeech && shouldClearQueue(item, queueMode)) {
       FeedbackItemFilter filter = getFeedbackItemFilter(item, queueMode);
       // Call onUtteranceComplete on each queue item to be cleared.
       ListIterator<FeedbackItem> iterator = feedbackQueue.listIterator(0);
@@ -1716,7 +1804,7 @@ public class SpeechControllerImpl implements SpeechController {
       }
     }
 
-    if (!currentFeedbackInterrupted
+    if (!waitForCurrentSpeech && !currentFeedbackInterrupted
         && currentFeedbackItem != null
         && speechMayCutAnnouncement(item)
         && !currentFeedbackItem.isInterruptibleByNewSpeech()
@@ -1740,7 +1828,7 @@ public class SpeechControllerImpl implements SpeechController {
       }
     }
 
-    if (LatencyExperiments.Feature.IMMEDIATE_SPEECH.enabled()
+    if (!waitForCurrentSpeech && LatencyExperiments.Feature.IMMEDIATE_SPEECH.enabled()
         && Performance.getInstance().isNavigationEvent(item.getEventId())) {
       ListIterator<FeedbackItem> waiting = feedbackQueue.listIterator();
       while (waiting.hasNext()) {
@@ -1760,7 +1848,7 @@ public class SpeechControllerImpl implements SpeechController {
       }
     }
     Performance.getInstance().onFeedbackComposed(item.getEventId(), item.getFirstSpokenText());
-    if (item.hasFlag(FeedbackItem.FLAG_PRIORITY_SCREEN_ON_TIME)) {
+    if (!waitForCurrentSpeech && item.hasFlag(FeedbackItem.FLAG_PRIORITY_SCREEN_ON_TIME)) {
       feedbackQueue.add(0, item);
       if (currentFeedbackItem != null && !currentFeedbackItem.isGloballyUninterruptible()) {
         feedbackQueue.add(1, currentFeedbackItem);
@@ -1791,14 +1879,14 @@ public class SpeechControllerImpl implements SpeechController {
       Performance.getInstance()
           .recordSpeechWaitBlocker(speechWaitBlockerClass(item, currentFeedbackItem));
       speechWaits.put(item, new SpeechWait());
-      if (speechWaitCapEnabled && speechMayCutAnnouncement(item)) {
+      if (!waitForCurrentSpeech && speechWaitCapEnabled && speechMayCutAnnouncement(item)) {
         mHandler.postDelayed(() -> enforceSpeechWaitCap(item), SPEECH_WAIT_CAP_MS);
       }
     }
   }
 
   private void enforceSpeechWaitCap(FeedbackItem waiting) {
-    if (!pinnedLatencyEnabled) {
+    if (!pinnedLatencyEnabled || waitForCurrentSpeech) {
       return;
     }
     SpeechWait wait = speechWaits.get(waiting);
@@ -2296,6 +2384,9 @@ public class SpeechControllerImpl implements SpeechController {
     interrupt(false /* stopTtsSpeechCompletely */);
 
     failoverTts.shutdown();
+    blockingExternalSpeech.clear();
+    externalSpeech.clear();
+    updateSpeakingScreenLock(false);
 
     setOverlayEnabled(false);
   }
@@ -2778,6 +2869,7 @@ public class SpeechControllerImpl implements SpeechController {
     }
 
     mIsSpeaking = true;
+    updateSpeakingScreenLock(true);
   }
 
   /** Returns whether an app is playing assistant audio, such as Gemini speaking an answer. */
@@ -2798,6 +2890,7 @@ public class SpeechControllerImpl implements SpeechController {
    * @see #handleSpeechStarting()
    */
   private void handleSpeechCompleted(int status) {
+    updateSpeakingScreenLock(!externalSpeech.isEmpty());
     if (!mIsSpeaking) {
       // Speech already completed, such as when an interrupt completes the current item and the
       // engine then reports that it stopped. Audio focus was released then, and observers told,
@@ -3180,6 +3273,10 @@ public class SpeechControllerImpl implements SpeechController {
    * @return {@code false} if there are no more queued speech items.
    */
   private boolean speakNextItem() {
+    if (waitForCurrentSpeech && !blockingExternalSpeech.isEmpty()) {
+      currentFeedbackItem = null;
+      return false;
+    }
     if (!feedbackQueue.isEmpty() && failoverTts.isStartingVoiceProfileEngine()) {
       currentFeedbackItem = null;
       mHandler.removeCallbacks(speakAfterVoiceProfileEngineWait);

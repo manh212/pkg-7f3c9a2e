@@ -63,6 +63,7 @@
       Title for the screen of voice profiles: sets of speech settings, each with its own speech
       engine, language, voice, volume, rate and pitch, that the user can switch between. [CHAR LIMIT=NONE]
     -->
+    <string name="title_pref_keep_screen_on_while_speaking" tools:ignore="MissingTranslation">Giữ màn hình bật khi đang đọc</string>
     <string name="title_pref_voice_profiles">Voice profiles</string>
     <!-- Title for the voice sub-screen holding the reader, the speech stream and the system TTS settings. [CHAR LIMIT=NONE] -->
     <string name="title_pref_voice_engine_stream">Reader and speech stream</string>

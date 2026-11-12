@@ -29,6 +29,8 @@ import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import androidx.annotation.MainThread
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.SpeechChunker
 import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile
@@ -48,6 +50,7 @@ import java.util.Locale
 class NotificationVoice(
   private val context: Context,
   private val audioStream: Int? = null,
+  private val parallelSpeech: Boolean = false,
 ) {
   /** Told when an utterance starts and when it ends, on the main thread. */
   interface Listener {
@@ -78,6 +81,8 @@ class NotificationVoice(
   private var profile: VoiceProfile? = null
   private var ready = false
   private val pending = mutableListOf<Request>()
+  private val waitingForSpeech = mutableListOf<Request>()
+  private val releaseWaiting = Runnable { releaseWhenSpeechEnds() }
   private val listeners = HashMap<String, Listener>()
   /** The piece of a request each utterance the engine speaks is. */
   private val pieces = HashMap<String, Piece>()
@@ -94,7 +99,8 @@ class NotificationVoice(
    * is only in [unstarted] and [speaking].
    */
   private val isIdle: Boolean
-    get() = listeners.isEmpty() && pending.isEmpty() && unstarted.isEmpty() && speaking.isEmpty()
+    get() = listeners.isEmpty() && pending.isEmpty() && waitingForSpeech.isEmpty() &&
+      unstarted.isEmpty() && speaking.isEmpty()
 
   private val release = Runnable {
     if (isIdle) {
@@ -154,6 +160,7 @@ class NotificationVoice(
     pieces.clear()
     unstarted.clear()
     speaking.clear()
+    syncSpeechState()
     runCatching { tts?.shutdown() }
     tts = null
     ready = false
@@ -172,6 +179,7 @@ class NotificationVoice(
 
   /** Releases the engine once nothing is said or waiting. */
   private fun releaseWhenIdle() {
+    syncSpeechState()
     handler.removeCallbacks(release)
     if (isIdle) handler.postDelayed(release, IDLE_MS)
   }
@@ -302,6 +310,7 @@ class NotificationVoice(
   }
 
   private fun watchSpeaking() {
+    syncSpeechState()
     handler.removeCallbacks(speakingCheck)
     if (speaking.isEmpty()) return
     quietSince = 0L
@@ -373,13 +382,47 @@ class NotificationVoice(
     locale: Locale?,
     listener: Listener?,
   ) {
+    val waitEnabled = !parallelSpeech &&
+      NotificationSettings.waitsForCurrentSpeech(SharedPreferencesUtils.getSharedPreferences(context))
+    val request = Request("notification_${nextId++}", text, flush && !waitEnabled, locale, listener)
+    submit(request)
+  }
+
+  private fun speechController() =
+    TalkBackService.getInstance()?.let { runCatching { it.speechController }.getOrNull() }
+
+  private fun shouldWaitForSpeech(): Boolean =
+    !parallelSpeech && speechController()?.shouldWaitForExternalSpeech(this) == true
+
+  private fun syncSpeechState() {
+    speechController()?.setExternalSpeechState(
+      this, speaking.isNotEmpty(), !parallelSpeech && (speaking.isNotEmpty() || unstarted.isNotEmpty()),
+    )
+  }
+
+  private fun releaseWhenSpeechEnds() {
+    if (shouldWaitForSpeech()) {
+      handler.postDelayed(releaseWaiting, WAIT_FOR_SPEECH_MS)
+      return
+    }
+    val waiting = waitingForSpeech.toList()
+    waitingForSpeech.clear()
+    waiting.forEach(::submit)
+  }
+
+  private fun submit(request: Request) {
     handler.removeCallbacks(release)
-    val request = Request("notification_${nextId++}", text, flush, locale, listener)
+    if (shouldWaitForSpeech()) {
+      waitingForSpeech += request
+      handler.removeCallbacks(releaseWaiting)
+      handler.postDelayed(releaseWaiting, WAIT_FOR_SPEECH_MS)
+      return
+    }
     if (ready) {
       speakNow(request)
       return
     }
-    if (flush) {
+    if (request.flush) {
       val dropped = pending.toList()
       pending.clear()
       dropped.forEach { it.listener?.onDone(false) }
@@ -389,6 +432,12 @@ class NotificationVoice(
   }
 
   private fun speakNow(request: Request) {
+    if (shouldWaitForSpeech()) {
+      waitingForSpeech += request
+      handler.removeCallbacks(releaseWaiting)
+      handler.postDelayed(releaseWaiting, WAIT_FOR_SPEECH_MS)
+      return
+    }
     if (!ready) {
       // A new connection is starting, after the engine didn't take another request.
       pending += request
@@ -422,6 +471,7 @@ class NotificationVoice(
       Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f)) }
     request.listener?.let { listeners[request.id] = it }
     unstarted[request.id] = request
+    syncSpeechState()
     val text = request.text.let { if (it.length > MAX_LENGTH) it.subSequence(0, MAX_LENGTH) else it }
     // With phrases on, long text is sent a sentence at a time, as SandFly's own speech sends it.
     val starts =
@@ -466,8 +516,10 @@ class NotificationVoice(
   /** Stops what the voice is saying and what waits to be said. */
   @MainThread
   fun stop() {
-    val dropped = pending.toList() + unstarted.values
+    val dropped = pending.toList() + unstarted.values + waitingForSpeech
     pending.clear()
+    waitingForSpeech.clear()
+    handler.removeCallbacks(releaseWaiting)
     dropped.forEach {
       forget(it.id)
       it.listener?.onDone(false)
@@ -483,6 +535,13 @@ class NotificationVoice(
    */
   @MainThread
   fun stop(listener: Listener) {
+    waitingForSpeech.firstOrNull { it.listener === listener }?.let {
+      waitingForSpeech.remove(it)
+      if (waitingForSpeech.isEmpty()) handler.removeCallbacks(releaseWaiting)
+      listener.onDone(false)
+      releaseWhenIdle()
+      return
+    }
     pending.firstOrNull { it.listener === listener }?.let {
       pending.remove(it)
       listener.onDone(false)
@@ -512,6 +571,7 @@ class NotificationVoice(
 
   private companion object {
     const val TAG = "NotificationVoice"
+    const val WAIT_FOR_SPEECH_MS = 100L
     /** How long the engine stays connected after the last text. */
     const val IDLE_MS = 10_000L
     /** How long the engine has to start before the text is said in SandFly's voice. */

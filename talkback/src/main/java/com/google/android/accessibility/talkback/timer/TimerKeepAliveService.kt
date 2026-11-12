@@ -24,7 +24,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -42,6 +44,9 @@ class TimerKeepAliveService : Service() {
   override fun onCreate() {
     super.onCreate()
     createChannel()
+  }
+
+  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     val type =
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
         ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
@@ -49,10 +54,11 @@ class TimerKeepAliveService : Service() {
         ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE
       }
     ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(), type)
-  }
-
-  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    if (!allowed(this) || !anyActiveNow(this)) stopSelf()
+    startPending = false
+    if (wanted == false || !allowed(this) || !anyActiveNow(this)) {
+      stopSelfResult(startId)
+      return START_NOT_STICKY
+    }
     return START_STICKY
   }
 
@@ -84,6 +90,9 @@ class TimerKeepAliveService : Service() {
 
     private const val CHANNEL_ID = "timer_keep_alive"
     private const val NOTIFICATION_ID = 0x0DA3
+    private val main = Handler(Looper.getMainLooper())
+    private var startPending = false
+    private var wanted: Boolean? = null
 
     /** Whether the user let Meridian keep timers on time, in the initial setup. */
     fun allowed(context: Context): Boolean =
@@ -100,21 +109,38 @@ class TimerKeepAliveService : Service() {
 
     /** Starts the service when it is allowed and something is armed; stops it otherwise. */
     fun refresh(context: Context) {
-      if (allowed(context) && anyActiveNow(context)) {
-        runCatching {
-          ContextCompat.startForegroundService(
-            context,
-            Intent(context, TimerKeepAliveService::class.java),
-          )
+      val app = context.applicationContext
+      onMain {
+        if (!allowed(app) || !anyActiveNow(app)) {
+          stop(app)
+        } else {
+          wanted = true
+          if (!startPending) {
+            startPending = true
+            val started = runCatching {
+              ContextCompat.startForegroundService(
+                app, Intent(app, TimerKeepAliveService::class.java),
+              )
+            }.getOrNull()
+            if (started == null) startPending = false
+          }
         }
-      } else {
-        stop(context)
       }
     }
 
     /** Stops the service whatever is armed. */
     fun stop(context: Context) {
-      context.stopService(Intent(context, TimerKeepAliveService::class.java))
+      val app = context.applicationContext
+      onMain {
+        wanted = false
+        if (!startPending) {
+          app.stopService(Intent(app, TimerKeepAliveService::class.java))
+        }
+      }
+    }
+
+    private fun onMain(action: () -> Unit) {
+      if (Looper.myLooper() == main.looper) action() else main.post { action() }
     }
 
     private fun anyActiveNow(context: Context): Boolean {

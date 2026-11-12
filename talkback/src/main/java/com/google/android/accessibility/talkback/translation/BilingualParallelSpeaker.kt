@@ -74,7 +74,7 @@ class BilingualParallelSpeaker(private val context: Context) :
     val key = "${profile.id}:$stream"
     if (voice == null || voiceKey != key) {
       voice?.shutdown()
-      voice = NotificationVoice(context, stream)
+      voice = NotificationVoice(context, stream, parallelSpeech = true)
       voiceKey = key
     }
     val selected = voice ?: return

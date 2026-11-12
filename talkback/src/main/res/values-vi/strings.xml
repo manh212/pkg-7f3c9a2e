@@ -1310,6 +1310,7 @@
     <string name="title_selector_switch_tts_engine">Công cụ lời nói</string>
     <string name="summary_selector_switch_tts_engine">Chuyển đổi giữa các công cụ lời nói đã cài đặt</string>
     <string name="title_selector_voice_profile">Hồ sơ giọng nói</string>
+    <string name="title_pref_keep_screen_on_while_speaking">Giữ màn hình bật khi đang đọc</string>
     <string name="title_pref_voice_profiles">Hồ sơ giọng nói</string>
     <string name="title_pref_voice_engine_stream">Bộ đọc và kênh giọng nói</string>
     <string name="title_pref_voice_language">Ngôn ngữ và chọn giọng đọc</string>

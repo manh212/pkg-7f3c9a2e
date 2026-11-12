@@ -408,8 +408,8 @@ public class GestureController {
     } else if (action.equals(service.getString(R.string.shortcut_value_unassigned))) {
       // Do Nothing
     } else if (action.equals(service.getString(R.string.shortcut_value_previous))) {
-      result =
-          pipeline.returnFeedback(
+      result = menuManager.ensureCustomMenuFocus()
+          || pipeline.returnFeedback(
               eventId,
               Feedback.focusDirection(SEARCH_FOCUS_BACKWARD)
                   // Sets granularity to default because "Previous item" action always moves at
@@ -420,8 +420,8 @@ public class GestureController {
                   .setScroll(true)
                   .setWrap(true));
     } else if (action.equals(service.getString(R.string.shortcut_value_next))) {
-      result =
-          pipeline.returnFeedback(
+      result = menuManager.ensureCustomMenuFocus()
+          || pipeline.returnFeedback(
               eventId,
               Feedback.focusDirection(SEARCH_FOCUS_FORWARD)
                   // Sets granularity to default because "Next item" action always moves at default

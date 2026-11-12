@@ -2,4 +2,5 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="meridian_enrollment.xml" />
     <exclude domain="sharedpref" path="meridian_support_private.xml" />
+    <exclude domain="sharedpref" path="meridian_forum_draft.xml" />
 </full-backup-content>

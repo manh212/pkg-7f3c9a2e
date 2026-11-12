@@ -22,11 +22,12 @@ class VoiceSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun voiceScreen_isSevenSubScreensInOrder() {
+  fun voiceScreen_hasKeepScreenSwitchAndSubScreensInOrder() {
     val rows = rowsOf(R.xml.text_to_speech_preferences)
     assertEquals(
       listOf(
         "pref_category_group_voice_key",
+        "pref_keep_screen_on_while_speaking",
         "pref_voice_engine_stream_screen",
         "pref_tts_voice_profiles",
         "pref_voice_language_screen",
@@ -39,6 +40,7 @@ class VoiceSettingsStructureTest {
     )
     assertEquals(
       listOf(
+        null,
         null,
         "VoiceEngineFragment",
         "VoiceProfilesFragment",

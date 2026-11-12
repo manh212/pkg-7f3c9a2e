@@ -46,6 +46,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -120,6 +121,7 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
   private final ContextMenuItemClickProcessor menuClickProcessor;
   private @Nullable DeferredAction deferredAction;
   private @Nullable A11yAlertDialogWrapper currentDialog;
+  private @Nullable ViewGroup customMenuList;
   private MenuActionInterceptor menuActionInterceptor;
   private long lastMenuDismissUptimeMs;
   private AccessibilityNodeInfoCompat currentNode;
@@ -192,7 +194,7 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
       menuItem.setSkipRefocusEvents(true);
       menuItem.setSkipWindowEvents(true);
     }
-    showDialogMenu(menu.name, getItemsFromMenu(contextMenu), contextMenu, eventId);
+    showDialogMenu(menu.name, getItemsFromMenu(contextMenu), contextMenu, eventId, true);
     return true;
   }
 
@@ -344,6 +346,12 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
 
   protected void showDialogMenu(
       String title, CharSequence[] items, final ContextMenu menu, EventId eventId) {
+    showDialogMenu(title, items, menu, eventId, false);
+  }
+
+  private void showDialogMenu(
+      String title, CharSequence[] items, ContextMenu menu, EventId eventId,
+      boolean focusCustomMenu) {
     if (items == null || items.length == 0) {
       return;
     }
@@ -385,10 +393,12 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
             });
     builder = builder.setCancelable(true);
     A11yAlertDialogWrapper.Builder finalBuilder = builder;
+    ViewGroup itemsView = focusCustomMenu
+        ? customView.findViewById(R.id.talkback_menu_listview) : null;
     if (FormFactorUtils.isAndroidTv()) {
-      new Handler(Looper.getMainLooper()).post(() -> openAlert(finalBuilder));
+      new Handler(Looper.getMainLooper()).post(() -> openAlert(finalBuilder, itemsView));
     } else {
-      openAlert(finalBuilder);
+      openAlert(finalBuilder, itemsView);
     }
   }
 
@@ -454,12 +464,14 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
     }
   }
 
-  private void openAlert(A11yAlertDialogWrapper.Builder builder) {
+  private void openAlert(
+      A11yAlertDialogWrapper.Builder builder, @Nullable ViewGroup itemsView) {
     A11yAlertDialogWrapper alert = builder.create();
     alert.setOnDismissListener(
         (dialog) -> {
           lastMenuDismissUptimeMs = SystemClock.uptimeMillis();
           menuShown--;
+          if (currentDialog == alert) customMenuList = null;
           if (menuShown == 0) {
             currentDialog = null;
             LastSpokenTextHolder.setMenuSpeechSuppressed(false);
@@ -471,6 +483,40 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
     alert.show();
     currentDialog = alert;
     menuShown++;
+    customMenuList = itemsView;
+    if (itemsView != null) {
+      itemsView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+        @Override public void onLayoutChange(
+            View view, int left, int top, int right, int bottom,
+            int oldLeft, int oldTop, int oldRight, int oldBottom) {
+          itemsView.removeOnLayoutChangeListener(this);
+          if (customMenuList == itemsView) ensureCustomMenuFocus();
+        }
+      });
+      itemsView.post(() -> {
+        if (customMenuList == itemsView) ensureCustomMenuFocus();
+      });
+    }
+  }
+
+  public boolean ensureCustomMenuFocus() {
+    ViewGroup list = customMenuList;
+    if (list == null || !isMenuShowing()) return false;
+    AccessibilityNodeInfoCompat focused =
+        accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
+    if (focused != null && list.isAttachedToWindow()) {
+      AccessibilityNodeInfo listNode = list.createAccessibilityNodeInfo();
+      if (listNode != null) {
+        int windowId = listNode.getWindowId();
+        listNode.recycle();
+        if (windowId >= 0 && focused.getWindowId() == windowId) return false;
+      }
+    }
+    View first = list.getChildAt(0);
+    if (first != null) {
+      first.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
+    }
+    return true;
   }
 
   private void attachContentDescriptionOnTitle(

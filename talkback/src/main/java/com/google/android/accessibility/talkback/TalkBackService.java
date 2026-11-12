@@ -3938,8 +3938,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     SpeechDictionary.load(this, prefs);
     AppGestures.load(prefs);
     GestureProfiles.load(prefs);
+    boolean waitForCurrentSpeech = NotificationSettings.waitsForCurrentSpeech(prefs);
     FocusFeedbackMapper.setTouchStopsSpeech(
-        getBooleanPref(
+        !waitForCurrentSpeech && getBooleanPref(
             R.string.pref_touch_stops_speech_key, R.bool.pref_touch_stops_speech_default));
     // TV navigation relies on focus following input focus, so the switch is hidden there.
     FocusProcessorForScreenStateChange.setFocusNewWindows(
@@ -4003,6 +4004,11 @@ public class TalkBackService extends AccessibilityServiceCompat
     diagnosticOverlayController.setLogOverlayEnabled(false);
 
     accessibilityEventProcessor.setSpeakWhenScreenOff(NotificationSettings.readsWhenScreenOff(prefs));
+    if (speechController != null) {
+      speechController.setWaitForCurrentSpeech(waitForCurrentSpeech);
+      speechController.setKeepScreenOnWhileSpeaking(
+          prefs.getBoolean(getString(R.string.pref_keep_screen_on_while_speaking_key), false));
+    }
 
     accessibilityEventProcessor.setDumpEventMask(
         getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default)
