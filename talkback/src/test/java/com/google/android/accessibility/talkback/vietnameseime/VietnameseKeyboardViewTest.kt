@@ -529,6 +529,38 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  fun pcShiftHoldAcrossLayoutChangeDoesNotStickOrToggle() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 240f, 360f, 100)
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    touch(MotionEvent.ACTION_UP, 240f, 360f, 170)
+    assertEquals(emptyList<String>(), typed)
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+    keyboard.layout(0, 0, 800, 400)
+    touch(MotionEvent.ACTION_DOWN, 560f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 560f, 20f, 270)
+
+    assertEquals(listOf("q"), typed)
+  }
+
+  @Test
+  fun directSilentModeDownOnEmptyAreaDoesNotSilence() {
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    assertEquals(listOf("q"), spoken)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 20f, 60f), Triple(1, 20f, 300f)), 150)
+    assertEquals(listOf("q"), spoken)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 20f, 60f), Triple(1, 20f, 300f)), 200)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 250)
+
+    assertEquals(listOf("q"), typed)
+  }
+
+  @Test
   fun phoneLayoutTopRowIsDigits() {
     prepareKeyboard()
 

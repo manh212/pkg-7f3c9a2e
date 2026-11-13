@@ -98,6 +98,19 @@ class VietnameseKeyboardServiceFallbackTest {
     assertFalse(VietnameseKeyboardService.isMeridianInServiceList(emptyList(), appPackage))
   }
 
+  @Test
+  fun enabledServicesStringFindsShortComponentName() {
+    assertTrue(
+      VietnameseKeyboardService.isMeridianInEnabledServices(
+        "$appPackage/.TalkBackService", appPackage))
+  }
+
+  @Test
+  fun serviceListFindsShortComponentName() {
+    val services = listOf(serviceEntry(appPackage, ".TalkBackService"))
+    assertTrue(VietnameseKeyboardService.isMeridianInServiceList(services, appPackage))
+  }
+
   private fun serviceEntry(packageName: String, className: String): AccessibilityServiceInfo {
     val service = ServiceInfo()
     service.packageName = packageName

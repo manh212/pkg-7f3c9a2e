@@ -17,7 +17,9 @@ class VietnameseKeySpeechTest {
 
   private val requests = mutableListOf<Request>()
   private var voiceBusy = false
+  private var submitCount = 0
   private val speech = VietnameseKeySpeech({ label, started, completed ->
+    submitCount++
     if (voiceBusy) false else requests.add(Request(label, started, completed))
   }, {})
 
@@ -78,6 +80,27 @@ class VietnameseKeySpeechTest {
     advance(80)
 
     assertEquals(listOf("b"), labels())
+  }
+
+  @Test
+  fun retriesStopAfterCapWhenVoiceNeverAccepts() {
+    voiceBusy = true
+    speech.explore("a", 0)
+    advance(16000)
+
+    assertEquals(126, submitCount)
+  }
+
+  @Test
+  fun doesNotRetryWhenRetryableIsFalse() {
+    val neverRetry = VietnameseKeySpeech({ _, _, _ ->
+      submitCount++
+      false
+    }, {}, { false })
+    neverRetry.explore("a", 0)
+    advance(500)
+
+    assertEquals(1, submitCount)
   }
 
   @Test

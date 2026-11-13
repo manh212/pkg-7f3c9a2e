@@ -65,6 +65,30 @@ class VietnameseKeyTouchTest {
   }
 
   @Test
+  fun exploreDoesNotDiscardAnotherTouchPendingFirstTap() {
+    val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+    val first = VietnameseKeyTouch(300, 30, firstTaps)
+    val second = VietnameseKeyTouch(300, 30, firstTaps)
+    first.start(letter, DOUBLE_TAP)
+    assertNull(first.release(letter, DOUBLE_TAP, 10f, 10f, 100, true))
+    second.start(shift, DOUBLE_TAP)
+    second.explore(letter)
+    val third = VietnameseKeyTouch(300, 30, firstTaps)
+    third.start(letter, DOUBLE_TAP)
+    assertEquals(letter, third.release(letter, DOUBLE_TAP, 10f, 10f, 240, true))
+  }
+
+  @Test
+  fun liftingSecondTapOutsideDiscardsPendingFirstTap() {
+    touch.start(letter, DOUBLE_TAP)
+    assertNull(touch.release(letter, DOUBLE_TAP, 10f, 10f, 100, true))
+    touch.start(letter, DOUBLE_TAP)
+    assertNull(touch.release(null, DOUBLE_TAP, 0f, 0f, 160, false))
+    touch.start(letter, DOUBLE_TAP)
+    assertNull(touch.release(letter, DOUBLE_TAP, 10f, 10f, 240, true))
+  }
+
+  @Test
   fun cancellationAndLiftingOutsideDiscardTheKey() {
     touch.start(letter, FORCE_LIFT_TO_TYPE_ON_IME)
     assertNull(touch.release(null, FORCE_LIFT_TO_TYPE_ON_IME, 0f, 0f, 100, false))
