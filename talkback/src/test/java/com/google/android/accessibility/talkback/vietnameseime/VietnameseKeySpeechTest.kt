@@ -56,6 +56,18 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
+  fun completionFromReplacedKeyCannotPreventFinalKeyFromRetrying() {
+    speech.explore("a", 0)
+    speech.explore("b", 0)
+    speech.release(0)
+    requests.first().completed(STATUS_INTERRUPTED)
+    requests.last().completed(STATUS_INTERRUPTED)
+    advance(80)
+
+    assertEquals(listOf("a", "b", "b"), labels())
+  }
+
+  @Test
   fun keepsOnlyLatestKeyWhileWaitingForOtherSpeech() {
     voiceBusy = true
     speech.explore("a", 0)

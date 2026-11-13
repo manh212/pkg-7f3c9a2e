@@ -148,6 +148,7 @@ public class SpeechControllerImpl implements SpeechController {
   public static final String SPEECH_PARAM_VOICE_PROFILE = "sandfly.voiceProfile";
   public static final String SPEECH_PARAM_BILINGUAL_SEGMENT = "sandfly.bilingualSegment";
   public static final String SPEECH_PARAM_AUDIO_STREAM = "sandfly.audioStream";
+  static final String SPEECH_PARAM_NATIVE_PLAYBACK = "sandfly.nativePlayback";
   private static final long BILINGUAL_PAUSE_MS = 750;
   private long bilingualInterruptionGeneration;
   private boolean waitForCurrentSpeech;
@@ -2046,6 +2047,10 @@ public class SpeechControllerImpl implements SpeechController {
     }
     speechWaits.remove(item);
     Performance.getInstance().onNavigationInterrupted(item.getUtteranceId());
+    if (item.getUtteranceGroup() == UTTERANCE_GROUP_KEYBOARD && !item.getUtteranceId().isEmpty()) {
+      int utteranceIndex = parseUtteranceId(item.getUtteranceId());
+      mUtteranceStartActions.removeIf(action -> action.utteranceIndex == utteranceIndex);
+    }
 
     final UtteranceCompleteRunnable queuedItemCompletedAction = item.getCompletedAction();
     if (queuedItemCompletedAction != null) {
@@ -2661,6 +2666,9 @@ public class SpeechControllerImpl implements SpeechController {
     params.put(Engine.KEY_PARAM_UTTERANCE_ID, feedbackItem.getUtteranceId());
     params.put(Engine.KEY_PARAM_STREAM, String.valueOf(stream));
     params.put(Engine.KEY_PARAM_VOLUME, String.valueOf(volume));
+    if (feedbackItem.getUtteranceGroup() == UTTERANCE_GROUP_KEYBOARD) {
+      params.put(SPEECH_PARAM_NATIVE_PLAYBACK, "true");
+    }
     HashMap<String, Integer> customFlags = new HashMap<>();
 
     if (feedbackItem.hasFlag(FeedbackItem.FLAG_CHUNKING_APPLIED)) {

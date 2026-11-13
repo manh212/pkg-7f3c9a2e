@@ -27,6 +27,8 @@ internal class VietnameseKeyboardView(
     val title: String,
     val weight: Float = 1f,
     val bounds: RectF = RectF(),
+    var textSize: Float = 0f,
+    var baseline: Float = 0f,
   )
 
   private val configuration = ViewConfiguration.get(context)
@@ -125,14 +127,8 @@ internal class VietnameseKeyboardView(
           corner, corner, paint,
         )
         paint.color = Color.WHITE
-        paint.textSize = (if (cell.title.length > 4) 13 else 18) * density
-        val available = bounds.width() - 3 * gap
-        val textWidth = paint.measureText(cell.title)
-        if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
-        canvas.drawText(
-          cell.title, bounds.centerX(),
-          bounds.centerY() - (paint.ascent() + paint.descent()) / 2, paint,
-        )
+        paint.textSize = cell.textSize
+        canvas.drawText(cell.title, bounds.centerX(), cell.baseline, paint)
       }
     }
   }
@@ -243,6 +239,12 @@ internal class VietnameseKeyboardView(
       for (cell in row) {
         val right = left + cell.weight * unit
         cell.bounds.set(left, index * rowHeight, right, (index + 1) * rowHeight)
+        paint.textSize = (if (cell.title.length > 4) 13 else 18) * density
+        val available = cell.bounds.width() - 6 * density
+        val textWidth = paint.measureText(cell.title)
+        if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
+        cell.textSize = paint.textSize
+        cell.baseline = cell.bounds.centerY() - (paint.ascent() + paint.descent()) / 2
         left = right
       }
     }

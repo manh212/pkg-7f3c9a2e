@@ -23,9 +23,10 @@ import com.google.android.accessibility.utils.input.TextEventFilter
 import com.google.android.accessibility.utils.input.TextEventFilter.TypingInput.ON_SCREEN_KEYBOARD
 import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP
 import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_FORCE_FEEDBACK_ALL
+import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP
 import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP
 import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_NO_HISTORY
-import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE_QUEUE
+import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.accessibility.utils.output.SpeechController.UtteranceCompleteRunnable
 import com.google.android.accessibility.utils.output.SpeechController.UtteranceStartRunnable
@@ -53,6 +54,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private var method = 0
   private var timing = VietnameseKeyboardTiming()
   private var exploredLabel = ""
+  private val keyNames by lazy { VietnameseKeyNames(this) }
   private var windowShown = false
   private val main = Handler(Looper.getMainLooper())
   private val keySpeech = VietnameseKeySpeech(::submitKeySpeech) {
@@ -402,12 +404,12 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun announceKey(label: String) {
     exploredLabel = label
     if (label.isEmpty()) keySpeech.cancel(stopSpeech = true)
-    else keySpeech.explore(label, timing.exploreSpeechMs)
+    else keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
   }
 
   private fun speakEnteredCharacter(character: Char) {
     val label = characterLabel(character)
-    if (label != exploredLabel) speak(label)
+    if (label != exploredLabel) speak(keyNames.spokenName(label))
   }
 
   private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean =
@@ -426,9 +428,9 @@ class VietnameseKeyboardService : InputMethodService() {
     localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
     val options = SpeakOptions.create()
         .setUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
-        .setQueueMode(QUEUE_MODE_QUEUE)
+        .setQueueMode(QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH)
         .setFlags(
-          FLAG_NO_HISTORY or FLAG_FORCE_FEEDBACK_ALL or
+          FLAG_NO_HISTORY or FLAG_FORCE_FEEDBACK_ALL or FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP or
             FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP or
             FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP,
         )

@@ -1566,6 +1566,13 @@ public class FailoverTextToSpeech {
       Performance.getInstance().onFeedbackQueued(eventId, utteranceId, utteranceInfoCombo);
     }
 
+    if (bundle.containsKey(SpeechControllerImpl.SPEECH_PARAM_NATIVE_PLAYBACK)) {
+      bundle.remove(SpeechControllerImpl.SPEECH_PARAM_NATIVE_PLAYBACK);
+      if (queueMode != QUEUE_ADD) stopLowLatencySpeech();
+      bundle.putFloat(SpeechParam.VOLUME, Math.max(0f, Math.min(1f, volume)));
+      return speakOnRequestedStream(text, queueMode, bundle, utteranceId);
+    }
+
     if (locale == null) {
       locale = getUsedLocale();
     }
