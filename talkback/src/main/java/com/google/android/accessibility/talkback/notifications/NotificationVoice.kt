@@ -391,8 +391,12 @@ class NotificationVoice(
   private fun speechController() =
     TalkBackService.getInstance()?.let { runCatching { it.speechController }.getOrNull() }
 
-  private fun shouldWaitForSpeech(): Boolean =
-    !parallelSpeech && speechController()?.shouldWaitForExternalSpeech(this) == true
+  private fun shouldWaitForSpeech(): Boolean {
+    if (parallelSpeech) return false
+    val waitEnabled = NotificationSettings.waitsForCurrentSpeech(
+      SharedPreferencesUtils.getSharedPreferences(context))
+    return speechController()?.shouldWaitForExternalSpeech(this, waitEnabled) == true
+  }
 
   private fun syncSpeechState() {
     speechController()?.setExternalSpeechState(
