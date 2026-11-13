@@ -463,8 +463,6 @@ class VietnameseKeyboardService : InputMethodService() {
     val speaker = speechController()
     if (speaker != null) {
       if (!speaker.isTtsReady || speaker.isMute) return false
-      if (speaker.waitsForCurrentSpeech() &&
-        speaker.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD)) return false
       val localized = SpannableString(label)
       localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
       val options = SpeakOptions.create()
