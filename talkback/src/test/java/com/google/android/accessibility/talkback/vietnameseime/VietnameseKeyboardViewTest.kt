@@ -309,6 +309,54 @@ class VietnameseKeyboardViewTest {
     assertEquals(listOf("1"), spoken)
   }
 
+  @Test
+  fun leftEdgeDownAnnouncesAndTypesFirstSecondRowKey() {
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 10f, 120f, 100)
+    assertEquals(listOf("a"), spoken)
+    assertEquals(listOf("a"), typed)
+    touch(MotionEvent.ACTION_UP, 10f, 120f, 170)
+
+    assertEquals(listOf("a"), typed)
+    assertEquals(1, released)
+  }
+
+  @Test
+  fun rightEdgeDownAnnouncesAndTypesLastSecondRowKey() {
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 390f, 120f, 100)
+    assertEquals(listOf("l"), spoken)
+    assertEquals(listOf("l"), typed)
+    touch(MotionEvent.ACTION_UP, 390f, 120f, 170)
+
+    assertEquals(listOf("l"), typed)
+    assertEquals(1, released)
+  }
+
+  @Test
+  fun liftToTypeLeftEdgeDownAnnouncesFirstSecondRowKey() {
+    keyboard.typingMethod = LIFT_TO_TYPE
+    keyboard.showKeys(false, false, true, "Gửi")
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 10f, 120f, 100)
+
+    assertEquals(listOf("a"), spoken)
+    assertEquals(emptyList<String>(), typed)
+  }
+
+  @Test
+  fun switchingToPcLayoutRequestsRelayout() {
+    keyboard.showKeys(false, false, true, "Gửi")
+
+    assertFalse(keyboard.isLayoutRequested)
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+
+    assertTrue(keyboard.isLayoutRequested)
+  }
+
   private fun prepareKeyboard() {
     keyboard.typingMethod = DIRECT_SILENT_TYPING
     keyboard.showKeys(false, false, true, "Gửi")
