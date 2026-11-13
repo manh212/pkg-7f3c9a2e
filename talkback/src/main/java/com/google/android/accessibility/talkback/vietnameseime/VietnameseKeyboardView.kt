@@ -164,7 +164,7 @@ internal class VietnameseKeyboardView(
         if (state.method == DIRECT_SILENT_TYPING) {
           state.startingCell?.key?.let { activate(it.id) }
         }
-        if (!confirmingSecondTap && state.method != DIRECT_SILENT_TYPING) announceSelected(state)
+        if (!confirmingSecondTap) announceSelected(state)
       }
       MotionEvent.ACTION_MOVE -> {
         for (index in 0 until event.pointerCount) {
