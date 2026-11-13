@@ -134,6 +134,7 @@
     <string name="pref_typing_confirmation_key" translatable="false">pref_typing_confirmation</string>
     <string name="pref_typing_long_press_duration_key" translatable="false">pref_typing_long_press_duration</string>
     <string name="pref_direct_input_tap_delay_key" translatable="false">pref_direct_input_tap_delay</string>
+    <string name="pref_vietnamese_keyboard_layout_key" translatable="false">pref_vietnamese_keyboard_layout</string>
     <string name="pref_typing_focus_time_out_seekbar_key" translatable="false">pref_typing_focus_time_out_seekbar_key</string>
     <string name="pref_category_focus_delay_key" translatable="false">pref_category_focus_delay_key</string>
     <string name="pref_category_typing_focus_delay_key" translatable="false">pref_category_typing_focus_delay_key</string>
@@ -985,6 +986,26 @@
     </string-array>
 
     <string name="typing_long_press_default" translatable="false">3000</string>
+
+    <string name="value_vietnamese_keyboard_layout_phone" translatable="false">phone</string>
+    <string name="value_vietnamese_keyboard_layout_pc" translatable="false">pc</string>
+    <string name="value_vietnamese_keyboard_layout_auto" translatable="false">auto</string>
+
+  <!-- Vietnamese keyboard layout entries -->
+    <string-array name="pref_vietnamese_keyboard_layout_entries">
+      <item>@string/vietnamese_ime_layout_phone</item>
+      <item>@string/vietnamese_ime_layout_pc</item>
+      <item>@string/vietnamese_ime_layout_auto</item>
+    </string-array>
+
+  <!-- Vietnamese keyboard layout values -->
+    <string-array name="pref_vietnamese_keyboard_layout_values" translatable="false">
+      <item>@string/value_vietnamese_keyboard_layout_phone</item>
+      <item>@string/value_vietnamese_keyboard_layout_pc</item>
+      <item>@string/value_vietnamese_keyboard_layout_auto</item>
+    </string-array>
+
+    <string name="pref_vietnamese_keyboard_layout_default" translatable="false">auto</string>
 
   <!-- Multi-tap timeout entries -->
 

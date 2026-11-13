@@ -30,4 +30,8 @@
     <string name="vietnamese_ime_double_tap_timeout" tools:ignore="MissingTranslation">Khoảng tối đa giữa hai lần nhấn đúp</string>
     <string name="vietnamese_ime_tap_hold_timeout" tools:ignore="MissingTranslation">Thời gian giữ tối đa cho một lần nhấn đúp</string>
     <string name="vietnamese_ime_milliseconds" tools:ignore="MissingTranslation">%1$d mili giây</string>
+    <string name="vietnamese_ime_layout" tools:ignore="MissingTranslation">Bố cục bàn phím</string>
+    <string name="vietnamese_ime_layout_phone" tools:ignore="MissingTranslation">Điện thoại</string>
+    <string name="vietnamese_ime_layout_pc" tools:ignore="MissingTranslation">Máy tính</string>
+    <string name="vietnamese_ime_layout_auto" tools:ignore="MissingTranslation">Tự động theo hướng xoay</string>
 </resources>
