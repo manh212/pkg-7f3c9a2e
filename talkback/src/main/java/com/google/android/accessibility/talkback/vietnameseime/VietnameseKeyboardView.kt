@@ -200,7 +200,6 @@ internal class VietnameseKeyboardView(
 
   override fun dispatchHoverEvent(event: MotionEvent): Boolean =
     keyAccessibility.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
-  }
 
   override fun onDraw(canvas: Canvas) {
     canvas.drawColor(backgroundColor)
