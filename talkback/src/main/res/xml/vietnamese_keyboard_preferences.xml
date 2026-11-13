@@ -43,6 +43,7 @@
         app:seekBarIncrement="10"
         app:showSeekBarValue="true" />
     <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
+        android:defaultValue="300"
         android:key="pref_vietnamese_keyboard_double_tap"
         android:max="1000"
         android:title="@string/vietnamese_ime_double_tap_timeout"
@@ -50,6 +51,7 @@
         app:seekBarIncrement="25"
         app:showSeekBarValue="true" />
     <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
+        android:defaultValue="500"
         android:key="pref_vietnamese_keyboard_tap_hold"
         android:max="1500"
         android:title="@string/vietnamese_ime_tap_hold_timeout"
