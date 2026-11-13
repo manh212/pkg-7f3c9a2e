@@ -203,17 +203,17 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun pcLayoutSpaceBarIsVeryWide() {
+  fun pcLayoutSpaceBarIsTall() {
     preparePcKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 400f, 360f, 100)
-    touch(MotionEvent.ACTION_UP, 400f, 360f, 170)
-    touch(MotionEvent.ACTION_DOWN, 100f, 360f, 200)
-    touch(MotionEvent.ACTION_UP, 100f, 360f, 270)
-    touch(MotionEvent.ACTION_DOWN, 700f, 360f, 300)
-    touch(MotionEvent.ACTION_UP, 700f, 360f, 370)
-    touch(MotionEvent.ACTION_DOWN, 150f, 360f, 400)
-    touch(MotionEvent.ACTION_UP, 150f, 360f, 470)
+    touch(MotionEvent.ACTION_DOWN, 720f, 200f, 100)
+    touch(MotionEvent.ACTION_UP, 720f, 200f, 170)
+    touch(MotionEvent.ACTION_DOWN, 720f, 55f, 200)
+    touch(MotionEvent.ACTION_UP, 720f, 55f, 270)
+    touch(MotionEvent.ACTION_DOWN, 720f, 344f, 300)
+    touch(MotionEvent.ACTION_UP, 720f, 344f, 370)
+    touch(MotionEvent.ACTION_DOWN, 720f, 87f, 400)
+    touch(MotionEvent.ACTION_UP, 720f, 87f, 470)
 
     assertEquals(listOf(" ", "language", "picker", ","), typed)
   }
@@ -222,14 +222,14 @@ class VietnameseKeyboardViewTest {
   fun pcLayoutShiftDigitTypesSymbol() {
     preparePcKeyboard()
 
-    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 100f, 40f)), 100)
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 80f, 360f)), 100)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
-      listOf(Triple(0, 100f, 40f), Triple(1, 40f, 280f)), 150)
+      listOf(Triple(0, 80f, 360f), Triple(1, 560f, 20f)), 150)
     assertEquals(listOf("!"), typed)
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "!"), spoken)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
-      listOf(Triple(0, 100f, 40f), Triple(1, 40f, 280f)), 200)
-    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 100f, 40f)), 250)
+      listOf(Triple(0, 80f, 360f), Triple(1, 560f, 20f)), 200)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 80f, 360f)), 250)
 
     assertEquals(listOf("!"), typed)
   }
@@ -238,14 +238,14 @@ class VietnameseKeyboardViewTest {
   fun pcLayoutShiftLetterTypesCapital() {
     preparePcKeyboard()
 
-    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 100f, 40f)), 100)
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 80f, 360f)), 100)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
-      listOf(Triple(0, 100f, 40f), Triple(1, 40f, 200f)), 150)
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 150)
     assertEquals(listOf("Q"), typed)
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "Q"), spoken)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
-      listOf(Triple(0, 100f, 40f), Triple(1, 40f, 200f)), 200)
-    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 100f, 40f)), 250)
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 200)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 80f, 360f)), 250)
 
     assertEquals(listOf("Q"), typed)
   }
@@ -254,12 +254,12 @@ class VietnameseKeyboardViewTest {
   fun pcLayoutShiftTapIsStickyForNextKey() {
     preparePcKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 100f, 40f, 100)
-    touch(MotionEvent.ACTION_UP, 100f, 40f, 170)
-    touch(MotionEvent.ACTION_DOWN, 40f, 280f, 200)
-    touch(MotionEvent.ACTION_UP, 40f, 280f, 270)
-    touch(MotionEvent.ACTION_DOWN, 120f, 280f, 300)
-    touch(MotionEvent.ACTION_UP, 120f, 280f, 370)
+    touch(MotionEvent.ACTION_DOWN, 80f, 360f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 360f, 170)
+    touch(MotionEvent.ACTION_DOWN, 560f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 560f, 20f, 270)
+    touch(MotionEvent.ACTION_DOWN, 560f, 55f, 300)
+    touch(MotionEvent.ACTION_UP, 560f, 55f, 370)
 
     assertEquals(listOf("!", "2"), typed)
   }
@@ -268,10 +268,10 @@ class VietnameseKeyboardViewTest {
   fun pcLayoutShiftHoldDoesNotToggleCaps() {
     preparePcKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 100f, 40f, 100)
-    touch(MotionEvent.ACTION_UP, 100f, 40f, 700)
-    touch(MotionEvent.ACTION_DOWN, 40f, 200f, 750)
-    touch(MotionEvent.ACTION_UP, 40f, 200f, 820)
+    touch(MotionEvent.ACTION_DOWN, 80f, 360f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 360f, 700)
+    touch(MotionEvent.ACTION_DOWN, 400f, 20f, 750)
+    touch(MotionEvent.ACTION_UP, 400f, 20f, 820)
 
     assertEquals(listOf("q"), typed)
   }
@@ -283,16 +283,16 @@ class VietnameseKeyboardViewTest {
     keyboard.showKeys(false, true, true, "Gửi")
     keyboard.layout(0, 0, 800, 400)
 
-    touch(MotionEvent.ACTION_DOWN, 40f, 200f, 100)
-    touch(MotionEvent.ACTION_UP, 40f, 200f, 170)
-    touch(MotionEvent.ACTION_DOWN, 40f, 120f, 200)
-    touch(MotionEvent.ACTION_UP, 40f, 120f, 270)
-    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 100f, 40f)), 300)
+    touch(MotionEvent.ACTION_DOWN, 400f, 20f, 100)
+    touch(MotionEvent.ACTION_UP, 400f, 20f, 170)
+    touch(MotionEvent.ACTION_DOWN, 240f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 240f, 20f, 270)
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 80f, 360f)), 300)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
-      listOf(Triple(0, 100f, 40f), Triple(1, 40f, 200f)), 350)
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 350)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
-      listOf(Triple(0, 100f, 40f), Triple(1, 40f, 200f)), 400)
-    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 100f, 40f)), 450)
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 400)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 80f, 360f)), 450)
 
     assertEquals(listOf("@", "!", "@"), typed)
   }
@@ -475,17 +475,17 @@ class VietnameseKeyboardViewTest {
 
   @Test
   @Config(qualifiers = "w400dp-h800dp-port")
-  fun pcLayoutPortraitRowsAreReversed() {
+  fun pcLayoutPortraitColumnsAreVertical() {
     preparePcKeyboardPortrait()
 
-    touch(MotionEvent.ACTION_DOWN, 100f, 20f, 100)
-    touch(MotionEvent.ACTION_UP, 100f, 20f, 170)
-    touch(MotionEvent.ACTION_DOWN, 20f, 70f, 200)
-    touch(MotionEvent.ACTION_UP, 20f, 70f, 270)
-    touch(MotionEvent.ACTION_DOWN, 20f, 120f, 300)
-    touch(MotionEvent.ACTION_UP, 20f, 120f, 370)
-    touch(MotionEvent.ACTION_DOWN, 20f, 170f, 400)
-    touch(MotionEvent.ACTION_UP, 20f, 170f, 470)
+    touch(MotionEvent.ACTION_DOWN, 40f, 14f, 100)
+    touch(MotionEvent.ACTION_UP, 40f, 14f, 170)
+    touch(MotionEvent.ACTION_DOWN, 120f, 14f, 200)
+    touch(MotionEvent.ACTION_UP, 120f, 14f, 270)
+    touch(MotionEvent.ACTION_DOWN, 200f, 12f, 300)
+    touch(MotionEvent.ACTION_UP, 200f, 12f, 370)
+    touch(MotionEvent.ACTION_DOWN, 280f, 11f, 400)
+    touch(MotionEvent.ACTION_UP, 280f, 11f, 470)
 
     assertEquals(listOf("z", "a", "q", "1"), spoken)
     assertEquals(listOf("z", "a", "q", "1"), typed)
