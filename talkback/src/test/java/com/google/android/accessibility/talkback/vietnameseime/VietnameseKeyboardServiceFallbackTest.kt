@@ -105,7 +105,10 @@ class VietnameseKeyboardServiceFallbackTest {
     val resolve = ResolveInfo()
     resolve.serviceInfo = service
     val info = AccessibilityServiceInfo()
-    info.resolveInfo = resolve
+    AccessibilityServiceInfo::class.java.getDeclaredField("mResolveInfo").apply {
+      isAccessible = true
+      set(info, resolve)
+    }
     return info
   }
 }
