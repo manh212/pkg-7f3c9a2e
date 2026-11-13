@@ -12,7 +12,6 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
-import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -146,6 +145,12 @@ class VietnameseKeyboardService : InputMethodService() {
     super.onUpdateSelection(
       oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
     )
+    if (composing && composingStart < 0 && candidatesStart >= 0 &&
+      newSelStart == newSelEnd && newSelEnd == candidatesEnd &&
+      candidatesEnd - candidatesStart == word.length) {
+      composingStart = candidatesStart
+      anticipateSelection(newSelEnd)
+    }
     if (newSelStart == newSelEnd && consumeExpectedSelection(newSelEnd)) return
     pendingSelections.clear()
     val stillComposing = newSelStart == newSelEnd &&
@@ -401,11 +406,10 @@ class VietnameseKeyboardService : InputMethodService() {
     }?.getSpeechController()
 
   private fun echoesCharacters(): Boolean =
-    method != DIRECT_SILENT_TYPING && KeyboardEchoSettings.echoesCharacters(echo)
+    KeyboardEchoSettings.echoesCharacters(echo)
 
   private fun echoesWords(): Boolean =
-    method != DIRECT_SILENT_TYPING &&
-      (echo == TextEventFilter.PREF_ECHO_WORDS || echo == TextEventFilter.PREF_ECHO_CHARACTERS_AND_WORDS)
+    echo == TextEventFilter.PREF_ECHO_WORDS || echo == TextEventFilter.PREF_ECHO_CHARACTERS_AND_WORDS
 
   private fun characterLabel(character: Char): String =
     if (character == ' ') getString(R.string.vietnamese_ime_space) else character.toString()
