@@ -26,6 +26,8 @@ class TelexTest {
     assertEquals("dd", type("ddd"))
     assertEquals("uow", type("uoww"))
     assertEquals("hòa", type("hoaf"))
+    assertEquals("khỏe", type("khoer"))
+    assertEquals("thủy", type("thuyr"))
   }
 
   private fun type(keys: String): String = keys.fold("", Telex::apply)

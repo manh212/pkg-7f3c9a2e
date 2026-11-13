@@ -54,13 +54,11 @@ internal object Telex {
     } else vowels
     val shaped = syllableVowels.lastOrNull { lower[it] in SHAPED_VOWELS }
     if (shaped != null) return shaped
-    val first = syllableVowels.first()
     val last = syllableVowels.last()
     return when {
       syllableVowels.size >= 3 -> syllableVowels[1]
       syllableVowels.size == 1 || last < word.lastIndex -> last
-      lower.substring(first, last + 1) in listOf("oa", "oe", "uy") -> last
-      else -> first
+      else -> syllableVowels.first()
     }
   }
 
