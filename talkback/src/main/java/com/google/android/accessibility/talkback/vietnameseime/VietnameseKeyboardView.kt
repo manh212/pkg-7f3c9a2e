@@ -356,7 +356,7 @@ internal class VietnameseKeyboardView(
     val rowHeight = if (rows.isEmpty()) 0f else height.toFloat() / rows.size
     rows.forEachIndexed { index, row ->
       val totalWeight = row.sumOf { it.weight.toDouble() }.toFloat()
-      val unit = width / totalWeight.coerceAtLeast(10f)
+      val unit = width / totalWeight
       var left = (width - totalWeight * unit) / 2
       for ((cellIndex, cell) in row.withIndex()) {
         val right = left + cell.weight * unit
@@ -385,23 +385,23 @@ internal class VietnameseKeyboardView(
     val second = characters(if (symbolPage) "!?:;/'\"_\$" else "asdfghjkl")
     val third = characters(if (symbolPage) "^~<>[]{}" else "zxcvbnm")
     val pc = isPcLayout()
-    return listOf(
-      digits,
-      first,
-      second,
-      listOf(function(SHIFT, if (isShiftActive()) "⇧" else "↑", if (pc) 2.0f else 1.4f)) +
-        third + function(DELETE, "⌫", if (pc) 1.0f else 1.6f),
-      listOf(
-        if (symbolPage) function(LETTERS, "ABC", 1.3f) else function(SYMBOLS, "123", 1.3f),
-        function(LANGUAGE, if (telexEnabled) "VI" else "EN", 1.1f),
-        characters(",").single(),
-        Cell(VietnameseKeyTouch.Key(" "),
-          context.getString(R.string.vietnamese_ime_space), if (pc) 6.5f else 3.2f),
-        characters(".").single(),
-        function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f),
-        Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
-      ),
+    val thirdRow = listOf(function(SHIFT, if (isShiftActive()) "⇧" else "↑", if (pc) 2.0f else 1.4f)) +
+      third + function(DELETE, "⌫", if (pc) 1.0f else 1.6f)
+    val bottom = listOf(
+      if (symbolPage) function(LETTERS, "ABC", 1.3f) else function(SYMBOLS, "123", 1.3f),
+      function(LANGUAGE, if (telexEnabled) "VI" else "EN", 1.1f),
+      characters(",").single(),
+      Cell(VietnameseKeyTouch.Key(" "),
+        context.getString(R.string.vietnamese_ime_space), if (pc) 6.5f else 3.2f),
+      characters(".").single(),
+      function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f),
+      Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
+    return if (pc) {
+      listOf(thirdRow, second, first, digits, bottom)
+    } else {
+      listOf(digits, first, second, thirdRow, bottom)
+    }
   }
 
   private fun characters(text: String, titles: String = text): List<Cell> =
