@@ -363,21 +363,114 @@ class VietnameseKeyboardViewTest {
 
   @Test
   @Config(qualifiers = "w800dp-h400dp-land")
-  fun pcLayoutLandscapeRowsAreReversed() {
+  fun pcLayoutLandscapeColumnsAreVertical() {
     preparePcKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 200f, 40f, 100)
-    touch(MotionEvent.ACTION_UP, 200f, 40f, 170)
-    touch(MotionEvent.ACTION_DOWN, 40f, 120f, 200)
-    touch(MotionEvent.ACTION_UP, 40f, 120f, 270)
-    touch(MotionEvent.ACTION_DOWN, 40f, 200f, 300)
-    touch(MotionEvent.ACTION_UP, 40f, 200f, 370)
-    touch(MotionEvent.ACTION_DOWN, 40f, 280f, 400)
-    touch(MotionEvent.ACTION_UP, 40f, 280f, 470)
+    touch(MotionEvent.ACTION_DOWN, 80f, 20f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 20f, 170)
+    touch(MotionEvent.ACTION_DOWN, 230f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 230f, 20f, 270)
+    touch(MotionEvent.ACTION_DOWN, 400f, 20f, 300)
+    touch(MotionEvent.ACTION_UP, 400f, 20f, 370)
+    touch(MotionEvent.ACTION_DOWN, 560f, 20f, 400)
+    touch(MotionEvent.ACTION_UP, 560f, 20f, 470)
 
     assertEquals(listOf("z", "a", "q", "1"), spoken)
     assertEquals(listOf("z", "a", "q", "1"), typed)
     assertEquals(4, released)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun pcLayoutLandscapeShiftAndDeleteAtColumnBottoms() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 80f, 360f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 360f, 170)
+    touch(MotionEvent.ACTION_DOWN, 560f, 380f, 200)
+    touch(MotionEvent.ACTION_UP, 560f, 380f, 270)
+
+    assertEquals(
+      listOf(
+        context.getString(R.string.vietnamese_ime_uppercase),
+        context.getString(R.string.vietnamese_ime_delete),
+      ),
+      spoken,
+    )
+    assertEquals(listOf("delete"), typed)
+    assertEquals(2, released)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun pcLayoutLandscapeShiftDigitTypesSymbolFromColumns() {
+    preparePcKeyboard()
+
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 80f, 360f)), 100)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 80f, 360f), Triple(1, 560f, 20f)), 150)
+    assertEquals(listOf("!"), typed)
+    assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "!"), spoken)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 80f, 360f), Triple(1, 560f, 20f)), 200)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 80f, 360f)), 250)
+
+    assertEquals(listOf("!"), typed)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun pcLayoutLandscapeShiftLetterTypesCapitalFromColumns() {
+    preparePcKeyboard()
+
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 80f, 360f)), 100)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 150)
+    assertEquals(listOf("Q"), typed)
+    assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "Q"), spoken)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 200)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 80f, 360f)), 250)
+
+    assertEquals(listOf("Q"), typed)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun pcLayoutLandscapeSymbolsPageColumns() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+    keyboard.typingMethod = DIRECT_SILENT_TYPING
+    keyboard.showKeys(false, true, true, "Gửi")
+    keyboard.layout(0, 0, 800, 400)
+
+    touch(MotionEvent.ACTION_DOWN, 400f, 20f, 100)
+    touch(MotionEvent.ACTION_UP, 400f, 20f, 170)
+    touch(MotionEvent.ACTION_DOWN, 240f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 240f, 20f, 270)
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 80f, 360f)), 300)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 350)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 80f, 360f), Triple(1, 400f, 20f)), 400)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 80f, 360f)), 450)
+
+    assertEquals(listOf("@", "!", "@"), typed)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun pcLayoutLandscapeSpaceBarIsTall() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 720f, 20f, 100)
+    touch(MotionEvent.ACTION_UP, 720f, 20f, 170)
+    touch(MotionEvent.ACTION_DOWN, 720f, 200f, 200)
+    touch(MotionEvent.ACTION_UP, 720f, 200f, 270)
+    touch(MotionEvent.ACTION_DOWN, 720f, 380f, 300)
+    touch(MotionEvent.ACTION_UP, 720f, 380f, 370)
+
+    assertEquals(listOf("symbols", " ", "enter"), typed)
+    assertEquals(3, released)
   }
 
   @Test
@@ -401,15 +494,15 @@ class VietnameseKeyboardViewTest {
 
   @Test
   @Config(qualifiers = "w800dp-h400dp-land")
-  fun autoLayoutLandscapeUsesReversedRows() {
+  fun autoLayoutLandscapeUsesColumns() {
     keyboard.typingMethod = DIRECT_SILENT_TYPING
     keyboard.showKeys(false, false, true, "Gửi")
     keyboard.layout(0, 0, 800, 400)
 
-    touch(MotionEvent.ACTION_DOWN, 200f, 40f, 100)
-    touch(MotionEvent.ACTION_UP, 200f, 40f, 170)
-    touch(MotionEvent.ACTION_DOWN, 40f, 120f, 200)
-    touch(MotionEvent.ACTION_UP, 40f, 120f, 270)
+    touch(MotionEvent.ACTION_DOWN, 80f, 20f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 20f, 170)
+    touch(MotionEvent.ACTION_DOWN, 230f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 230f, 20f, 270)
 
     assertEquals(listOf("z", "a"), spoken)
     assertEquals(listOf("z", "a"), typed)
