@@ -24,9 +24,9 @@ class VietnameseKeyboardViewTest {
   private val spoken = mutableListOf<String>()
   private val typed = mutableListOf<String>()
   private var released = 0
-  private val keyboard = VietnameseKeyboardView(context, { spoken.add(it) }, { typed.add(it) }) {
-    released++
-  }
+  private val keyboard = VietnameseKeyboardView(
+    context, { spoken.add(it) }, { typed.add(it) }, { released++ },
+  )
 
   @Test
   fun directSilentModeCommitsDownKeyOnDownWithoutAccessibilityFocus() {
