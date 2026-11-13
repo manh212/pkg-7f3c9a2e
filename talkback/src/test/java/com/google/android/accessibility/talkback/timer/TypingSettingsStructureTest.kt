@@ -70,6 +70,7 @@ class TypingSettingsStructureTest {
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_android_settings",
+        "pref_vietnamese_keyboard_layout",
         "pref_vietnamese_keyboard_timing",
         "pref_vietnamese_keyboard_explore_speech",
         "pref_vietnamese_keyboard_release_speech",
