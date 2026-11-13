@@ -22,7 +22,7 @@ class TypingSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun typingScreen_isSixGroupsInOrder() {
+  fun typingScreen_listsKeyboardAndOtherGroupsInOrder() {
     val rows = rowsOf(R.xml.settings_group_typing)
     assertEquals(
       listOf(
@@ -31,6 +31,7 @@ class TypingSettingsStructureTest {
         "pref_dictation_screen",
         "pref_typing_echo_screen",
         "meridian_braille_settings",
+        "pref_vietnamese_keyboard_screen",
         "pref_typing_interrupt_screen",
         "pref_physical_keyboard_key",
       ),
@@ -42,6 +43,7 @@ class TypingSettingsStructureTest {
         "TypingMethodPrefFragment",
         "DictationFragment",
         "TypingEchoFragment",
+        null,
         null,
         "TypingInterruptFragment",
         null,

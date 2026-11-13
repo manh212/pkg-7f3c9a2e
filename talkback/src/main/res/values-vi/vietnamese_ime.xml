@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vietnamese_ime_name">Bàn phím tiếng Việt Meridian</string>
+    <string name="vietnamese_ime_password_character">Ký tự mật khẩu</string>
+    <string name="vietnamese_ime_lowercase">Chữ thường</string>
+    <string name="vietnamese_ime_uppercase">Chữ hoa</string>
+    <string name="vietnamese_ime_symbols">Số và ký hiệu</string>
+    <string name="vietnamese_ime_letters">Chữ cái</string>
+    <string name="vietnamese_ime_telex_on">Đang gõ tiếng Việt Telex</string>
+    <string name="vietnamese_ime_telex_off">Đang gõ không dùng Telex</string>
+    <string name="vietnamese_ime_delete">Xóa</string>
+    <string name="vietnamese_ime_space">Dấu cách</string>
+    <string name="vietnamese_ime_picker_key">Đổi bàn phím</string>
+    <string name="vietnamese_ime_enter">Xuống dòng</string>
+    <string name="vietnamese_ime_done">Xong</string>
+    <string name="vietnamese_ime_send">Gửi</string>
+    <string name="vietnamese_ime_search">Tìm kiếm</string>
+    <string name="vietnamese_ime_next">Tiếp theo</string>
+    <string name="vietnamese_ime_previous">Quay lại</string>
+    <string name="vietnamese_ime_go">Đi</string>
+</resources>

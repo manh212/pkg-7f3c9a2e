@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.directtouch
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.SharedPreferences
 import android.graphics.Rect
 import android.graphics.Region
@@ -28,6 +29,7 @@ import android.os.SystemClock
 import com.google.android.accessibility.utils.output.FeedbackController
 import com.google.android.accessibility.utils.output.VibrationIntensity
 import android.os.Vibrator
+import android.provider.Settings
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -39,6 +41,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.LiftToActivateMode
 import com.google.android.accessibility.talkback.monitor.RingerModeAndScreenMonitor
+import com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardService
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils.WINDOW_ID_NONE
 import com.google.android.accessibility.utils.FeatureSupport
 import com.google.android.accessibility.utils.Performance
@@ -138,11 +141,17 @@ class DirectTouchController(
    * field taking focus.
    */
   fun onRawAccessibilityEvent(event: AccessibilityEvent) {
-    if (!paused && isSilentDirectTyping() && DirectTouchRegions.reassertsRegion(event.eventType)) {
-      evaluate()
-      handler.removeCallbacks(recheck)
-      handler.postDelayed(recheck, DEBOUNCE_MS)
+    if (!paused && DirectTouchRegions.reassertsRegion(event.eventType) &&
+      (isSilentDirectTyping() || isVietnameseKeyboard(selectedKeyboard()))) {
+      refreshVietnameseKeyboardTouch()
     }
+  }
+
+  fun refreshVietnameseKeyboardTouch() {
+    if (!FeatureSupport.supportPassthrough() || paused) return
+    evaluate()
+    handler.removeCallbacks(recheck)
+    handler.postDelayed(recheck, DEBOUNCE_MS)
   }
 
   fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -204,7 +213,8 @@ class DirectTouchController(
       if (wasActive) announce(false)
       return
     }
-    if (isNavBarDirect() || DirectTouchSettings.hasEnabledApps(prefs) || isSilentDirectTyping()) {
+    if (isNavBarDirect() || DirectTouchSettings.hasEnabledApps(prefs) || isSilentDirectTyping() ||
+      isVietnameseKeyboard(selectedKeyboard())) {
       scheduleEvaluate()
     }
   }
@@ -247,7 +257,7 @@ class DirectTouchController(
 
   private fun evaluate() {
     handler.removeCallbacks(reevaluate)
-    if (evaluating || paused || !FeatureSupport.supportPassthrough()) {
+    if (evaluating || paused || !screenInteractive || !displayOn || !FeatureSupport.supportPassthrough()) {
       return
     }
     evaluating = true
@@ -261,7 +271,9 @@ class DirectTouchController(
       val directTyping = mainPackage != null && DirectTouchSettings.isDirectTyping(prefs, mainPackage)
       val shouldBeActive = mainPackage != null && shouldBeActive(windows, mainPackage)
       val navBarDirect = isNavBarDirect()
-      val keyboards = directKeyboards(windows)
+      val keyboard = selectedKeyboard()
+      val vietnamese = isVietnameseKeyboard(keyboard)
+      val keyboards = directKeyboards(windows, keyboard)
       val wasActive = active
       if (shouldBeActive) {
         partRegionSent = false
@@ -271,7 +283,8 @@ class DirectTouchController(
         updatePartRegion(windows, navBarDirect, keyboards)
       }
       silentKeyboardIds =
-        if (isSilentDirectTyping()) keyboards.mapTo(mutableSetOf()) { it.id } else emptySet()
+        if (isSilentDirectTyping() || vietnamese) keyboards.mapTo(mutableSetOf()) { it.id }
+        else emptySet()
       if (shouldBeActive != active) {
         active = shouldBeActive
         announce(active)
@@ -370,16 +383,23 @@ class DirectTouchController(
    * keyboard. They take touches directly in every app, since a keyboard is never the app in front.
    * Their apps are asked for only while some app is in the list.
    */
-  private fun directKeyboards(windows: List<AccessibilityWindowInfo>): List<AccessibilityWindowInfo> {
+  private fun selectedKeyboard(): ComponentName? = runCatching {
+    Settings.Secure.getString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+      ?.let(ComponentName::unflattenFromString)
+  }.getOrNull()
+
+  private fun isVietnameseKeyboard(component: ComponentName?): Boolean =
+    component?.packageName == service.packageName &&
+      component.className == VietnameseKeyboardService::class.java.name
+
+  private fun directKeyboards(
+    windows: List<AccessibilityWindowInfo>, component: ComponentName?,
+  ): List<AccessibilityWindowInfo> {
     // The bundled Braille IME needs raw multi-pointer touch on Android 11+.
     // Only its selected Android input method gets this pass-through region.
-    val currentIme = runCatching {
-      android.provider.Settings.Secure.getString(
-        service.contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD)
-    }.getOrNull()
-    val component = currentIme?.let(android.content.ComponentName::unflattenFromString)
-    if (component?.packageName == service.packageName &&
-        component.className == "com.Braille.BrailleKeyboardService") {
+    if (isVietnameseKeyboard(component) ||
+      (component?.packageName == service.packageName &&
+        component.className == "com.Braille.BrailleKeyboardService")) {
       return windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
     }
     if (isSilentDirectTyping()) {
@@ -404,7 +424,7 @@ class DirectTouchController(
       ) == DIRECT_SILENT_TYPING
 
   fun shouldSilenceKeyboardEvent(event: AccessibilityEvent): Boolean =
-    !paused && isSilentDirectTyping() && event.windowId in silentKeyboardIds &&
+    !paused && event.windowId in silentKeyboardIds &&
       when (event.eventType) {
         AccessibilityEvent.TYPE_VIEW_HOVER_ENTER,
         AccessibilityEvent.TYPE_VIEW_HOVER_EXIT,

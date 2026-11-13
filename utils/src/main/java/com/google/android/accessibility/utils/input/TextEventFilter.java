@@ -237,7 +237,9 @@ public class TextEventFilter {
           }
           textEventHistory.setLastTextChangeTime(event.getEventTime());
           textEventHistory.setLastTextChangePackageName(event.getPackageName());
-          if (readKeyboardEcho(event) == PREF_ECHO_SILENT_TYPING) {
+          if (readKeyboardEcho(event) == PREF_ECHO_SILENT_TYPING
+              || (getTypingInput(event.getEventTime()) != TypingInput.PHYSICAL_KEYBOARD
+                  && ImeEditFeedback.ownsEditFeedback(event))) {
             return;
           }
           if (voiceRecognitionActive) {

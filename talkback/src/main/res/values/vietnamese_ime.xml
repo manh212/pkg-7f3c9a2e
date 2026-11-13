@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <bool name="vietnamese_ime_supported">false</bool>
+    <color name="vietnamese_ime_background">#161A20</color>
+    <color name="vietnamese_ime_key">#333B47</color>
+    <color name="vietnamese_ime_selection">#285F9B</color>
+    <string name="vietnamese_ime_name" tools:ignore="MissingTranslation">Bàn phím tiếng Việt Meridian</string>
+    <string name="vietnamese_ime_password_character" tools:ignore="MissingTranslation">Ký tự mật khẩu</string>
+    <string name="vietnamese_ime_lowercase" tools:ignore="MissingTranslation">Chữ thường</string>
+    <string name="vietnamese_ime_uppercase" tools:ignore="MissingTranslation">Chữ hoa</string>
+    <string name="vietnamese_ime_symbols" tools:ignore="MissingTranslation">Số và ký hiệu</string>
+    <string name="vietnamese_ime_letters" tools:ignore="MissingTranslation">Chữ cái</string>
+    <string name="vietnamese_ime_telex_on" tools:ignore="MissingTranslation">Đang gõ tiếng Việt Telex</string>
+    <string name="vietnamese_ime_telex_off" tools:ignore="MissingTranslation">Đang gõ không dùng Telex</string>
+    <string name="vietnamese_ime_delete" tools:ignore="MissingTranslation">Xóa</string>
+    <string name="vietnamese_ime_space" tools:ignore="MissingTranslation">Dấu cách</string>
+    <string name="vietnamese_ime_picker_key" tools:ignore="MissingTranslation">Đổi bàn phím</string>
+    <string name="vietnamese_ime_enter" tools:ignore="MissingTranslation">Xuống dòng</string>
+    <string name="vietnamese_ime_done" tools:ignore="MissingTranslation">Xong</string>
+    <string name="vietnamese_ime_send" tools:ignore="MissingTranslation">Gửi</string>
+    <string name="vietnamese_ime_search" tools:ignore="MissingTranslation">Tìm kiếm</string>
+    <string name="vietnamese_ime_next" tools:ignore="MissingTranslation">Tiếp theo</string>
+    <string name="vietnamese_ime_previous" tools:ignore="MissingTranslation">Quay lại</string>
+    <string name="vietnamese_ime_go" tools:ignore="MissingTranslation">Đi</string>
+</resources>

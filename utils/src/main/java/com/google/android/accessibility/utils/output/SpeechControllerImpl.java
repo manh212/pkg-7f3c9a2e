@@ -569,6 +569,13 @@ public class SpeechControllerImpl implements SpeechController {
     return waitForCurrentSpeech;
   }
 
+  public boolean hasOtherSpeech(@UtteranceGroup int group) {
+    return !externalSpeech.isEmpty()
+        || !blockingExternalSpeech.isEmpty()
+        || (currentFeedbackItem != null && currentFeedbackItem.getUtteranceGroup() != group)
+        || feedbackQueue.stream().anyMatch(item -> item.getUtteranceGroup() != group);
+  }
+
   public boolean shouldWaitForExternalSpeech(Object source) {
     return waitForCurrentSpeech
         && (isSpeakingOrSpeechQueued()
@@ -1731,7 +1738,8 @@ public class SpeechControllerImpl implements SpeechController {
       @Nullable UtteranceRangeStartCallback rangeStartCallback,
       @Nullable UtteranceCompleteRunnable completedAction) {
 
-    if (failoverTts.isAlwaysInterruptSpeechOn()) {
+    if (item.getUtteranceGroup() != UTTERANCE_GROUP_KEYBOARD
+        && failoverTts.isAlwaysInterruptSpeechOn()) {
       queueMode |= QUEUE_MODE_BIT_INTERRUPT;
     }
     queueMode = queueModeForSpeech(queueMode);
@@ -1784,7 +1792,8 @@ public class SpeechControllerImpl implements SpeechController {
     item.setCompletedAction(completedAction);
 
     boolean currentFeedbackInterrupted = false;
-    if (!waitForCurrentSpeech && shouldClearQueue(item, queueMode)) {
+    if ((!waitForCurrentSpeech || item.getUtteranceGroup() == UTTERANCE_GROUP_KEYBOARD)
+        && shouldClearQueue(item, queueMode)) {
       FeedbackItemFilter filter = getFeedbackItemFilter(item, queueMode);
       // Call onUtteranceComplete on each queue item to be cleared.
       ListIterator<FeedbackItem> iterator = feedbackQueue.listIterator(0);

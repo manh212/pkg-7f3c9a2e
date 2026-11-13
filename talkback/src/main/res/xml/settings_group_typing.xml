@@ -22,6 +22,12 @@
       <intent android:action="com.android.talkback.action.BRAILLE_KEYBOARD_SETTINGS" />
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreference>
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="pref_vietnamese_keyboard_screen"
+        android:enabled="@bool/vietnamese_ime_supported"
+        android:title="@string/vietnamese_ime_name">
+      <intent android:action="android.settings.INPUT_METHOD_SETTINGS" />
+    </com.google.android.accessibility.material.preference.AccessibilitySuitePreference>
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.TypingInterruptFragment"
         android:key="pref_typing_interrupt_screen"
         android:title="@string/title_pref_typing_interrupt" />

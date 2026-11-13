@@ -2177,6 +2177,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     return speechController;
   }
 
+  public void refreshVietnameseKeyboardTouch() {
+    if (directTouchController != null) directTouchController.refreshVietnameseKeyboardTouch();
+  }
+
   public FeedbackController getFeedbackController() {
     if (feedbackController == null) {
       throw new IllegalStateException("mFeedbackController has not been initialized");
