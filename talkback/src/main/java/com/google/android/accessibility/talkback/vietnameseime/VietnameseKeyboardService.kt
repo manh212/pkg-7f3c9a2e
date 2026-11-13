@@ -127,6 +127,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   override fun onFinishInput() {
     endTouchSession()
+    if (composing) finishWord(currentInputConnection)
     editor = null
     word = ""
     composing = false
@@ -213,6 +214,9 @@ class VietnameseKeyboardService : InputMethodService() {
         if (!shifted || !letter.isLetter()) return
         shifted = false
       }
+    }
+    if (id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
+      speak(getString(if (vietnamese) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off))
     }
     updateLayout()
   }

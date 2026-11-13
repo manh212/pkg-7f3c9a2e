@@ -1,5 +1,6 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
@@ -124,6 +125,7 @@ internal class VietnameseKeyboardView(
     }
   }
 
+  @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
@@ -185,7 +187,7 @@ internal class VietnameseKeyboardView(
     if (selected == lastSpoken) return
     lastSpoken = selected
     if (selected != null) {
-      announce(if (hideLetterSpeech && selected.key.textEntry) {
+      announce(if (hideLetterSpeech && selected.key.id.length == 1 && selected.key.id != " ") {
         context.getString(R.string.vietnamese_ime_password_character)
       } else {
         spokenTitle(selected)
