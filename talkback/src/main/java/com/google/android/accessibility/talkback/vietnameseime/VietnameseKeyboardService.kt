@@ -53,6 +53,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private var telexAllowed = false
   private var echo = TextEventFilter.PREF_ECHO_NONE
   private var method = 0
+  private var layout = VietnameseKeyboardView.LAYOUT_AUTO
   private var timing = VietnameseKeyboardTiming()
   private val keyNames by lazy { VietnameseKeyNames(this) }
   private var windowShown = false
@@ -65,6 +66,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
     if (key == getString(R.string.pref_typing_confirmation_key) ||
       key == getString(R.string.pref_direct_input_tap_delay_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_layout_key) ||
       VietnameseKeyboardTiming.isTimingKey(key) ||
       key == KeyboardEchoSettings.key(resources, ON_SCREEN_KEYBOARD)) readPreferences()
   }
@@ -86,9 +88,13 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   override fun onCreateInputView(): View {
-    val view = VietnameseKeyboardView(this, ::announceKey, ::activateKey) {
-      keySpeech.release(timing.releaseSpeechMs)
-    }
+    val view = VietnameseKeyboardView(
+      this,
+      ::announceKey,
+      ::activateKey,
+      { keySpeech.release(timing.releaseSpeechMs) },
+      ::speakShiftHeld,
+    )
     view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportKeyboardBounds() }
     keyboard = view
     configureView()
@@ -210,9 +216,14 @@ class VietnameseKeyboardService : InputMethodService() {
       prefs, resources, R.string.pref_typing_confirmation_key, R.string.pref_typing_confirmation_default,
     )
     val newTiming = VietnameseKeyboardTiming.read(this, prefs)
+    val newLayout = prefs.getString(
+      getString(R.string.pref_vietnamese_keyboard_layout_key),
+      VietnameseKeyboardView.LAYOUT_AUTO,
+    ) ?: VietnameseKeyboardView.LAYOUT_AUTO
     if (method != newMethod || timing != newTiming) endTouchSession()
     method = newMethod
     timing = newTiming
+    layout = newLayout
     echo = KeyboardEchoSettings.read(prefs, resources, ON_SCREEN_KEYBOARD)
     configureView()
   }
@@ -222,6 +233,7 @@ class VietnameseKeyboardService : InputMethodService() {
       typingMethod = method
       timing = this@VietnameseKeyboardService.timing
       hideLetterSpeech = secure
+      layoutSetting = layout
     }
   }
 
@@ -420,6 +432,12 @@ class VietnameseKeyboardService : InputMethodService() {
     if (label.isEmpty()) keySpeech.cancel(stopSpeech = true)
     else if (method != DIRECT_SILENT_TYPING) {
       keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
+    }
+  }
+
+  private fun speakShiftHeld() {
+    if (method == DIRECT_SILENT_TYPING && echoesCharacters()) {
+      speak(getString(R.string.vietnamese_ime_uppercase))
     }
   }
 
