@@ -383,6 +383,26 @@ class DirectTouchController(
     if (parts.isNotEmpty()) {
       val region = Region()
       parts.forEach { region.union(it) }
+      val display = displayBounds()
+      windows.forEach { window ->
+        if (window.type == AccessibilityWindowInfo.TYPE_SYSTEM ||
+          window.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
+          val bounds = boundsOf(window)
+          val isNavBar =
+            window.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
+              DirectTouchRegions.isNavigationBar(
+                bounds.left,
+                bounds.top,
+                bounds.right,
+                bounds.bottom,
+                display.width(),
+                display.height(),
+              )
+          if (!(navBarDirect && isNavBar)) {
+            region.op(bounds, Region.Op.DIFFERENCE)
+          }
+        }
+      }
       sendRegion(region)
       partRegionSent = true
     } else if (partRegionSent) {
@@ -546,6 +566,7 @@ class DirectTouchController(
   ) {
     val display = displayBounds()
     val excluded = mutableListOf<Rect>()
+    val systemExcluded = mutableListOf<Rect>()
     windows.forEach { window ->
       if (
         DirectTouchRegions.shouldExcludeWindow(window.type, directTyping) && window !in keyboards
@@ -564,11 +585,19 @@ class DirectTouchController(
             )
         if (!(navBarDirect && isNavBar)) {
           excluded += bounds
+          if (window.type == AccessibilityWindowInfo.TYPE_SYSTEM ||
+            window.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
+            systemExcluded += bounds
+          }
         }
       }
     }
     val region = DirectTouchRegions.passthroughRegion(display, excluded)
-    if (vietnameseBounds != null) region.union(vietnameseBounds)
+    if (vietnameseBounds != null) {
+      val keyboardRegion = Region(vietnameseBounds)
+      systemExcluded.forEach { keyboardRegion.op(it, Region.Op.DIFFERENCE) }
+      region.union(keyboardRegion)
+    }
     sendRegion(region)
   }
 
