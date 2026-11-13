@@ -5,6 +5,7 @@ import android.view.View
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -26,19 +27,47 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun directSilentModeCommitsDownKeyOnReleaseWithoutAccessibilityFocus() {
+  fun directSilentModeCommitsDownKeyOnDownWithoutAccessibilityFocus() {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    assertEquals(listOf("q"), spoken)
+    assertEquals(listOf("q"), typed)
+    assertEquals(0, released)
     touch(MotionEvent.ACTION_MOVE, 60f, 60f, 140)
     assertEquals(listOf("q"), spoken)
-    assertEquals(emptyList<String>(), typed)
+    assertEquals(listOf("q"), typed)
     touch(MotionEvent.ACTION_UP, 60f, 60f, 170)
 
     assertEquals(listOf("q"), typed)
     assertEquals(1, released)
     assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS, keyboard.importantForAccessibility)
     assertFalse(keyboard.isFocusable)
+  }
+
+  @Test
+  fun directSilentModeLiftOffKeyboardDoesNotSilenceDownKey() {
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    assertEquals(listOf("q"), typed)
+    touch(MotionEvent.ACTION_MOVE, 60f, 300f, 140)
+    touch(MotionEvent.ACTION_UP, 60f, 300f, 170)
+
+    assertEquals(listOf("q"), typed)
+    assertEquals(listOf("q"), spoken)
+    assertEquals(0, released)
+  }
+
+  @Test
+  fun singleTapDoesNotActivateOnDown() {
+    keyboard.typingMethod = SINGLE_TAP_TO_TYPE
+    keyboard.showKeys(false, false, true, "Gửi")
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+
+    assertEquals(emptyList<String>(), typed)
   }
 
   @Test
