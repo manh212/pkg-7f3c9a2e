@@ -150,6 +150,9 @@ internal class VietnameseKeyboardView(
         gestureMethod = typingMethod
         val confirmingSecondTap = gestureMethod == DOUBLE_TAP && touch.selected != null
         touch.start(startingCell?.key, gestureMethod)
+        if (gestureMethod == DIRECT_SILENT_TYPING) {
+          startingCell?.key?.let { activate(it.id) }
+        }
         if (!confirmingSecondTap) announceSelected()
       }
       MotionEvent.ACTION_MOVE -> {
@@ -181,8 +184,9 @@ internal class VietnameseKeyboardView(
             if (gestureMethod == DIRECT_SILENT_TYPING) startingCell?.key else cell?.key
           val key = touch.release(releaseKey, gestureMethod, event.x, event.y, event.eventTime, tap)
           pointer = MotionEvent.INVALID_POINTER_ID
-          if (cell != null) releaseAnnouncement() else announce("")
-          if (key != null) {
+          if (cell != null) releaseAnnouncement()
+          else if (gestureMethod != DIRECT_SILENT_TYPING) announce("")
+          if (key != null && gestureMethod != DIRECT_SILENT_TYPING) {
             if (gestureMethod == SINGLE_TAP_TO_TYPE && timing.directInputMs > 0) {
               val generation = inputGeneration
               postDelayed({ if (generation == inputGeneration) activate(key.id) }, timing.directInputMs)
