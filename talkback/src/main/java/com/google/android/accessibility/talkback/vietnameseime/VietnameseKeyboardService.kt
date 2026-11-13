@@ -76,6 +76,7 @@ class VietnameseKeyboardService : InputMethodService() {
     prefs = SharedPreferencesUtils.getSharedPreferences(this)
     readPreferences()
     prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
+    warmUpFallbackSpeech()
   }
 
   override fun onDestroy() {
@@ -99,6 +100,7 @@ class VietnameseKeyboardService : InputMethodService() {
     keyboard = view
     configureView()
     updateLayout()
+    warmUpFallbackSpeech()
     return view
   }
 
@@ -131,6 +133,7 @@ class VietnameseKeyboardService : InputMethodService() {
     super.onStartInputView(info, restarting)
     configureView()
     updateLayout()
+    warmUpFallbackSpeech()
   }
 
   override fun onWindowShown() {
@@ -487,6 +490,37 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun useFallbackSpeech(): Boolean =
     TalkBackService.getInstance() == null || !TalkBackService.isServiceActive()
+
+  private fun warmUpFallbackSpeech() {
+    if (!useFallbackSpeech()) return
+    fallbackSpeech().warmUp(fixedFallbackLabels())
+  }
+
+  private fun fixedFallbackLabels(): List<String> {
+    val labels = ArrayList<String>()
+    for (letter in 'a'..'z') labels.add(keyNames.spokenName(letter.toString()))
+    for (letter in 'A'..'Z') labels.add(keyNames.spokenName(letter.toString()))
+    for (digit in '0'..'9') labels.add(keyNames.spokenName(digit.toString()))
+    for (symbol in "+,.") labels.add(keyNames.spokenName(symbol.toString()))
+    labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_space)))
+    labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_password_character)))
+    labels.add(getString(R.string.vietnamese_ime_uppercase))
+    labels.add(getString(R.string.vietnamese_ime_lowercase))
+    labels.add(getString(R.string.vietnamese_ime_symbols))
+    labels.add(getString(R.string.vietnamese_ime_letters))
+    labels.add(getString(R.string.vietnamese_ime_picker_key))
+    labels.add(getString(R.string.vietnamese_ime_delete))
+    labels.add(getString(R.string.vietnamese_ime_telex_on))
+    labels.add(getString(R.string.vietnamese_ime_telex_off))
+    labels.add(getString(R.string.vietnamese_ime_enter))
+    labels.add(getString(R.string.vietnamese_ime_done))
+    labels.add(getString(R.string.vietnamese_ime_send))
+    labels.add(getString(R.string.vietnamese_ime_search))
+    labels.add(getString(R.string.vietnamese_ime_next))
+    labels.add(getString(R.string.vietnamese_ime_previous))
+    labels.add(getString(R.string.vietnamese_ime_go))
+    return labels.distinct()
+  }
 
   private fun fallbackSpeech(): VietnameseFallbackSpeech {
     var speech = fallbackSpeech
