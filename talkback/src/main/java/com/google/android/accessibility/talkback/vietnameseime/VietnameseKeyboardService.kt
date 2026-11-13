@@ -1,15 +1,19 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.text.InputType
 import android.text.SpannableString
 import android.text.style.LocaleSpan
 import android.view.KeyEvent
 import android.view.View
+import android.view.accessibility.AccessibilityManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -487,7 +491,22 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun useFallbackSpeech(): Boolean =
-    TalkBackService.getInstance() == null || !TalkBackService.isServiceActive()
+    shouldUseFallbackSpeech(
+      TalkBackService.getInstance() != null && TalkBackService.isServiceActive(),
+      isMeridianEnabled(),
+    )
+
+  private fun isMeridianEnabled(): Boolean {
+    val enabled = runCatching {
+      (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)
+        ?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+    }.getOrNull()
+    if (!enabled.isNullOrEmpty()) return isMeridianInServiceList(enabled, packageName)
+    val secure = runCatching {
+      Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+    }.getOrNull()
+    return isMeridianInEnabledServices(secure, packageName)
+  }
 
   private fun warmUpFallbackSpeech() {
     if (!useFallbackSpeech()) return
@@ -546,6 +565,28 @@ class VietnameseKeyboardService : InputMethodService() {
   companion object {
     private val VIETNAMESE = Locale.forLanguageTag("vi-VN")
     private const val MAX_WORD_LENGTH = 48
+
+    internal fun shouldUseFallbackSpeech(serviceUp: Boolean, meridianEnabled: Boolean): Boolean =
+      !serviceUp && !meridianEnabled
+
+    internal fun isMeridianInServiceList(
+      services: List<AccessibilityServiceInfo>,
+      appPackageName: String,
+    ): Boolean =
+      services.any { info ->
+        info.resolveInfo?.serviceInfo?.let {
+          it.packageName == appPackageName && it.name == TalkBackService::class.java.name
+        } == true
+      }
+
+    internal fun isMeridianInEnabledServices(
+      enabledServices: String?,
+      appPackageName: String,
+    ): Boolean =
+      enabledServices
+        ?.split(":")
+        ?.any { it == "$appPackageName/${TalkBackService::class.java.name}" }
+        ?: false
 
     private fun changedCharacter(previous: String, updated: String): Char? {
       if (updated.length > previous.length) return updated.last()
