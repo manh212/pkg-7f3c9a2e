@@ -280,9 +280,12 @@ internal class VietnameseKeyboardView(
   }
 
   private fun rebuildRows() {
-    rowsArePc = isPcLayout()
+    val pc = isPcLayout()
+    val layoutChanged = pc != rowsArePc
+    rowsArePc = pc
     rows = buildRows()
     placeKeys()
+    if (layoutChanged) requestLayout()
     invalidate()
   }
 
@@ -355,9 +358,14 @@ internal class VietnameseKeyboardView(
       val totalWeight = row.sumOf { it.weight.toDouble() }.toFloat()
       val unit = width / totalWeight.coerceAtLeast(10f)
       var left = (width - totalWeight * unit) / 2
-      for (cell in row) {
+      for ((cellIndex, cell) in row.withIndex()) {
         val right = left + cell.weight * unit
-        cell.bounds.set(left, index * rowHeight, right, (index + 1) * rowHeight)
+        cell.bounds.set(
+          if (cellIndex == 0) 0f else left,
+          index * rowHeight,
+          if (cellIndex == row.lastIndex) width.toFloat() else right,
+          (index + 1) * rowHeight,
+        )
         paint.textSize = (if (cell.title.length > 4) 13 else 18) * density
         val available = cell.bounds.width() - 6 * density
         val textWidth = paint.measureText(cell.title)
