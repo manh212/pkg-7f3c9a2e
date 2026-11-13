@@ -44,6 +44,7 @@ internal class VietnameseFallbackSpeech(context: Context) {
   private val cacheCallbacks = HashMap<String, Callbacks>()
   private val pendingSpeaks = ArrayDeque<Pending>()
   private val labelsToCache = mutableSetOf<String>()
+  private val synthesisAttempts = HashMap<String, Int>()
   private val pendingSynthesis = ConcurrentHashMap<String, SynthesisRequest>()
   private var cacheDirFile: File? = null
 
@@ -73,7 +74,7 @@ internal class VietnameseFallbackSpeech(context: Context) {
     if (pendingSpeaks.size >= MAX_PENDING_SPEAKS) pendingSpeaks.removeFirst()
     pendingSpeaks.addLast(Pending(label, started, completed))
     startIfNeeded()
-    return false
+    return true
   }
 
   fun stop() {
@@ -93,6 +94,8 @@ internal class VietnameseFallbackSpeech(context: Context) {
     callbacks.clear()
     cacheCallbacks.clear()
     worker.removeCallbacksAndMessages(null)
+    pendingSynthesis.values.forEach { it.file.delete() }
+    pendingSynthesis.clear()
     player.release()
     workerThread.quitSafely()
     tts?.shutdown()
@@ -102,7 +105,11 @@ internal class VietnameseFallbackSpeech(context: Context) {
   }
 
   private fun speakNow(label: String, started: (() -> Unit)?, completed: ((Int) -> Unit)?): Boolean {
-    if (player.hasCache(speechInfo(label))) return playCached(label, started, completed)
+    if (player.hasCache(speechInfo(label))) {
+      tts?.stop()
+      return playCached(label, started, completed)
+    }
+    player.stopSpeech()
     return speakLive(label, started, completed)
   }
 
@@ -150,6 +157,7 @@ internal class VietnameseFallbackSpeech(context: Context) {
     if (SystemClock.uptimeMillis() - lastFailureAt < RETRY_BACKOFF_MS) return
     starting = true
     try {
+      main.postDelayed({ handleInitTimeout() }, INIT_TIMEOUT_MS)
       tts = TextToSpeech(appContext) { status ->
         main.post {
           starting = false
@@ -179,6 +187,15 @@ internal class VietnameseFallbackSpeech(context: Context) {
       lastFailureAt = SystemClock.uptimeMillis()
       tts = null
     }
+  }
+
+  private fun handleInitTimeout() {
+    if (!starting) return
+    LogUtils.e(TAG, "Fallback text-to-speech start timed out")
+    lastFailureAt = SystemClock.uptimeMillis()
+    tts?.shutdown()
+    tts = null
+    starting = false
   }
 
   private fun drainPendingSpeaks() {
@@ -219,6 +236,7 @@ internal class VietnameseFallbackSpeech(context: Context) {
 
   private fun synthesizeNext() {
     if (!ready || !languageAvailable) return
+    if (pendingSynthesis.isNotEmpty()) return
     val engine = tts ?: return
     val label = labelsToCache.firstOrNull { !player.hasCache(speechInfo(it)) } ?: return
     labelsToCache.remove(label)
@@ -238,12 +256,24 @@ internal class VietnameseFallbackSpeech(context: Context) {
       val info = SpeechInfo(utteranceId, request.label, VIETNAMESE, Bundle(), request.file)
       if (!player.loadSpeechFileIntoMemory(info)) {
         LogUtils.w(TAG, "Failed to load a cached label")
+        retrySynthesis(request.label)
+      } else {
+        synthesisAttempts.remove(request.label)
       }
     } else {
       LogUtils.w(TAG, "Failed to synthesize a cached label")
+      retrySynthesis(request.label)
     }
     request.file.delete()
     synthesizeNext()
+  }
+
+  private fun retrySynthesis(label: String) {
+    val retries = synthesisAttempts.getOrDefault(label, 0)
+    if (retries < MAX_SYNTHESIS_RETRIES) {
+      synthesisAttempts[label] = retries + 1
+      labelsToCache.add(label)
+    }
   }
 
   private fun speechInfo(label: String): SpeechInfo = SpeechInfo(null, label, VIETNAMESE, Bundle())
@@ -261,7 +291,9 @@ internal class VietnameseFallbackSpeech(context: Context) {
   private companion object {
     private const val TAG = "VietnameseFallbackSpeech"
     private const val RETRY_BACKOFF_MS = 5000L
+    private const val INIT_TIMEOUT_MS = 10000L
     private const val SYNTHESIS_TIMEOUT_MS = 10000L
+    private const val MAX_SYNTHESIS_RETRIES = 2
     private const val MAX_PENDING_SPEAKS = 16
     private const val LIVE_ID_PREFIX = "vietnamese-"
     private const val CACHE_PLAYBACK_ID_PREFIX = "fallback-cache-"

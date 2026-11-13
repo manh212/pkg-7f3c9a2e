@@ -17,15 +17,17 @@ internal class VietnameseKeyTouch(
   var selected: Key? = null
     private set
   private var exploring = false
+  private var exploredOntoKey = false
 
   fun start(key: Key?, method: Int) {
     exploring = selected?.let { confirmsWithDoubleTap(it, method) } != true
+    exploredOntoKey = false
     if (exploring) selected = key
   }
 
   fun explore(key: Key?) {
     selected?.let { firstTaps.remove(it) }
-    if (key != null) firstTaps.remove(key)
+    exploredOntoKey = key != null
     selected = key
     exploring = true
   }
@@ -38,6 +40,7 @@ internal class VietnameseKeyTouch(
 
   fun release(key: Key?, method: Int, x: Float, y: Float, time: Long, tap: Boolean): Key? {
     if (key == null) {
+      selected?.let { firstTaps.remove(it) }
       cancel()
       return null
     }
@@ -51,6 +54,7 @@ internal class VietnameseKeyTouch(
       firstTaps.remove(target)
       return null
     }
+    if (exploredOntoKey) return null
     pruneStaleFirstTaps(time)
     val prior = firstTaps[target]
     if (prior != null && time - prior.time in 0..doubleTapTimeout) {
@@ -69,6 +73,7 @@ internal class VietnameseKeyTouch(
   fun cancel() {
     selected = null
     exploring = false
+    exploredOntoKey = false
   }
 
   private fun pruneStaleFirstTaps(now: Long) {

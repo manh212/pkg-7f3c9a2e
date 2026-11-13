@@ -3,6 +3,7 @@ package com.google.android.accessibility.talkback.vietnameseime
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
@@ -62,11 +63,16 @@ class VietnameseKeyboardService : InputMethodService() {
   private val keyNames by lazy { VietnameseKeyNames(this) }
   private var windowShown = false
   private val main = Handler(Looper.getMainLooper())
-  private val keySpeech = VietnameseKeySpeech(::submitKeySpeech) {
-    speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
-    fallbackSpeech?.stop()
-  }
+  private val keySpeech = VietnameseKeySpeech(
+    ::submitKeySpeech,
+    {
+      speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
+      fallbackSpeech?.stop()
+    },
+    ::shouldRetryKeySpeech,
+  )
   private var fallbackSpeech: VietnameseFallbackSpeech? = null
+  private var fallbackWarmedUp = false
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
     if (key == getString(R.string.pref_typing_confirmation_key) ||
       key == getString(R.string.pref_direct_input_tap_delay_key) ||
@@ -109,6 +115,11 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   override fun onEvaluateFullscreenMode(): Boolean = false
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    updateLayout()
+  }
 
   override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
     super.onStartInput(attribute, restarting)
@@ -233,6 +244,7 @@ class VietnameseKeyboardService : InputMethodService() {
     layout = newLayout
     echo = KeyboardEchoSettings.read(prefs, resources, ON_SCREEN_KEYBOARD)
     configureView()
+    updateLayout()
   }
 
   private fun configureView() {
@@ -245,8 +257,14 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun updateLayout() {
+    if (isPcLayout()) shifted = false
     keyboard?.showKeys(shifted, symbols, vietnamese && telexAllowed, getString(actionTitle()))
   }
+
+  private fun isPcLayout(): Boolean =
+    layout == VietnameseKeyboardView.LAYOUT_PC ||
+      (layout == VietnameseKeyboardView.LAYOUT_AUTO &&
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
   private fun activateKey(id: String) {
     if (editor == null || !isInputViewShown) return
@@ -293,20 +311,20 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun type(connection: InputConnection, letter: Char) {
     val useTelex = vietnamese && telexAllowed && !composingUnavailable
     if (letter.isLetter() && useTelex) {
+      markEdit()
       if (word.length >= MAX_WORD_LENGTH) finishWord(connection)
       val updated = Telex.apply(word, letter)
-      markEdit()
       if (updateComposition(connection, updated)) {
         val changed = changedCharacter(word, updated)
         word = updated
         if (echoesCharacters() && changed != null) speakEnteredCharacter(changed)
         return
       }
-      composingUnavailable = true
       finishWord(connection)
+      composingUnavailable = true
     }
-    val finished = if ((!useTelex && letter.isLetterOrDigit()) || secure) "" else finishWord(connection)
     markEdit()
+    val finished = if ((!useTelex && letter.isLetterOrDigit()) || secure) "" else finishWord(connection)
     val insertionStart = insertionStart()
     val previousCursor = cursor
     val previousSelectionStart = selectionStart
@@ -402,10 +420,12 @@ class VietnameseKeyboardService : InputMethodService() {
     word = ""
     composing = false
     composingStart = -1
+    composingUnavailable = false
     return completed
   }
 
   private fun enter(connection: InputConnection) {
+    markEdit()
     val finished = finishWord(connection)
     if (finished.isNotEmpty() && echoesWords()) speakWord(finished)
     if (!sendDefaultEditorAction(true)) {
@@ -483,6 +503,7 @@ class VietnameseKeyboardService : InputMethodService() {
       return true
     }
     if (!useFallbackSpeech()) return false
+    warmUpFallbackSpeech()
     return fallbackSpeech().speak(
       label,
       started?.let { runnable -> { runnable.run() } },
@@ -490,18 +511,28 @@ class VietnameseKeyboardService : InputMethodService() {
     )
   }
 
-  private fun useFallbackSpeech(): Boolean =
-    shouldUseFallbackSpeech(
-      TalkBackService.getInstance() != null && TalkBackService.isServiceActive(),
-      isMeridianEnabled(),
-    )
+  private fun useFallbackSpeech(): Boolean {
+    if (TalkBackService.getInstance() != null && TalkBackService.isServiceActive()) return false
+    return !isMeridianEnabled()
+  }
+
+  private fun shouldRetryKeySpeech(): Boolean {
+    if (PauseController.isPaused()) return false
+    val speaker = TalkBackService.getInstance()?.takeIf { TalkBackService.isServiceActive() }
+      ?.getSpeechController()
+    if (speaker != null) return !speaker.isTtsReady && !speaker.isMute
+    return isMeridianEnabled()
+  }
 
   private fun isMeridianEnabled(): Boolean {
     val enabled = runCatching {
       (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)
         ?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
     }.getOrNull()
-    if (!enabled.isNullOrEmpty()) return isMeridianInServiceList(enabled, packageName)
+    if (!enabled.isNullOrEmpty()) {
+      if (isMeridianInServiceList(enabled, packageName)) return true
+      if (enabled.none { it.resolveInfo == null }) return false
+    }
     val secure = runCatching {
       Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
     }.getOrNull()
@@ -509,7 +540,8 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun warmUpFallbackSpeech() {
-    if (!useFallbackSpeech()) return
+    if (fallbackWarmedUp || !useFallbackSpeech()) return
+    fallbackWarmedUp = true
     fallbackSpeech().warmUp(fixedFallbackLabels())
   }
 
@@ -518,7 +550,11 @@ class VietnameseKeyboardService : InputMethodService() {
     for (letter in 'a'..'z') labels.add(keyNames.spokenName(letter.toString()))
     for (letter in 'A'..'Z') labels.add(keyNames.spokenName(letter.toString()))
     for (digit in '0'..'9') labels.add(keyNames.spokenName(digit.toString()))
-    for (symbol in "+,.") labels.add(keyNames.spokenName(symbol.toString()))
+    for (telex in "đâăêôơưàáảãạèéẻẽẹìíỉĩịòóỏõọùúủũụỳýỷỹỵ") {
+      labels.add(keyNames.spokenName(telex.toString()))
+      labels.add(keyNames.spokenName(telex.uppercaseChar().toString()))
+    }
+    for (symbol in "@#%&*+-=()!?:;/'\"_\$^~<>[]{},.") labels.add(keyNames.spokenName(symbol.toString()))
     labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_space)))
     labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_password_character)))
     labels.add(getString(R.string.vietnamese_ime_uppercase))
@@ -575,7 +611,7 @@ class VietnameseKeyboardService : InputMethodService() {
     ): Boolean =
       services.any { info ->
         info.resolveInfo?.serviceInfo?.let {
-          it.packageName == appPackageName && it.name == TalkBackService::class.java.name
+          it.packageName == appPackageName && isMeridianServiceName(it.name)
         } == true
       }
 
@@ -585,8 +621,15 @@ class VietnameseKeyboardService : InputMethodService() {
     ): Boolean =
       enabledServices
         ?.split(":")
-        ?.any { it == "$appPackageName/${TalkBackService::class.java.name}" }
+        ?.any {
+          it == "$appPackageName/${TalkBackService::class.java.name}" ||
+            it == "$appPackageName/.${TalkBackService::class.java.simpleName}"
+        }
         ?: false
+
+    private fun isMeridianServiceName(name: String?): Boolean =
+      name == TalkBackService::class.java.name ||
+        name == ".${TalkBackService::class.java.simpleName}"
 
     private fun changedCharacter(previous: String, updated: String): Char? {
       if (updated.length > previous.length) return updated.last()

@@ -9,6 +9,7 @@ import com.google.android.accessibility.utils.output.SpeechController.STATUS_INT
 internal class VietnameseKeySpeech(
   private val submit: (String, () -> Unit, (Int) -> Unit) -> Boolean,
   private val stop: () -> Unit,
+  private val retryable: () -> Boolean = { true },
 ) {
   private class Key(val label: String) {
     var released = false
@@ -17,6 +18,7 @@ internal class VietnameseKeySpeech(
     var finished = false
     var submitted = false
     var interruptions = 0
+    var retries = 0
   }
 
   private val handler = Handler(Looper.getMainLooper())
@@ -74,11 +76,17 @@ internal class VietnameseKeySpeech(
     )
     if (!accepted) {
       key.submitted = false
-      handler.postDelayed(trySpeech, RETRY_MS)
+      if (key.retries < MAX_SUBMIT_RETRIES && retryable()) {
+        key.retries++
+        handler.postDelayed(trySpeech, RETRY_MS)
+      } else {
+        key.finished = true
+      }
     }
   }
 
   private companion object {
     const val RETRY_MS = 80L
+    const val MAX_SUBMIT_RETRIES = 125
   }
 }

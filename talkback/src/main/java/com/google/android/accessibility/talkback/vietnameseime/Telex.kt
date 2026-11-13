@@ -20,7 +20,8 @@ internal object Telex {
 
     val shaped = changeShape(plain, key)
     if (shaped != null) return withTone(shaped, tone)
-    return withTone(plain + key, tone)
+    val continued = if (key.lowercaseChar() in "iuycgmnpt") upgradeOpenUo(plain) else plain
+    return withTone(continued + key, tone)
   }
 
   private fun takeTone(word: String): Pair<String, Int> {
@@ -58,6 +59,7 @@ internal object Telex {
     return when {
       syllableVowels.size >= 3 -> syllableVowels[1]
       syllableVowels.size == 1 || last < word.lastIndex -> last
+      syllableVowels.size == 2 && lower[syllableVowels[0]] == 'u' && lower[last] == 'y' -> last
       else -> syllableVowels.first()
     }
   }
@@ -89,15 +91,21 @@ internal object Telex {
     val pair = lower.lastIndexOf("uo")
     if (pair >= 0) {
       val horned = if (pair == 1 && lower.startsWith("quo")) word
-      else replace(word, pair, 'ư')
+      else if (pair + 2 < word.length) replace(word, pair, 'ư')
+      else word
       return replace(horned, pair + 1, 'ơ')
     }
     val hornedPair = lower.lastIndexOf("ươ")
     if (hornedPair >= 0) {
       return replace(replace(word, hornedPair, 'u'), hornedPair + 1, 'o') + key
     }
+    val openPair = lower.lastIndexOf("uơ")
+    if (openPair >= 0 && !(openPair == 1 && lower.startsWith("qu"))) {
+      return replace(word, openPair, 'ư')
+    }
     val index = lower.indexOfLast { it in "aouăơư" }
     if (index < 0) return null
+    if (lower[index] == 'u' && index == 1 && lower.startsWith("qu")) return null
     return when (lower[index]) {
       'a' -> replace(word, index, 'ă')
       'o' -> replace(word, index, 'ơ')
@@ -107,6 +115,14 @@ internal object Telex {
       'ư' -> replace(word, index, 'u') + key
       else -> null
     }
+  }
+
+  private fun upgradeOpenUo(word: String): String {
+    val lower = word.lowercase()
+    val index = lower.lastIndexOf("uơ")
+    if (index < 0 || index + 2 != word.length) return word
+    if (index == 1 && lower.startsWith("qu")) return word
+    return replace(word, index, 'ư')
   }
 
   private fun replace(word: String, index: Int, letter: Char): String =
