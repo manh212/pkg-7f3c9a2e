@@ -204,7 +204,7 @@ class VietnameseKeyboardViewTest {
     }.toTypedArray()
     val event = MotionEvent.obtain(
       100, time, action, points.size, properties, coords,
-      0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN,
+      0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0, 0,
     )
     try {
       keyboard.onTouchEvent(event)
