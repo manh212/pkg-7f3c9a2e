@@ -253,8 +253,7 @@ internal class VietnameseKeyboardView(
       (layoutSetting == LAYOUT_AUTO &&
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
-  private fun isColumnLayout(): Boolean =
-    isPcLayout() && resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+  private fun isColumnLayout(): Boolean = isPcLayout()
 
   private fun isShiftHeld(): Boolean = shiftHolders.isNotEmpty()
 
