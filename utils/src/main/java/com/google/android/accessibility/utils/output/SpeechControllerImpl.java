@@ -2666,9 +2666,6 @@ public class SpeechControllerImpl implements SpeechController {
     params.put(Engine.KEY_PARAM_UTTERANCE_ID, feedbackItem.getUtteranceId());
     params.put(Engine.KEY_PARAM_STREAM, String.valueOf(stream));
     params.put(Engine.KEY_PARAM_VOLUME, String.valueOf(volume));
-    if (feedbackItem.getUtteranceGroup() == UTTERANCE_GROUP_KEYBOARD) {
-      params.put(SPEECH_PARAM_NATIVE_PLAYBACK, "true");
-    }
     HashMap<String, Integer> customFlags = new HashMap<>();
 
     if (feedbackItem.hasFlag(FeedbackItem.FLAG_CHUNKING_APPLIED)) {
