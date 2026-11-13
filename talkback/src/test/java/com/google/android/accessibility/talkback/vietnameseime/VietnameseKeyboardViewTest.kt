@@ -177,10 +177,149 @@ class VietnameseKeyboardViewTest {
     assertEquals(listOf("1"), typed)
   }
 
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun pcLayoutLandscapeFillsScreenHeight() {
+    val density = context.resources.displayMetrics.density
+    keyboard.measure(
+      View.MeasureSpec.makeMeasureSpec((800 * density).toInt(), View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec((400 * density).toInt(), View.MeasureSpec.AT_MOST),
+    )
+
+    assertTrue(keyboard.measuredHeight / density in 395f..405f)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun phoneLayoutLandscapeStaysShortStrip() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    val density = context.resources.displayMetrics.density
+    keyboard.measure(
+      View.MeasureSpec.makeMeasureSpec((800 * density).toInt(), View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec((400 * density).toInt(), View.MeasureSpec.AT_MOST),
+    )
+
+    assertTrue(keyboard.measuredHeight / density in 190f..200f)
+  }
+
+  @Test
+  fun pcLayoutSpaceBarIsVeryWide() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 400f, 360f, 100)
+    touch(MotionEvent.ACTION_UP, 400f, 360f, 170)
+    touch(MotionEvent.ACTION_DOWN, 100f, 360f, 200)
+    touch(MotionEvent.ACTION_UP, 100f, 360f, 270)
+    touch(MotionEvent.ACTION_DOWN, 700f, 360f, 300)
+    touch(MotionEvent.ACTION_UP, 700f, 360f, 370)
+    touch(MotionEvent.ACTION_DOWN, 150f, 360f, 400)
+    touch(MotionEvent.ACTION_UP, 150f, 360f, 470)
+
+    assertEquals(listOf(" ", "language", "picker", ","), typed)
+  }
+
+  @Test
+  fun pcLayoutShiftDigitTypesSymbol() {
+    preparePcKeyboard()
+
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 100f, 280f)), 100)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 100f, 280f), Triple(1, 40f, 40f)), 150)
+    assertEquals(listOf("!"), typed)
+    assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "!"), spoken)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 100f, 280f), Triple(1, 40f, 40f)), 200)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 100f, 280f)), 250)
+
+    assertEquals(listOf("!"), typed)
+  }
+
+  @Test
+  fun pcLayoutShiftLetterTypesCapital() {
+    preparePcKeyboard()
+
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 100f, 280f)), 100)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 100f, 280f), Triple(1, 40f, 120f)), 150)
+    assertEquals(listOf("Q"), typed)
+    assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "Q"), spoken)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 100f, 280f), Triple(1, 40f, 120f)), 200)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 100f, 280f)), 250)
+
+    assertEquals(listOf("Q"), typed)
+  }
+
+  @Test
+  fun pcLayoutShiftTapIsStickyForNextKey() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 100f, 280f, 100)
+    touch(MotionEvent.ACTION_UP, 100f, 280f, 170)
+    touch(MotionEvent.ACTION_DOWN, 40f, 40f, 200)
+    touch(MotionEvent.ACTION_UP, 40f, 40f, 270)
+    touch(MotionEvent.ACTION_DOWN, 120f, 40f, 300)
+    touch(MotionEvent.ACTION_UP, 120f, 40f, 370)
+
+    assertEquals(listOf("!", "2"), typed)
+  }
+
+  @Test
+  fun pcLayoutShiftHoldDoesNotToggleCaps() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 100f, 280f, 100)
+    touch(MotionEvent.ACTION_UP, 100f, 280f, 700)
+    touch(MotionEvent.ACTION_DOWN, 40f, 120f, 750)
+    touch(MotionEvent.ACTION_UP, 40f, 120f, 820)
+
+    assertEquals(listOf("q"), typed)
+  }
+
+  @Test
+  fun pcLayoutSymbolsPageStillReachable() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+    keyboard.typingMethod = DIRECT_SILENT_TYPING
+    keyboard.showKeys(false, true, true, "Gửi")
+    keyboard.layout(0, 0, 800, 400)
+
+    touch(MotionEvent.ACTION_DOWN, 40f, 120f, 100)
+    touch(MotionEvent.ACTION_UP, 40f, 120f, 170)
+    touch(MotionEvent.ACTION_DOWN, 40f, 200f, 200)
+    touch(MotionEvent.ACTION_UP, 40f, 200f, 270)
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 100f, 280f)), 300)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
+      listOf(Triple(0, 100f, 280f), Triple(1, 40f, 120f)), 350)
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
+      listOf(Triple(0, 100f, 280f), Triple(1, 40f, 120f)), 400)
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 100f, 280f)), 450)
+
+    assertEquals(listOf("@", "!", "@"), typed)
+  }
+
+  @Test
+  fun phoneLayoutShiftToggleKeepsDigitTitles() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    keyboard.typingMethod = LIFT_TO_TYPE
+    keyboard.showKeys(true, false, true, "Gửi")
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 20f, 100)
+
+    assertEquals(listOf("1"), spoken)
+  }
+
   private fun prepareKeyboard() {
     keyboard.typingMethod = DIRECT_SILENT_TYPING
     keyboard.showKeys(false, false, true, "Gửi")
     keyboard.layout(0, 0, 400, 250)
+  }
+
+  private fun preparePcKeyboard() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+    keyboard.typingMethod = DIRECT_SILENT_TYPING
+    keyboard.showKeys(false, false, true, "Gửi")
+    keyboard.layout(0, 0, 800, 400)
   }
 
   private fun touch(action: Int, x: Float, y: Float, time: Long) {
