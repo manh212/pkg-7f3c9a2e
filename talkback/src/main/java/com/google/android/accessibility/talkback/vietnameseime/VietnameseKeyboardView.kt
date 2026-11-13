@@ -49,6 +49,7 @@ internal class VietnameseKeyboardView(
   private val pointers = LinkedHashMap<Int, PointerState>()
   private val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
   private var rowsArePc = false
+  private var rowsAreColumns = false
   private val shiftHolders = LinkedHashSet<Int>()
   private var shiftSticky = false
   private var shiftUsed = false
@@ -129,7 +130,7 @@ internal class VietnameseKeyboardView(
   }
 
   override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
-    if (isPcLayout() != rowsArePc) rebuildRows() else placeKeys()
+    if (isPcLayout() != rowsArePc || isColumnLayout() != rowsAreColumns) rebuildRows() else placeKeys()
   }
 
   override fun onDraw(canvas: Canvas) {
@@ -252,6 +253,9 @@ internal class VietnameseKeyboardView(
       (layoutSetting == LAYOUT_AUTO &&
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
+  private fun isColumnLayout(): Boolean =
+    isPcLayout() && resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
   private fun isShiftHeld(): Boolean = shiftHolders.isNotEmpty()
 
   private fun isShiftActive(): Boolean = shifted || isShiftHeld() || shiftSticky
@@ -281,8 +285,10 @@ internal class VietnameseKeyboardView(
 
   private fun rebuildRows() {
     val pc = isPcLayout()
-    val layoutChanged = pc != rowsArePc
+    val columns = isColumnLayout()
+    val layoutChanged = pc != rowsArePc || columns != rowsAreColumns
     rowsArePc = pc
+    rowsAreColumns = columns
     rows = buildRows()
     placeKeys()
     if (layoutChanged) requestLayout()
@@ -346,13 +352,41 @@ internal class VietnameseKeyboardView(
 
   private fun cellAt(x: Float, y: Float): Cell? {
     for (row in rows) {
-      if (row.isEmpty() || y < row.first().bounds.top || y >= row.first().bounds.bottom) continue
+      if (row.isEmpty()) continue
+      if (isColumnLayout()) {
+        if (x < row.first().bounds.left || x >= row.first().bounds.right) continue
+      } else if (y < row.first().bounds.top || y >= row.first().bounds.bottom) continue
       for (cell in row) if (cell.bounds.contains(x, y)) return cell
     }
     return null
   }
 
   private fun placeKeys() {
+    if (isColumnLayout()) {
+      val columnWidth = if (rows.isEmpty()) 0f else width.toFloat() / rows.size
+      rows.forEachIndexed { index, column ->
+        val totalWeight = column.sumOf { it.weight.toDouble() }.toFloat()
+        val unit = height / totalWeight
+        var top = (height - totalWeight * unit) / 2
+        for ((cellIndex, cell) in column.withIndex()) {
+          val bottom = top + cell.weight * unit
+          cell.bounds.set(
+            index * columnWidth,
+            if (cellIndex == 0) 0f else top,
+            (index + 1) * columnWidth,
+            if (cellIndex == column.lastIndex) height.toFloat() else bottom,
+          )
+          paint.textSize = (if (cell.title.length > 4) 13 else 18) * density
+          val available = cell.bounds.width() - 6 * density
+          val textWidth = paint.measureText(cell.title)
+          if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
+          cell.textSize = paint.textSize
+          cell.baseline = cell.bounds.centerY() - (paint.ascent() + paint.descent()) / 2
+          top = bottom
+        }
+      }
+      return
+    }
     val rowHeight = if (rows.isEmpty()) 0f else height.toFloat() / rows.size
     rows.forEachIndexed { index, row ->
       val totalWeight = row.sumOf { it.weight.toDouble() }.toFloat()
@@ -385,8 +419,9 @@ internal class VietnameseKeyboardView(
     val second = characters(if (symbolPage) "!?:;/'\"_\$" else "asdfghjkl")
     val third = characters(if (symbolPage) "^~<>[]{}" else "zxcvbnm")
     val pc = isPcLayout()
-    val thirdRow = listOf(function(SHIFT, if (isShiftActive()) "⇧" else "↑", if (pc) 2.0f else 1.4f)) +
-      third + function(DELETE, "⌫", if (pc) 1.0f else 1.6f)
+    val shift = function(SHIFT, if (isShiftActive()) "⇧" else "↑", if (pc) 2.0f else 1.4f)
+    val delete = function(DELETE, "⌫", if (pc) 1.0f else 1.6f)
+    val thirdRow = listOf(shift) + third + delete
     val bottom = listOf(
       if (symbolPage) function(LETTERS, "ABC", 1.3f) else function(SYMBOLS, "123", 1.3f),
       function(LANGUAGE, if (telexEnabled) "VI" else "EN", 1.1f),
@@ -397,7 +432,9 @@ internal class VietnameseKeyboardView(
       function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f),
       Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
-    return if (pc) {
+    return if (isColumnLayout()) {
+      listOf(third + shift, second, first, digits + delete, bottom)
+    } else if (pc) {
       listOf(thirdRow, second, first, digits, bottom)
     } else {
       listOf(digits, first, second, thirdRow, bottom)
