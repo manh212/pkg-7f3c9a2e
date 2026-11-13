@@ -26,4 +26,8 @@
     <string name="vietnamese_ime_double_tap_timeout">Khoảng tối đa giữa hai lần nhấn đúp</string>
     <string name="vietnamese_ime_tap_hold_timeout">Thời gian giữ tối đa cho một lần nhấn đúp</string>
     <string name="vietnamese_ime_milliseconds">%1$d mili giây</string>
+    <string name="vietnamese_ime_layout">Bố cục bàn phím</string>
+    <string name="vietnamese_ime_layout_phone">Điện thoại</string>
+    <string name="vietnamese_ime_layout_pc">Máy tính</string>
+    <string name="vietnamese_ime_layout_auto">Tự động theo hướng xoay</string>
 </resources>
