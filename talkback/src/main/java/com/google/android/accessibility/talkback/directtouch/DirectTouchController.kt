@@ -596,7 +596,7 @@ class DirectTouchController(
     if (vietnameseBounds != null) {
       val keyboardRegion = Region(vietnameseBounds)
       systemExcluded.forEach { keyboardRegion.op(it, Region.Op.DIFFERENCE) }
-      region.union(keyboardRegion)
+      region.op(keyboardRegion, Region.Op.UNION)
     }
     sendRegion(region)
   }
