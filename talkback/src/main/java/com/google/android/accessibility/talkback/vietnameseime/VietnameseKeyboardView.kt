@@ -432,7 +432,7 @@ internal class VietnameseKeyboardView(
       Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
     return if (isColumnLayout()) {
-      listOf(third + shift, second, first, digits + delete, bottom)
+      listOf(bottom, third + shift, second, first, digits + delete)
     } else if (pc) {
       listOf(thirdRow, second, first, digits, bottom)
     } else {
