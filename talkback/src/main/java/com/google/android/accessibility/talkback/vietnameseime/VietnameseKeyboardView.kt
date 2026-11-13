@@ -34,9 +34,6 @@ internal class VietnameseKeyboardView(
   )
 
   private val configuration = ViewConfiguration.get(context)
-  private val touch = VietnameseKeyTouch(
-    ViewConfiguration.getDoubleTapTimeout().toLong(), configuration.scaledDoubleTapSlop,
-  )
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val backgroundColor = ContextCompat.getColor(context, R.color.vietnamese_ime_background)
   private val keyColor = ContextCompat.getColor(context, R.color.vietnamese_ime_key)
@@ -47,16 +44,22 @@ internal class VietnameseKeyboardView(
   private var symbolPage = false
   private var telexEnabled = true
   private var actionLabel = ""
-  private var pointer = MotionEvent.INVALID_POINTER_ID
-  private var downX = 0f
-  private var downY = 0f
-  private var downTime = 0L
-  private var startingCell: Cell? = null
-  private var moved = false
-  private var explored = false
-  private var lastSpoken: Cell? = null
-  private var gestureMethod = 0
   private var inputGeneration = 0
+  private val pointers = LinkedHashMap<Int, PointerState>()
+  private val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+
+  private class PointerState(
+    val pointerId: Int,
+    var downX: Float,
+    var downY: Float,
+    var downTime: Long,
+    var startingCell: Cell?,
+    var moved: Boolean = false,
+    var explored: Boolean = false,
+    var method: Int,
+    var lastSpoken: Cell? = null,
+    val touch: VietnameseKeyTouch,
+  )
 
   var typingMethod = 0
     set(value) {
@@ -67,7 +70,7 @@ internal class VietnameseKeyboardView(
     set(value) {
       if (field != value) cancelInput()
       field = value
-      touch.doubleTapTimeout = value.doubleTapMs
+      pointers.values.forEach { it.touch.doubleTapTimeout = value.doubleTapMs }
     }
   var hideLetterSpeech = false
 
@@ -89,10 +92,9 @@ internal class VietnameseKeyboardView(
 
   fun cancelInput() {
     inputGeneration++
-    touch.cancel()
-    pointer = MotionEvent.INVALID_POINTER_ID
-    startingCell = null
-    lastSpoken = null
+    pointers.values.forEach { it.touch.cancel() }
+    pointers.clear()
+    firstTaps.clear()
     invalidate()
   }
 
@@ -119,10 +121,11 @@ internal class VietnameseKeyboardView(
     val corner = 5 * density
     paint.textAlign = Paint.Align.CENTER
     paint.color = Color.WHITE
+    val selectedKeys = pointers.values.mapNotNullTo(HashSet()) { it.touch.selected }
     for (row in rows) {
       for (cell in row) {
         val bounds = cell.bounds
-        val active = cell.key == touch.selected
+        val active = cell.key in selectedKeys
         paint.color = if (active) selectionColor else keyColor
         canvas.drawRoundRect(
           bounds.left + gap, bounds.top + gap, bounds.right - gap, bounds.bottom - gap,
@@ -138,56 +141,70 @@ internal class VietnameseKeyboardView(
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
     when (event.actionMasked) {
-      MotionEvent.ACTION_DOWN -> {
-        pointer = event.getPointerId(0)
-        downX = event.x
-        downY = event.y
-        downTime = event.eventTime
-        startingCell = cellAt(downX, downY)
-        moved = false
-        explored = false
-        lastSpoken = null
-        gestureMethod = typingMethod
-        val confirmingSecondTap = gestureMethod == DOUBLE_TAP && touch.selected != null
-        touch.start(startingCell?.key, gestureMethod)
-        if (gestureMethod == DIRECT_SILENT_TYPING) {
-          startingCell?.key?.let { activate(it.id) }
+      MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+        val index = event.actionIndex
+        val id = event.getPointerId(index)
+        val x = event.getX(index)
+        val y = event.getY(index)
+        val state = PointerState(
+          pointerId = id,
+          downX = x,
+          downY = y,
+          downTime = event.eventTime,
+          startingCell = cellAt(x, y),
+          method = typingMethod,
+          touch = VietnameseKeyTouch(
+            timing.doubleTapMs, configuration.scaledDoubleTapSlop, firstTaps,
+          ),
+        )
+        pointers[id] = state
+        val confirmingSecondTap = state.method == DOUBLE_TAP &&
+          state.touch.hasPendingFirstTap(state.startingCell?.key, event.eventTime)
+        state.touch.start(state.startingCell?.key, state.method)
+        if (state.method == DIRECT_SILENT_TYPING) {
+          state.startingCell?.key?.let { activate(it.id) }
         }
-        if (!confirmingSecondTap) announceSelected()
+        if (!confirmingSecondTap) announceSelected(state)
       }
       MotionEvent.ACTION_MOVE -> {
-        val index = event.findPointerIndex(pointer)
-        if (index >= 0) {
+        for (index in 0 until event.pointerCount) {
+          val state = pointers[event.getPointerId(index)] ?: continue
           val x = event.getX(index)
           val y = event.getY(index)
           val cell = cellAt(x, y)
-          if (abs(x - downX) > configuration.scaledTouchSlop ||
-            abs(y - downY) > configuration.scaledTouchSlop) moved = true
-          if (gestureMethod != DIRECT_SILENT_TYPING &&
-            (explored || cell != startingCell) && cell?.key != touch.selected) {
-            moved = true
-            explored = true
-            touch.explore(cell?.key)
-            announceSelected()
+          if (abs(x - state.downX) > configuration.scaledTouchSlop ||
+            abs(y - state.downY) > configuration.scaledTouchSlop) state.moved = true
+          if (state.method != DIRECT_SILENT_TYPING &&
+            (state.explored || cell?.key != state.startingCell?.key) &&
+            cell?.key != state.touch.selected) {
+            state.moved = true
+            state.explored = true
+            state.touch.explore(cell?.key)
+            announceSelected(state)
           }
         }
       }
-      MotionEvent.ACTION_UP -> {
-        if (pointer == event.getPointerId(event.actionIndex)) {
-          val cell = cellAt(event.x, event.y)
-          val tap = !moved && event.eventTime - downTime <= timing.tapHoldMs
-          if (gestureMethod != DIRECT_SILENT_TYPING && !tap && cell?.key != touch.selected) {
-            touch.explore(cell?.key)
-            announceSelected()
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+        val index = event.actionIndex
+        val state = pointers.remove(event.getPointerId(index))
+        if (state != null) {
+          val x = event.getX(index)
+          val y = event.getY(index)
+          val cell = cellAt(x, y)
+          val tap = !state.moved && event.eventTime - state.downTime <= timing.tapHoldMs
+          if (state.method != DIRECT_SILENT_TYPING && !tap && cell?.key != state.touch.selected) {
+            state.touch.explore(cell?.key)
+            announceSelected(state)
           }
           val releaseKey =
-            if (gestureMethod == DIRECT_SILENT_TYPING) startingCell?.key else cell?.key
-          val key = touch.release(releaseKey, gestureMethod, event.x, event.y, event.eventTime, tap)
-          pointer = MotionEvent.INVALID_POINTER_ID
+            if (state.method == DIRECT_SILENT_TYPING) state.startingCell?.key else cell?.key
+          val key = state.touch.release(
+            releaseKey, state.method, x, y, event.eventTime, tap,
+          )
           if (cell != null) releaseAnnouncement()
-          else if (gestureMethod != DIRECT_SILENT_TYPING) announce("")
-          if (key != null && gestureMethod != DIRECT_SILENT_TYPING) {
-            if (gestureMethod == SINGLE_TAP_TO_TYPE && timing.directInputMs > 0) {
+          else if (state.method != DIRECT_SILENT_TYPING && pointers.isEmpty()) announce("")
+          if (key != null && state.method != DIRECT_SILENT_TYPING) {
+            if (state.method == SINGLE_TAP_TO_TYPE && timing.directInputMs > 0) {
               val generation = inputGeneration
               postDelayed({ if (generation == inputGeneration) activate(key.id) }, timing.directInputMs)
             } else {
@@ -196,7 +213,7 @@ internal class VietnameseKeyboardView(
           }
         }
       }
-      MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> {
+      MotionEvent.ACTION_CANCEL -> {
         cancelInput()
         announce("")
       }
@@ -205,17 +222,17 @@ internal class VietnameseKeyboardView(
     return true
   }
 
-  private fun announceSelected() {
-    val selected = rows.asSequence().flatten().firstOrNull { it.key == touch.selected }
-    if (selected == lastSpoken) return
-    lastSpoken = selected
+  private fun announceSelected(state: PointerState) {
+    val selected = rows.asSequence().flatten().firstOrNull { it.key == state.touch.selected }
+    if (selected == state.lastSpoken) return
+    state.lastSpoken = selected
     if (selected != null) {
       announce(if (hideLetterSpeech && selected.key.id.length == 1 && selected.key.id != " ") {
         context.getString(R.string.vietnamese_ime_password_character)
       } else {
         spokenTitle(selected)
       })
-    } else {
+    } else if (pointers.values.none { it.touch.selected != null }) {
       announce("")
     }
   }

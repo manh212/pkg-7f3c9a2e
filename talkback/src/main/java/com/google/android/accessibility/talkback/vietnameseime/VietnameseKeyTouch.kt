@@ -8,14 +8,14 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 internal class VietnameseKeyTouch(
   var doubleTapTimeout: Long,
   private val doubleTapSlop: Int,
+  private val firstTaps: MutableMap<Key, Tap> = LinkedHashMap(),
 ) {
   data class Key(val id: String, val textEntry: Boolean = false, val editorAction: Boolean = false)
 
-  private data class Tap(val key: Key, val x: Float, val y: Float, val time: Long)
+  internal data class Tap(val key: Key, val x: Float, val y: Float, val time: Long)
 
   var selected: Key? = null
     private set
-  private var firstTap: Tap? = null
   private var exploring = false
 
   fun start(key: Key?, method: Int) {
@@ -24,9 +24,16 @@ internal class VietnameseKeyTouch(
   }
 
   fun explore(key: Key?) {
-    firstTap = null
+    selected?.let { firstTaps.remove(it) }
+    if (key != null) firstTaps.remove(key)
     selected = key
     exploring = true
+  }
+
+  fun hasPendingFirstTap(key: Key?, now: Long): Boolean {
+    if (key == null) return false
+    pruneStaleFirstTaps(now)
+    return firstTaps.containsKey(key)
   }
 
   fun release(key: Key?, method: Int, x: Float, y: Float, time: Long, tap: Boolean): Key? {
@@ -41,26 +48,34 @@ internal class VietnameseKeyTouch(
       return target
     }
     if (!tap) {
-      firstTap = null
+      firstTaps.remove(target)
       return null
     }
-    val prior = firstTap
-    if (prior != null && prior.key == target && time - prior.time in 0..doubleTapTimeout) {
+    pruneStaleFirstTaps(time)
+    val prior = firstTaps[target]
+    if (prior != null && time - prior.time in 0..doubleTapTimeout) {
       val dx = x - prior.x
       val dy = y - prior.y
       if (dx * dx + dy * dy <= doubleTapSlop.toFloat() * doubleTapSlop) {
+        firstTaps.remove(target)
         cancel()
         return target
       }
     }
-    firstTap = Tap(target, x, y, time)
+    firstTaps[target] = Tap(target, x, y, time)
     return null
   }
 
   fun cancel() {
     selected = null
-    firstTap = null
     exploring = false
+  }
+
+  private fun pruneStaleFirstTaps(now: Long) {
+    val iterator = firstTaps.entries.iterator()
+    while (iterator.hasNext()) {
+      if (now - iterator.next().value.time > doubleTapTimeout) iterator.remove()
+    }
   }
 
   companion object {
