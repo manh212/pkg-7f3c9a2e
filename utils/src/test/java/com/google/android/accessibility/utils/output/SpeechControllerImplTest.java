@@ -165,6 +165,19 @@ public class SpeechControllerImplTest {
         Performance.EVENT_ID_UNTRACKED);
   }
 
+  private void speakNotification(SpeechControllerImpl controller, String text) {
+    controller.speak(
+        text,
+        null /* earcons */,
+        null /* haptics */,
+        SpeechController.QUEUE_MODE_QUEUE,
+        0 /* flags */,
+        SpeechController.UTTERANCE_GROUP_NOTIFICATIONS,
+        null /* speechParams */,
+        null /* nonSpeechParams */,
+        Performance.EVENT_ID_UNTRACKED);
+  }
+
   private void speakGesture(SpeechControllerImpl controller, String text) {
     controller.speak(
         text,
@@ -253,28 +266,33 @@ public class SpeechControllerImplTest {
   }
 
   @Test
-  public void waitForReadingQueuesWindowNamesAndInterruptRequests() {
-    speechController.setWaitForCurrentSpeech(true);
-    speak(speechController, "reading", SpeechController.QUEUE_MODE_QUEUE);
-    speakWindowChange(speechController, "Notification center");
-    speak(speechController, "other source", SpeechController.QUEUE_MODE_FLUSH_ALL);
-
-    Robolectric.getForegroundThreadScheduler().advanceBy(300, TimeUnit.MILLISECONDS);
-
-    assertEquals(List.of("reading"), failoverTts.spokenTexts);
-  }
-
-  @Test
-  public void waitForReadingQueuesMainSpeechWhileSeparateVoiceIsActive() {
-    speechController.setWaitForCurrentSpeech(true);
+  public void mainSpeechSpeaksWhileSeparateVoiceIsActive() {
     Object separateVoice = new Object();
     speechController.setExternalSpeechState(separateVoice, true, true);
     speak(speechController, "waiting", SpeechController.QUEUE_MODE_INTERRUPT);
+    assertEquals(List.of("waiting"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void notificationSpeechWaitsWhileSeparateVoiceIsActive() {
+    Object separateVoice = new Object();
+    speechController.setExternalSpeechState(separateVoice, true, true);
+    speakNotification(speechController, "notification");
     assertTrue(failoverTts.spokenTexts.isEmpty());
 
     speechController.setExternalSpeechState(separateVoice, false, false);
     Robolectric.getForegroundThreadScheduler().advanceBy(10, TimeUnit.MILLISECONDS);
-    assertEquals(List.of("waiting"), failoverTts.spokenTexts);
+    assertEquals(List.of("notification"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void navigationSpeechSkipsBlockedNotification() {
+    Object separateVoice = new Object();
+    speechController.setExternalSpeechState(separateVoice, true, true);
+    speakNotification(speechController, "notification");
+    assertTrue(failoverTts.spokenTexts.isEmpty());
+    speak(speechController, "navigation", SpeechController.QUEUE_MODE_QUEUE);
+    assertEquals(List.of("navigation"), failoverTts.spokenTexts);
   }
 
   @Test
