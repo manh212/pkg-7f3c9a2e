@@ -15,6 +15,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -227,6 +228,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun activateKey(id: String) {
     if (editor == null || !isInputViewShown) return
     val connection = currentInputConnection ?: return
+    keySpeech.cancel(stopSpeech = false)
     when (id) {
       VietnameseKeyboardView.SHIFT -> shifted = !shifted
       VietnameseKeyboardView.SYMBOLS -> symbols = true
@@ -401,7 +403,9 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun announceKey(label: String) {
     if (label.isEmpty()) keySpeech.cancel(stopSpeech = true)
-    else keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
+    else if (method != DIRECT_SILENT_TYPING) {
+      keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
+    }
   }
 
   private fun speakEnteredCharacter(character: Char) {

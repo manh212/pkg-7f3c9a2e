@@ -12,6 +12,8 @@ import android.view.View
 import android.view.ViewConfiguration
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -146,8 +148,9 @@ internal class VietnameseKeyboardView(
         explored = false
         lastSpoken = null
         gestureMethod = typingMethod
+        val confirmingSecondTap = gestureMethod == DOUBLE_TAP && touch.selected != null
         touch.start(startingCell?.key, gestureMethod)
-        announceSelected()
+        if (!confirmingSecondTap) announceSelected()
       }
       MotionEvent.ACTION_MOVE -> {
         val index = event.findPointerIndex(pointer)
@@ -157,7 +160,8 @@ internal class VietnameseKeyboardView(
           val cell = cellAt(x, y)
           if (abs(x - downX) > configuration.scaledTouchSlop ||
             abs(y - downY) > configuration.scaledTouchSlop) moved = true
-          if ((explored || cell != startingCell) && cell?.key != touch.selected) {
+          if (gestureMethod != DIRECT_SILENT_TYPING &&
+            (explored || cell != startingCell) && cell?.key != touch.selected) {
             moved = true
             explored = true
             touch.explore(cell?.key)
@@ -169,11 +173,13 @@ internal class VietnameseKeyboardView(
         if (pointer == event.getPointerId(event.actionIndex)) {
           val cell = cellAt(event.x, event.y)
           val tap = !moved && event.eventTime - downTime <= timing.tapHoldMs
-          if (!tap && cell?.key != touch.selected) {
+          if (gestureMethod != DIRECT_SILENT_TYPING && !tap && cell?.key != touch.selected) {
             touch.explore(cell?.key)
             announceSelected()
           }
-          val key = touch.release(cell?.key, gestureMethod, event.x, event.y, event.eventTime, tap)
+          val releaseKey =
+            if (gestureMethod == DIRECT_SILENT_TYPING) startingCell?.key else cell?.key
+          val key = touch.release(releaseKey, gestureMethod, event.x, event.y, event.eventTime, tap)
           pointer = MotionEvent.INVALID_POINTER_ID
           if (cell != null) releaseAnnouncement() else announce("")
           if (key != null) {
