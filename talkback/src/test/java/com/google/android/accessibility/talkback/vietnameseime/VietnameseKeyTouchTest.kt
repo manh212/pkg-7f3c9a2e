@@ -48,6 +48,23 @@ class VietnameseKeyTouchTest {
   }
 
   @Test
+  fun sharedFirstTapMapLetsInterleavedKeysConfirmIndependently() {
+    val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+    val first = VietnameseKeyTouch(300, 30, firstTaps)
+    val second = VietnameseKeyTouch(300, 30, firstTaps)
+    first.start(letter, DOUBLE_TAP)
+    assertNull(first.release(letter, DOUBLE_TAP, 10f, 10f, 100, true))
+    second.start(shift, DOUBLE_TAP)
+    assertNull(second.release(shift, DOUBLE_TAP, 50f, 50f, 160, true))
+    val third = VietnameseKeyTouch(300, 30, firstTaps)
+    third.start(letter, DOUBLE_TAP)
+    assertEquals(letter, third.release(letter, DOUBLE_TAP, 10f, 10f, 240, true))
+    val fourth = VietnameseKeyTouch(300, 30, firstTaps)
+    fourth.start(shift, DOUBLE_TAP)
+    assertEquals(shift, fourth.release(shift, DOUBLE_TAP, 50f, 50f, 300, true))
+  }
+
+  @Test
   fun cancellationAndLiftingOutsideDiscardTheKey() {
     touch.start(letter, FORCE_LIFT_TO_TYPE_ON_IME)
     assertNull(touch.release(null, FORCE_LIFT_TO_TYPE_ON_IME, 0f, 0f, 100, false))
