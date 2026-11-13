@@ -253,6 +253,17 @@ class VietnameseKeyboardService : InputMethodService() {
     if (id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
       speak(getString(if (vietnamese) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off))
     }
+    if (method == DIRECT_SILENT_TYPING && echoesCharacters()) {
+      when (id) {
+        VietnameseKeyboardView.SHIFT ->
+          speak(getString(if (shifted) R.string.vietnamese_ime_uppercase else R.string.vietnamese_ime_lowercase))
+        VietnameseKeyboardView.SYMBOLS -> speak(getString(R.string.vietnamese_ime_symbols))
+        VietnameseKeyboardView.LETTERS -> speak(getString(R.string.vietnamese_ime_letters))
+        VietnameseKeyboardView.PICKER -> speak(getString(R.string.vietnamese_ime_picker_key))
+        VietnameseKeyboardView.DELETE -> speak(getString(R.string.vietnamese_ime_delete))
+        VietnameseKeyboardView.ENTER -> speak(getString(actionTitle()))
+      }
+    }
     updateLayout()
   }
 
