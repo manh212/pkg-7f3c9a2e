@@ -53,7 +53,6 @@ class VietnameseKeyboardService : InputMethodService() {
   private var echo = TextEventFilter.PREF_ECHO_NONE
   private var method = 0
   private var timing = VietnameseKeyboardTiming()
-  private var exploredLabel = ""
   private val keyNames by lazy { VietnameseKeyNames(this) }
   private var windowShown = false
   private val main = Handler(Looper.getMainLooper())
@@ -198,7 +197,6 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun endTouchSession() {
     keyboard?.cancelInput()
-    exploredLabel = ""
     keySpeech.cancel(stopSpeech = true)
   }
 
@@ -402,14 +400,12 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun announceKey(label: String) {
-    exploredLabel = label
     if (label.isEmpty()) keySpeech.cancel(stopSpeech = true)
     else keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
   }
 
   private fun speakEnteredCharacter(character: Char) {
-    val label = characterLabel(character)
-    if (label != exploredLabel) speak(keyNames.spokenName(label))
+    speak(keyNames.spokenName(characterLabel(character)))
   }
 
   private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean =
