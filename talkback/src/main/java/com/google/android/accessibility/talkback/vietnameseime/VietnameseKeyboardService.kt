@@ -59,7 +59,9 @@ class VietnameseKeyboardService : InputMethodService() {
   private val main = Handler(Looper.getMainLooper())
   private val keySpeech = VietnameseKeySpeech(::submitKeySpeech) {
     speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
+    fallbackSpeech?.stop()
   }
+  private var fallbackSpeech: VietnameseFallbackSpeech? = null
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
     if (key == getString(R.string.pref_typing_confirmation_key) ||
       key == getString(R.string.pref_direct_input_tap_delay_key) ||
@@ -77,6 +79,8 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onDestroy() {
     prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
     endTouchSession()
+    fallbackSpeech?.shutdown()
+    fallbackSpeech = null
     TalkBackService.getInstance()?.setVietnameseKeyboardBounds(null)
     super.onDestroy()
   }
@@ -305,7 +309,7 @@ class VietnameseKeyboardService : InputMethodService() {
       if (word.length >= MAX_WORD_LENGTH) word = ""
       word += letter
     }
-    if (echoesWords() && finished.isNotEmpty()) speak(finished)
+    if (echoesWords() && finished.isNotEmpty()) speakWord(finished)
     else if (echoesCharacters() && !secure) speakEnteredCharacter(letter)
   }
 
@@ -384,7 +388,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun enter(connection: InputConnection) {
     val finished = finishWord(connection)
-    if (finished.isNotEmpty() && echoesWords()) speak(finished)
+    if (finished.isNotEmpty() && echoesWords()) speakWord(finished)
     if (!sendDefaultEditorAction(true)) {
       markEdit()
       if (editor?.inputType == InputType.TYPE_NULL) sendKeyChar('\n')
@@ -423,6 +427,10 @@ class VietnameseKeyboardService : InputMethodService() {
     speak(keyNames.spokenName(characterLabel(character)))
   }
 
+  private fun speakWord(word: String) {
+    if (word.length == 1) speak(keyNames.spokenName(word)) else speak(word)
+  }
+
   private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean =
     speak(label, { main.post { started() } }, { status -> main.post { completed(status) } })
 
@@ -431,24 +439,44 @@ class VietnameseKeyboardService : InputMethodService() {
     started: UtteranceStartRunnable? = null,
     completed: UtteranceCompleteRunnable? = null,
   ): Boolean {
-    val speaker = speechController() ?: return false
-    if (!speaker.isTtsReady || speaker.isMute) return false
-    if (speaker.waitsForCurrentSpeech() &&
-      speaker.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD)) return false
-    val localized = SpannableString(label)
-    localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
-    val options = SpeakOptions.create()
-        .setUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
-        .setQueueMode(QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH)
-        .setFlags(
-          FLAG_NO_HISTORY or FLAG_FORCE_FEEDBACK_ALL or FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP or
-            FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP or
-            FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP,
-        )
-        .setCompletedAction(completed)
-    if (started != null) options.setStartingAction(started)
-    speaker.speak(localized, null, options)
-    return true
+    val speaker = speechController()
+    if (speaker != null) {
+      if (!speaker.isTtsReady || speaker.isMute) return false
+      if (speaker.waitsForCurrentSpeech() &&
+        speaker.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD)) return false
+      val localized = SpannableString(label)
+      localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
+      val options = SpeakOptions.create()
+          .setUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
+          .setQueueMode(QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH)
+          .setFlags(
+            FLAG_NO_HISTORY or FLAG_FORCE_FEEDBACK_ALL or FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP or
+              FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP or
+              FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP,
+          )
+          .setCompletedAction(completed)
+      if (started != null) options.setStartingAction(started)
+      speaker.speak(localized, null, options)
+      return true
+    }
+    if (!useFallbackSpeech()) return false
+    return fallbackSpeech().speak(
+      label,
+      started?.let { runnable -> { runnable.run() } },
+      completed?.let { runnable -> { status: Int -> runnable.run(status) } },
+    )
+  }
+
+  private fun useFallbackSpeech(): Boolean =
+    TalkBackService.getInstance() == null || !TalkBackService.isServiceActive()
+
+  private fun fallbackSpeech(): VietnameseFallbackSpeech {
+    var speech = fallbackSpeech
+    if (speech == null) {
+      speech = VietnameseFallbackSpeech(this)
+      fallbackSpeech = speech
+    }
+    return speech
   }
 
   private fun speechController() =
