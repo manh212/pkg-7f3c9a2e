@@ -18,4 +18,11 @@
     <string name="vietnamese_ime_next">Tiếp theo</string>
     <string name="vietnamese_ime_previous">Quay lại</string>
     <string name="vietnamese_ime_go">Đi</string>
+    <string name="vietnamese_ime_android_settings">Bật hoặc chọn bàn phím trong Android</string>
+    <string name="vietnamese_ime_timing">Độ trễ</string>
+    <string name="vietnamese_ime_explore_speech_delay">Chờ đọc khi rê vào phím, mili giây</string>
+    <string name="vietnamese_ime_release_speech_delay">Chờ đọc sau khi nhấc tay, mili giây</string>
+    <string name="vietnamese_ime_direct_input_delay">Chờ nhập khi nhấc tay ở chế độ nhập phím trực tiếp, mili giây</string>
+    <string name="vietnamese_ime_double_tap_timeout">Khoảng thời gian giữa hai lần nhấn, mili giây</string>
+    <string name="vietnamese_ime_tap_hold_timeout">Thời gian tối đa của một lần nhấn, mili giây</string>
 </resources>

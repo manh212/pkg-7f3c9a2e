@@ -6,6 +6,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -18,7 +19,10 @@ class VietnameseKeyboardViewTest {
   private val context = RuntimeEnvironment.getApplication()
   private val spoken = mutableListOf<String>()
   private val typed = mutableListOf<String>()
-  private val keyboard = VietnameseKeyboardView(context, { spoken.add(it) }, { typed.add(it) })
+  private var released = 0
+  private val keyboard = VietnameseKeyboardView(context, { spoken.add(it) }, { typed.add(it) }) {
+    released++
+  }
 
   @Test
   fun directModeStillSpeaksExploredKeyAndCommitsOnReleaseWithoutAccessibilityFocus() {
@@ -31,8 +35,21 @@ class VietnameseKeyboardViewTest {
     touch(MotionEvent.ACTION_UP, 60f, 60f, 170)
 
     assertEquals(listOf("w"), typed)
+    assertEquals(1, released)
     assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS, keyboard.importantForAccessibility)
     assertFalse(keyboard.isFocusable)
+  }
+
+  @Test
+  @Config(qualifiers = "w400dp-h800dp-port")
+  fun portraitKeyboardReachesNearScreenMidpoint() {
+    val density = context.resources.displayMetrics.density
+    keyboard.measure(
+      View.MeasureSpec.makeMeasureSpec((400 * density).toInt(), View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec((800 * density).toInt(), View.MeasureSpec.AT_MOST),
+    )
+
+    assertTrue(keyboard.measuredHeight / density in 380f..390f)
   }
 
   @Test

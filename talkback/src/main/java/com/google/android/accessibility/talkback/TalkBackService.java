@@ -70,6 +70,7 @@ import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.Region;
 import android.content.res.Resources;
 import android.media.AudioManager;
@@ -2177,8 +2178,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     return speechController;
   }
 
-  public void refreshVietnameseKeyboardTouch() {
-    if (directTouchController != null) directTouchController.refreshVietnameseKeyboardTouch();
+  public void setVietnameseKeyboardBounds(@Nullable Rect bounds) {
+    if (directTouchController != null) directTouchController.setVietnameseKeyboardBounds(bounds);
   }
 
   public FeedbackController getFeedbackController() {

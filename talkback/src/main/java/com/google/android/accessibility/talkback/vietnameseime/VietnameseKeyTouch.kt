@@ -6,7 +6,7 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE_EXCEPT_ACTION_KEY
 
 internal class VietnameseKeyTouch(
-  private val doubleTapTimeout: Long,
+  var doubleTapTimeout: Long,
   private val doubleTapSlop: Int,
 ) {
   data class Key(val id: String, val textEntry: Boolean = false, val editorAction: Boolean = false)

@@ -93,6 +93,8 @@ class DirectTouchController(
   private var evaluating = false
   private var silentKeyboardIds = emptySet<Int>()
   private var silentDirectTyping = readSilentDirectTyping()
+  private var vietnameseKeyboardBounds: Rect? = null
+  private var vietnameseKeyboardReportsBounds = false
   // Whether the passthrough region now holds just the navigation bar or a keyboard in the list,
   // while direct touch is off.
   private var partRegionSent = false
@@ -152,6 +154,12 @@ class DirectTouchController(
     evaluate()
     handler.removeCallbacks(recheck)
     handler.postDelayed(recheck, DEBOUNCE_MS)
+  }
+
+  fun setVietnameseKeyboardBounds(bounds: Rect?) {
+    vietnameseKeyboardBounds = bounds
+    vietnameseKeyboardReportsBounds = true
+    refreshVietnameseKeyboardTouch()
   }
 
   fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -274,16 +282,19 @@ class DirectTouchController(
       val keyboard = selectedKeyboard()
       val vietnamese = isVietnameseKeyboard(keyboard)
       val keyboards = directKeyboards(windows, keyboard)
+      val vietnameseBounds = vietnameseKeyboardBounds.takeIf { vietnamese }
       val wasActive = active
       if (shouldBeActive) {
         partRegionSent = false
-        applyRegion(windows, directTyping, navBarDirect, keyboards)
+        applyRegion(windows, directTyping, navBarDirect, keyboards, vietnameseBounds)
       } else {
         if (wasActive) partRegionSent = true
-        updatePartRegion(windows, navBarDirect, keyboards)
+        updatePartRegion(windows, navBarDirect, keyboards, vietnameseBounds)
       }
       silentKeyboardIds =
-        if (isSilentDirectTyping() || vietnamese) keyboards.mapTo(mutableSetOf()) { it.id }
+        if (vietnamese) windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+          .mapTo(mutableSetOf()) { it.id }
+        else if (isSilentDirectTyping()) keyboards.mapTo(mutableSetOf()) { it.id }
         else emptySet()
       if (shouldBeActive != active) {
         active = shouldBeActive
@@ -365,8 +376,10 @@ class DirectTouchController(
     windows: List<AccessibilityWindowInfo>,
     navBarDirect: Boolean,
     keyboards: List<AccessibilityWindowInfo>,
+    vietnameseBounds: Rect?,
   ) {
-    val parts = (if (navBarDirect) navigationBarBounds(windows) else emptyList()) + keyboards.map(::boundsOf)
+    val parts = (if (navBarDirect) navigationBarBounds(windows) else emptyList()) +
+      keyboards.map(::boundsOf) + listOfNotNull(vietnameseBounds)
     if (parts.isNotEmpty()) {
       val region = Region()
       parts.forEach { region.union(it) }
@@ -397,9 +410,12 @@ class DirectTouchController(
   ): List<AccessibilityWindowInfo> {
     // The bundled Braille IME needs raw multi-pointer touch on Android 11+.
     // Only its selected Android input method gets this pass-through region.
-    if (isVietnameseKeyboard(component) ||
-      (component?.packageName == service.packageName &&
-        component.className == "com.Braille.BrailleKeyboardService")) {
+    if (isVietnameseKeyboard(component)) {
+      return if (vietnameseKeyboardReportsBounds) emptyList()
+      else windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+    }
+    if (component?.packageName == service.packageName &&
+      component.className == "com.Braille.BrailleKeyboardService") {
       return windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
     }
     if (isSilentDirectTyping()) {
@@ -526,6 +542,7 @@ class DirectTouchController(
     directTyping: Boolean,
     navBarDirect: Boolean,
     keyboards: List<AccessibilityWindowInfo>,
+    vietnameseBounds: Rect?,
   ) {
     val display = displayBounds()
     val excluded = mutableListOf<Rect>()
@@ -550,7 +567,9 @@ class DirectTouchController(
         }
       }
     }
-    sendRegion(DirectTouchRegions.passthroughRegion(display, excluded))
+    val region = DirectTouchRegions.passthroughRegion(display, excluded)
+    if (vietnameseBounds != null) region.union(vietnameseBounds)
+    sendRegion(region)
   }
 
   private fun clearRegion() = sendRegion(Region())

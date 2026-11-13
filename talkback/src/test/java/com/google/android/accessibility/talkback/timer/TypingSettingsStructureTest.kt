@@ -44,7 +44,7 @@ class TypingSettingsStructureTest {
         "DictationFragment",
         "TypingEchoFragment",
         null,
-        null,
+        "VietnameseKeyboardSettingsFragment",
         "TypingInterruptFragment",
         null,
       ),
@@ -62,6 +62,22 @@ class TypingSettingsStructureTest {
         "pref_typing_long_press_duration",
       ),
       rowsOf(R.xml.typing_method_preferences).map { it.first },
+    )
+  }
+
+  @Test
+  fun vietnameseKeyboardScreenHasAndroidSetupAndFiveTimingControls() {
+    assertEquals(
+      listOf(
+        "pref_vietnamese_keyboard_android_settings",
+        "pref_vietnamese_keyboard_timing",
+        "pref_vietnamese_keyboard_explore_speech",
+        "pref_vietnamese_keyboard_release_speech",
+        "pref_direct_input_tap_delay",
+        "pref_vietnamese_keyboard_double_tap",
+        "pref_vietnamese_keyboard_tap_hold",
+      ),
+      rowsOf(R.xml.vietnamese_keyboard_preferences).map { it.first },
     )
   }
 

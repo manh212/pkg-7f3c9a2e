@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:key="pref_vietnamese_keyboard_android_settings"
+      android:title="@string/vietnamese_ime_android_settings">
+    <intent android:action="android.settings.INPUT_METHOD_SETTINGS" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreference>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_vietnamese_keyboard_timing"
+      android:title="@string/vietnamese_ime_timing">
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:defaultValue="0"
+        android:key="pref_vietnamese_keyboard_explore_speech"
+        android:max="300"
+        android:title="@string/vietnamese_ime_explore_speech_delay"
+        app:min="0"
+        app:seekBarIncrement="10"
+        app:showSeekBarValue="true" />
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:defaultValue="0"
+        android:key="pref_vietnamese_keyboard_release_speech"
+        android:max="300"
+        android:title="@string/vietnamese_ime_release_speech_delay"
+        app:min="0"
+        app:seekBarIncrement="10"
+        app:showSeekBarValue="true" />
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:defaultValue="100"
+        android:key="@string/pref_direct_input_tap_delay_key"
+        android:max="300"
+        android:title="@string/vietnamese_ime_direct_input_delay"
+        app:min="0"
+        app:seekBarIncrement="10"
+        app:showSeekBarValue="true" />
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:key="pref_vietnamese_keyboard_double_tap"
+        android:max="1000"
+        android:title="@string/vietnamese_ime_double_tap_timeout"
+        app:min="150"
+        app:seekBarIncrement="25"
+        app:showSeekBarValue="true" />
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:key="pref_vietnamese_keyboard_tap_hold"
+        android:max="1500"
+        android:title="@string/vietnamese_ime_tap_hold_timeout"
+        app:min="100"
+        app:seekBarIncrement="25"
+        app:showSeekBarValue="true" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+</PreferenceScreen>

@@ -1,7 +1,10 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
 import android.content.SharedPreferences
+import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.text.SpannableString
 import android.text.style.LocaleSpan
@@ -24,6 +27,8 @@ import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_INTERRUPT
 import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_NO_HISTORY
 import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE_QUEUE
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
+import com.google.android.accessibility.utils.output.SpeechController.UtteranceCompleteRunnable
+import com.google.android.accessibility.utils.output.SpeechController.UtteranceStartRunnable
 import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD
 import java.util.Locale
 
@@ -46,11 +51,17 @@ class VietnameseKeyboardService : InputMethodService() {
   private var telexAllowed = false
   private var echo = TextEventFilter.PREF_ECHO_NONE
   private var method = 0
-  private var prefersDirectTap = 100L
+  private var timing = VietnameseKeyboardTiming()
   private var exploredLabel = ""
+  private var windowShown = false
+  private val main = Handler(Looper.getMainLooper())
+  private val keySpeech = VietnameseKeySpeech(::submitKeySpeech) {
+    speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
+  }
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
     if (key == getString(R.string.pref_typing_confirmation_key) ||
       key == getString(R.string.pref_direct_input_tap_delay_key) ||
+      VietnameseKeyboardTiming.isTimingKey(key) ||
       key == KeyboardEchoSettings.key(resources, ON_SCREEN_KEYBOARD)) readPreferences()
   }
 
@@ -64,11 +75,15 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onDestroy() {
     prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
     endTouchSession()
+    TalkBackService.getInstance()?.setVietnameseKeyboardBounds(null)
     super.onDestroy()
   }
 
   override fun onCreateInputView(): View {
-    val view = VietnameseKeyboardView(this, ::announceKey, ::activateKey)
+    val view = VietnameseKeyboardView(this, ::announceKey, ::activateKey) {
+      keySpeech.release(timing.releaseSpeechMs)
+    }
+    view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportKeyboardBounds() }
     keyboard = view
     configureView()
     updateLayout()
@@ -79,8 +94,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
     super.onStartInput(attribute, restarting)
-    keyboard?.cancelInput()
-    exploredLabel = ""
+    endTouchSession()
     if (restarting && composing) currentInputConnection?.finishComposingText()
     editor = attribute
     word = ""
@@ -109,13 +123,25 @@ class VietnameseKeyboardService : InputMethodService() {
 
   override fun onWindowShown() {
     super.onWindowShown()
-    TalkBackService.getInstance()?.refreshVietnameseKeyboardTouch()
+    windowShown = true
+    keyboard?.post(::reportKeyboardBounds)
   }
 
   override fun onWindowHidden() {
+    windowShown = false
     endTouchSession()
     super.onWindowHidden()
-    TalkBackService.getInstance()?.refreshVietnameseKeyboardTouch()
+    reportKeyboardBounds()
+  }
+
+  private fun reportKeyboardBounds() {
+    val view = keyboard
+    val bounds = if (windowShown && view != null && view.isShown && view.width > 0 && view.height > 0) {
+      val location = IntArray(2)
+      view.getLocationOnScreen(location)
+      Rect(location[0], location[1], location[0] + view.width, location[1] + view.height)
+    } else null
+    TalkBackService.getInstance()?.setVietnameseKeyboardBounds(bounds)
   }
 
   override fun onFinishInputView(finishingInput: Boolean) {
@@ -171,15 +197,17 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun endTouchSession() {
     keyboard?.cancelInput()
     exploredLabel = ""
-    speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
+    keySpeech.cancel(stopSpeech = true)
   }
 
   private fun readPreferences() {
-    method = SharedPreferencesUtils.getIntFromStringPref(
+    val newMethod = SharedPreferencesUtils.getIntFromStringPref(
       prefs, resources, R.string.pref_typing_confirmation_key, R.string.pref_typing_confirmation_default,
     )
-    prefersDirectTap = prefs.getInt(getString(R.string.pref_direct_input_tap_delay_key), 100)
-      .coerceIn(0, 300).toLong()
+    val newTiming = VietnameseKeyboardTiming.read(this, prefs)
+    if (method != newMethod || timing != newTiming) endTouchSession()
+    method = newMethod
+    timing = newTiming
     echo = KeyboardEchoSettings.read(prefs, resources, ON_SCREEN_KEYBOARD)
     configureView()
   }
@@ -187,7 +215,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun configureView() {
     keyboard?.apply {
       typingMethod = method
-      tapDelay = prefersDirectTap
+      timing = this@VietnameseKeyboardService.timing
       hideLetterSpeech = secure
     }
   }
@@ -373,8 +401,8 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun announceKey(label: String) {
     exploredLabel = label
-    if (label.isEmpty()) speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
-    else speak(label)
+    if (label.isEmpty()) keySpeech.cancel(stopSpeech = true)
+    else keySpeech.explore(label, timing.exploreSpeechMs)
   }
 
   private fun speakEnteredCharacter(character: Char) {
@@ -382,22 +410,32 @@ class VietnameseKeyboardService : InputMethodService() {
     if (label != exploredLabel) speak(label)
   }
 
-  private fun speak(label: String) {
-    val speaker = speechController() ?: return
+  private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean =
+    speak(label, { main.post { started() } }, { status -> main.post { completed(status) } })
+
+  private fun speak(
+    label: String,
+    started: UtteranceStartRunnable? = null,
+    completed: UtteranceCompleteRunnable? = null,
+  ): Boolean {
+    val speaker = speechController() ?: return false
+    if (!speaker.isTtsReady || speaker.isMute) return false
     if (speaker.waitsForCurrentSpeech() &&
-      speaker.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD)) return
+      speaker.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD)) return false
     val localized = SpannableString(label)
     localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
-    speaker.speak(
-      localized, null, SpeakOptions.create()
+    val options = SpeakOptions.create()
         .setUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
         .setQueueMode(QUEUE_MODE_QUEUE)
         .setFlags(
           FLAG_NO_HISTORY or FLAG_FORCE_FEEDBACK_ALL or
             FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP or
             FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP,
-        ),
-    )
+        )
+        .setCompletedAction(completed)
+    if (started != null) options.setStartingAction(started)
+    speaker.speak(localized, null, options)
+    return true
   }
 
   private fun speechController() =

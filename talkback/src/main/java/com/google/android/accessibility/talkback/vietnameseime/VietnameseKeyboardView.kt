@@ -14,11 +14,13 @@ import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 internal class VietnameseKeyboardView(
   context: Context,
   private val announce: (String) -> Unit,
   private val activate: (String) -> Unit,
+  private val releaseAnnouncement: () -> Unit = {},
 ) : View(context) {
   private data class Cell(
     val key: VietnameseKeyTouch.Key,
@@ -57,7 +59,12 @@ internal class VietnameseKeyboardView(
       if (field != value) cancelInput()
       field = value
     }
-  var tapDelay = 0L
+  var timing = VietnameseKeyboardTiming()
+    set(value) {
+      if (field != value) cancelInput()
+      field = value
+      touch.doubleTapTimeout = value.doubleTapMs
+    }
   var hideLetterSpeech = false
 
   init {
@@ -86,10 +93,15 @@ internal class VietnameseKeyboardView(
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-    val rowHeight = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 39 else 48
+    val configuration = resources.configuration
+    val heightDp = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+      195
+    } else {
+      maxOf(240, (configuration.screenHeightDp * 0.48f).roundToInt())
+    }
     setMeasuredDimension(
       MeasureSpec.getSize(widthMeasureSpec),
-      resolveSize((5 * rowHeight * density).toInt(), heightMeasureSpec),
+      resolveSize((heightDp * density).roundToInt(), heightMeasureSpec),
     )
   }
 
@@ -149,7 +161,8 @@ internal class VietnameseKeyboardView(
           val cell = cellAt(x, y)
           if (abs(x - downX) > configuration.scaledTouchSlop ||
             abs(y - downY) > configuration.scaledTouchSlop) moved = true
-          if (moved && (explored || cell != startingCell) && cell?.key != touch.selected) {
+          if ((explored || cell != startingCell) && cell?.key != touch.selected) {
+            moved = true
             explored = true
             touch.explore(cell?.key)
             announceSelected()
@@ -159,24 +172,28 @@ internal class VietnameseKeyboardView(
       MotionEvent.ACTION_UP -> {
         if (pointer == event.getPointerId(event.actionIndex)) {
           val cell = cellAt(event.x, event.y)
-          val tap = !moved && event.eventTime - downTime <= ViewConfiguration.getLongPressTimeout()
+          val tap = !moved && event.eventTime - downTime <= timing.tapHoldMs
           if (!tap && cell?.key != touch.selected) {
             touch.explore(cell?.key)
             announceSelected()
           }
           val key = touch.release(cell?.key, gestureMethod, event.x, event.y, event.eventTime, tap)
           pointer = MotionEvent.INVALID_POINTER_ID
+          if (cell != null) releaseAnnouncement() else announce("")
           if (key != null) {
-            if (gestureMethod == SINGLE_TAP_TO_TYPE && tapDelay > 0) {
+            if (gestureMethod == SINGLE_TAP_TO_TYPE && timing.directInputMs > 0) {
               val generation = inputGeneration
-              postDelayed({ if (generation == inputGeneration) activate(key.id) }, tapDelay)
+              postDelayed({ if (generation == inputGeneration) activate(key.id) }, timing.directInputMs)
             } else {
               activate(key.id)
             }
           }
         }
       }
-      MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> cancelInput()
+      MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> {
+        cancelInput()
+        announce("")
+      }
     }
     invalidate()
     return true
