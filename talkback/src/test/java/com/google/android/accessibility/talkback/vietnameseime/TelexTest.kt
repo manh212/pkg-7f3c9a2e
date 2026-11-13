@@ -38,5 +38,12 @@ class TelexTest {
     assertEquals("thuỷ", type("thuyr"))
   }
 
+  @Test
+  fun backspaceKeepsTheToneOnTheRemainingSyllable() {
+    assertEquals("hòa", Telex.deleteLast("hoàn"))
+    assertEquals("hò", Telex.deleteLast("hòa"))
+    assertEquals("", Telex.deleteLast("ả"))
+  }
+
   private fun type(keys: String): String = keys.fold("", Telex::apply)
 }

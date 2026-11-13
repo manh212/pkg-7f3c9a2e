@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.directtouch
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.ComponentName
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
@@ -26,6 +27,7 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.SparseArray
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -38,6 +40,7 @@ import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
+import com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardService
 import com.google.android.accessibility.utils.input.WindowEventInterpreter
 import com.google.android.accessibility.utils.monitor.DisplayMonitor
 import java.time.Duration
@@ -281,6 +284,41 @@ class DirectTouchControllerTest {
     controller.onDisplayStateChanged(false)
     assertEquals("region none", transcript.last())
     assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(20)))
+  }
+
+  @Test
+  fun vietnameseKeyboardGetsDirectTouchBeforeItsWindowIsListedAndReleasesItOnHide() {
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
+    val keyboardBounds = Rect(50, 1100, 1030, 2200)
+    serviceWindows.onScreen = listOf(game())
+    controller.setVietnameseKeyboardBounds(keyboardBounds)
+    assertEquals("region [50,1100][1030,2200] complex=false", transcript.last())
+
+    serviceWindows.onScreen = listOf(game(), window(20, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Keyboard", keyboardBounds, service.packageName, layer = 4))
+    controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
+    assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(20)))
+    controller.setVietnameseKeyboardBounds(null)
+    assertEquals("region none", transcript.last())
+    controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
+    assertEquals("region none", transcript.last())
+  }
+
+  @Test
+  fun vietnameseKeyboardIgnoresWindowsBelowItAndExcludesSystemWindowsAboveIt() {
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
+    val keyboardBounds = Rect(0, 1100, 1080, 2220)
+    val keyboard = window(20, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Keyboard", keyboardBounds, service.packageName, layer = 4)
+    val lowerOverlay = window(21, AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY,
+      "Overlay", SCREEN, service.packageName, layer = 3)
+    val upperSystem = window(22, SYSTEM, "Picker", Rect(0, 1100, 1080, 1500), SYSTEM_UI, layer = 5)
+    serviceWindows.onScreen = listOf(game(), keyboard, lowerOverlay, upperSystem)
+    controller.setVietnameseKeyboardBounds(keyboardBounds)
+
+    assertEquals("region [0,1500][1080,2220] complex=false", transcript.last())
   }
 
   private fun keyboardEvent(windowId: Int): AccessibilityEvent =

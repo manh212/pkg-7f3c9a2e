@@ -11,7 +11,7 @@ internal class VietnameseKeySpeech(
   private val stop: () -> Unit,
   private val retryable: () -> Boolean = { true },
 ) {
-  private class Key(val label: String) {
+  private class Key(val label: String, val exploreAt: Long) {
     var released = false
     var releaseAt = 0L
     var started = false
@@ -28,7 +28,7 @@ internal class VietnameseKeySpeech(
   fun explore(label: String, delay: Long) {
     handler.removeCallbacks(trySpeech)
     val previous = selected
-    val key = Key(label)
+    val key = Key(label, SystemClock.uptimeMillis() + delay)
     selected = key
     if (delay > 0 && previous?.submitted == true && !previous.started) stop()
     if (delay == 0L) request(key) else handler.postDelayed(trySpeech, delay)
@@ -36,6 +36,7 @@ internal class VietnameseKeySpeech(
 
   fun release(delay: Long) {
     val key = selected ?: return
+    if (key.released) return
     key.released = true
     key.releaseAt = SystemClock.uptimeMillis() + delay
     handler.removeCallbacks(trySpeech)
@@ -50,9 +51,13 @@ internal class VietnameseKeySpeech(
     if (stopSpeech) stop()
   }
 
+  fun isCurrent(label: String): Boolean =
+    selected?.let { it.label == label && !it.finished } == true
+
   private fun request(key: Key) {
     if (key.finished || key.started || key.submitted) return
-    val remaining = key.releaseAt - SystemClock.uptimeMillis()
+    val target = if (key.released) key.releaseAt else key.exploreAt
+    val remaining = target - SystemClock.uptimeMillis()
     if (remaining > 0) {
       handler.postDelayed(trySpeech, remaining)
       return
@@ -67,7 +72,7 @@ internal class VietnameseKeySpeech(
           val interrupted = status == STATUS_INTERRUPTED || status == STATUS_ERROR
           if (interrupted && !key.started && key.interruptions < 2) {
             key.interruptions++
-            if (key.released) handler.postDelayed(trySpeech, RETRY_MS)
+            handler.postDelayed(trySpeech, RETRY_MS)
           } else {
             key.finished = true
           }

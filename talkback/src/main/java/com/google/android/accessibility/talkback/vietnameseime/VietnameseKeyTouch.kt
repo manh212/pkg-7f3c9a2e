@@ -6,7 +6,7 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE_EXCEPT_ACTION_KEY
 
 internal class VietnameseKeyTouch(
-  var doubleTapTimeout: Long,
+  private val doubleTapTimeout: Long,
   private val doubleTapSlop: Int,
   private val firstTaps: MutableMap<Key, Tap> = LinkedHashMap(),
 ) {
@@ -32,10 +32,13 @@ internal class VietnameseKeyTouch(
     exploring = true
   }
 
-  fun hasPendingFirstTap(key: Key?, now: Long): Boolean {
-    if (key == null) return false
+  fun hasPendingFirstTap(key: Key, x: Float, y: Float, now: Long): Boolean {
     pruneStaleFirstTaps(now)
-    return firstTaps.containsKey(key)
+    val prior = firstTaps[key] ?: return false
+    val dx = x - prior.x
+    val dy = y - prior.y
+    return now - prior.time in 0..doubleTapTimeout &&
+      dx * dx + dy * dy <= doubleTapSlop.toFloat() * doubleTapSlop
   }
 
   fun release(key: Key?, method: Int, x: Float, y: Float, time: Long, tap: Boolean): Key? {
@@ -55,16 +58,10 @@ internal class VietnameseKeyTouch(
       return null
     }
     if (exploredOntoKey) return null
-    pruneStaleFirstTaps(time)
-    val prior = firstTaps[target]
-    if (prior != null && time - prior.time in 0..doubleTapTimeout) {
-      val dx = x - prior.x
-      val dy = y - prior.y
-      if (dx * dx + dy * dy <= doubleTapSlop.toFloat() * doubleTapSlop) {
-        firstTaps.remove(target)
-        cancel()
-        return target
-      }
+    if (hasPendingFirstTap(target, x, y, time)) {
+      firstTaps.remove(target)
+      cancel()
+      return target
     }
     firstTaps[target] = Tap(target, x, y, time)
     return null
@@ -79,7 +76,7 @@ internal class VietnameseKeyTouch(
   private fun pruneStaleFirstTaps(now: Long) {
     val iterator = firstTaps.entries.iterator()
     while (iterator.hasNext()) {
-      if (now - iterator.next().value.time > doubleTapTimeout) iterator.remove()
+      if (now - iterator.next().value.time !in 0..doubleTapTimeout) iterator.remove()
     }
   }
 

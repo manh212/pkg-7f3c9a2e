@@ -20,10 +20,12 @@ import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.SharedPreferences
+import android.database.ContentObserver
 import android.graphics.Rect
 import android.graphics.Region
 import android.media.AudioAttributes
 import android.os.Handler
+import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
 import com.google.android.accessibility.utils.output.FeedbackController
@@ -94,7 +96,20 @@ class DirectTouchController(
   private var silentKeyboardIds = emptySet<Int>()
   private var silentDirectTyping = readSilentDirectTyping()
   private var vietnameseKeyboardBounds: Rect? = null
-  private var vietnameseKeyboardReportsBounds = false
+  private var vietnameseKeyboardClosing = false
+  private var keyboard = readSelectedKeyboard()
+  private val keyboardObserver = object : ContentObserver(handler) {
+    override fun onChange(selfChange: Boolean) {
+      val selected = readSelectedKeyboard()
+      if (keyboard == selected) return
+      keyboard = selected
+      if (!isVietnameseKeyboard(selected)) {
+        vietnameseKeyboardBounds = null
+        vietnameseKeyboardClosing = false
+      }
+      refreshVietnameseKeyboardTouch()
+    }
+  }
   // Whether the passthrough region now holds just the navigation bar or a keyboard in the list,
   // while direct touch is off.
   private var partRegionSent = false
@@ -125,6 +140,9 @@ class DirectTouchController(
   init {
     DirectTouchSettings.migrateNavBarSetting(prefs, liftToActivateKey)
     prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+    service.contentResolver.registerContentObserver(
+      Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD), false, keyboardObserver,
+    )
   }
 
   override fun handle(interpretation: EventInterpretation, eventId: EventId?) {
@@ -144,7 +162,7 @@ class DirectTouchController(
    */
   fun onRawAccessibilityEvent(event: AccessibilityEvent) {
     if (!paused && DirectTouchRegions.reassertsRegion(event.eventType) &&
-      (isSilentDirectTyping() || isVietnameseKeyboard(selectedKeyboard()))) {
+      (isSilentDirectTyping() || isVietnameseKeyboard(keyboard))) {
       refreshVietnameseKeyboardTouch()
     }
   }
@@ -157,8 +175,10 @@ class DirectTouchController(
   }
 
   fun setVietnameseKeyboardBounds(bounds: Rect?) {
-    vietnameseKeyboardBounds = bounds
-    vietnameseKeyboardReportsBounds = true
+    if (bounds != null && !isVietnameseKeyboard(keyboard)) keyboard = readSelectedKeyboard()
+    if (bounds == vietnameseKeyboardBounds) return
+    vietnameseKeyboardBounds = bounds?.let(::Rect)
+    vietnameseKeyboardClosing = bounds == null
     refreshVietnameseKeyboardTouch()
   }
 
@@ -222,7 +242,7 @@ class DirectTouchController(
       return
     }
     if (isNavBarDirect() || DirectTouchSettings.hasEnabledApps(prefs) || isSilentDirectTyping() ||
-      isVietnameseKeyboard(selectedKeyboard())) {
+      isVietnameseKeyboard(keyboard)) {
       scheduleEvaluate()
     }
   }
@@ -237,6 +257,8 @@ class DirectTouchController(
     handler.removeCallbacks(recheck)
     if (paused) {
       silentKeyboardIds = emptySet()
+      if (active || partRegionSent) clearRegion()
+      partRegionSent = false
     } else {
       evaluate()
     }
@@ -244,6 +266,7 @@ class DirectTouchController(
 
   fun shutdown() {
     prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
+    service.contentResolver.unregisterContentObserver(keyboardObserver)
     handler.removeCallbacks(reevaluate)
     handler.removeCallbacks(recheck)
     if (active || partRegionSent) {
@@ -255,7 +278,7 @@ class DirectTouchController(
 
   private fun scheduleEvaluate() {
     handler.removeCallbacks(reevaluate)
-    if (active || isSilentDirectTyping()) {
+    if (active || isSilentDirectTyping() || isVietnameseKeyboard(keyboard)) {
       // Handing back must not wait, and neither must a region that changed under us.
       evaluate()
     } else {
@@ -279,22 +302,20 @@ class DirectTouchController(
       val directTyping = mainPackage != null && DirectTouchSettings.isDirectTyping(prefs, mainPackage)
       val shouldBeActive = mainPackage != null && shouldBeActive(windows, mainPackage)
       val navBarDirect = isNavBarDirect()
-      val keyboard = selectedKeyboard()
       val vietnamese = isVietnameseKeyboard(keyboard)
-      val keyboards = directKeyboards(windows, keyboard)
-      val vietnameseBounds = vietnameseKeyboardBounds.takeIf { vietnamese }
+      val imeWindows = windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+      if (imeWindows.isEmpty() || !vietnamese) vietnameseKeyboardClosing = false
+      val vietnameseRegion = if (vietnamese) vietnameseRegion(windows, imeWindows, navBarDirect) else null
+      val keyboards = directKeyboards(imeWindows, keyboard)
       val wasActive = active
       if (shouldBeActive) {
         partRegionSent = false
-        applyRegion(windows, directTyping, navBarDirect, keyboards, vietnameseBounds)
+        applyRegion(windows, directTyping && !vietnamese, navBarDirect, keyboards, vietnameseRegion)
       } else {
         if (wasActive) partRegionSent = true
-        updatePartRegion(windows, navBarDirect, keyboards, vietnameseBounds)
+        updatePartRegion(windows, navBarDirect, keyboards, vietnameseRegion)
       }
-      silentKeyboardIds =
-        if (vietnamese) windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-          .mapTo(mutableSetOf()) { it.id }
-        else if (isSilentDirectTyping()) keyboards.mapTo(mutableSetOf()) { it.id }
+      silentKeyboardIds = if (isSilentDirectTyping()) keyboards.mapTo(mutableSetOf()) { it.id }
         else emptySet()
       if (shouldBeActive != active) {
         active = shouldBeActive
@@ -376,11 +397,11 @@ class DirectTouchController(
     windows: List<AccessibilityWindowInfo>,
     navBarDirect: Boolean,
     keyboards: List<AccessibilityWindowInfo>,
-    vietnameseBounds: Rect?,
+    vietnameseRegion: Region?,
   ) {
     val parts = (if (navBarDirect) navigationBarBounds(windows) else emptyList()) +
-      keyboards.map(::boundsOf) + listOfNotNull(vietnameseBounds)
-    if (parts.isNotEmpty()) {
+      keyboards.map(::boundsOf)
+    if (parts.isNotEmpty() || vietnameseRegion?.isEmpty == false) {
       val region = Region()
       parts.forEach { region.union(it) }
       val display = displayBounds()
@@ -403,6 +424,7 @@ class DirectTouchController(
           }
         }
       }
+      if (vietnameseRegion != null) region.op(vietnameseRegion, Region.Op.UNION)
       sendRegion(region)
       partRegionSent = true
     } else if (partRegionSent) {
@@ -416,7 +438,7 @@ class DirectTouchController(
    * keyboard. They take touches directly in every app, since a keyboard is never the app in front.
    * Their apps are asked for only while some app is in the list.
    */
-  private fun selectedKeyboard(): ComponentName? = runCatching {
+  private fun readSelectedKeyboard(): ComponentName? = runCatching {
     Settings.Secure.getString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
       ?.let(ComponentName::unflattenFromString)
   }.getOrNull()
@@ -426,27 +448,69 @@ class DirectTouchController(
       component.className == VietnameseKeyboardService::class.java.name
 
   private fun directKeyboards(
-    windows: List<AccessibilityWindowInfo>, component: ComponentName?,
+    imeWindows: List<AccessibilityWindowInfo>, component: ComponentName?,
   ): List<AccessibilityWindowInfo> {
     // The bundled Braille IME needs raw multi-pointer touch on Android 11+.
     // Only its selected Android input method gets this pass-through region.
-    if (isVietnameseKeyboard(component)) {
-      return if (vietnameseKeyboardReportsBounds) emptyList()
-      else windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-    }
+    if (isVietnameseKeyboard(component)) return emptyList()
     if (component?.packageName == service.packageName &&
       component.className == "com.Braille.BrailleKeyboardService") {
-      return windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+      return imeWindows
     }
     if (isSilentDirectTyping()) {
-      return windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+      return imeWindows
     }
     if (!DirectTouchSettings.hasEnabledApps(prefs)) {
       return emptyList()
     }
-    return windows.filter { window ->
-      window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD &&
-        rootPackage(window)?.let { DirectTouchSettings.isAppEnabled(prefs, it) } == true
+    return imeWindows.filter { window ->
+      rootPackage(window)?.let { DirectTouchSettings.isAppEnabled(prefs, it) } == true
+    }
+  }
+
+  private fun vietnameseRegion(
+    windows: List<AccessibilityWindowInfo>,
+    imeWindows: List<AccessibilityWindowInfo>,
+    navBarDirect: Boolean,
+  ): Region {
+    val region = Region()
+    if (vietnameseKeyboardClosing) return region
+    val reported = vietnameseKeyboardBounds
+    val windowRegion = Region()
+    for (window in imeWindows) {
+      getWindowRegion(window, windowRegion)
+      region.op(windowRegion, Region.Op.UNION)
+    }
+    if (reported != null) {
+      if (region.isEmpty || !Rect.intersects(region.bounds, reported)) {
+        region.set(reported)
+      } else {
+        region.op(reported, Region.Op.INTERSECT)
+      }
+    }
+    if (region.isEmpty) return region
+    val display = displayBounds()
+    region.op(display, Region.Op.INTERSECT)
+    val imeLayer = imeWindows.maxOfOrNull { it.layer }
+    for (window in windows) {
+      val isSystem = window.type == AccessibilityWindowInfo.TYPE_SYSTEM
+      if (!isSystem && window.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
+      if (imeLayer != null && window.layer <= imeLayer) continue
+      getWindowRegion(window, windowRegion)
+      val bounds = windowRegion.bounds
+      if (isSystem && navBarDirect && DirectTouchRegions.isNavigationBar(
+          bounds.left, bounds.top, bounds.right, bounds.bottom, display.width(), display.height(),
+        )) continue
+      region.op(windowRegion, Region.Op.DIFFERENCE)
+    }
+    return region
+  }
+
+  private fun getWindowRegion(window: AccessibilityWindowInfo, region: Region) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      window.getRegionInScreen(region)
+    } else {
+      region.set(boundsOf(window))
     }
   }
 
@@ -562,11 +626,10 @@ class DirectTouchController(
     directTyping: Boolean,
     navBarDirect: Boolean,
     keyboards: List<AccessibilityWindowInfo>,
-    vietnameseBounds: Rect?,
+    vietnameseRegion: Region?,
   ) {
     val display = displayBounds()
     val excluded = mutableListOf<Rect>()
-    val systemExcluded = mutableListOf<Rect>()
     windows.forEach { window ->
       if (
         DirectTouchRegions.shouldExcludeWindow(window.type, directTyping) && window !in keyboards
@@ -585,19 +648,11 @@ class DirectTouchController(
             )
         if (!(navBarDirect && isNavBar)) {
           excluded += bounds
-          if (window.type == AccessibilityWindowInfo.TYPE_SYSTEM ||
-            window.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
-            systemExcluded += bounds
-          }
         }
       }
     }
     val region = DirectTouchRegions.passthroughRegion(display, excluded)
-    if (vietnameseBounds != null) {
-      val keyboardRegion = Region(vietnameseBounds)
-      systemExcluded.forEach { keyboardRegion.op(it, Region.Op.DIFFERENCE) }
-      region.op(keyboardRegion, Region.Op.UNION)
-    }
+    if (vietnameseRegion != null) region.op(vietnameseRegion, Region.Op.UNION)
     sendRegion(region)
   }
 

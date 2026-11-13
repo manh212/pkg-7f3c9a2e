@@ -6,14 +6,25 @@ import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewTreeObserver
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.customview.widget.ExploreByTouchHelper
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
-import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.IME_ACTION_KEY_ID_SUFFIX
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -21,17 +32,21 @@ import kotlin.math.roundToInt
 internal class VietnameseKeyboardView(
   context: Context,
   private val announce: (String) -> Unit,
-  private val activate: (String) -> Unit,
+  private val activate: (String, Boolean) -> Boolean,
   private val releaseAnnouncement: () -> Unit = {},
   private val shiftSpoken: () -> Unit = {},
+  private val keyName: (String) -> String = { it },
+  private val reportBounds: () -> Unit = {},
 ) : View(context) {
-  private data class Cell(
+  private class Cell(
     val key: VietnameseKeyTouch.Key,
-    val title: String,
+    val baseTitle: String,
     val weight: Float = 1f,
     val bounds: RectF = RectF(),
+    var title: String = baseTitle,
     var textSize: Float = 0f,
     var baseline: Float = 0f,
+    var nextVirtualId: Int = ExploreByTouchHelper.INVALID_ID,
   )
 
   private val configuration = ViewConfiguration.get(context)
@@ -44,28 +59,38 @@ internal class VietnameseKeyboardView(
   private var shifted = false
   private var symbolPage = false
   private var telexEnabled = true
-  private var actionLabel = ""
-  private var inputGeneration = 0
+  private var telexAvailable = true
+  private var actionLabel = context.getString(R.string.vietnamese_ime_enter)
   private val pointers = LinkedHashMap<Int, PointerState>()
   private val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+  private val selectedKeys = HashSet<VietnameseKeyTouch.Key>()
+  private var speechPointer: Int? = null
+  private val virtualIds = HashMap<String, Int>()
+  private var virtualCells = emptyMap<Int, Cell>()
+  private val keyAccessibility = KeyAccessibility()
+  private val touchHandler = Handler(Looper.getMainLooper())
+  private var pendingKeyDelay = 0
+  private val reportBeforeDraw = ViewTreeObserver.OnPreDrawListener {
+    reportBounds()
+    true
+  }
   private var rowsArePc = false
-  private var rowsAreColumns = false
   private val shiftHolders = LinkedHashSet<Int>()
   private var shiftSticky = false
   private var shiftUsed = false
 
   private class PointerState(
     val pointerId: Int,
-    var downX: Float,
-    var downY: Float,
-    var downTime: Long,
-    var startingCell: Cell?,
-    var moved: Boolean = false,
-    var explored: Boolean = false,
-    var method: Int,
-    var lastSpoken: Cell? = null,
+    val downX: Float,
+    val downY: Float,
+    val downTime: Long,
+    val startingCell: Cell?,
+    val method: Int,
+    val symbolPage: Boolean,
     val touch: VietnameseKeyTouch,
-    var pcShift: Boolean = false,
+    val pcShift: Boolean,
+    var moved: Boolean = false,
+    var lastSpoken: Cell? = null,
   )
 
   var typingMethod = 0
@@ -77,43 +102,64 @@ internal class VietnameseKeyboardView(
     set(value) {
       if (field != value) cancelInput()
       field = value
-      pointers.values.forEach { it.touch.doubleTapTimeout = value.doubleTapMs }
     }
   var hideLetterSpeech = false
+    set(value) {
+      if (field == value) return
+      field = value
+      keyAccessibility.invalidateRoot()
+    }
 
   var layoutSetting = LAYOUT_AUTO
     set(value) {
       if (field == value) return
+      cancelInput()
       field = value
       rebuildRows()
     }
 
   init {
-    importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    ViewCompat.setAccessibilityDelegate(this, keyAccessibility)
+    importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     isFocusable = false
     isFocusableInTouchMode = false
   }
 
-  fun showKeys(shifted: Boolean, symbols: Boolean, telex: Boolean, actionLabel: String) {
-    if (rows.isNotEmpty() && this.shifted == shifted && symbolPage == symbols &&
-      telexEnabled == telex && this.actionLabel == actionLabel) return
+  fun showKeys(
+    shifted: Boolean,
+    symbols: Boolean,
+    telex: Boolean,
+    actionLabel: String,
+    telexAvailable: Boolean = true,
+  ) {
+    val pageChanged = symbolPage != symbols
+    val layoutChanged = isPcLayout() != rowsArePc
+    val rebuild = rows.isEmpty() || pageChanged || layoutChanged || telexEnabled != telex ||
+      this.telexAvailable != telexAvailable || this.actionLabel != actionLabel
+    val shiftChanged = this.shifted != shifted
+    if (layoutChanged) cancelInput()
+    if (pageChanged) firstTaps.clear()
     this.shifted = shifted
     symbolPage = symbols
     telexEnabled = telex
+    this.telexAvailable = telexAvailable
     this.actionLabel = actionLabel
-    rebuildRows()
+    if (rebuild) rebuildRows() else if (shiftChanged) refreshShiftLabels()
   }
 
   fun cancelInput() {
-    inputGeneration++
-    pointers.values.forEach { it.touch.cancel() }
+    if (pendingKeyDelay > 0) {
+      touchHandler.removeCallbacksAndMessages(null)
+      pendingKeyDelay = 0
+    }
     pointers.clear()
     firstTaps.clear()
+    speechPointer = null
     val hadShift = shiftHolders.isNotEmpty() || shiftSticky
     shiftHolders.clear()
     shiftSticky = false
     shiftUsed = false
-    if (hadShift) rebuildRows() else invalidate()
+    if (hadShift) refreshShiftLabels() else invalidate()
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -132,7 +178,28 @@ internal class VietnameseKeyboardView(
   }
 
   override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
-    if (isPcLayout() != rowsArePc || isColumnLayout() != rowsAreColumns) rebuildRows() else placeKeys()
+    if (oldWidth > 0 && oldHeight > 0) cancelInput()
+    if (isPcLayout() != rowsArePc) {
+      rebuildRows()
+    } else {
+      placeKeys()
+      keyAccessibility.invalidateRoot()
+    }
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    viewTreeObserver.addOnPreDrawListener(reportBeforeDraw)
+  }
+
+  override fun onDetachedFromWindow() {
+    viewTreeObserver.removeOnPreDrawListener(reportBeforeDraw)
+    cancelInput()
+    super.onDetachedFromWindow()
+  }
+
+  override fun dispatchHoverEvent(event: MotionEvent): Boolean =
+    keyAccessibility.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
   }
 
   override fun onDraw(canvas: Canvas) {
@@ -141,7 +208,8 @@ internal class VietnameseKeyboardView(
     val corner = 5 * density
     paint.textAlign = Paint.Align.CENTER
     paint.color = Color.WHITE
-    val selectedKeys = pointers.values.mapNotNullTo(HashSet()) { it.touch.selected }
+    selectedKeys.clear()
+    pointers.values.mapNotNullTo(selectedKeys) { it.touch.selected }
     for (row in rows) {
       for (cell in row) {
         val bounds = cell.bounds
@@ -163,55 +231,55 @@ internal class VietnameseKeyboardView(
     var moveChanged = true
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && pointers.isNotEmpty()) cancelInput()
         val index = event.actionIndex
         val id = event.getPointerId(index)
         val x = event.getX(index)
         val y = event.getY(index)
-        val previous = pointers.remove(id)
-        if (previous != null) {
-          if (previous.pcShift) shiftHolders.remove(id)
-          previous.touch.cancel()
-        }
+        val cell = cellAt(x, y)
         val state = PointerState(
           pointerId = id,
           downX = x,
           downY = y,
           downTime = event.eventTime,
-          startingCell = cellAt(x, y),
+          startingCell = cell,
           method = typingMethod,
+          symbolPage = symbolPage,
           touch = VietnameseKeyTouch(
             timing.doubleTapMs, configuration.scaledDoubleTapSlop, firstTaps,
           ),
+          pcShift = rowsArePc && cell?.key?.id == SHIFT,
         )
-        state.pcShift = isPcShiftKey(state)
         pointers[id] = state
-        val confirmingSecondTap = state.method == DOUBLE_TAP &&
-          state.touch.hasPendingFirstTap(state.startingCell?.key, event.eventTime)
-        state.touch.start(state.startingCell?.key, state.method)
+        val key = cell?.key
+        val confirmingSecondTap = key != null &&
+          VietnameseKeyTouch.confirmsWithDoubleTap(key, state.method) &&
+          state.touch.hasPendingFirstTap(key, x, y, event.eventTime)
+        state.touch.start(key, state.method)
         if (state.pcShift) {
-          pressShiftPointer(state, event.eventTime)
-        } else if (state.method == DIRECT_SILENT_TYPING) {
-          state.startingCell?.key?.let { submitKey(it) }
+          pressShiftPointer(state)
         }
-        if (!confirmingSecondTap && state.startingCell != null) announceSelected(state)
+        if (!confirmingSecondTap && cell != null) announceSelected(state, cell)
+        if (!state.pcShift && state.method == DIRECT_SILENT_TYPING && key != null) {
+          submitKey(key)
+        }
       }
       MotionEvent.ACTION_MOVE -> {
         moveChanged = false
         for (index in 0 until event.pointerCount) {
           val state = pointers[event.getPointerId(index)] ?: continue
+          if (!state.pcShift && state.symbolPage != symbolPage) continue
+          if (!state.pcShift && state.method == DIRECT_SILENT_TYPING) continue
           val x = event.getX(index)
           val y = event.getY(index)
+          if (movedBeyondSlop(state, x, y)) state.moved = true
+          if (state.pcShift) continue
           val cell = cellAt(x, y)
-          if (abs(x - state.downX) > configuration.scaledTouchSlop ||
-            abs(y - state.downY) > configuration.scaledTouchSlop) state.moved = true
-          if (!state.pcShift && state.method != DIRECT_SILENT_TYPING &&
-            (state.explored || cell?.key != state.startingCell?.key) &&
-            cell?.key != state.touch.selected) {
+          if (cell?.key != state.touch.selected) {
             moveChanged = true
             state.moved = true
-            state.explored = true
             state.touch.explore(cell?.key)
-            announceSelected(state)
+            announceSelected(state, cell)
           }
         }
       }
@@ -222,32 +290,21 @@ internal class VietnameseKeyboardView(
           val x = event.getX(index)
           val y = event.getY(index)
           val cell = cellAt(x, y)
+          val tap = !state.moved && !movedBeyondSlop(state, x, y) &&
+            event.eventTime - state.downTime <= timing.tapHoldMs &&
+            cell?.key == state.startingCell?.key
           if (state.pcShift) {
-            releaseShiftPointer(state, event.eventTime)
-            if (cell != null) releaseAnnouncement()
-          } else {
-            val tap = !state.moved && event.eventTime - state.downTime <= timing.tapHoldMs
-            if (state.method != DIRECT_SILENT_TYPING && !tap && cell?.key != state.touch.selected) {
+            releaseShiftPointer(state, tap)
+          } else if (state.method != DIRECT_SILENT_TYPING && state.symbolPage == symbolPage) {
+            if (cell?.key != state.touch.selected) {
               state.touch.explore(cell?.key)
-              announceSelected(state)
+              announceSelected(state, cell)
             }
-            val releaseKey =
-              if (state.method == DIRECT_SILENT_TYPING) state.startingCell?.key else cell?.key
-            val key = state.touch.release(
-              releaseKey, state.method, x, y, event.eventTime, tap,
-            )
-            if (cell != null) releaseAnnouncement()
-            else if (state.method != DIRECT_SILENT_TYPING && pointers.isEmpty()) announce("")
-            if (key != null && state.method != DIRECT_SILENT_TYPING) {
-              if (state.method == SINGLE_TAP_TO_TYPE && timing.directInputMs > 0) {
-                val generation = inputGeneration
-                val id = resolveKey(key)
-                postDelayed({ if (generation == inputGeneration) activate(id) }, timing.directInputMs)
-              } else {
-                submitKey(key)
-              }
-            }
+            val key = state.touch.release(cell?.key, state.method, x, y, event.eventTime, tap)
+            finishAnnouncement(state, cell)
+            if (key != null) submitReleasedKey(key, state.method)
           }
+          if (state.pcShift || state.method == DIRECT_SILENT_TYPING) finishAnnouncement(state, cell)
         }
       }
       MotionEvent.ACTION_CANCEL -> {
@@ -264,75 +321,90 @@ internal class VietnameseKeyboardView(
       (layoutSetting == LAYOUT_AUTO &&
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
-  private fun isColumnLayout(): Boolean = isPcLayout()
-
   private fun isShiftHeld(): Boolean = shiftHolders.isNotEmpty()
 
   private fun isShiftActive(): Boolean = shifted || isShiftHeld() || shiftSticky
 
-  private fun isPcShiftKey(state: PointerState): Boolean =
-    isPcLayout() && state.startingCell?.key?.id == SHIFT
+  private fun movedBeyondSlop(state: PointerState, x: Float, y: Float): Boolean =
+    abs(x - state.downX) > configuration.scaledTouchSlop ||
+      abs(y - state.downY) > configuration.scaledTouchSlop
 
-  private fun pressShiftPointer(state: PointerState, time: Long) {
+  private fun pressShiftPointer(state: PointerState) {
     val wasHeld = isShiftHeld()
     if (!wasHeld) {
       shiftUsed = false
       shiftSticky = false
     }
     shiftHolders.add(state.pointerId)
-    rebuildRows()
+    refreshShiftLabels()
     if (!wasHeld) shiftSpoken()
   }
 
-  private fun releaseShiftPointer(state: PointerState, time: Long) {
+  private fun releaseShiftPointer(state: PointerState, tap: Boolean) {
     shiftHolders.remove(state.pointerId)
     if (shiftHolders.isNotEmpty()) return
-    if (!isPcLayout()) {
-      shiftSticky = false
-      shiftUsed = false
-      rebuildRows()
-      return
-    }
-    shiftSticky = !shiftUsed && time - state.downTime <= timing.tapHoldMs
+    shiftSticky = !shiftUsed && tap
     shiftUsed = false
-    rebuildRows()
+    refreshShiftLabels()
   }
 
   private fun rebuildRows() {
     val pc = isPcLayout()
-    val columns = isColumnLayout()
-    val layoutChanged = pc != rowsArePc || columns != rowsAreColumns
-    if (layoutChanged) {
-      shiftHolders.clear()
-      shiftSticky = false
-      shiftUsed = false
-    }
+    val layoutChanged = pc != rowsArePc
     rowsArePc = pc
-    rowsAreColumns = columns
-    rows = buildRows()
+    val newRows = buildRows()
+    var previous: Cell? = null
+    val newCells = newRows.flatten().associateBy { cell ->
+      val id = virtualId(cell.key)
+      previous?.nextVirtualId = id
+      previous = cell
+      id
+    }
+    val focusedId = keyAccessibility.accessibilityFocusedVirtualViewId
+    if (focusedId != ExploreByTouchHelper.INVALID_ID && focusedId !in newCells) {
+      keyAccessibility.getAccessibilityNodeProvider(this)?.performAction(
+        focusedId, AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS, null,
+      )
+    }
+    rows = newRows
+    virtualCells = newCells
     placeKeys()
+    keyAccessibility.invalidateRoot()
     if (layoutChanged) requestLayout()
     invalidate()
   }
 
   private fun submitKey(key: VietnameseKeyTouch.Key) {
-    if (isPcLayout() && key.id == SHIFT) return
-    activate(resolveKey(key))
+    if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
+    activate(resolveKey(key), false)
+  }
+
+  private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int) {
+    if (method != SINGLE_TAP_TO_TYPE || timing.directInputMs == 0L) {
+      submitKey(key)
+      return
+    }
+    if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
+    val id = resolveKey(key)
+    pendingKeyDelay++
+    touchHandler.postDelayed({
+      pendingKeyDelay--
+      activate(id, false)
+    }, timing.directInputMs)
   }
 
   private fun resolveKey(key: VietnameseKeyTouch.Key): String {
-    val sticky = shiftSticky && !isShiftHeld()
-    if (isPcLayout() && isShiftHeld()) shiftUsed = true
     val id = effectiveId(key)
-    if (sticky) {
+    if (rowsArePc && isShiftHeld() && id != key.id) shiftUsed = true
+    if (shiftSticky && !isShiftHeld() && id != key.id) {
       shiftSticky = false
-      rebuildRows()
+      refreshShiftLabels()
     }
     return id
   }
 
   private fun effectiveId(key: VietnameseKeyTouch.Key): String {
-    if (!isPcLayout() || !isShiftActive()) return key.id
+    if (!rowsArePc || !isShiftActive()) return key.id
     if (key.id.length == 1) {
       val symbol = SHIFT_SYMBOLS[key.id.single()]
       if (symbol != null) return symbol
@@ -342,23 +414,41 @@ internal class VietnameseKeyboardView(
     return key.id
   }
 
-  private fun announceSelected(state: PointerState) {
-    val selected = rows.asSequence().flatten().firstOrNull { it.key == state.touch.selected }
-    if (selected == state.lastSpoken) return
-    state.lastSpoken = selected
-    if (selected != null) {
-      announce(if (hideLetterSpeech && selected.key.id.length == 1) {
-        context.getString(R.string.vietnamese_ime_password_character)
-      } else {
-        spokenTitle(selected)
-      })
-    } else if (pointers.values.none { it.touch.selected != null }) {
+  private fun announceSelected(state: PointerState, cell: Cell?) {
+    if (cell === state.lastSpoken && (cell == null || speechPointer == state.pointerId)) return
+    state.lastSpoken = cell
+    if (cell != null) {
+      speechPointer = state.pointerId
+      announce(keyLabel(cell))
+    } else if (speechPointer == state.pointerId) {
+      speechPointer = null
       announce("")
     }
   }
 
+  private fun finishAnnouncement(state: PointerState, cell: Cell?) {
+    if (cell == null) {
+      if (state.method != DIRECT_SILENT_TYPING) announceSelected(state, null)
+    } else if (speechPointer == state.pointerId || speechPointer == null ||
+      state.method == DIRECT_SILENT_TYPING) {
+      releaseAnnouncement()
+    }
+    if (speechPointer == state.pointerId) speechPointer = null
+  }
+
+  private fun isPasswordKey(key: VietnameseKeyTouch.Key): Boolean =
+    hideLetterSpeech && key.id.length == 1
+
+  private fun isKeyEnabled(key: VietnameseKeyTouch.Key): Boolean =
+    isEnabled && (key.id != LANGUAGE || telexAvailable)
+
+  private fun keyLabel(cell: Cell): String = when {
+    isPasswordKey(cell.key) -> context.getString(R.string.vietnamese_ime_password_character)
+    else -> spokenTitle(cell)
+  }
+
   private fun spokenTitle(cell: Cell): String = when (cell.key.id) {
-    SHIFT -> if (isPcLayout()) context.getString(R.string.vietnamese_ime_uppercase)
+    SHIFT -> if (rowsArePc) context.getString(R.string.vietnamese_ime_uppercase)
       else if (shifted) context.getString(R.string.vietnamese_ime_lowercase)
       else context.getString(R.string.vietnamese_ime_uppercase)
     SYMBOLS -> context.getString(R.string.vietnamese_ime_symbols)
@@ -370,12 +460,68 @@ internal class VietnameseKeyboardView(
     else -> cell.title
   }
 
+  private fun virtualId(key: VietnameseKeyTouch.Key): Int =
+    virtualIds.getOrPut(if (key.id == LETTERS) SYMBOLS else key.id) { virtualIds.size }
+
+  private inner class KeyAccessibility : ExploreByTouchHelper(this@VietnameseKeyboardView) {
+    override fun getVirtualViewAt(x: Float, y: Float): Int =
+      cellAt(x, y)?.let { virtualId(it.key) } ?: INVALID_ID
+
+    override fun getVisibleVirtualViews(virtualViewIds: MutableList<Int>) {
+      if (width > 0 && height > 0) virtualViewIds.addAll(virtualCells.keys)
+    }
+
+    override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
+      val cell = virtualCells[id]
+      if (cell == null) {
+        node.text = " "
+        node.isEnabled = false
+        node.setBoundsInParent(Rect())
+        return
+      }
+      val key = cell.key
+      node.text = keyName(keyLabel(cell))
+      node.className = Button::class.java.name
+      node.isEnabled = isKeyEnabled(key)
+      node.isPassword = isPasswordKey(key)
+      node.setTextEntryKey(key.id.length == 1)
+      if (key.editorAction) node.viewIdResourceName = context.packageName + IME_ACTION_KEY_ID_SUFFIX
+      node.setScreenReaderFocusable(true)
+      node.isClickable = node.isEnabled
+      if (node.isEnabled) node.addAction(AccessibilityNodeInfo.ACTION_CLICK)
+      if (key.id == SHIFT || key.id == LANGUAGE) {
+        node.isCheckable = true
+        node.isChecked = if (key.id == SHIFT) isShiftActive() else telexEnabled
+      }
+      val bounds = Rect()
+      cell.bounds.round(bounds)
+      node.setBoundsInParent(bounds)
+      if (cell.nextVirtualId != INVALID_ID) {
+        node.setTraversalBefore(this@VietnameseKeyboardView, cell.nextVirtualId)
+      }
+    }
+
+    override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
+      if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
+      val key = virtualCells[id]?.key ?: return false
+      if (!isKeyEnabled(key)) return false
+      if (rowsArePc && key.id == SHIFT) {
+        shiftSticky = !shiftSticky
+        refreshShiftLabels()
+      } else if (!activate(resolveKey(key), true)) {
+        return false
+      }
+      sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)
+      return true
+    }
+  }
+
   private fun cellAt(x: Float, y: Float): Cell? {
     val cx = if (x == width.toFloat()) x - 0.5f else x
     val cy = if (y == height.toFloat()) y - 0.5f else y
     for (row in rows) {
       if (row.isEmpty()) continue
-      if (isColumnLayout()) {
+      if (rowsArePc) {
         if (cx < row.first().bounds.left || cx >= row.first().bounds.right) continue
       } else if (cy < row.first().bounds.top || cy >= row.first().bounds.bottom) continue
       for (cell in row) if (cell.bounds.contains(cx, cy)) return cell
@@ -384,7 +530,7 @@ internal class VietnameseKeyboardView(
   }
 
   private fun placeKeys() {
-    if (isColumnLayout()) {
+    if (rowsArePc) {
       val columnWidth = if (rows.isEmpty()) 0f else width.toFloat() / rows.size
       rows.forEachIndexed { index, column ->
         val totalWeight = column.sumOf { it.weight.toDouble() }.toFloat()
@@ -398,12 +544,7 @@ internal class VietnameseKeyboardView(
             (index + 1) * columnWidth,
             if (cellIndex == column.lastIndex) height.toFloat() else bottom,
           )
-          paint.textSize = (if (cell.title.length > 4) 13 else 18) * density
-          val available = cell.bounds.width() - 6 * density
-          val textWidth = paint.measureText(cell.title)
-          if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
-          cell.textSize = paint.textSize
-          cell.baseline = cell.bounds.centerY() - (paint.ascent() + paint.descent()) / 2
+          measureTitle(cell, displayTitle(cell))
           top = bottom
         }
       }
@@ -422,26 +563,48 @@ internal class VietnameseKeyboardView(
           if (cellIndex == row.lastIndex) width.toFloat() else right,
           (index + 1) * rowHeight,
         )
-        paint.textSize = (if (cell.title.length > 4) 13 else 18) * density
-        val available = cell.bounds.width() - 6 * density
-        val textWidth = paint.measureText(cell.title)
-        if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
-        cell.textSize = paint.textSize
-        cell.baseline = cell.bounds.centerY() - (paint.ascent() + paint.descent()) / 2
+        measureTitle(cell, displayTitle(cell))
         left = right
       }
     }
   }
 
+  private fun measureTitle(cell: Cell, title: String) {
+    cell.title = title
+    paint.textSize = (if (title.length > 4) 13 else 18) * density
+    val available = cell.bounds.width() - 6 * density
+    val textWidth = paint.measureText(title)
+    if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
+    cell.textSize = paint.textSize
+    cell.baseline = cell.bounds.centerY() - (paint.ascent() + paint.descent()) / 2
+  }
+
+  private fun displayTitle(cell: Cell): String {
+    if (cell.key.id == SHIFT) return if (isShiftActive()) "⇧" else "↑"
+    val key = cell.key.id.singleOrNull() ?: return cell.baseTitle
+    if (!isShiftActive()) return cell.baseTitle
+    if (rowsArePc) SHIFT_SYMBOLS[key]?.let { return it }
+    return if (key.isLetter()) key.uppercaseChar().toString() else cell.baseTitle
+  }
+
+  private fun refreshShiftLabels() {
+    for (row in rows) {
+      for (cell in row) {
+        val title = displayTitle(cell)
+        if (title != cell.title) measureTitle(cell, title)
+      }
+    }
+    keyAccessibility.invalidateRoot()
+    invalidate()
+  }
+
   private fun buildRows(): List<List<Cell>> {
-    val digits = characters(
-      "1234567890", if (isPcLayout() && isShiftActive()) "!@#$%^&*()" else "1234567890",
-    )
+    val digits = characters("1234567890")
     val first = characters(if (symbolPage) "@#%&*+-=()" else "qwertyuiop")
-    val second = characters(if (symbolPage) "!?:;/'\"_\$" else "asdfghjkl")
-    val third = characters(if (symbolPage) "^~<>[]{}" else "zxcvbnm")
-    val pc = isPcLayout()
-    val shift = function(SHIFT, if (isShiftActive()) "⇧" else "↑", if (pc) 2.0f else 1.4f)
+    val second = characters(if (symbolPage) "!?:;/'\"_\$\\" else "asdfghjkl")
+    val third = characters(if (symbolPage) "^~<>[]{}`|" else "zxcvbnm")
+    val pc = rowsArePc
+    val shift = function(SHIFT, "↑", if (pc) 2.0f else 1.4f)
     val delete = function(DELETE, "⌫", if (pc) 1.0f else 1.6f)
     val thirdRow = listOf(shift) + third + delete
     val bottom = listOf(
@@ -454,18 +617,17 @@ internal class VietnameseKeyboardView(
       function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f),
       Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
-    return if (isColumnLayout()) {
+    return if (pc) {
       listOf(bottom, third + shift, second, first, digits + delete)
     } else {
       listOf(digits, first, second, thirdRow, bottom)
     }
   }
 
-  private fun characters(text: String, titles: String = text): List<Cell> =
-    text.mapIndexed { index, letter ->
-      val shown = titles[index]
-      val output = if (letter.isLetter() && isShiftActive()) shown.uppercaseChar() else shown
-      Cell(VietnameseKeyTouch.Key(letter.toString(), textEntry = letter.isLetter()), output.toString())
+  private fun characters(text: String): List<Cell> =
+    text.map { letter ->
+      val key = letter.toString()
+      Cell(VietnameseKeyTouch.Key(key, textEntry = letter.isLetter()), key)
     }
 
   private fun function(id: String, title: String, weight: Float): Cell =

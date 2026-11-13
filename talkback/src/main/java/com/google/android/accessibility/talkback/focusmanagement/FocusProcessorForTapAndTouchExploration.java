@@ -84,11 +84,7 @@ public class FocusProcessorForTapAndTouchExploration {
   })
   public @interface TypingMethod {}
 
-  /**
-   * The end of the view ID of Gboard's action key, which is Enter, Done, Send, Search, or Go,
-   * depending on the text field.
-   */
-  private static final String GBOARD_ACTION_KEY_ID_SUFFIX = ":id/key_pos_ime_action";
+  public static final String IME_ACTION_KEY_ID_SUFFIX = ":id/key_pos_ime_action";
 
   /** Returns whether {@code typingMethod} lifts to type every key in the keyboard. */
   public static boolean liftsToTypeAnyKey(@TypingMethod int typingMethod) {
@@ -110,7 +106,7 @@ public class FocusProcessorForTapAndTouchExploration {
     }
     if (typingMethod == LIFT_TO_TYPE_EXCEPT_ACTION_KEY) {
       String id = key.getViewIdResourceName();
-      return id == null || !id.endsWith(GBOARD_ACTION_KEY_ID_SUFFIX);
+      return id == null || !id.endsWith(IME_ACTION_KEY_ID_SUFFIX);
     }
     return typingMethod == FORCE_LIFT_TO_TYPE_ON_IME
         || typingMethod == SINGLE_TAP_TO_TYPE

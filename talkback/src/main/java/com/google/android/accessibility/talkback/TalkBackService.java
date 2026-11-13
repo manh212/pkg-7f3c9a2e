@@ -2178,8 +2178,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     return speechController;
   }
 
-  public void setVietnameseKeyboardBounds(@Nullable Rect bounds) {
-    if (directTouchController != null) directTouchController.setVietnameseKeyboardBounds(bounds);
+  public boolean setVietnameseKeyboardBounds(@Nullable Rect bounds) {
+    if (directTouchController == null) return false;
+    directTouchController.setVietnameseKeyboardBounds(bounds);
+    return true;
   }
 
   public FeedbackController getFeedbackController() {
@@ -4562,14 +4564,17 @@ public class TalkBackService extends AccessibilityServiceCompat
       if (gestureController != null) {
         gestureController.stopScreenRecognitionForPause();
       }
+      if (directTouchController != null) {
+        directTouchController.setPaused(true);
+      }
       if (supportsTouchScreen) {
         requestTouchExploration(false);
       }
     } else {
       applyTouchExplorationPreference();
     }
-    if (directTouchController != null) {
-      directTouchController.setPaused(paused);
+    if (!paused && directTouchController != null) {
+      directTouchController.setPaused(false);
     }
     if (singleTapTypingController != null) {
       singleTapTypingController.setPaused(paused);

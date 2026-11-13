@@ -58,6 +58,26 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
+  fun interruptedBeforeStartIsRetriedWhileFingerIsStillDown() {
+    speech.explore("a", 0)
+    requests.single().completed(STATUS_INTERRUPTED)
+    advance(80)
+
+    assertEquals(listOf("a", "a"), labels())
+  }
+
+  @Test
+  fun anotherFingerLiftingDoesNotDelayPendingReleaseSpeech() {
+    speech.explore("a", 200)
+    speech.release(50)
+    advance(25)
+    speech.release(50)
+    advance(25)
+
+    assertEquals(listOf("a"), labels())
+  }
+
+  @Test
   fun completionFromReplacedKeyCannotPreventFinalKeyFromRetrying() {
     speech.explore("a", 0)
     speech.explore("b", 0)

@@ -10,11 +10,13 @@ internal object Telex {
 
   fun apply(word: String, key: Char): String {
     val letter = key.lowercaseChar()
-    val (plain, tone) = takeTone(word)
-    val target = tonePosition(plain)
+    val (plain, tone) = splitTone(word)
     val newTone = TONE_KEYS.indexOf(letter)
-    if (newTone >= 0 && target >= 0) {
-      return if (newTone == tone) plain + key else withTone(plain, newTone)
+    if (newTone >= 0) {
+      val target = tonePosition(plain)
+      if (target >= 0) {
+        return if (newTone == tone) plain + key else withToneAt(plain, newTone, target)
+      }
     }
     if (letter == 'z' && tone >= 0) return plain
 
@@ -24,7 +26,13 @@ internal object Telex {
     return withTone(continued + key, tone)
   }
 
-  private fun takeTone(word: String): Pair<String, Int> {
+  fun deleteLast(word: String): String {
+    val (plain, tone) = splitTone(word)
+    return withTone(plain.dropLast(1), tone)
+  }
+
+  private fun splitTone(word: String): Pair<String, Int> {
+    if (word.all { it in 'a'..'z' || it in 'A'..'Z' }) return word to -1
     var tone = -1
     val decomposed = Normalizer.normalize(word, Normalizer.Form.NFD)
     val plain = buildString {
@@ -40,11 +48,14 @@ internal object Telex {
     if (tone < 0) return word
     val index = tonePosition(word)
     if (index < 0) return word
-    return Normalizer.normalize(
+    return withToneAt(word, tone, index)
+  }
+
+  private fun withToneAt(word: String, tone: Int, index: Int): String =
+    Normalizer.normalize(
       word.substring(0, index + 1) + TONES[tone] + word.substring(index + 1),
       Normalizer.Form.NFC,
     )
-  }
 
   private fun tonePosition(word: String): Int {
     val lower = word.lowercase()

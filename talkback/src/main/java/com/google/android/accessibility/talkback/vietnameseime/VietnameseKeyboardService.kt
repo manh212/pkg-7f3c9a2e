@@ -1,9 +1,9 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.database.ContentObserver
 import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
@@ -44,12 +44,13 @@ class VietnameseKeyboardService : InputMethodService() {
   private var keyboard: VietnameseKeyboardView? = null
   private var editor: EditorInfo? = null
   private var word = ""
+  private var wordTruncated = false
   private var composing = false
   private var cursor = -1
   private var selectionStart = -1
-  private var expectedCursor = -1
   private var composingStart = -1
-  private val pendingSelections = ArrayDeque<Int>()
+  private data class SelectionUpdate(val end: Int, val composingStart: Int)
+  private val pendingSelections = ArrayDeque<SelectionUpdate>()
   private var composingUnavailable = false
   private var shifted = false
   private var symbols = false
@@ -61,13 +62,33 @@ class VietnameseKeyboardService : InputMethodService() {
   private var layout = VietnameseKeyboardView.LAYOUT_AUTO
   private var timing = VietnameseKeyboardTiming()
   private val keyNames by lazy { VietnameseKeyNames(this) }
-  private var windowShown = false
   private val main = Handler(Looper.getMainLooper())
+  private var windowShown = false
+  private val bounds = Rect()
+  private val sentBounds = Rect()
+  private val location = IntArray(2)
+  private var boundsReceiver: TalkBackService? = null
+  private var hasSentBounds = false
+  private lateinit var accessibilityManager: AccessibilityManager
+  private var fallbackAllowed = false
+  private var editorActionId: Int? = null
+  private var editorActionLabel = ""
+  private val enabledServicesChanged = object : ContentObserver(main) {
+    override fun onChange(selfChange: Boolean) {
+      updateSpeechRouting()
+    }
+  }
+  private val accessibilityStateChanged = AccessibilityManager.AccessibilityStateChangeListener {
+    updateSpeechRouting()
+  }
+  private val touchExplorationChanged = AccessibilityManager.TouchExplorationStateChangeListener {
+    updateSpeechRouting()
+  }
   private val keySpeech = VietnameseKeySpeech(
     ::submitKeySpeech,
     {
       speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
-      fallbackSpeech?.stop()
+      stopFallbackSpeech()
     },
     ::shouldRetryKeySpeech,
   )
@@ -84,17 +105,29 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onCreate() {
     super.onCreate()
     prefs = SharedPreferencesUtils.getSharedPreferences(this)
+    accessibilityManager = requireNotNull(getSystemService(AccessibilityManager::class.java))
     readPreferences()
     prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
-    warmUpFallbackSpeech()
+    accessibilityManager.addTouchExplorationStateChangeListener(touchExplorationChanged)
+    accessibilityManager.addAccessibilityStateChangeListener(accessibilityStateChanged)
+    contentResolver.registerContentObserver(
+      Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
+      false,
+      enabledServicesChanged,
+    )
+    updateSpeechRouting()
   }
 
   override fun onDestroy() {
     prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+    accessibilityManager.removeTouchExplorationStateChangeListener(touchExplorationChanged)
+    accessibilityManager.removeAccessibilityStateChangeListener(accessibilityStateChanged)
+    contentResolver.unregisterContentObserver(enabledServicesChanged)
+    windowShown = false
+    reportKeyboardBounds()
     endTouchSession()
     fallbackSpeech?.shutdown()
     fallbackSpeech = null
-    TalkBackService.getInstance()?.setVietnameseKeyboardBounds(null)
     super.onDestroy()
   }
 
@@ -105,12 +138,12 @@ class VietnameseKeyboardService : InputMethodService() {
       ::activateKey,
       { keySpeech.release(timing.releaseSpeechMs) },
       ::speakShiftHeld,
+      keyNames::spokenName,
+      ::reportKeyboardBounds,
     )
-    view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportKeyboardBounds() }
     keyboard = view
     configureView()
     updateLayout()
-    warmUpFallbackSpeech()
     return view
   }
 
@@ -124,22 +157,23 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
     super.onStartInput(attribute, restarting)
     endTouchSession()
-    if (restarting && composing) currentInputConnection?.finishComposingText()
+    if (restarting && composing) finishWord(currentInputConnection)
     editor = attribute
-    word = ""
-    composing = false
-    composingUnavailable = false
-    composingStart = -1
+    resetWord()
     pendingSelections.clear()
     cursor = attribute?.initialSelEnd ?: -1
     selectionStart = attribute?.initialSelStart ?: -1
-    expectedCursor = cursor
     shifted = false
     val inputType = attribute?.inputType ?: InputType.TYPE_NULL
     secure = isPassword(inputType)
     telexAllowed = allowsTelex(inputType)
     val inputClass = inputType and InputType.TYPE_MASK_CLASS
-    symbols = inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE
+    symbols = inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE ||
+      inputClass == InputType.TYPE_CLASS_DATETIME
+    editorActionId = editorAction(attribute)
+    editorActionLabel = attribute?.actionLabel?.toString()?.takeIf {
+      editorActionId != null && it.isNotBlank()
+    } ?: getString(actionTitle(editorActionId))
     configureView()
     updateLayout()
   }
@@ -148,13 +182,14 @@ class VietnameseKeyboardService : InputMethodService() {
     super.onStartInputView(info, restarting)
     configureView()
     updateLayout()
-    warmUpFallbackSpeech()
+    updateSpeechRouting()
   }
 
   override fun onWindowShown() {
     super.onWindowShown()
     windowShown = true
-    keyboard?.post(::reportKeyboardBounds)
+    reportKeyboardBounds()
+    warmUpFallbackSpeech()
   }
 
   override fun onWindowHidden() {
@@ -165,32 +200,44 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun reportKeyboardBounds() {
+    val service = TalkBackService.getInstance()
+    if (service == null) {
+      boundsReceiver = null
+      hasSentBounds = false
+      return
+    }
     val view = keyboard
-    val bounds = if (windowShown && view != null && view.isShown && view.width > 0 && view.height > 0) {
-      val location = IntArray(2)
+    if (windowShown && isInputViewShown && view != null && view.isShown &&
+      view.isAttachedToWindow && view.width > 0 && view.height > 0) {
       view.getLocationOnScreen(location)
-      Rect(location[0], location[1], location[0] + view.width, location[1] + view.height)
-    } else null
-    TalkBackService.getInstance()?.setVietnameseKeyboardBounds(bounds)
+      bounds.set(location[0], location[1], location[0] + view.width, location[1] + view.height)
+    } else {
+      bounds.setEmpty()
+    }
+    if (hasSentBounds && boundsReceiver === service && sentBounds == bounds) return
+    if (service.setVietnameseKeyboardBounds(bounds.takeUnless { it.isEmpty })) {
+      boundsReceiver = service
+      sentBounds.set(bounds)
+      hasSentBounds = true
+    }
   }
 
   override fun onFinishInputView(finishingInput: Boolean) {
     endTouchSession()
-    if (composing) finishWord(currentInputConnection)
+    if (!finishingInput) {
+      if (composing) expectSelection(cursor)
+      resetWord()
+    }
     super.onFinishInputView(finishingInput)
   }
 
   override fun onFinishInput() {
     endTouchSession()
-    if (composing) finishWord(currentInputConnection)
+    resetWord()
     editor = null
-    word = ""
-    composing = false
-    composingStart = -1
     pendingSelections.clear()
     cursor = -1
     selectionStart = -1
-    expectedCursor = -1
     super.onFinishInput()
   }
 
@@ -205,23 +252,28 @@ class VietnameseKeyboardService : InputMethodService() {
       newSelStart == newSelEnd && newSelEnd == candidatesEnd &&
       candidatesEnd - candidatesStart == word.length) {
       composingStart = candidatesStart
-      anticipateSelection(newSelEnd)
+      cursor = newSelEnd
+      selectionStart = newSelStart
+      return
     }
-    if (newSelStart == newSelEnd && consumeExpectedSelection(newSelEnd)) return
+    if (newSelStart == newSelEnd &&
+      (candidatesStart < 0 || candidatesEnd == newSelEnd) &&
+      consumeExpectedSelection(newSelEnd, candidatesStart)) return
     pendingSelections.clear()
-    val stillComposing = newSelStart == newSelEnd &&
-      (newSelEnd == expectedCursor ||
-        (composingStart >= 0 && composingStart == candidatesStart && newSelEnd == candidatesEnd))
-    if (composing && !stillComposing) {
-      keyboard?.cancelInput()
+    val sameSelection = newSelStart == selectionStart && newSelEnd == cursor
+    val sameComposition = newSelStart == newSelEnd && newSelEnd == candidatesEnd &&
+      composingStart == candidatesStart && candidatesStart >= 0 &&
+      candidatesEnd - candidatesStart == word.length
+    if (composing && !sameComposition) {
+      endTouchSession()
       finishWord(currentInputConnection)
+    } else if (!composing && !sameSelection &&
+      (cursor >= 0 || selectionStart >= 0 || newSelStart != newSelEnd)) {
+      keyboard?.cancelInput()
+      resetWord()
     }
     cursor = newSelEnd
     selectionStart = newSelStart
-    if (!composing) {
-      if (newSelStart != newSelEnd || (expectedCursor >= 0 && cursor != expectedCursor)) word = ""
-      expectedCursor = cursor
-    }
   }
 
   private fun endTouchSession() {
@@ -238,7 +290,7 @@ class VietnameseKeyboardService : InputMethodService() {
       getString(R.string.pref_vietnamese_keyboard_layout_key),
       VietnameseKeyboardView.LAYOUT_AUTO,
     ) ?: VietnameseKeyboardView.LAYOUT_AUTO
-    if (method != newMethod || timing != newTiming) endTouchSession()
+    if (method != newMethod || timing != newTiming || layout != newLayout) endTouchSession()
     method = newMethod
     timing = newTiming
     layout = newLayout
@@ -257,19 +309,20 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun updateLayout() {
-    if (isPcLayout()) shifted = false
-    keyboard?.showKeys(shifted, symbols, vietnamese && telexAllowed, getString(actionTitle()))
+    keyboard?.showKeys(
+      shifted,
+      symbols,
+      vietnamese && telexAllowed,
+      editorActionLabel.ifEmpty { getString(R.string.vietnamese_ime_enter) },
+      telexAllowed,
+    )
   }
 
-  private fun isPcLayout(): Boolean =
-    layout == VietnameseKeyboardView.LAYOUT_PC ||
-      (layout == VietnameseKeyboardView.LAYOUT_AUTO &&
-        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
-
-  private fun activateKey(id: String) {
-    if (editor == null || !isInputViewShown) return
-    val connection = currentInputConnection ?: return
-    keySpeech.cancel(stopSpeech = false)
+  private fun activateKey(id: String, fromAccessibility: Boolean): Boolean {
+    if (editor == null || !isInputViewShown) return false
+    val connection = currentInputConnection ?: return false
+    val ownSpeech = !fromAccessibility || TalkBackService.isServiceActive() ||
+      !accessibilityManager.isTouchExplorationEnabled
     when (id) {
       VietnameseKeyboardView.SHIFT -> shifted = !shifted
       VietnameseKeyboardView.SYMBOLS -> symbols = true
@@ -282,173 +335,205 @@ class VietnameseKeyboardService : InputMethodService() {
         finishWord(connection)
         getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
       }
-      VietnameseKeyboardView.DELETE -> delete(connection)
-      VietnameseKeyboardView.ENTER -> enter(connection)
+      VietnameseKeyboardView.DELETE -> if (!delete(connection)) return false
+      VietnameseKeyboardView.ENTER -> if (!enter(connection, ownSpeech)) return false
       else -> {
         val letter = id.single()
-        type(connection, if (shifted) letter.uppercaseChar() else letter)
-        if (!shifted || !letter.isLetter()) return
+        if (!type(connection, if (shifted) letter.uppercaseChar() else letter, ownSpeech)) return false
+        if (!shifted || !letter.isLetter()) return true
         shifted = false
       }
     }
-    if (id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
-      speak(getString(if (vietnamese) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off))
+    if (ownSpeech && id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
+      speakFeedback(getString(if (vietnamese) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off))
     }
-    if (method == DIRECT_SILENT_TYPING && echoesCharacters()) {
+    if (ownSpeech && method == DIRECT_SILENT_TYPING && echoesCharacters()) {
       when (id) {
         VietnameseKeyboardView.SHIFT ->
-          speak(getString(if (shifted) R.string.vietnamese_ime_uppercase else R.string.vietnamese_ime_lowercase))
-        VietnameseKeyboardView.SYMBOLS -> speak(getString(R.string.vietnamese_ime_symbols))
-        VietnameseKeyboardView.LETTERS -> speak(getString(R.string.vietnamese_ime_letters))
-        VietnameseKeyboardView.PICKER -> speak(getString(R.string.vietnamese_ime_picker_key))
-        VietnameseKeyboardView.DELETE -> speak(getString(R.string.vietnamese_ime_delete))
-        VietnameseKeyboardView.ENTER -> speak(getString(actionTitle()))
+          speakFeedback(getString(if (shifted) R.string.vietnamese_ime_uppercase else R.string.vietnamese_ime_lowercase))
+        VietnameseKeyboardView.SYMBOLS -> speakFeedback(getString(R.string.vietnamese_ime_symbols))
+        VietnameseKeyboardView.LETTERS -> speakFeedback(getString(R.string.vietnamese_ime_letters))
+        VietnameseKeyboardView.PICKER -> speakFeedback(getString(R.string.vietnamese_ime_picker_key))
+        VietnameseKeyboardView.DELETE -> speakFeedback(getString(R.string.vietnamese_ime_delete))
       }
     }
     updateLayout()
+    return true
   }
 
-  private fun type(connection: InputConnection, letter: Char) {
-    val useTelex = vietnamese && telexAllowed && !composingUnavailable
-    if (letter.isLetter() && useTelex) {
-      markEdit()
-      if (word.length >= MAX_WORD_LENGTH) finishWord(connection)
+  private fun type(connection: InputConnection, letter: Char, ownSpeech: Boolean): Boolean {
+    val wordCharacter = letter.isLetterOrDigit() && !secure
+    if (letter.isLetter() && vietnamese && telexAllowed && !composingUnavailable) {
       val updated = Telex.apply(word, letter)
-      if (updateComposition(connection, updated)) {
-        val changed = changedCharacter(word, updated)
+      markEdit()
+      if (updated.length <= MAX_WORD_LENGTH && updateComposition(connection, updated)) {
+        val changed = if (ownSpeech && echoesCharacters()) changedCharacter(word, updated) else null
         word = updated
-        if (echoesCharacters() && changed != null) speakEnteredCharacter(changed)
-        return
+        if (changed != null) speakEnteredCharacter(changed)
+        return true
       }
-      finishWord(connection)
       composingUnavailable = true
     }
-    markEdit()
-    val finished = if ((!useTelex && letter.isLetterOrDigit()) || secure) "" else finishWord(connection)
-    val insertionStart = insertionStart()
-    val previousCursor = cursor
-    val previousSelectionStart = selectionStart
-    anticipateSelection(if (insertionStart >= 0) insertionStart + 1 else -1)
-    val result = if (editor?.inputType == InputType.TYPE_NULL) {
-      sendKeyChar(letter)
-      true
+    val finished = if (wordCharacter) "" else completedWord()
+    if (!commitText(connection, letter.toString())) return false
+    if (wordCharacter) {
+      composingUnavailable = true
+      composing = false
+      composingStart = -1
+      if (word.length == MAX_WORD_LENGTH) wordTruncated = true
+      if (!wordTruncated) word += letter
     } else {
-      connection.commitText(letter.toString(), 1)
+      resetWord()
     }
-    if (!result) {
-      expectedCursor = previousCursor
-      cursor = previousCursor
-      selectionStart = previousSelectionStart
-      pendingSelections.clear()
-      return
+    if (ownSpeech && !secure) {
+      if (echoesWords() && finished.isNotEmpty()) speakWord(finished)
+      else if (echoesCharacters()) speakEnteredCharacter(letter)
     }
-    if (!useTelex && !secure && letter.isLetterOrDigit()) {
-      if (word.length >= MAX_WORD_LENGTH) word = ""
-      word += letter
-    }
-    if (echoesWords() && finished.isNotEmpty()) speakWord(finished)
-    else if (echoesCharacters() && !secure) speakEnteredCharacter(letter)
+    return true
   }
 
-  private fun delete(connection: InputConnection) {
+  private fun delete(connection: InputConnection): Boolean {
+    markEdit()
     if (composing && word.isNotEmpty()) {
-      val shortened = word.dropLast(1)
-      markEdit()
+      val shortened = Telex.deleteLast(word)
       if (updateComposition(connection, shortened)) {
         word = shortened
-        if (shortened.isEmpty()) finishWord(connection)
+        if (shortened.isEmpty()) resetWord()
+        return true
       }
-      return
+      if (!connection.finishComposingText()) return false
+      expectSelection(cursor)
+      composing = false
+      composingStart = -1
+      composingUnavailable = true
     }
-    word = word.dropLast(1)
-    markEdit()
+    if (editor?.inputType == InputType.TYPE_NULL) {
+      if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) return false
+      resetWord()
+      expectSelection(-1)
+      return true
+    }
     if (selectionStart >= 0 && cursor >= 0 && selectionStart != cursor) {
-      anticipateSelection(insertionStart())
-      connection.commitText("", 1)
-      return
+      if (!connection.commitText("", 1)) return false
+      expectSelection(insertionStart())
+      resetWord()
+      return true
     }
-    if (cursor > 0) anticipateSelection(cursor - 1)
-    if (editor?.inputType == InputType.TYPE_NULL || !connection.deleteSurroundingTextInCodePoints(1, 0)) {
-      connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
-      connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+    val trackedCharacter = word.isNotEmpty() && !wordTruncated
+    if (!connection.deleteSurroundingTextInCodePoints(1, 0) && !sendKey(connection, KeyEvent.KEYCODE_DEL)) {
+      return false
     }
+    if (trackedCharacter) {
+      word = word.dropLast(1)
+      if (word.isEmpty()) resetWord()
+      if (cursor > 0) expectSelection(cursor - 1)
+    } else if (cursor != 0) {
+      expectSelection(-1)
+    }
+    return true
+  }
+
+  private fun commitText(connection: InputConnection, text: String): Boolean {
+    markEdit()
+    val start = if (composing) {
+      if (composingStart >= 0) composingStart + word.length else -1
+    } else insertionStart()
+    val accepted = if (editor?.inputType == InputType.TYPE_NULL) {
+      val key = text.single()
+      when (key) {
+        '\n' -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
+        in '0'..'9' -> sendKey(connection, KeyEvent.KEYCODE_0 + (key - '0'))
+        else -> connection.commitText(text, 1)
+      }
+    } else {
+      connection.commitText(if (composing) word + text else text, 1)
+    }
+    if (!accepted) return false
+    expectSelection(if (start >= 0) start + text.length else -1)
+    return true
+  }
+
+  private fun sendKey(connection: InputConnection, keyCode: Int): Boolean {
+    val down = connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+    val up = connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+    return down && up
   }
 
   private fun updateComposition(connection: InputConnection, updated: String): Boolean {
     val start = if (composing) composingStart else insertionStart()
-    val previousCursor = cursor
-    val previousSelectionStart = selectionStart
-    anticipateSelection(if (start >= 0) start + updated.length else -1)
-    if (!connection.setComposingText(updated, 1)) {
-      expectedCursor = previousCursor
-      cursor = previousCursor
-      selectionStart = previousSelectionStart
-      pendingSelections.clear()
-      return false
-    }
-    composingStart = start
-    composing = true
+    if (!connection.setComposingText(updated, 1)) return false
+    composingStart = if (updated.isEmpty()) -1 else start
+    composing = updated.isNotEmpty()
+    expectSelection(if (start >= 0) start + updated.length else -1, composingStart)
     return true
   }
 
   private fun insertionStart(): Int =
-    if (selectionStart >= 0 && cursor >= 0) minOf(selectionStart, cursor) else cursor
+    if (selectionStart >= 0 && cursor >= 0) minOf(selectionStart, cursor) else -1
 
-  private fun anticipateSelection(position: Int) {
-    if (position >= 0 && position != expectedCursor) {
-      if (pendingSelections.size >= 16) pendingSelections.removeFirst()
-      pendingSelections.addLast(position)
+  private fun expectSelection(position: Int, composition: Int = -1) {
+    if (position >= 0) {
+      val update = SelectionUpdate(position, composition)
+      if (pendingSelections.lastOrNull() != update) {
+        if (pendingSelections.size >= 16) pendingSelections.removeFirst()
+        pendingSelections.addLast(update)
+      }
+    } else {
+      pendingSelections.clear()
     }
-    expectedCursor = position
     cursor = position
     selectionStart = position
   }
 
-  private fun consumeExpectedSelection(position: Int): Boolean {
-    val index = pendingSelections.indexOf(position)
+  private fun consumeExpectedSelection(position: Int, candidatesStart: Int): Boolean {
+    val index = pendingSelections.indexOfFirst { it.end == position && it.composingStart == candidatesStart }
     if (index < 0) return false
     repeat(index + 1) { pendingSelections.removeFirst() }
     return true
   }
 
-  private fun finishWord(connection: InputConnection?): String {
-    if (composing) {
-      connection?.finishComposingText()
-      cursor = expectedCursor
-    }
-    val completed = word
+  private fun finishWord(connection: InputConnection?) {
+    if (composing && connection?.finishComposingText() == true) expectSelection(cursor)
+    resetWord()
+  }
+
+  private fun completedWord(): String = if (wordTruncated) "" else word
+
+  private fun resetWord() {
     word = ""
+    wordTruncated = false
     composing = false
     composingStart = -1
     composingUnavailable = false
-    return completed
   }
 
-  private fun enter(connection: InputConnection) {
-    markEdit()
-    val finished = finishWord(connection)
-    if (finished.isNotEmpty() && echoesWords()) speakWord(finished)
-    if (!sendDefaultEditorAction(true)) {
-      markEdit()
-      if (editor?.inputType == InputType.TYPE_NULL) sendKeyChar('\n')
-      else connection.commitText("\n", 1)
+  private fun enter(connection: InputConnection, ownSpeech: Boolean): Boolean {
+    val finished = completedWord()
+    val action = editorActionId
+    if (action != null) {
+      finishWord(connection)
+      if (!connection.performEditorAction(action) && !sendKey(connection, KeyEvent.KEYCODE_ENTER)) {
+        return false
+      }
+    } else {
+      if (!commitText(connection, "\n")) return false
+      resetWord()
     }
+    if (ownSpeech) {
+      if (finished.isNotEmpty() && echoesWords()) speakWord(finished)
+      else if (method == DIRECT_SILENT_TYPING && echoesCharacters()) speakFeedback(editorActionLabel)
+    }
+    return true
   }
 
-  private fun actionTitle(): Int {
-    val info = editor ?: return R.string.vietnamese_ime_enter
-    if (info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) {
-      return R.string.vietnamese_ime_enter
-    }
-    return when (info.imeOptions and EditorInfo.IME_MASK_ACTION) {
-      EditorInfo.IME_ACTION_DONE -> R.string.vietnamese_ime_done
-      EditorInfo.IME_ACTION_SEND -> R.string.vietnamese_ime_send
-      EditorInfo.IME_ACTION_SEARCH -> R.string.vietnamese_ime_search
-      EditorInfo.IME_ACTION_NEXT -> R.string.vietnamese_ime_next
-      EditorInfo.IME_ACTION_PREVIOUS -> R.string.vietnamese_ime_previous
-      EditorInfo.IME_ACTION_GO -> R.string.vietnamese_ime_go
-      else -> R.string.vietnamese_ime_enter
-    }
+  private fun actionTitle(action: Int?): Int = when (action) {
+    EditorInfo.IME_ACTION_DONE -> R.string.vietnamese_ime_done
+    EditorInfo.IME_ACTION_SEND -> R.string.vietnamese_ime_send
+    EditorInfo.IME_ACTION_SEARCH -> R.string.vietnamese_ime_search
+    EditorInfo.IME_ACTION_NEXT -> R.string.vietnamese_ime_next
+    EditorInfo.IME_ACTION_PREVIOUS -> R.string.vietnamese_ime_previous
+    EditorInfo.IME_ACTION_GO -> R.string.vietnamese_ime_go
+    else -> R.string.vietnamese_ime_enter
   }
 
   private fun markEdit() {
@@ -464,16 +549,23 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun speakShiftHeld() {
     if (method == DIRECT_SILENT_TYPING && echoesCharacters()) {
-      speak(getString(R.string.vietnamese_ime_uppercase))
+      speakFeedback(getString(R.string.vietnamese_ime_uppercase))
     }
   }
 
   private fun speakEnteredCharacter(character: Char) {
-    speak(keyNames.spokenName(characterLabel(character)))
+    speakFeedback(keyNames.spokenName(characterLabel(character)))
   }
 
   private fun speakWord(word: String) {
-    if (word.length == 1) speak(keyNames.spokenName(word)) else speak(word)
+    speakFeedback(if (word.length == 1) keyNames.spokenName(word) else word)
+  }
+
+  private fun speakFeedback(label: String) {
+    if (!keySpeech.isCurrent(label)) {
+      keySpeech.cancel(stopSpeech = false)
+      speak(label)
+    }
   }
 
   private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean =
@@ -502,7 +594,7 @@ class VietnameseKeyboardService : InputMethodService() {
       speaker.speak(localized, null, options)
       return true
     }
-    if (!useFallbackSpeech()) return false
+    if (!canUseFallbackSpeech()) return false
     warmUpFallbackSpeech()
     return fallbackSpeech().speak(
       label,
@@ -511,24 +603,31 @@ class VietnameseKeyboardService : InputMethodService() {
     )
   }
 
-  private fun useFallbackSpeech(): Boolean {
-    if (TalkBackService.getInstance() != null && TalkBackService.isServiceActive()) return false
-    return !isMeridianEnabled()
+  private fun updateSpeechRouting() {
+    fallbackAllowed = readFallbackSpeechAllowed()
+    if (!fallbackAllowed) stopFallbackSpeech()
+    if (windowShown) warmUpFallbackSpeech()
   }
+
+  private fun readFallbackSpeechAllowed(): Boolean {
+    val enabled = runCatching {
+      accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+    }.getOrNull()
+    return shouldUseFallbackSpeech(TalkBackService.isServiceActive(), isMeridianEnabled(enabled))
+  }
+
+  private fun canUseFallbackSpeech(): Boolean =
+    fallbackAllowed && !TalkBackService.isServiceActive()
 
   private fun shouldRetryKeySpeech(): Boolean {
     if (PauseController.isPaused()) return false
     val speaker = TalkBackService.getInstance()?.takeIf { TalkBackService.isServiceActive() }
       ?.getSpeechController()
     if (speaker != null) return !speaker.isTtsReady && !speaker.isMute
-    return isMeridianEnabled()
+    return !fallbackAllowed
   }
 
-  private fun isMeridianEnabled(): Boolean {
-    val enabled = runCatching {
-      (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)
-        ?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-    }.getOrNull()
+  private fun isMeridianEnabled(enabled: List<AccessibilityServiceInfo>?): Boolean {
     if (!enabled.isNullOrEmpty()) {
       if (isMeridianInServiceList(enabled, packageName)) return true
       if (enabled.none { it.resolveInfo == null }) return false
@@ -540,9 +639,14 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun warmUpFallbackSpeech() {
-    if (fallbackWarmedUp || !useFallbackSpeech()) return
+    if (fallbackWarmedUp || !fallbackAllowed) return
     fallbackWarmedUp = true
     fallbackSpeech().warmUp(fixedFallbackLabels())
+  }
+
+  private fun stopFallbackSpeech() {
+    fallbackSpeech?.stop()
+    fallbackWarmedUp = false
   }
 
   private fun fixedFallbackLabels(): List<String> {
@@ -554,7 +658,7 @@ class VietnameseKeyboardService : InputMethodService() {
       labels.add(keyNames.spokenName(telex.toString()))
       labels.add(keyNames.spokenName(telex.uppercaseChar().toString()))
     }
-    for (symbol in "@#%&*+-=()!?:;/'\"_\$^~<>[]{},.") labels.add(keyNames.spokenName(symbol.toString()))
+    for (symbol in "@#%&*+-=()!?:;/'\"_\$^~<>[]{},.\\`|") labels.add(keyNames.spokenName(symbol.toString()))
     labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_space)))
     labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_password_character)))
     labels.add(getString(R.string.vietnamese_ime_uppercase))
@@ -604,6 +708,15 @@ class VietnameseKeyboardService : InputMethodService() {
 
     internal fun shouldUseFallbackSpeech(serviceUp: Boolean, meridianEnabled: Boolean): Boolean =
       !serviceUp && !meridianEnabled
+
+    internal fun editorAction(info: EditorInfo?): Int? {
+      if (info == null || info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) return null
+      if (!info.actionLabel.isNullOrBlank()) return info.actionId
+      val action = info.imeOptions and EditorInfo.IME_MASK_ACTION
+      return action.takeUnless {
+        it == EditorInfo.IME_ACTION_NONE || it == EditorInfo.IME_ACTION_UNSPECIFIED
+      }
+    }
 
     internal fun isMeridianInServiceList(
       services: List<AccessibilityServiceInfo>,

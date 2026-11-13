@@ -1,20 +1,30 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
+import android.app.Activity
+import android.graphics.Rect
+import android.os.Looper
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE_EXCEPT_ACTION_KEY
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.liftsToType
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -25,7 +35,7 @@ class VietnameseKeyboardViewTest {
   private val typed = mutableListOf<String>()
   private var released = 0
   private val keyboard = VietnameseKeyboardView(
-    context, { spoken.add(it) }, { typed.add(it) }, { released++ },
+    context, { spoken.add(it) }, { id, _ -> typed.add(id) }, { released++ },
   )
 
   @Test
@@ -43,7 +53,7 @@ class VietnameseKeyboardViewTest {
 
     assertEquals(listOf("q"), typed)
     assertEquals(1, released)
-    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS, keyboard.importantForAccessibility)
+    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, keyboard.importantForAccessibility)
     assertFalse(keyboard.isFocusable)
   }
 
@@ -70,6 +80,76 @@ class VietnameseKeyboardViewTest {
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
 
     assertEquals(emptyList<String>(), typed)
+  }
+
+  @Test
+  fun directInputAnnouncesStationaryCenterImmediatelyAndCommitsOnlyAfterLift() {
+    val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+    activity.setContentView(keyboard)
+    keyboard.typingMethod = SINGLE_TAP_TO_TYPE
+    keyboard.timing = VietnameseKeyboardTiming(directInputMs = 100)
+    keyboard.showKeys(false, false, true, "Gửi")
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 200f, 125f, 100)
+    assertEquals(listOf("g"), spoken)
+    assertTrue(typed.isEmpty())
+    touch(MotionEvent.ACTION_UP, 200f, 125f, 150)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(99))
+    assertTrue(typed.isEmpty())
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
+    assertEquals(listOf("g"), typed)
+    activity.finish()
+  }
+
+  @Test
+  fun virtualKeysExposeBoundsAndClickThroughAndroidWithoutRawTouch() {
+    val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+    activity.setContentView(keyboard)
+    prepareKeyboard()
+
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    assertEquals(45, host.childCount)
+    val letter = checkNotNull(provider.createAccessibilityNodeInfo(24))
+    assertEquals("g", letter.text)
+    assertTrue(letter.isTextEntryKey)
+    assertTrue(letter.isClickable)
+    val bounds = Rect()
+    letter.getBoundsInScreen(bounds)
+    val location = IntArray(2)
+    keyboard.getLocationOnScreen(location)
+    assertEquals(Rect(178, 100, 222, 150).apply { offset(location[0], location[1]) }, bounds)
+    assertTrue(provider.performAction(24, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertEquals(listOf("g"), typed)
+    assertTrue(spoken.isEmpty())
+
+    val action = checkNotNull(provider.createAccessibilityNodeInfo(44))
+    assertFalse(liftsToType(LIFT_TO_TYPE_EXCEPT_ACTION_KEY, AccessibilityNodeInfoCompat.wrap(action)))
+    keyboard.hideLetterSpeech = true
+    val hidden = checkNotNull(provider.createAccessibilityNodeInfo(24))
+    assertEquals(context.getString(R.string.vietnamese_ime_password_character), hidden.text)
+    assertTrue(hidden.isPassword)
+    assertFalse(provider.performAction(70, AccessibilityNodeInfo.ACTION_CLICK, null))
+    activity.finish()
+  }
+
+  @Test
+  fun virtualShiftAndSymbolKeysRetainTheirActionsAcrossPageChanges() {
+    preparePcKeyboard()
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    assertTrue(provider.performAction(14, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertTrue(provider.performAction(34, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertEquals(listOf("!"), typed)
+
+    keyboard.showKeys(false, true, true, "Gửi")
+    assertEquals(
+      context.getString(R.string.vietnamese_ime_letters),
+      provider.createAccessibilityNodeInfo(0)?.text?.toString(),
+    )
+    assertTrue(provider.performAction(0, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertFalse(provider.performAction(18, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertEquals(listOf("!", "letters"), typed)
   }
 
   @Test
@@ -151,6 +231,30 @@ class VietnameseKeyboardViewTest {
     assertEquals(listOf("q"), spoken)
     assertEquals(listOf("q"), typed)
     assertEquals(2, released)
+  }
+
+  @Test
+  fun liftingOnDifferentKeyWithoutMoveCannotConfirmItsDoubleTap() {
+    keyboard.typingMethod = DOUBLE_TAP
+    keyboard.showKeys(false, false, true, "Gửi")
+    keyboard.layout(0, 0, 400, 250)
+    touch(MotionEvent.ACTION_DOWN, 40.5f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 40.5f, 60f, 130)
+    touch(MotionEvent.ACTION_DOWN, 39.5f, 60f, 160)
+    touch(MotionEvent.ACTION_UP, 40.5f, 60f, 190)
+
+    assertTrue(typed.isEmpty())
+  }
+
+  @Test
+  fun liftingOutsidePcShiftDoesNotLeaveTheNextLetterShifted() {
+    preparePcKeyboard()
+    touch(MotionEvent.ACTION_DOWN, 240f, 360f, 100)
+    touch(MotionEvent.ACTION_UP, 240f, 450f, 150)
+    touch(MotionEvent.ACTION_DOWN, 560f, 20f, 200)
+    touch(MotionEvent.ACTION_UP, 560f, 20f, 250)
+
+    assertEquals(listOf("q"), typed)
   }
 
   @Test
