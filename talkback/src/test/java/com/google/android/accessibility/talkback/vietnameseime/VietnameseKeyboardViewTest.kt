@@ -84,8 +84,6 @@ class VietnameseKeyboardViewTest {
 
   @Test
   fun directInputAnnouncesStationaryCenterImmediatelyAndCommitsOnlyAfterLift() {
-    val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-    activity.setContentView(keyboard)
     keyboard.typingMethod = SINGLE_TAP_TO_TYPE
     keyboard.timing = VietnameseKeyboardTiming(directInputMs = 100)
     keyboard.showKeys(false, false, true, "Gửi")
@@ -99,7 +97,6 @@ class VietnameseKeyboardViewTest {
     assertTrue(typed.isEmpty())
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
     assertEquals(listOf("g"), typed)
-    activity.finish()
   }
 
   @Test
