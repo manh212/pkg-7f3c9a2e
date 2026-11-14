@@ -207,7 +207,7 @@ internal class VietnameseKeyboardView(
     super.onDetachedFromWindow()
   }
 
-  override fun dispatchHoverEvent(event: MotionEvent): Boolean {
+  public override fun dispatchHoverEvent(event: MotionEvent): Boolean {
     if (speakHoveredKeys && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
       when (event.actionMasked) {
         MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
