@@ -69,6 +69,10 @@ android {
     // Robolectric's default repo1.maven.org endpoint returned HTTP 429 in GitHub CI.
     // Keep the unit tests enabled and use the canonical Maven Central host instead.
     testOptions.unitTests.all {
+        // The full suite (~340 classes) runs in one fork by default; retained
+        // Robolectric state grows until the two 10 MB licensing tests OOM.
+        // Restart the test JVM every 100 classes to bound retained heap.
+        forkEvery 100
         systemProperty "robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2"
     }
     buildFeatures {
