@@ -55,7 +55,6 @@ class VietnameseKeyboardService : InputMethodService() {
   private var shifted = false
   private var symbols = false
   private var vietnamese = true
-  private var secure = false
   private var telexAllowed = false
   private var echo = TextEventFilter.PREF_ECHO_NONE
   private var method = 0
@@ -185,7 +184,6 @@ class VietnameseKeyboardService : InputMethodService() {
     selectionStart = attribute?.initialSelStart ?: -1
     shifted = false
     val inputType = attribute?.inputType ?: InputType.TYPE_NULL
-    secure = isPassword(inputType)
     telexAllowed = allowsTelex(inputType)
     val inputClass = inputType and InputType.TYPE_MASK_CLASS
     symbols = inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE ||
@@ -407,7 +405,6 @@ class VietnameseKeyboardService : InputMethodService() {
     keyboard?.apply {
       typingMethod = method
       timing = this@VietnameseKeyboardService.timing
-      hideLetterSpeech = secure
       speakHoveredKeys = ownVoice && method != DIRECT_SILENT_TYPING
       hasCommitAnnouncement = ::hasCommitAnnouncement
       layoutSetting = layout
@@ -517,9 +514,7 @@ class VietnameseKeyboardService : InputMethodService() {
     val connection = currentInputConnection ?: return
     dropComposingWord(connection)
     if (!insertDictatedText(connection, text)) return
-    if (secure) {
-      keySpeech.confirm(getString(R.string.vietnamese_ime_password_character), 0)
-    } else if (echoesWords() || echoesCharacters()) {
+    if (echoesWords() || echoesCharacters()) {
       speakWord(text, 0)
     } else {
       keySpeech.confirm(getString(R.string.vietnamese_ime_voice_input_stopped), 0)
@@ -579,7 +574,7 @@ class VietnameseKeyboardService : InputMethodService() {
     }
     val capitalized = if (letter.isLowerCase() && word.isEmpty() &&
       shouldCapitalize(connection)) letter.uppercaseChar() else letter
-    val wordCharacter = letter.isLetterOrDigit() && !secure
+    val wordCharacter = letter.isLetterOrDigit()
     if (letter.isLetter() && vietnamese && telexAllowed && !composingUnavailable) {
       val updated = Telex.apply(word, capitalized)
       markEdit()
@@ -603,10 +598,7 @@ class VietnameseKeyboardService : InputMethodService() {
       resetWord()
     }
     if (echoesWords() && finished.isNotEmpty()) speakWord(finished, speakAt)
-    else if (echoesCharacters()) {
-      if (secure) keySpeech.confirm(getString(R.string.vietnamese_ime_password_character), speakAt)
-      else speakEnteredCharacter(capitalized, speakAt)
-    }
+    else if (echoesCharacters()) speakEnteredCharacter(capitalized, speakAt)
     return true
   }
 
@@ -664,7 +656,6 @@ class VietnameseKeyboardService : InputMethodService() {
     val deleted = when {
       !announceDeletion || atStart -> null
       trackedCharacter -> word.last().toString()
-      secure -> if (cursor > 0) getString(R.string.vietnamese_ime_password_character) else null
       else -> connection.getTextBeforeCursor(2, 0)?.let {
         if (it.isEmpty()) return true
         val codePoint = Character.codePointBefore(it, it.length)
@@ -678,7 +669,7 @@ class VietnameseKeyboardService : InputMethodService() {
       word = word.dropLast(1)
       if (word.isEmpty()) resetWord()
       if (cursor > 0) expectSelection(cursor - 1)
-    } else if (!secure && cursor > 0 && deleted != null && deleted.length <= cursor) {
+    } else if (cursor > 0 && deleted != null && deleted.length <= cursor) {
       expectSelection(cursor - deleted.length)
     } else if (cursor != 0) {
       expectSelection(-1)
@@ -728,7 +719,6 @@ class VietnameseKeyboardService : InputMethodService() {
     if (length == 0) return true
     val deleted = when {
       !announceDeletion -> null
-      secure -> getString(R.string.vietnamese_ime_password_character)
       else -> deletedWord
     }
     if (!connection.deleteSurroundingTextInCodePoints(length, 0)) return false
@@ -755,7 +745,6 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun selectedTextForSpeech(connection: InputConnection): String {
-    if (secure) return getString(R.string.vietnamese_ime_password_character)
     val length = abs(selectionStart - cursor)
     if (length <= 2) {
       val selected = connection.getSelectedText(0)

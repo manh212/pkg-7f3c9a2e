@@ -32,7 +32,7 @@ internal open class VietnameseKeyFeedback(context: Context) {
     if (sound) playSound(keySound)
   }
 
-  fun setSounds(sounds: KeySounds) {
+  open fun setSounds(sounds: KeySounds) {
     for (keySound in listOf(sounds.space, sounds.normal, sounds.delete, sounds.enter)) {
       loadSound(keySound)
     }

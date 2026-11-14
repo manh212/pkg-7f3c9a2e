@@ -122,12 +122,6 @@ internal class VietnameseKeyboardView(
       if (field != value) cancelInput()
       field = value
     }
-  var hideLetterSpeech = false
-    set(value) {
-      if (field == value) return
-      field = value
-      keyAccessibility.invalidateRoot()
-    }
   var speakHoveredKeys = false
     set(value) {
       field = value
@@ -668,16 +662,10 @@ internal class VietnameseKeyboardView(
     if (speechPointer == state.pointerId) speechPointer = null
   }
 
-  private fun isPasswordKey(key: VietnameseKeyTouch.Key): Boolean =
-    hideLetterSpeech && key.id.length == 1
-
   private fun isKeyEnabled(key: VietnameseKeyTouch.Key): Boolean =
     isEnabled && (key.id != LANGUAGE || telexAvailable)
 
-  private fun keyLabel(cell: Cell): String = when {
-    isPasswordKey(cell.key) -> context.getString(R.string.vietnamese_ime_password_character)
-    else -> spokenTitle(cell)
-  }
+  private fun keyLabel(cell: Cell): String = spokenTitle(cell)
 
   private fun spokenTitle(cell: Cell): String = when (cell.key.id) {
     SHIFT -> if (rowsArePc) context.getString(R.string.vietnamese_ime_uppercase)
@@ -716,7 +704,6 @@ internal class VietnameseKeyboardView(
       node.text = keyName(keyLabel(cell))
       node.className = Button::class.java.name
       node.isEnabled = isKeyEnabled(key)
-      node.isPassword = isPasswordKey(key)
       node.setTextEntryKey(key.id.length == 1)
       if (key.editorAction) node.viewIdResourceName = context.packageName + IME_ACTION_KEY_ID_SUFFIX
       node.setScreenReaderFocusable(true)
