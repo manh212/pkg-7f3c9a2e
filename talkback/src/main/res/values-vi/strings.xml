@@ -667,9 +667,9 @@
   <string name="title_pref_shortcut_fingerprint_left">Vuốt sang trái trên cảm biến vân tay</string>
   <string name="title_pref_shortcut_fingerprint_right">Vuốt sang phải trên cảm biến vân tay</string>
   <string name="title_pref_version_code">Mã phiên bản</string>
-  <string name="value_type_confirmation_double_tap">Giữ ngón tay để chọn phím bất kỳ rồi nhấn đúp</string>
-  <string name="value_type_confirmation_lift_to_type">Giữ ngón tay để chọn phím chữ cái rồi nhấc tay lên. Nhấn đúp đối với các phím khác.</string>
-  <string name="value_type_confirmation_lift_to_type_for_any_key">Giữ ngón tay để chọn phím bất kỳ rồi nhấc ngón tay lên</string>
+  <string name="value_type_confirmation_double_tap">Nhập bằng nhấn đúp</string>
+  <string name="value_type_confirmation_lift_to_type">Nhập phím chữ cái khi nhấc ngón tay</string>
+  <string name="value_type_confirmation_lift_to_type_for_any_key">Nhập mọi phím khi nhấc ngón tay</string>
   <string name="value_typing_long_press_500ms">0,5 giây</string>
   <string name="value_typing_long_press_1000ms">1 giây</string>
   <string name="value_typing_long_press_2000ms">2 giây</string>
@@ -785,7 +785,7 @@
   <string name="title_pref_support_scroll_seq">Di chuyển</string>
   <string name="title_pref_a11y_volume">Âm lượng của dịch vụ Hỗ trợ tiếp cận</string>
   <string name="message_pref_touch_focus_latency">Độ trễ càng ngắn thì Meridian đọc càng sớm sau khi bạn chạm vào màn hình</string>
-  <string name="message_pref_typing_method_prefix">Để giảm độ trễ xuống mức thấp nhất khi nhập, hãy chọn \"Giữ ngón tay để chọn phím bất kỳ rồi nhấc ngón tay lên\"</string>
+  <string name="message_pref_typing_method_prefix">Để giảm độ trễ xuống mức thấp nhất khi nhập, hãy chọn \"Nhập mọi phím khi nhấc ngón tay\"</string>
   <string name="title_pref_talkback_speech_rate">Tốc độ lời nói</string>
   <string name="title_pref_selector_adjustable_widget_slider">Điều chỉnh thanh trượt</string>
   <string name="title_pref_selector_typo_granularity">Hiệu đính</string>
@@ -1564,8 +1564,8 @@
     <string name="title_clear_selection">Xoá lựa chọn</string>
     <string name="title_pref_brightness">Độ sáng</string>
     <string name="summary_support_change_brightness">Tăng hoặc giảm độ sáng màn hình, kể cả khi màn hình bị ẩn</string>
-    <string name="value_type_confirmation_lift_to_type_except_action_key">Giữ ngón tay để chọn phím bất kỳ, sau đó nhấc ngón tay. Nhấn đúp để nhập Enter, Xong hoặc Gửi.</string>
-    <string name="value_type_confirmation_single_tap_to_type">Nhập phím trực tiếp: giữ ngón tay để chọn phím bất kỳ rồi nhấc ngón tay lên. Nhấn đúp không hoạt động trong vùng bàn phím.</string>
+    <string name="value_type_confirmation_lift_to_type_except_action_key">Nhập khi nhấc ngón tay, trừ phím hành động</string>
+    <string name="value_type_confirmation_single_tap_to_type">Nhập trực tiếp khi nhấc ngón tay</string>
     <string name="value_rotor_step_15">15 độ</string>
     <string name="value_rotor_step_20">20 độ</string>
     <string name="value_rotor_step_30">30 độ (mặc định)</string>
