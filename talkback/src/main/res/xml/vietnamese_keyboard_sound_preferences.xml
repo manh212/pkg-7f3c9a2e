@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="false"
+      android:key="@string/pref_vietnamese_keyboard_vibrate_on_key_key"
+      android:title="@string/vietnamese_ime_vibrate_on_key" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="false"
+      android:key="@string/pref_vietnamese_keyboard_key_sound_key"
+      android:title="@string/vietnamese_ime_key_sound" />
+</PreferenceScreen>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.talkback.preference.base.PercentSeekBarPreference
+      android:defaultValue="100"
+      android:key="@string/pref_vietnamese_keyboard_size_portrait_key"
+      android:max="150"
+      android:title="@string/vietnamese_ime_keyboard_size_portrait"
+      app:min="50"
+      app:seekBarIncrement="5"
+      app:showSeekBarValue="true" />
+  <com.google.android.accessibility.talkback.preference.base.PercentSeekBarPreference
+      android:defaultValue="100"
+      android:key="@string/pref_vietnamese_keyboard_size_landscape_key"
+      android:max="150"
+      android:title="@string/vietnamese_ime_keyboard_size_landscape"
+      app:min="50"
+      app:seekBarIncrement="5"
+      app:showSeekBarValue="true" />
+</PreferenceScreen>

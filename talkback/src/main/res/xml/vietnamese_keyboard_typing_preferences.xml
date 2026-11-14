@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="@string/pref_vietnamese_keyboard_auto_capitalize_key"
+      android:title="@string/vietnamese_ime_auto_capitalize" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="@string/pref_vietnamese_keyboard_double_space_period_key"
+      android:title="@string/vietnamese_ime_double_space_period" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="false"
+      android:key="@string/pref_vietnamese_keyboard_mic_enabled_key"
+      android:title="@string/vietnamese_ime_mic_enabled" />
+</PreferenceScreen>

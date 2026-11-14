@@ -19,48 +19,24 @@
       android:key="@string/pref_vietnamese_keyboard_layout_key"
       android:summary="%s"
       android:title="@string/vietnamese_ime_layout" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
-      android:key="pref_vietnamese_keyboard_timing"
-      android:title="@string/vietnamese_ime_timing">
-    <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="0"
-        android:key="pref_vietnamese_keyboard_explore_speech"
-        android:max="300"
-        android:title="@string/vietnamese_ime_explore_speech_delay"
-        app:min="0"
-        app:seekBarIncrement="10"
-        app:showSeekBarValue="true" />
-    <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="0"
-        android:key="pref_vietnamese_keyboard_release_speech"
-        android:max="300"
-        android:title="@string/vietnamese_ime_release_speech_delay"
-        app:min="0"
-        app:seekBarIncrement="10"
-        app:showSeekBarValue="true" />
-    <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="100"
-        android:key="@string/pref_direct_input_tap_delay_key"
-        android:max="300"
-        android:title="@string/vietnamese_ime_direct_input_delay"
-        app:min="0"
-        app:seekBarIncrement="10"
-        app:showSeekBarValue="true" />
-    <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="300"
-        android:key="pref_vietnamese_keyboard_double_tap"
-        android:max="1000"
-        android:title="@string/vietnamese_ime_double_tap_timeout"
-        app:min="150"
-        app:seekBarIncrement="25"
-        app:showSeekBarValue="true" />
-    <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="500"
-        android:key="pref_vietnamese_keyboard_tap_hold"
-        android:max="1500"
-        android:title="@string/vietnamese_ime_tap_hold_timeout"
-        app:min="100"
-        app:seekBarIncrement="25"
-        app:showSeekBarValue="true" />
-  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardSizeFragment"
+      android:key="pref_vietnamese_keyboard_size_screen"
+      android:title="@string/vietnamese_ime_keyboard_size" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardSoundFragment"
+      android:key="pref_vietnamese_keyboard_sound_screen"
+      android:title="@string/vietnamese_ime_sound_and_vibration" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardTimingFragment"
+      android:key="pref_vietnamese_keyboard_timing_screen"
+      android:title="@string/vietnamese_ime_timing" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardRowsFragment"
+      android:key="pref_vietnamese_keyboard_rows_screen"
+      android:title="@string/vietnamese_ime_keyboard_rows" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardTypingFragment"
+      android:key="pref_vietnamese_keyboard_typing_screen"
+      android:title="@string/vietnamese_ime_typing" />
 </PreferenceScreen>
