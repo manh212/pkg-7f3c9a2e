@@ -116,6 +116,19 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun toneKeyReplacesToneAfterEditorReportsNoComposingSpan() {
+    startEditor()
+    press("mờ")
+    press("a")
+    press("ép")
+    assertEquals("mà", text.toString())
+    service.onUpdateSelection(2, 2, 2, 2, -1, -1)
+    press("gi")
+
+    assertEquals("mạ", text.toString())
+  }
+
+  @Test
   fun backspaceFallsBackWhenEditorRejectsCompositionUpdate() {
     startEditor()
     press("a")
