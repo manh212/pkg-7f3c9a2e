@@ -243,6 +243,12 @@ class VietnameseKeyboardService : InputMethodService() {
       composingStart == candidatesStart && candidatesStart >= 0 &&
       candidatesEnd - candidatesStart == word.length
     if (composing && !sameComposition) {
+      // A selection report without composing-span information (candidatesStart < 0)
+      // and with the cursor still where the composition ends is not proof the
+      // composition ended: some editors do not report the span. Dropping the
+      // tracked word here makes the next tone key type a letter instead of
+      // replacing the tone, so keep the word and wait for a real move.
+      if (candidatesStart < 0 && newSelStart == newSelEnd && newSelEnd == cursor) return
       keyboard?.cancelInput(cancelPendingEdits = false)
       keySpeech.clearPreview()
       finishWord(currentInputConnection)
