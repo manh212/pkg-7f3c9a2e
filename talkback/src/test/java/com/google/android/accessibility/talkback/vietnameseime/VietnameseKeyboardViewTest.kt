@@ -213,10 +213,9 @@ class VietnameseKeyboardViewTest {
 
     val action = checkNotNull(provider.createAccessibilityNodeInfo(44))
     assertFalse(liftsToType(LIFT_TO_TYPE_EXCEPT_ACTION_KEY, AccessibilityNodeInfoCompat.wrap(action)))
-    keyboard.hideLetterSpeech = true
     val hidden = checkNotNull(provider.createAccessibilityNodeInfo(24))
-    assertEquals(context.getString(R.string.vietnamese_ime_password_character), hidden.text)
-    assertTrue(hidden.isPassword)
+    assertEquals("g", hidden.text)
+    assertFalse(hidden.isPassword)
     assertFalse(provider.performAction(70, AccessibilityNodeInfo.ACTION_CLICK, null))
     activity.finish()
   }
@@ -588,14 +587,13 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun passwordDoesNotAnnounceDigit() {
+  fun passwordAnnouncesDigitLikeNormalField() {
     prepareKeyboard()
-    keyboard.hideLetterSpeech = true
 
     touch(MotionEvent.ACTION_DOWN, 20f, 20f, 100)
     touch(MotionEvent.ACTION_UP, 20f, 20f, 170)
 
-    assertEquals(listOf(context.getString(R.string.vietnamese_ime_password_character)), spoken)
+    assertEquals(listOf("1"), spoken)
     assertEquals(listOf("1"), typed)
   }
 

@@ -208,8 +208,7 @@ class VietnameseKeyboardServiceTest {
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
-    val masked = service.getString(R.string.vietnamese_ime_password_character)
-    press(masked)
+    press("một")
     // In the default lift-to-type-letters mode the space key confirms with a
     // double-tap, so each space needs two taps.
     tap(200f, 225f)
@@ -664,38 +663,59 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun doubleTapDeleteInPasswordFieldKeepsMasking() {
+  fun doubleTapDeleteInPasswordFieldReadsLikeNormalField() {
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
-    val masked = service.getString(R.string.vietnamese_ime_password_character)
-    press(masked)
-    press(masked)
+    press("một")
+    press("một")
     assertEquals("11", text.toString())
     tapDelete()
     assertEquals("1", text.toString())
     tapDelete()
 
     assertTrue(text.isEmpty())
-    assertEquals(removed(masked), spoken.last())
-    assertEquals(2, spoken.count { it == removed(masked) })
-    assertFalse(spoken.contains("1"))
+    assertEquals(removed("một"), spoken.last())
+    assertEquals(2, spoken.count { it == removed("một") })
+    assertTrue(spoken.contains("một"))
   }
 
   @Test
-  fun passwordSpeechMasksBothInsertionAndDeletion() {
+  fun passwordSpeechReadsInsertionAndDeletionLikeNormalField() {
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
-    val masked = service.getString(R.string.vietnamese_ime_password_character)
-    press(masked)
+    press("một")
     assertEquals("1", text.toString())
     press("Xóa")
 
     assertTrue(text.isEmpty())
-    assertEquals(listOf(masked, removed(masked)), spoken)
+    assertEquals(listOf("một", removed("một")), spoken)
     assertEquals(0, editorReads)
+  }
+
+  @Test
+  fun passwordFieldReadsTypedLetterLikeNormalField() {
+    startEditor {
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
+    press("sờ")
+
+    assertEquals("s", text.toString())
+    assertEquals(listOf("sờ"), spoken)
+  }
+
+  @Test
+  fun passwordFieldReadsWordOnSpace() {
+    startEditor {
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
+    press("a")
+    press("Dấu cách")
+
+    assertEquals("a ", text.toString())
+    assertEquals(listOf("a", "a"), spoken)
   }
 
   @Test
