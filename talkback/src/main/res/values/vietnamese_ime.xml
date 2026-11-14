@@ -13,6 +13,11 @@
     <string name="pref_vietnamese_keyboard_double_space_period_key" translatable="false">pref_vietnamese_keyboard_double_space_period</string>
     <string name="pref_vietnamese_keyboard_vibrate_on_key_key" translatable="false">pref_vietnamese_keyboard_vibrate_on_key</string>
     <string name="pref_vietnamese_keyboard_key_sound_key" translatable="false">pref_vietnamese_keyboard_key_sound</string>
+    <string name="pref_vietnamese_keyboard_key_sound_space_key" translatable="false">pref_vietnamese_keyboard_key_sound_space</string>
+    <string name="pref_vietnamese_keyboard_key_sound_normal_key" translatable="false">pref_vietnamese_keyboard_key_sound_normal</string>
+    <string name="pref_vietnamese_keyboard_key_sound_delete_key" translatable="false">pref_vietnamese_keyboard_key_sound_delete</string>
+    <string name="pref_vietnamese_keyboard_key_sound_enter_key" translatable="false">pref_vietnamese_keyboard_key_sound_enter</string>
+    <string name="pref_vietnamese_keyboard_vibration_level_key" translatable="false">pref_vietnamese_keyboard_vibration_level</string>
     <color name="vietnamese_ime_background">#161A20</color>
     <color name="vietnamese_ime_key">#333B47</color>
     <color name="vietnamese_ime_selection">#285F9B</color>
@@ -54,6 +59,14 @@
     <string name="vietnamese_ime_sound_and_vibration" tools:ignore="MissingTranslation">Sound and vibration</string>
     <string name="vietnamese_ime_vibrate_on_key" tools:ignore="MissingTranslation">Vibrate when a key lands</string>
     <string name="vietnamese_ime_key_sound" tools:ignore="MissingTranslation">Keypress sound</string>
+    <string name="vietnamese_ime_sound_category" tools:ignore="MissingTranslation">Sound</string>
+    <string name="vietnamese_ime_vibration_category" tools:ignore="MissingTranslation">Vibration</string>
+    <string name="vietnamese_ime_key_sound_space" tools:ignore="MissingTranslation">Space sound</string>
+    <string name="vietnamese_ime_key_sound_normal" tools:ignore="MissingTranslation">Normal key sound</string>
+    <string name="vietnamese_ime_key_sound_delete" tools:ignore="MissingTranslation">Delete sound</string>
+    <string name="vietnamese_ime_key_sound_enter" tools:ignore="MissingTranslation">Enter or send sound</string>
+    <string name="vietnamese_ime_vibration_level" tools:ignore="MissingTranslation">Vibration intensity</string>
+    <string name="vietnamese_ime_key_sound_default" tools:ignore="MissingTranslation">Default: %1$s</string>
     <string name="vietnamese_ime_keyboard_rows" tools:ignore="MissingTranslation">Key rows</string>
     <string name="vietnamese_ime_show_number_row" tools:ignore="MissingTranslation">Show the number row</string>
     <string name="vietnamese_ime_show_symbols_row" tools:ignore="MissingTranslation">Show the symbols row</string>
