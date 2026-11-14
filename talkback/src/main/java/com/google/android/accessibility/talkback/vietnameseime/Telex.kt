@@ -114,7 +114,7 @@ internal object Telex {
     if (openPair >= 0 && !(openPair == 1 && lower.startsWith("qu"))) {
       return replace(word, openPair, 'ư')
     }
-    val index = lower.indexOfLast { it in "aouăơư" }
+    val index = hornTargetIndex(word, lower)
     if (index < 0) return null
     if (lower[index] == 'u' && index == 1 && lower.startsWith("qu")) return null
     return when (lower[index]) {
@@ -127,6 +127,34 @@ internal object Telex {
       else -> null
     }
   }
+
+  private fun hornTargetIndex(word: String, lower: String): Int {
+    val vowels = word.indices.filter { lower[it] in VOWELS }
+    if (vowels.isEmpty()) return -1
+    val syllableVowels =
+      if (vowels.size > 1 && (lower.startsWith("qu") || lower.startsWith("gi"))) vowels.drop(1)
+      else vowels
+    var start = syllableVowels.size - 1
+    while (start > 0 && syllableVowels[start - 1] == syllableVowels[start] - 1) start--
+    val cluster = syllableVowels.subList(start, syllableVowels.size)
+    val open = cluster.last() == word.lastIndex
+    if (open && cluster.size == 2) {
+      val first = lower[cluster[0]]
+      val second = lower[cluster[1]]
+      return if (second in SHAPED_VOWELS || isOnGlidePair(first, second)) cluster[1] else cluster[0]
+    }
+    if (open && cluster.size >= 3) return cluster[1]
+    return lower.indexOfLast { it in "aouăơư" }
+  }
+
+  private fun isOnGlidePair(first: Char, second: Char): Boolean =
+    when (first) {
+      'o' -> second == 'a' || second == 'e'
+      'i' -> second == 'a' || second == 'e' || second == 'u' || second == 'o'
+      'y' -> second == 'u'
+      'u' -> second == 'e'
+      else -> false
+    }
 
   private fun upgradeOpenUo(word: String): String {
     val lower = word.lowercase()
