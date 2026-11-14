@@ -38,6 +38,14 @@
     <string name="vietnamese_ime_sound_and_vibration">Âm thanh và rung</string>
     <string name="vietnamese_ime_vibrate_on_key">Rung khi chạm phím</string>
     <string name="vietnamese_ime_key_sound">Tiếng bấm phím</string>
+    <string name="vietnamese_ime_sound_category">Âm thanh</string>
+    <string name="vietnamese_ime_vibration_category">Rung</string>
+    <string name="vietnamese_ime_key_sound_space">Tiếng dấu cách</string>
+    <string name="vietnamese_ime_key_sound_normal">Tiếng phím thường</string>
+    <string name="vietnamese_ime_key_sound_delete">Tiếng xóa</string>
+    <string name="vietnamese_ime_key_sound_enter">Tiếng Enter hoặc gửi</string>
+    <string name="vietnamese_ime_vibration_level">Mức độ rung</string>
+    <string name="vietnamese_ime_key_sound_default">Mặc định: %1$s</string>
     <string name="vietnamese_ime_keyboard_rows">Hàng phím</string>
     <string name="vietnamese_ime_show_number_row">Hiện hàng số</string>
     <string name="vietnamese_ime_show_symbols_row">Hiện hàng ký hiệu</string>
