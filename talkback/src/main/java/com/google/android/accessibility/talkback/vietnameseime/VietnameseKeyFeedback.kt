@@ -43,7 +43,7 @@ internal open class VietnameseKeyFeedback(context: Context) {
     }
     if (vibrator?.hasVibrator() == true) {
       runCatching {
-        vibrator.vibrate(
+        vibrator?.vibrate(
           VibrationEffect.createOneShot(VIBRATE_MS, VibrationEffect.DEFAULT_AMPLITUDE),
         )
       }
