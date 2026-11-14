@@ -222,6 +222,32 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun turningVoiceOffStopsAnnouncementsAndLeavesKeysAccessible() {
+    setEcho(PREF_ECHO_CHARACTERS)
+    setTypingMethod(LIFT_TO_TYPE)
+    startEditor()
+    press("a")
+    assertEquals(listOf("a"), spoken)
+
+    val voiceKey = service.getString(R.string.pref_vietnamese_keyboard_own_voice_key)
+    val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+    prefs.edit().putBoolean(voiceKey, false).apply()
+    val downTime = SystemClock.uptimeMillis()
+    touch(downTime, MotionEvent.ACTION_DOWN, 20f, 125f)
+    touch(downTime, MotionEvent.ACTION_CANCEL, 20f, 125f)
+    press("Xóa")
+    assertTrue(text.isEmpty())
+    assertEquals(listOf("a"), spoken)
+    assertEquals(0, editorReads)
+
+    prefs.edit().putBoolean(voiceKey, true).apply()
+    press("a")
+    press("Xóa")
+    assertTrue(text.isEmpty())
+    assertEquals(listOf("a", "a", removed("a")), spoken)
+  }
+
+  @Test
   fun wordsOnlyDoesNotReadACharacterAfterItWasEntered() {
     setEcho(PREF_ECHO_WORDS)
     startEditor()

@@ -31,6 +31,9 @@ internal class VietnameseKeySpeech(
 
   fun explore(label: String, delay: Long) {
     selected = Key(label, SystemClock.uptimeMillis() + delay)
+    val interruptEdit = confirmed.firstOrNull()?.submitted == true
+    confirmed.clear()
+    if (interruptEdit) stop()
     if (delay > 0 && lastPreview?.started == false) stopPreview()
     requestNext()
   }
@@ -48,7 +51,8 @@ internal class VietnameseKeySpeech(
   }
 
   fun confirm(label: String, speakAt: Long) {
-    confirmed.addLast(Key(label, speakAt))
+    if (selected?.released == false) return
+    confirmed.addLast(Key(label, maxOf(SystemClock.uptimeMillis(), speakAt)))
     requestNext()
   }
 
@@ -71,8 +75,17 @@ internal class VietnameseKeySpeech(
     while (true) {
       val now = SystemClock.uptimeMillis()
       val edit = confirmed.firstOrNull()
-      if (edit != null && (edit.started || edit.submitted)) return
-      val editDue = edit?.let(::dueAt) ?: Long.MAX_VALUE
+      val editExpiresAt = edit?.let { it.speakAt + EDIT_TIMEOUT_MS } ?: Long.MAX_VALUE
+      if (edit != null && now >= editExpiresAt) {
+        finish(edit)
+        if (edit.submitted) stop()
+        continue
+      }
+      if (edit?.submitted == true) {
+        handler.postAtTime(trySpeech, editExpiresAt)
+        return
+      }
+      val editDue = edit?.let { minOf(dueAt(it), editExpiresAt) } ?: Long.MAX_VALUE
       val preview = selected?.takeUnless { it.finished || it.started || it.submitted }
       val previewDue = preview?.let(::dueAt) ?: Long.MAX_VALUE
       val key = if (editDue <= now) edit else preview?.takeIf { previewDue <= now && previewDue < editDue }
@@ -107,8 +120,9 @@ internal class VietnameseKeySpeech(
         },
       )
       if (accepted) {
-        if (key !== edit && edit != null && editDue > now) {
-          handler.postDelayed(trySpeech, editDue - now)
+        if (!completed) {
+          if (key === edit) handler.postAtTime(trySpeech, editExpiresAt)
+          else if (edit != null && editDue > now) handler.postAtTime(trySpeech, editDue)
         }
         return
       }
@@ -142,5 +156,6 @@ internal class VietnameseKeySpeech(
   private companion object {
     const val RETRY_MS = 80L
     const val MAX_SUBMIT_RETRIES = 125
+    const val EDIT_TIMEOUT_MS = 4000L
   }
 }

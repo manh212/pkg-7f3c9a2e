@@ -321,6 +321,27 @@ class DirectTouchControllerTest {
     assertEquals("region [0,1500][1080,2220] complex=false", transcript.last())
   }
 
+  @Test
+  fun vietnameseKeyboardHandsTouchExplorationBackWhenItsOwnVoiceIsOff() {
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
+    val keyboardBounds = Rect(50, 1100, 1030, 2200)
+    serviceWindows.onScreen = listOf(game(), window(20, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Keyboard", keyboardBounds, service.packageName, layer = 4))
+    controller.setVietnameseKeyboardBounds(keyboardBounds)
+    assertEquals("region [50,1100][1030,2200] complex=false", transcript.last())
+
+    val voiceKey = service.getString(R.string.pref_vietnamese_keyboard_own_voice_key)
+    prefs.edit().putBoolean(voiceKey, false).commit()
+    val windowChange = AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED)
+    controller.onRawAccessibilityEvent(windowChange)
+    assertEquals("region none", transcript.last())
+    assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(20)))
+
+    prefs.edit().putBoolean(voiceKey, true).commit()
+    assertEquals("region [50,1100][1030,2200] complex=false", transcript.last())
+  }
+
   private fun keyboardEvent(windowId: Int): AccessibilityEvent =
     AccessibilityEvent(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED).also {
       ReflectionHelpers.callInstanceMethod<Any>(it, "setWindowId",

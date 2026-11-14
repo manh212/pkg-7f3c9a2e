@@ -20,10 +20,11 @@ class VietnameseKeySpeechTest {
   private val requests = mutableListOf<Request>()
   private var voiceBusy = false
   private var submitCount = 0
+  private var stops = 0
   private val speech = VietnameseKeySpeech({ label, started, completed ->
     submitCount++
     if (voiceBusy) false else requests.add(Request(label, started, completed))
-  }, {})
+  }, { stops++ })
 
   @Test
   fun releaseReplacesUnelapsedExploreDelayWithoutDuplicatingStartedSpeech() {
@@ -64,13 +65,9 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
-  fun rapidEditsKeepTheirOrderAndSurviveNewPreviews() {
+  fun consecutiveEditsKeepTheirOrderWithoutNewExploration() {
     speech.confirm("a", 0)
-    speech.explore("bê", 0)
-    speech.release(0, waitsForCommit = true)
     speech.confirm("bê", 0)
-    speech.explore("Xóa", 0)
-    speech.release(0, waitsForCommit = true)
     speech.confirm("Đã xóa bê", 0)
     assertEquals(listOf("a"), labels())
 
@@ -82,13 +79,58 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
-  fun previewCanStartBeforeAnEditWaitingForItsReleaseDelay() {
+  fun newTouchReplacesAnEditWithNoCompletionAndClearsStaleEdits() {
+    speech.confirm("a", 0)
+    val previous = requests.single()
+    previous.started()
+    speech.confirm("bê", 0)
+    speech.explore("Xóa", 30)
+    advance(29)
+    assertEquals(listOf("a"), labels())
+    assertEquals(1, stops)
+
+    advance(1)
+    previous.completed(STATUS_INTERRUPTED)
+    assertEquals(listOf("a", "Xóa"), labels())
+    speech.release(0, waitsForCommit = true)
+    speech.confirm("Đã xóa bê", 0)
+    assertEquals(listOf("a", "Xóa", "Đã xóa bê"), labels())
+  }
+
+  @Test
+  fun editWithNoCompletionExpiresAndAllowsLaterConfirmation() {
+    speech.confirm("a", 0)
+    advance(200)
+    speech.confirm("bê", 0)
+    advance(3799)
+    assertEquals(listOf("a"), labels())
+
+    advance(1)
+    assertEquals(1, stops)
+    assertEquals(listOf("a", "bê"), labels())
+  }
+
+  @Test
+  fun previewSupersedesAnEditWaitingForItsReleaseDelay() {
     speech.confirm("a", SystemClock.uptimeMillis() + 100)
     speech.explore("bê", 0)
     assertEquals(listOf("bê"), labels())
 
     advance(100)
-    assertEquals(listOf("bê", "a"), labels())
+    assertEquals(listOf("bê"), labels())
+  }
+
+  @Test
+  fun delayedEditFromPreviousReleaseDoesNotInterruptCurrentTouch() {
+    speech.explore("a", 0)
+    speech.release(0, waitsForCommit = true)
+    speech.explore("bê", 0)
+    speech.confirm("a", 0)
+    assertEquals(listOf("a", "bê"), labels())
+
+    speech.release(0, waitsForCommit = true)
+    speech.confirm("bê", 0)
+    assertEquals(listOf("a", "bê", "bê"), labels())
   }
 
   @Test

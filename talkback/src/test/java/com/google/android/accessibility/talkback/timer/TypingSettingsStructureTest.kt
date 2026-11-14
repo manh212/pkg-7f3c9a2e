@@ -66,10 +66,11 @@ class TypingSettingsStructureTest {
   }
 
   @Test
-  fun vietnameseKeyboardScreenHasAndroidSetupAndFiveTimingControls() {
+  fun vietnameseKeyboardScreenHasItsOwnVoiceSwitchBeforeLayoutAndTiming() {
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_android_settings",
+        "pref_vietnamese_keyboard_own_voice",
         "pref_vietnamese_keyboard_layout",
         "pref_vietnamese_keyboard_timing",
         "pref_vietnamese_keyboard_explore_speech",

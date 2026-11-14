@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <bool name="vietnamese_ime_supported">false</bool>
+    <bool name="pref_vietnamese_keyboard_own_voice_default">true</bool>
+    <string name="pref_vietnamese_keyboard_own_voice_key" translatable="false">pref_vietnamese_keyboard_own_voice</string>
     <color name="vietnamese_ime_background">#161A20</color>
     <color name="vietnamese_ime_key">#333B47</color>
     <color name="vietnamese_ime_selection">#285F9B</color>
@@ -24,6 +26,7 @@
     <string name="vietnamese_ime_previous" tools:ignore="MissingTranslation">Quay lại</string>
     <string name="vietnamese_ime_go" tools:ignore="MissingTranslation">Đi</string>
     <string name="vietnamese_ime_android_settings" tools:ignore="MissingTranslation">Bật hoặc chọn bàn phím trong Android</string>
+    <string name="vietnamese_ime_own_voice" tools:ignore="MissingTranslation">Bàn phím tự đọc bằng giọng riêng</string>
     <string name="vietnamese_ime_timing" tools:ignore="MissingTranslation">Độ trễ</string>
     <string name="vietnamese_ime_explore_speech_delay" tools:ignore="MissingTranslation">Chờ đọc khi rê vào phím</string>
     <string name="vietnamese_ime_release_speech_delay" tools:ignore="MissingTranslation">Chờ đọc sau khi nhấc tay</string>

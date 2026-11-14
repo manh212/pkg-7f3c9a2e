@@ -95,6 +95,7 @@ class DirectTouchController(
   private var evaluating = false
   private var silentKeyboardIds = emptySet<Int>()
   private var silentDirectTyping = readSilentDirectTyping()
+  private var vietnameseKeyboardOwnVoice = readVietnameseKeyboardOwnVoice()
   private var vietnameseKeyboardBounds: Rect? = null
   private var vietnameseKeyboardClosing = false
   private var keyboard = readSelectedKeyboard()
@@ -118,20 +119,26 @@ class DirectTouchController(
   // The system holds preference listeners weakly, so this must stay a field.
   private val prefsListener =
     SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-      if (key != null &&
-        (key == DirectTouchSettings.PREF_MASTER ||
-          key == DirectTouchSettings.PREF_APPS ||
-          key.startsWith(DirectTouchSettings.PREF_TYPING_PREFIX) ||
-          key == liftToActivateKey ||
-          key == typingMethodKey)
+      if (key == null ||
+        key == DirectTouchSettings.PREF_MASTER ||
+        key == DirectTouchSettings.PREF_APPS ||
+        key.startsWith(DirectTouchSettings.PREF_TYPING_PREFIX) ||
+        key == liftToActivateKey ||
+        key == typingMethodKey ||
+        key == vietnameseKeyboardOwnVoiceKey
       ) {
-        if (key == typingMethodKey) silentDirectTyping = readSilentDirectTyping()
+        if (key == null || key == typingMethodKey) silentDirectTyping = readSilentDirectTyping()
+        if (key == null || key == vietnameseKeyboardOwnVoiceKey) {
+          vietnameseKeyboardOwnVoice = readVietnameseKeyboardOwnVoice()
+        }
         evaluate()
       }
     }
 
   private val liftToActivateKey = service.getString(R.string.pref_lift_to_activate_key)
   private val typingMethodKey = service.getString(R.string.pref_typing_confirmation_key)
+  private val vietnameseKeyboardOwnVoiceKey =
+    service.getString(R.string.pref_vietnamese_keyboard_own_voice_key)
 
   // The last navigation bar button spoken, so that the same tap reported twice is said once.
   private var lastNavBarButton: CharSequence? = null
@@ -162,7 +169,7 @@ class DirectTouchController(
    */
   fun onRawAccessibilityEvent(event: AccessibilityEvent) {
     if (!paused && DirectTouchRegions.reassertsRegion(event.eventType) &&
-      (isSilentDirectTyping() || isVietnameseKeyboard(keyboard))) {
+      (isSilentDirectTyping() || usesVietnameseKeyboardDirectTouch())) {
       refreshVietnameseKeyboardTouch()
     }
   }
@@ -242,7 +249,7 @@ class DirectTouchController(
       return
     }
     if (isNavBarDirect() || DirectTouchSettings.hasEnabledApps(prefs) || isSilentDirectTyping() ||
-      isVietnameseKeyboard(keyboard)) {
+      usesVietnameseKeyboardDirectTouch()) {
       scheduleEvaluate()
     }
   }
@@ -278,7 +285,7 @@ class DirectTouchController(
 
   private fun scheduleEvaluate() {
     handler.removeCallbacks(reevaluate)
-    if (active || isSilentDirectTyping() || isVietnameseKeyboard(keyboard)) {
+    if (active || isSilentDirectTyping() || usesVietnameseKeyboardDirectTouch()) {
       // Handing back must not wait, and neither must a region that changed under us.
       evaluate()
     } else {
@@ -305,7 +312,9 @@ class DirectTouchController(
       val vietnamese = isVietnameseKeyboard(keyboard)
       val imeWindows = windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
       if (imeWindows.isEmpty() || !vietnamese) vietnameseKeyboardClosing = false
-      val vietnameseRegion = if (vietnamese) vietnameseRegion(windows, imeWindows, navBarDirect) else null
+      val vietnameseRegion = if (usesVietnameseKeyboardDirectTouch()) {
+        vietnameseRegion(windows, imeWindows, navBarDirect)
+      } else null
       val keyboards = directKeyboards(imeWindows, keyboard)
       val wasActive = active
       if (shouldBeActive) {
@@ -446,6 +455,15 @@ class DirectTouchController(
   private fun isVietnameseKeyboard(component: ComponentName?): Boolean =
     component?.packageName == service.packageName &&
       component.className == VietnameseKeyboardService::class.java.name
+
+  private fun usesVietnameseKeyboardDirectTouch(): Boolean =
+    vietnameseKeyboardOwnVoice && isVietnameseKeyboard(keyboard)
+
+  private fun readVietnameseKeyboardOwnVoice(): Boolean =
+    SharedPreferencesUtils.getBooleanPref(
+      prefs, service.resources, R.string.pref_vietnamese_keyboard_own_voice_key,
+      R.bool.pref_vietnamese_keyboard_own_voice_default,
+    )
 
   private fun directKeyboards(
     imeWindows: List<AccessibilityWindowInfo>, component: ComponentName?,

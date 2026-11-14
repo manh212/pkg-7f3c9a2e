@@ -21,10 +21,10 @@ import java.util.Locale
 import java.util.concurrent.Executor
 import java.util.function.IntSupplier
 
-internal class VietnameseFallbackSpeech(context: Context) {
+internal class VietnameseKeyboardVoice(context: Context) {
   private val appContext = context.applicationContext
   private val main = Handler(Looper.getMainLooper())
-  private val workerThread = HandlerThread("VietnameseFallbackSpeech").apply { start() }
+  private val workerThread = HandlerThread("VietnameseKeyboardVoice").apply { start() }
   private val worker = Handler(workerThread.looper)
   private val player = AudioTrackSpeechCachePlayer(
     Executor { runnable -> main.post(runnable) },
@@ -41,7 +41,7 @@ internal class VietnameseFallbackSpeech(context: Context) {
   private var lastFailureAt = -RETRY_BACKOFF_MS
   private var initGeneration = 0
   private val initTimeout = Runnable {
-    failInitialization("Fallback text-to-speech start timed out")
+    failInitialization("Keyboard text-to-speech start timed out")
   }
   private var idCounter = 0
   private var synthesisIndex = 0
@@ -89,21 +89,24 @@ internal class VietnameseFallbackSpeech(context: Context) {
     return true
   }
 
-  fun stop() {
-    warmingUp = false
-    worker.removeCallbacks(resumeCache)
+  fun stop(pauseWarmup: Boolean) {
+    if (pauseWarmup) {
+      warmingUp = false
+      worker.removeCallbacks(resumeCache)
+    }
     val pending = pendingSpeak
     pendingSpeak = null
     val live = callbacks.values.toList()
     callbacks.clear()
-    liveSpeaking = false
     val cached = cacheCallbacks.values.toList()
     cacheCallbacks.clear()
     player.stopSpeech()
-    tts?.stop()
+    if (liveSpeaking || pauseWarmup) tts?.stop()
+    liveSpeaking = false
     pending?.completed?.invoke(STATUS_INTERRUPTED)
     live.forEach { it.completed?.invoke(STATUS_INTERRUPTED) }
     cached.forEach { it.completed?.invoke(STATUS_INTERRUPTED) }
+    if (!pauseWarmup) worker.post(resumeCache)
   }
 
   fun shutdown() {
@@ -188,7 +191,7 @@ internal class VietnameseFallbackSpeech(context: Context) {
           if (closed || !starting || generation != initGeneration) return@post
           val engine = tts ?: return@post
           if (status != TextToSpeech.SUCCESS) {
-            failInitialization("Fallback text-to-speech failed to start")
+            failInitialization("Keyboard text-to-speech failed to start")
             return@post
           }
           main.removeCallbacks(initTimeout)
@@ -219,8 +222,8 @@ internal class VietnameseFallbackSpeech(context: Context) {
       main.postDelayed(initTimeout, INIT_TIMEOUT_MS)
       return true
     } catch (e: Exception) {
-      LogUtils.e(TAG, e, "Fallback text-to-speech failed to start")
-      failInitialization("Fallback text-to-speech initialization failed")
+      LogUtils.e(TAG, e, "Keyboard text-to-speech failed to start")
+      failInitialization("Keyboard text-to-speech initialization failed")
       return false
     }
   }
@@ -296,7 +299,10 @@ internal class VietnameseFallbackSpeech(context: Context) {
     labelsToCache.remove(label)
     val index = ++synthesisIndex
     val utteranceId = CACHE_SYNTHESIS_ID_PREFIX + index
-    val file = File(cacheDirectory(), "$utteranceId.wav")
+    val file = runCatching { File.createTempFile("keyboard-", ".wav", cacheDirectory()) }.getOrElse {
+      LogUtils.w(TAG, "Failed to create a keyboard speech cache file")
+      return
+    }
     pendingSynthesis[utteranceId] = SynthesisRequest(label, file)
     worker.postDelayed({ finishSynthesis(utteranceId, false) }, SYNTHESIS_TIMEOUT_MS)
     if (engine.synthesizeToFile(label, null, file, utteranceId) != TextToSpeech.SUCCESS) {
@@ -348,15 +354,15 @@ internal class VietnameseFallbackSpeech(context: Context) {
   }
 
   private companion object {
-    private const val TAG = "VietnameseFallbackSpeech"
+    private const val TAG = "VietnameseKeyboardVoice"
     private const val RETRY_BACKOFF_MS = 5000L
     private const val INIT_TIMEOUT_MS = 10000L
     private const val SYNTHESIS_TIMEOUT_MS = 10000L
     private const val MAX_SYNTHESIS_RETRIES = 2
     private const val CACHE_RESUME_DELAY_MS = 350L
     private const val LIVE_ID_PREFIX = "vietnamese-"
-    private const val CACHE_PLAYBACK_ID_PREFIX = "fallback-cache-"
-    private const val CACHE_SYNTHESIS_ID_PREFIX = "fallback-synth-"
+    private const val CACHE_PLAYBACK_ID_PREFIX = "keyboard-cache-"
+    private const val CACHE_SYNTHESIS_ID_PREFIX = "keyboard-synth-"
     private val VIETNAMESE = Locale.forLanguageTag("vi-VN")
   }
 }

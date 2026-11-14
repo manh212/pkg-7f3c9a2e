@@ -18,6 +18,10 @@ public final class ImeEditFeedback {
     if (packageName != null) latestEdit = new Edit(packageName, SystemClock.uptimeMillis());
   }
 
+  public static void clear() {
+    latestEdit = null;
+  }
+
   static boolean ownsEditFeedback(AccessibilityEvent event) {
     Edit edit = latestEdit;
     if (edit == null) return false;

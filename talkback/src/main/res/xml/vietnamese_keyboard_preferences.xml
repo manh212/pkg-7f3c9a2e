@@ -7,6 +7,10 @@
       android:title="@string/vietnamese_ime_android_settings">
     <intent android:action="android.settings.INPUT_METHOD_SETTINGS" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreference>
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_vietnamese_keyboard_own_voice_default"
+      android:key="@string/pref_vietnamese_keyboard_own_voice_key"
+      android:title="@string/vietnamese_ime_own_voice" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:defaultValue="@string/pref_vietnamese_keyboard_layout_default"
       android:dialogTitle="@string/vietnamese_ime_layout"

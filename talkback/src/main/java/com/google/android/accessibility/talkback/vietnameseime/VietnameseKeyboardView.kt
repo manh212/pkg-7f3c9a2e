@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -32,7 +33,7 @@ import kotlin.math.roundToInt
 internal class VietnameseKeyboardView(
   context: Context,
   private val announce: (String) -> Unit,
-  private val activate: (String, Boolean, Long) -> Boolean,
+  private val activate: (String, Long) -> Boolean,
   private val releaseAnnouncement: (Boolean) -> Unit = {},
   private val shiftSpoken: () -> Unit = {},
   private val keyName: (String) -> String = { it },
@@ -65,6 +66,7 @@ internal class VietnameseKeyboardView(
   private val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
   private val selectedKeys = HashSet<VietnameseKeyTouch.Key>()
   private var speechPointer: Int? = null
+  private var hoveredKey: VietnameseKeyTouch.Key? = null
   private val virtualIds = HashMap<String, Int>()
   private var virtualCells = emptyMap<Int, Cell>()
   private val keyAccessibility = KeyAccessibility()
@@ -108,6 +110,11 @@ internal class VietnameseKeyboardView(
       if (field == value) return
       field = value
       keyAccessibility.invalidateRoot()
+    }
+  var speakHoveredKeys = false
+    set(value) {
+      field = value
+      if (!value) hoveredKey = null
     }
   var hasCommitAnnouncement: (String) -> Boolean = { false }
 
@@ -156,6 +163,7 @@ internal class VietnameseKeyboardView(
     pointers.clear()
     firstTaps.clear()
     speechPointer = null
+    hoveredKey = null
     val hadShift = shiftHolders.isNotEmpty() || shiftSticky
     shiftHolders.clear()
     shiftSticky = false
@@ -199,8 +207,27 @@ internal class VietnameseKeyboardView(
     super.onDetachedFromWindow()
   }
 
-  override fun dispatchHoverEvent(event: MotionEvent): Boolean =
-    keyAccessibility.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
+  override fun dispatchHoverEvent(event: MotionEvent): Boolean {
+    if (speakHoveredKeys && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
+      when (event.actionMasked) {
+        MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
+          val cell = cellAt(event.x, event.y)
+          if (hoveredKey != cell?.key) {
+            hoveredKey = cell?.key
+            announce(cell?.let(::keyLabel).orEmpty())
+          }
+        }
+        MotionEvent.ACTION_HOVER_EXIT -> finishHover(waitsForCommit = false)
+      }
+    }
+    return keyAccessibility.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
+  }
+
+  private fun finishHover(waitsForCommit: Boolean) {
+    if (hoveredKey == null) return
+    hoveredKey = null
+    releaseAnnouncement(waitsForCommit)
+  }
 
   override fun onDraw(canvas: Canvas) {
     canvas.drawColor(backgroundColor)
@@ -378,20 +405,20 @@ internal class VietnameseKeyboardView(
 
   private fun submitKey(key: VietnameseKeyTouch.Key) {
     if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
-    activate(resolveKey(key), false, 0)
+    activate(resolveKey(key), 0)
   }
 
   private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int, releasedAt: Long) {
     if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
     val id = resolveKey(key)
     if (method != SINGLE_TAP_TO_TYPE || timing.directInputMs == 0L) {
-      activate(id, false, releasedAt)
+      activate(id, releasedAt)
       return
     }
     pendingKeyDelay++
     touchHandler.postDelayed({
       pendingKeyDelay--
-      activate(id, false, releasedAt)
+      activate(id, releasedAt)
     }, timing.directInputMs)
   }
 
@@ -507,10 +534,11 @@ internal class VietnameseKeyboardView(
       if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
       val key = virtualCells[id]?.key ?: return false
       if (!isKeyEnabled(key)) return false
+      finishHover(hasCommitAnnouncement(key.id))
       if (rowsArePc && key.id == SHIFT) {
         shiftSticky = !shiftSticky
         refreshShiftLabels()
-      } else if (!activate(resolveKey(key), true, 0)) {
+      } else if (!activate(resolveKey(key), 0)) {
         return false
       }
       sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)

@@ -35,8 +35,32 @@ class VietnameseKeyboardViewTest {
   private val typed = mutableListOf<String>()
   private var released = 0
   private val keyboard = VietnameseKeyboardView(
-    context, { spoken.add(it) }, { id, _, _ -> typed.add(id) }, { released++ },
+    context, { spoken.add(it) }, { id, _ -> typed.add(id) }, { released++ },
   )
+
+  @Test
+  fun touchscreenHoverSpeaksOnlyWhenEnabledAndDoesNotType() {
+    prepareKeyboard()
+    val hover = MotionEvent.obtain(100, 100, MotionEvent.ACTION_HOVER_ENTER, 20f, 60f, 0)
+    hover.source = InputDevice.SOURCE_TOUCHSCREEN
+    try {
+      keyboard.dispatchHoverEvent(hover)
+      assertTrue(spoken.isEmpty())
+
+      keyboard.speakHoveredKeys = true
+      keyboard.dispatchHoverEvent(hover)
+      hover.action = MotionEvent.ACTION_HOVER_MOVE
+      keyboard.dispatchHoverEvent(hover)
+      hover.action = MotionEvent.ACTION_HOVER_EXIT
+      keyboard.dispatchHoverEvent(hover)
+
+      assertEquals(listOf("q"), spoken)
+      assertEquals(1, released)
+      assertTrue(typed.isEmpty())
+    } finally {
+      hover.recycle()
+    }
+  }
 
   @Test
   fun directSilentModeCommitsDownKeyOnDownWithoutAccessibilityFocus() {
