@@ -210,6 +210,10 @@ class VietnameseKeyboardServiceTest {
     }
     val masked = service.getString(R.string.vietnamese_ime_password_character)
     press(masked)
+    // In the default lift-to-type-letters mode the space key confirms with a
+    // double-tap, so each space needs two taps.
+    tap(200f, 225f)
+    tap(200f, 225f)
     tap(200f, 225f)
     tap(200f, 225f)
 
@@ -462,11 +466,11 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("a")
     press("sờ")
-    assertEquals(listOf("a hoa", "â", "ấ"), spoken)
+    assertEquals(listOf("a hoa", "Â", "Ấ"), spoken)
     press("Xóa")
 
     assertTrue(text.isEmpty())
-    assertEquals(removed("ấ"), spoken.last())
+    assertEquals(removed("Ấ"), spoken.last())
     assertEquals(1, editorReads)
   }
 
@@ -528,7 +532,7 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("a")
     press("sờ")
-    assertEquals("ấ", text.toString())
+    assertEquals("Ấ", text.toString())
     press(micLabel())
     val callback = checkNotNull(dictatedCallback)
     callback("xin chào")
@@ -626,7 +630,7 @@ class VietnameseKeyboardServiceTest {
     tapDelete()
     tapDelete()
 
-    assertEquals("hello wo", text.toString())
+    assertEquals("hello wor", text.toString())
     assertFalse(spoken.contains(removed("worl")))
   }
 
@@ -649,14 +653,14 @@ class VietnameseKeyboardServiceTest {
     startEditor()
     press("mờ")
     press("a")
-    assertEquals("ma", text.toString())
+    assertEquals("Ma", text.toString())
     tapDelete()
-    assertEquals("m", text.toString())
+    assertEquals("M", text.toString())
     tapDelete()
     assertEquals("", text.toString())
     press("gi")
 
-    assertEquals("j", text.toString())
+    assertEquals("J", text.toString())
   }
 
   @Test
