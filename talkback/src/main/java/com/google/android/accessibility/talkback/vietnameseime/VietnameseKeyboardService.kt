@@ -7,6 +7,8 @@ import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
+import android.text.SpannableString
+import android.text.style.LocaleSpan
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -22,9 +24,19 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.input.ImeEditFeedback
 import com.google.android.accessibility.utils.input.TextEventFilter
 import com.google.android.accessibility.utils.input.TextEventFilter.TypingInput.ON_SCREEN_KEYBOARD
+import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP
+import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP
+import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_FORCE_FEEDBACK_ALL
+import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP
+import com.google.android.accessibility.utils.output.FeedbackItem.FLAG_NO_HISTORY
 import com.google.android.accessibility.utils.output.SpeechController
+import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH
+import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD
+import com.google.android.accessibility.utils.output.SpeechController.UtteranceCompleteRunnable
+import com.google.android.accessibility.utils.output.SpeechController.UtteranceStartRunnable
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
+import java.util.Locale
 import kotlin.math.abs
 
 class VietnameseKeyboardService : InputMethodService() {
@@ -136,7 +148,7 @@ class VietnameseKeyboardService : InputMethodService() {
       this,
       ::announceKey,
       ::activateKey,
-      { waitsForCommit -> if (ownVoice) keySpeech.release(timing.releaseSpeechMs, waitsForCommit) },
+      { waitsForCommit -> keySpeech.release(timing.releaseSpeechMs, waitsForCommit) },
       ::speakShiftHeld,
       keyNames::spokenName,
       ::reportKeyboardBounds,
@@ -404,7 +416,7 @@ class VietnameseKeyboardService : InputMethodService() {
     )
   }
 
-  private fun hasCommitAnnouncement(id: String): Boolean = ownVoice && when (id) {
+  private fun hasCommitAnnouncement(id: String): Boolean = when (id) {
     VietnameseKeyboardView.DELETE, VietnameseKeyboardView.DELETE_WORD ->
       echo != TextEventFilter.PREF_ECHO_SILENT_TYPING
     VietnameseKeyboardView.ENTER -> echoesCharacters() || (echoesWords() && completedWord().isNotEmpty())
@@ -431,12 +443,12 @@ class VietnameseKeyboardService : InputMethodService() {
       }
       VietnameseKeyboardView.DELETE -> return delete(
         connection,
-        ownVoice && echo != TextEventFilter.PREF_ECHO_SILENT_TYPING,
+        echo != TextEventFilter.PREF_ECHO_SILENT_TYPING,
         speakAt,
       )
       VietnameseKeyboardView.DELETE_WORD -> return deleteWord(
         connection,
-        ownVoice && echo != TextEventFilter.PREF_ECHO_SILENT_TYPING,
+        echo != TextEventFilter.PREF_ECHO_SILENT_TYPING,
         speakAt,
       )
       VietnameseKeyboardView.ENTER -> if (!enter(connection, speakAt)) return false
@@ -448,9 +460,7 @@ class VietnameseKeyboardService : InputMethodService() {
         shifted = false
       }
     }
-    if (ownVoice) {
-      actionFeedback(id)?.let { keySpeech.confirm(getString(it), speakAt) }
-    }
+    actionFeedback(id)?.let { keySpeech.confirm(getString(it), speakAt) }
     updateLayout()
     return true
   }
@@ -487,7 +497,6 @@ class VietnameseKeyboardService : InputMethodService() {
     val connection = currentInputConnection ?: return
     dropComposingWord(connection)
     if (!insertDictatedText(connection, text)) return
-    if (!ownVoice) return
     if (secure) {
       keySpeech.confirm(getString(R.string.vietnamese_ime_password_character), 0)
     } else if (echoesWords() || echoesCharacters()) {
@@ -545,7 +554,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun type(connection: InputConnection, letter: Char, speakAt: Long): Boolean {
     if (letter == ' ' && !composing && doubleSpacePeriod && telexAllowed &&
       selectionStart == cursor && tryDoubleSpacePeriod(connection)) {
-      if (ownVoice && echoesCharacters()) speakEnteredCharacter('.', speakAt)
+      if (echoesCharacters()) speakEnteredCharacter('.', speakAt)
       return true
     }
     val capitalized = if (letter.isLowerCase() && word.isEmpty() &&
@@ -555,7 +564,7 @@ class VietnameseKeyboardService : InputMethodService() {
       val updated = Telex.apply(word, capitalized)
       markEdit()
       if (updated.length <= MAX_WORD_LENGTH && updateComposition(connection, updated)) {
-        val changed = if (ownVoice && echoesCharacters()) changedCharacter(word, updated) else null
+        val changed = if (echoesCharacters()) changedCharacter(word, updated) else null
         word = updated
         if (changed != null) speakEnteredCharacter(changed, speakAt)
         return true
@@ -573,12 +582,10 @@ class VietnameseKeyboardService : InputMethodService() {
     } else {
       resetWord()
     }
-    if (ownVoice) {
-      if (echoesWords() && finished.isNotEmpty()) speakWord(finished, speakAt)
-      else if (echoesCharacters()) {
-        if (secure) keySpeech.confirm(getString(R.string.vietnamese_ime_password_character), speakAt)
-        else speakEnteredCharacter(capitalized, speakAt)
-      }
+    if (echoesWords() && finished.isNotEmpty()) speakWord(finished, speakAt)
+    else if (echoesCharacters()) {
+      if (secure) keySpeech.confirm(getString(R.string.vietnamese_ime_password_character), speakAt)
+      else speakEnteredCharacter(capitalized, speakAt)
     }
     return true
   }
@@ -824,10 +831,8 @@ class VietnameseKeyboardService : InputMethodService() {
       if (!commitText(connection, "\n")) return false
       resetWord()
     }
-    if (ownVoice) {
-      if (finished.isNotEmpty() && echoesWords()) speakWord(finished, speakAt)
-      else if (echoesCharacters()) keySpeech.confirm(editorActionLabel, speakAt)
-    }
+    if (finished.isNotEmpty() && echoesWords()) speakWord(finished, speakAt)
+    else if (echoesCharacters()) keySpeech.confirm(editorActionLabel, speakAt)
     return true
   }
 
@@ -842,11 +847,10 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun markEdit() {
-    if (ownVoice) ImeEditFeedback.recordEdit(editor?.packageName)
+    ImeEditFeedback.recordEdit(editor?.packageName)
   }
 
   private fun announceKey(label: String) {
-    if (!ownVoice) return
     if (label.isEmpty()) keySpeech.clearPreview()
     else if (method != DIRECT_SILENT_TYPING) {
       keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
@@ -854,7 +858,7 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun speakShiftHeld() {
-    if (ownVoice && method == DIRECT_SILENT_TYPING && echoesCharacters()) {
+    if (method == DIRECT_SILENT_TYPING && echoesCharacters()) {
       keySpeech.confirm(getString(R.string.vietnamese_ime_uppercase), 0)
     }
   }
@@ -872,18 +876,49 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean {
-    if (!ownVoice || dictating || PauseController.isPaused()) return false
+    if (dictating || PauseController.isPaused()) return false
     val reader = speechController()
     observeReaderSpeech(reader)
     if (reader != null && (reader.isMute || reader.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD))) {
       return false
     }
-    warmUpKeyboardVoice()
-    return keyboardVoice?.speak(label, started, { status -> main.post { completed(status) } }) == true
+    if (ownVoice) {
+      warmUpKeyboardVoice()
+      return keyboardVoice?.speak(label, started, { status -> main.post { completed(status) } }) == true
+    }
+    return speak(label, { main.post { started() } }, { status -> main.post { completed(status) } })
   }
 
-  private fun shouldRetryKeySpeech(): Boolean =
-    ownVoice && !dictating && !PauseController.isPaused() && speechController()?.isMute != true
+  private fun speak(
+    label: String,
+    started: UtteranceStartRunnable? = null,
+    completed: UtteranceCompleteRunnable? = null,
+  ): Boolean {
+    val speaker = speechController()
+    if (speaker == null || !speaker.isTtsReady || speaker.isMute) return false
+    val localized = SpannableString(label)
+    localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
+    val options = SpeakOptions.create()
+      .setUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
+      .setQueueMode(QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH)
+      .setFlags(
+        FLAG_NO_HISTORY or FLAG_FORCE_FEEDBACK_ALL or FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP or
+          FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP or
+          FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP,
+      )
+      .setCompletedAction(completed)
+    if (started != null) options.setStartingAction(started)
+    speaker.speak(localized, null, options)
+    return true
+  }
+
+  private fun shouldRetryKeySpeech(): Boolean {
+    if (dictating || PauseController.isPaused()) return false
+    val speaker = speechController()
+    if (ownVoice) return speaker?.isMute != true
+    if (speaker == null) return true
+    return !speaker.isTtsReady && !speaker.isMute
+  }
 
   private fun observeReaderSpeech(reader: SpeechControllerImpl?) {
     if (observedSpeechController === reader) return
@@ -956,6 +991,7 @@ class VietnameseKeyboardService : InputMethodService() {
     if (character == ' ') getString(R.string.vietnamese_ime_space) else character.toString()
 
   companion object {
+    private val VIETNAMESE = Locale.forLanguageTag("vi-VN")
     private const val MAX_WORD_LENGTH = 48
     private const val MAX_WORD_DELETE_LOOKBACK = 512
 
