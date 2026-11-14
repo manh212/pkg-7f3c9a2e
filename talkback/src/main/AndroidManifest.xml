@@ -138,7 +138,8 @@
     <application
         android:supportsRtl="true"
         android:fullBackupContent="@xml/meridian_backup_rules"
-        android:dataExtractionRules="@xml/meridian_data_extraction_rules">
+        android:dataExtractionRules="@xml/meridian_data_extraction_rules"
+        android:localeConfig="@xml/locales_config">
         <!-- Gemini 3.5 live internal audio: Activity obtains system capture consent. -->
         <activity
             android:name="com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity"
