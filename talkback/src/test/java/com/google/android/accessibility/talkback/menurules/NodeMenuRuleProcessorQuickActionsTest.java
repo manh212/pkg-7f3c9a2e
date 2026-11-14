@@ -28,6 +28,7 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
+import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -116,6 +117,7 @@ public class NodeMenuRuleProcessorQuickActionsTest {
   @Before
   public void setUp() {
     context = RuntimeEnvironment.getApplication();
+    FormFactorUtils.initialize(context);
     service = Robolectric.buildService(TestService.class).create().get();
     SharedPreferencesUtils.getSharedPreferences(service)
         .edit()
