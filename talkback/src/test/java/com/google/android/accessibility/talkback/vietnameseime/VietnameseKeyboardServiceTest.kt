@@ -13,6 +13,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
@@ -49,6 +51,8 @@ class VietnameseKeyboardServiceTest {
   private var editorReads = 0
   private var finishCount = 0
   private var commits = 0
+  private var dictatedCallback: ((String?) -> Unit)? = null
+  private var dictationStops = 0
   private lateinit var service: VietnameseKeyboardService
   private lateinit var keyboard: View
 
@@ -103,6 +107,153 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun autoCapitalizeCapitalizesFirstLetterOfField() {
+    startEditor()
+    press("ích")
+    press("i")
+    press("nờ")
+
+    assertEquals("Xin", text.toString())
+    press("sờ")
+
+    assertEquals("Xín", text.toString())
+  }
+
+  @Test
+  fun autoCapitalizeCapitalizesAfterPeriodSpace() {
+    startEditor()
+    press("ích")
+    press("i")
+    press("nờ")
+    press("Dấu chấm")
+    press("Dấu cách")
+    press("xê")
+    press("hát")
+    press("a")
+    press("o")
+    press("ép")
+
+    assertEquals("Xin. Chào", text.toString())
+  }
+
+  @Test
+  fun autoCapitalizeDoesNotCapitalizeMidSentence() {
+    startEditor()
+    press("ích")
+    press("i")
+    press("nờ")
+    press("Dấu cách")
+    press("xê")
+    press("hát")
+    press("a")
+    press("o")
+    press("ép")
+
+    assertEquals("Xin chào", text.toString())
+  }
+
+  @Test
+  fun autoCapitalizeDoesNotCapitalizeWhenToggledOff() {
+    setAutoCapitalize(false)
+    startEditor()
+    press("ích")
+    press("i")
+    press("nờ")
+
+    assertEquals("xin", text.toString())
+  }
+
+  @Test
+  fun autoCapitalizeDoesNotCapitalizeInPasswordField() {
+    startEditor {
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
+    tap(20f, 125f)
+
+    assertEquals("a", text.toString())
+  }
+
+  @Test
+  fun doubleSpacePeriodReplacesTwoSpacesWithPeriodSpace() {
+    startEditor()
+    press("a")
+    press("Dấu cách")
+    press("Dấu cách")
+
+    assertEquals("A. ", text.toString())
+  }
+
+  @Test
+  fun doubleSpacePeriodDoesNotFireOnSingleSpace() {
+    startEditor()
+    press("a")
+    press("Dấu cách")
+
+    assertEquals("A ", text.toString())
+  }
+
+  @Test
+  fun doubleSpacePeriodDoesNotFireWhenToggledOff() {
+    setDoubleSpacePeriod(false)
+    startEditor()
+    press("a")
+    press("Dấu cách")
+    press("Dấu cách")
+
+    assertEquals("A  ", text.toString())
+  }
+
+  @Test
+  fun doubleSpacePeriodDoesNotFireInPasswordField() {
+    startEditor {
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
+    val masked = service.getString(R.string.vietnamese_ime_password_character)
+    press(masked)
+    tap(200f, 225f)
+    tap(200f, 225f)
+
+    assertEquals("1  ", text.toString())
+  }
+
+  @Test
+  fun doubleSpacePeriodFinishesComposingWordFirst() {
+    startEditor()
+    press("ích")
+    press("i")
+    press("nờ")
+    press("Dấu cách")
+    press("Dấu cách")
+
+    assertEquals("Xin. ", text.toString())
+    assertEquals(2, commits)
+    assertEquals(0, finishCount)
+  }
+
+  @Test
+  fun doubleSpacePeriodThenNextLetterCapitalizes() {
+    startEditor()
+    press("a")
+    press("Dấu cách")
+    press("Dấu cách")
+    press("bê")
+
+    assertEquals("A. B", text.toString())
+  }
+
+  @Test
+  fun doubleSpacePeriodSpeaksThePeriod() {
+    setEcho(PREF_ECHO_CHARACTERS)
+    startEditor()
+    press("a")
+    press("Dấu cách")
+    press("Dấu cách")
+
+    assertEquals("A. ", text.toString())
+    assertEquals(listOf("a hoa", "Dấu cách", "Dấu chấm"), spoken)
+  }
+
+  @Test
   fun spaceCommitsTheComposedWordInOneEditorCall() {
     startEditor()
     press("a")
@@ -110,7 +261,7 @@ class VietnameseKeyboardServiceTest {
     press("sờ")
     press("Dấu cách")
 
-    assertEquals("ấ ", text.toString())
+    assertEquals("Ấ ", text.toString())
     assertEquals(1, commits)
     assertEquals(0, finishCount)
   }
@@ -121,11 +272,11 @@ class VietnameseKeyboardServiceTest {
     press("mờ")
     press("a")
     press("ép")
-    assertEquals("mà", text.toString())
+    assertEquals("Mà", text.toString())
     service.onUpdateSelection(2, 2, 2, 2, -1, -1)
     press("gi")
 
-    assertEquals("mạ", text.toString())
+    assertEquals("Mạ", text.toString())
   }
 
   @Test
@@ -136,7 +287,7 @@ class VietnameseKeyboardServiceTest {
     rejectComposition = true
     press("Xóa")
 
-    assertEquals("a", text.toString())
+    assertEquals("A", text.toString())
     assertEquals(1, finishCount)
     assertEquals(removed("bê"), spoken.last())
   }
@@ -150,7 +301,7 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("a")
 
-    assertEquals("â", text.toString())
+    assertEquals("Â", text.toString())
   }
 
   @Test
@@ -164,7 +315,7 @@ class VietnameseKeyboardServiceTest {
     service.onUpdateSelection(2, 2, 1, 1, 0, 1)
     press("sờ")
 
-    assertEquals("ấ", text.toString())
+    assertEquals("Ấ", text.toString())
   }
 
   @Test
@@ -177,7 +328,7 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("Lưu")
 
-    assertEquals("a", text.toString())
+    assertEquals("A", text.toString())
     assertEquals(listOf(42), actions)
   }
 
@@ -192,7 +343,7 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("Xuống dòng")
 
-    assertEquals("a\n", text.toString())
+    assertEquals("A\n", text.toString())
     assertTrue(actions.isEmpty())
   }
 
@@ -200,6 +351,7 @@ class VietnameseKeyboardServiceTest {
   fun liftReadsAcceptedCharacterEvenWhenItsPreviewHasTheSameName() {
     setEcho(PREF_ECHO_CHARACTERS)
     setTypingMethod(LIFT_TO_TYPE)
+    setAutoCapitalize(false)
     startEditor()
     val downTime = SystemClock.uptimeMillis()
     touch(downTime, MotionEvent.ACTION_DOWN, 20f, 125f)
@@ -228,10 +380,10 @@ class VietnameseKeyboardServiceTest {
     assertTrue(text.isEmpty())
     assertEquals(listOf("a"), spoken)
     advance(1)
-    assertEquals("a", text.toString())
+    assertEquals("A", text.toString())
     assertEquals(listOf("a"), spoken)
     advance(80)
-    assertEquals(listOf("a", "a"), spoken)
+    assertEquals(listOf("a", "a hoa"), spoken)
   }
 
   @Test
@@ -240,7 +392,7 @@ class VietnameseKeyboardServiceTest {
     setTypingMethod(LIFT_TO_TYPE)
     startEditor()
     press("a")
-    assertEquals(listOf("a"), spoken)
+    assertEquals(listOf("a hoa"), spoken)
 
     val voiceKey = service.getString(R.string.pref_vietnamese_keyboard_own_voice_key)
     val prefs = SharedPreferencesUtils.getSharedPreferences(service)
@@ -250,14 +402,14 @@ class VietnameseKeyboardServiceTest {
     touch(downTime, MotionEvent.ACTION_CANCEL, 20f, 125f)
     press("Xóa")
     assertTrue(text.isEmpty())
-    assertEquals(listOf("a"), spoken)
-    assertEquals(0, editorReads)
+    assertEquals(listOf("a hoa"), spoken)
+    assertEquals(1, editorReads)
 
     prefs.edit().putBoolean(voiceKey, true).apply()
     press("a")
     press("Xóa")
     assertTrue(text.isEmpty())
-    assertEquals(listOf("a", "a", removed("a")), spoken)
+    assertEquals(listOf("a hoa", "a hoa", removed("a hoa")), spoken)
   }
 
   @Test
@@ -267,7 +419,7 @@ class VietnameseKeyboardServiceTest {
     press("a")
     assertTrue(spoken.isEmpty())
     press("Dấu cách")
-    assertEquals(listOf("a"), spoken)
+    assertEquals(listOf("a hoa"), spoken)
   }
 
   @Test
@@ -276,12 +428,12 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("a")
     press("sờ")
-    assertEquals(listOf("a", "â", "ấ"), spoken)
+    assertEquals(listOf("a hoa", "â", "ấ"), spoken)
     press("Xóa")
 
     assertTrue(text.isEmpty())
     assertEquals(removed("ấ"), spoken.last())
-    assertEquals(0, editorReads)
+    assertEquals(1, editorReads)
   }
 
   @Test
@@ -335,6 +487,165 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun micInsertsDictatedTextAndDropsComposingWord() {
+    setEcho(PREF_ECHO_WORDS)
+    enableMicWithFakeDictation()
+    startEditor()
+    press("a")
+    press("a")
+    press("sờ")
+    assertEquals("ấ", text.toString())
+    press(micLabel())
+    val callback = checkNotNull(dictatedCallback)
+    callback("xin chào")
+
+    assertEquals("xin chào", text.toString())
+    assertEquals(1, commits)
+    assertEquals("xin chào", spoken.last())
+  }
+
+  @Test
+  fun micNullCallbackSpeaksErrorAndInsertsNothing() {
+    service.dictationAvailable = { true }
+    service.dictationListen = { callback ->
+      callback(null)
+      false
+    }
+    setMicEnabled(true)
+    startEditor()
+    assertFalse(activate(micLabel()))
+
+    assertTrue(text.isEmpty())
+    assertEquals(0, commits)
+    assertEquals(service.getString(R.string.dictation_unavailable), spoken.last())
+  }
+
+  @Test
+  fun micHiddenWhenDictationUnavailable() {
+    setMicEnabled(true)
+    startEditor()
+    assertFalse(hasMicLabel())
+
+    service.dictationAvailable = { true }
+    setMicEnabled(false)
+    setMicEnabled(true)
+    assertTrue(hasMicLabel())
+  }
+
+  @Test
+  fun micHoldStartsOnlyAfterOneSecondAndReleaseStopsListening() {
+    setTypingMethod(DIRECT_SILENT_TYPING)
+    enableMicWithFakeDictation()
+    startEditor()
+    val downTime = SystemClock.uptimeMillis()
+    touch(downTime, MotionEvent.ACTION_DOWN, 294f, 225f)
+    advance(999)
+    assertNull(dictatedCallback)
+    touch(downTime, MotionEvent.ACTION_UP, 294f, 225f)
+    assertEquals(0, dictationStops)
+    assertTrue(text.isEmpty())
+
+    val secondDown = SystemClock.uptimeMillis()
+    touch(secondDown, MotionEvent.ACTION_DOWN, 294f, 225f)
+    advance(1000)
+    assertTrue(dictatedCallback != null)
+    touch(secondDown, MotionEvent.ACTION_UP, 294f, 225f)
+    assertEquals(1, dictationStops)
+    checkNotNull(dictatedCallback)("xin chào")
+    assertEquals("xin chào", text.toString())
+  }
+
+  @Test
+  fun doubleTapDeleteDeletesWholeWordAndKeepsSpace() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    text.append("hello world")
+    Selection.setSelection(text, 11)
+    startEditor { initialSelStart = 11; initialSelEnd = 11 }
+    tapDelete()
+    assertEquals("hello worl", text.toString())
+    tapDelete()
+
+    assertEquals("hello ", text.toString())
+    assertEquals(removed("worl"), spoken.last())
+  }
+
+  @Test
+  fun singleTapModeSingleTapDeleteDeletesOneCharacter() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    text.append("hello world")
+    Selection.setSelection(text, 11)
+    startEditor { initialSelStart = 11; initialSelEnd = 11 }
+    tapDelete()
+
+    assertEquals("hello worl", text.toString())
+  }
+
+  @Test
+  fun doubleTapModeDoubleTapDeleteDeletesOneCharacter() {
+    setTypingMethod(DOUBLE_TAP)
+    text.append("hello world")
+    Selection.setSelection(text, 11)
+    startEditor { initialSelStart = 11; initialSelEnd = 11 }
+    tapDelete()
+    tapDelete()
+    assertEquals("hello worl", text.toString())
+    tapDelete()
+    tapDelete()
+
+    assertEquals("hello wo", text.toString())
+    assertFalse(spoken.contains(removed("worl")))
+  }
+
+  @Test
+  fun liftToTypeModeDoubleTapDeleteDeletesOneCharacter() {
+    setTypingMethod(LIFT_TO_TYPE)
+    text.append("hello world")
+    Selection.setSelection(text, 11)
+    startEditor { initialSelStart = 11; initialSelEnd = 11 }
+    tapDelete()
+    tapDelete()
+
+    assertEquals("hello worl", text.toString())
+    assertFalse(spoken.contains(removed("worl")))
+  }
+
+  @Test
+  fun doubleTapDeleteClearsComposingWord() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    startEditor()
+    press("mờ")
+    press("a")
+    assertEquals("ma", text.toString())
+    tapDelete()
+    assertEquals("m", text.toString())
+    tapDelete()
+    assertEquals("", text.toString())
+    press("gi")
+
+    assertEquals("j", text.toString())
+  }
+
+  @Test
+  fun doubleTapDeleteInPasswordFieldKeepsMasking() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    startEditor {
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
+    val masked = service.getString(R.string.vietnamese_ime_password_character)
+    press(masked)
+    press(masked)
+    assertEquals("11", text.toString())
+    tapDelete()
+    assertEquals("1", text.toString())
+    tapDelete()
+
+    assertTrue(text.isEmpty())
+    assertEquals(removed(masked), spoken.last())
+    assertEquals(2, spoken.count { it == removed(masked) })
+    assertFalse(spoken.contains("1"))
+  }
+
+  @Test
   fun passwordSpeechMasksBothInsertionAndDeletion() {
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
@@ -347,6 +658,32 @@ class VietnameseKeyboardServiceTest {
     assertTrue(text.isEmpty())
     assertEquals(listOf(masked, removed(masked)), spoken)
     assertEquals(0, editorReads)
+  }
+
+  private fun enableMicWithFakeDictation() {
+    service.dictationAvailable = { true }
+    service.dictationListen = { callback ->
+      dictatedCallback = callback
+      true
+    }
+    service.dictationStop = { dictationStops++ }
+    setMicEnabled(true)
+  }
+
+  private fun setMicEnabled(enabled: Boolean) {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(service.getString(R.string.pref_vietnamese_keyboard_mic_enabled_key), enabled)
+      .apply()
+  }
+
+  private fun micLabel() = service.getString(R.string.vietnamese_ime_voice_input)
+
+  private fun hasMicLabel(): Boolean {
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    return (0 until host.childCount).any {
+      provider.createAccessibilityNodeInfo(it)?.text?.toString() == micLabel()
+    }
   }
 
   private fun startEditor(configure: EditorInfo.() -> Unit = {}) {
@@ -382,6 +719,31 @@ class VietnameseKeyboardServiceTest {
     SharedPreferencesUtils.getSharedPreferences(service).edit()
       .putString(service.getString(R.string.pref_typing_confirmation_key), method.toString())
       .apply()
+  }
+
+  private fun tapDelete() {
+    val downTime = SystemClock.uptimeMillis()
+    touch(downTime, MotionEvent.ACTION_DOWN, 368f, 175f)
+    touch(downTime, MotionEvent.ACTION_UP, 368f, 175f)
+    advance(150)
+  }
+
+  private fun setAutoCapitalize(enabled: Boolean) {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(service.getString(R.string.pref_vietnamese_keyboard_auto_capitalize_key), enabled)
+      .apply()
+  }
+
+  private fun setDoubleSpacePeriod(enabled: Boolean) {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(service.getString(R.string.pref_vietnamese_keyboard_double_space_period_key), enabled)
+      .apply()
+  }
+
+  private fun tap(x: Float, y: Float) {
+    val downTime = SystemClock.uptimeMillis()
+    touch(downTime, MotionEvent.ACTION_DOWN, x, y)
+    touch(downTime, MotionEvent.ACTION_UP, x, y)
   }
 
   private fun touch(downTime: Long, action: Int, x: Float, y: Float) {

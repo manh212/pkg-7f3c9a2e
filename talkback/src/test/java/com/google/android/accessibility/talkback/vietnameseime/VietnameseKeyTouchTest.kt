@@ -19,6 +19,17 @@ class VietnameseKeyTouchTest {
   private val touch = VietnameseKeyTouch(300, 30)
 
   @Test
+  fun deleteKeyConfirmsWithDoubleTapOnlyInDoubleTapAndLiftModes() {
+    val delete = VietnameseKeyTouch.Key("delete")
+    assertTrue(VietnameseKeyTouch.confirmsWithDoubleTap(delete, DOUBLE_TAP))
+    assertTrue(VietnameseKeyTouch.confirmsWithDoubleTap(delete, LIFT_TO_TYPE))
+    assertFalse(VietnameseKeyTouch.confirmsWithDoubleTap(delete, LIFT_TO_TYPE_EXCEPT_ACTION_KEY))
+    assertFalse(VietnameseKeyTouch.confirmsWithDoubleTap(delete, SINGLE_TAP_TO_TYPE))
+    assertFalse(VietnameseKeyTouch.confirmsWithDoubleTap(delete, DIRECT_SILENT_TYPING))
+    assertFalse(VietnameseKeyTouch.confirmsWithDoubleTap(delete, FORCE_LIFT_TO_TYPE_ON_IME))
+  }
+
+  @Test
   fun usesAllSixConfirmationModes() {
     val policy = { key: VietnameseKeyTouch.Key, method: Int ->
       VietnameseKeyTouch.confirmsWithDoubleTap(key, method)
