@@ -2656,16 +2656,16 @@
 
 
     <!-- Label for typing mode user preference in which double-tap is needed to input any IME key. [CHAR LIMIT=NONE] -->
-    <string name="value_type_confirmation_double_tap">Hold finger to select any key, then double-tap</string>
+    <string name="value_type_confirmation_double_tap">Input by double-tap</string>
     <!-- Label for typing mode user preference in which lift-to-type applies, but only to "letter keys". The phrase "letter key" is mean to distinguishes keys such as A, B, or C, from non-letter keys, such as ENTER or NEXT_KEYBOARD. [CHAR LIMIT=NONE]-->
-    <string name="value_type_confirmation_lift_to_type">Hold finger to select letter key, then lift. Double-tap for other keys.</string>
+    <string name="value_type_confirmation_lift_to_type">Type letter keys on finger lift</string>
     <!-- Label for typing mode user preference in which lift-to-type applies to any and all keys, including letter keys, such as A, B, C, and non-letter keys, such as ENTER or NEXT_KEYBOARD. [CHAR LIMIT=NONE]-->
-    <string name="value_type_confirmation_lift_to_type_for_any_key">Hold finger to select any key, then lift</string>
+    <string name="value_type_confirmation_lift_to_type_for_any_key">Type any key on finger lift</string>
     <!-- Typing method where lifting the finger types every key except the key that sends or submits, such as Enter, Done, or Send, which needs a double-tap. [CHAR LIMIT=NONE] -->
-    <string name="value_type_confirmation_lift_to_type_except_action_key">Hold finger to select any key, then lift. Double-tap for Enter, Done, or Send.</string>
+    <string name="value_type_confirmation_lift_to_type_except_action_key">Type on finger lift, except action keys</string>
     <!-- Typing method where a tap on the keyboard types the key under the finger without speaking it first, and holding or dragging a finger explores the keys, which type when the finger lifts. [CHAR LIMIT=NONE] -->
     <!-- Typing method where the keyboard area bypasses gesture detection, so the key under the finger is typed as soon as the finger lifts. [CHAR LIMIT=NONE] -->
-    <string name="value_type_confirmation_single_tap_to_type">Direct key input: hold finger to select any key, then lift. Double tap does not work in the keyboard area.</string>
+    <string name="value_type_confirmation_single_tap_to_type">Direct input on finger lift</string>
 
     <!-- Label for type and hold duration. [CHAR LIMIT=NONE]-->
     <string name="value_typing_long_press_500ms">0.5 seconds</string>
@@ -3194,7 +3194,7 @@
     Source: Message for the preference that allows user to focus latency.
     Description: The user can check or not check this. In another seekbar preference, the user can adjust the slider to change latency value. [CHAR LIMIT=NONE]
    -->
-  <string name="message_pref_typing_method_prefix">For the lowest delay when typing, choose \"Hold finger to select any key, then lift\"</string>
+  <string name="message_pref_typing_method_prefix">For the lowest delay when typing, choose \"Type any key on finger lift\"</string>
   <!--
     Source: Message for the preference that allows user to focus latency.
     Description: The user can check or not check this. In another seekbar preference, the user can adjust the slider to change latency value. [CHAR LIMIT=NONE]
