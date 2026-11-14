@@ -3,6 +3,16 @@
     <bool name="vietnamese_ime_supported">false</bool>
     <bool name="pref_vietnamese_keyboard_own_voice_default">true</bool>
     <string name="pref_vietnamese_keyboard_own_voice_key" translatable="false">pref_vietnamese_keyboard_own_voice</string>
+    <string name="pref_vietnamese_keyboard_size_portrait_key" translatable="false">pref_vietnamese_keyboard_size_portrait</string>
+    <string name="pref_vietnamese_keyboard_size_landscape_key" translatable="false">pref_vietnamese_keyboard_size_landscape</string>
+    <string name="pref_vietnamese_keyboard_mic_enabled_key" translatable="false">pref_vietnamese_keyboard_mic_enabled</string>
+    <string name="pref_vietnamese_keyboard_show_number_row_key" translatable="false">pref_vietnamese_keyboard_show_number_row</string>
+    <string name="pref_vietnamese_keyboard_show_symbols_row_key" translatable="false">pref_vietnamese_keyboard_show_symbols_row</string>
+    <string name="pref_vietnamese_keyboard_symbols_row_key" translatable="false">pref_vietnamese_keyboard_symbols_row</string>
+    <string name="pref_vietnamese_keyboard_auto_capitalize_key" translatable="false">pref_vietnamese_keyboard_auto_capitalize</string>
+    <string name="pref_vietnamese_keyboard_double_space_period_key" translatable="false">pref_vietnamese_keyboard_double_space_period</string>
+    <string name="pref_vietnamese_keyboard_vibrate_on_key_key" translatable="false">pref_vietnamese_keyboard_vibrate_on_key</string>
+    <string name="pref_vietnamese_keyboard_key_sound_key" translatable="false">pref_vietnamese_keyboard_key_sound</string>
     <color name="vietnamese_ime_background">#161A20</color>
     <color name="vietnamese_ime_key">#333B47</color>
     <color name="vietnamese_ime_selection">#285F9B</color>
@@ -38,4 +48,24 @@
     <string name="vietnamese_ime_layout_phone" tools:ignore="MissingTranslation">Điện thoại</string>
     <string name="vietnamese_ime_layout_pc" tools:ignore="MissingTranslation">Máy tính</string>
     <string name="vietnamese_ime_layout_auto" tools:ignore="MissingTranslation">Tự động theo hướng xoay</string>
+    <string name="vietnamese_ime_keyboard_size" tools:ignore="MissingTranslation">Keyboard size</string>
+    <string name="vietnamese_ime_keyboard_size_portrait" tools:ignore="MissingTranslation">Portrait size</string>
+    <string name="vietnamese_ime_keyboard_size_landscape" tools:ignore="MissingTranslation">Landscape size</string>
+    <string name="vietnamese_ime_sound_and_vibration" tools:ignore="MissingTranslation">Sound and vibration</string>
+    <string name="vietnamese_ime_vibrate_on_key" tools:ignore="MissingTranslation">Vibrate when a key lands</string>
+    <string name="vietnamese_ime_key_sound" tools:ignore="MissingTranslation">Keypress sound</string>
+    <string name="vietnamese_ime_keyboard_rows" tools:ignore="MissingTranslation">Key rows</string>
+    <string name="vietnamese_ime_show_number_row" tools:ignore="MissingTranslation">Show the number row</string>
+    <string name="vietnamese_ime_show_symbols_row" tools:ignore="MissingTranslation">Show the symbols row</string>
+    <string name="vietnamese_ime_symbols_row_customize" tools:ignore="MissingTranslation">Customize the symbols row</string>
+    <string name="vietnamese_ime_symbols_row_choose_position" tools:ignore="MissingTranslation">Choose a position for %1$s</string>
+    <string name="vietnamese_ime_symbols_row_position" tools:ignore="MissingTranslation">Position %1$d</string>
+    <string name="vietnamese_ime_symbols_row_position_current" tools:ignore="MissingTranslation">Position %1$d (now: %2$s)</string>
+    <string name="vietnamese_ime_symbols_row_in_position" tools:ignore="MissingTranslation">At position %1$d</string>
+    <string name="vietnamese_ime_typing" tools:ignore="MissingTranslation">Typing</string>
+    <string name="vietnamese_ime_auto_capitalize" tools:ignore="MissingTranslation">Capitalize sentence starts</string>
+    <string name="vietnamese_ime_double_space_period" tools:ignore="MissingTranslation">Two spaces become a period</string>
+    <string name="vietnamese_ime_mic_enabled" tools:ignore="MissingTranslation">Show the voice-input button</string>
+    <string name="vietnamese_ime_voice_input" tools:ignore="MissingTranslation">Voice input</string>
+    <string name="vietnamese_ime_voice_input_stopped" tools:ignore="MissingTranslation">Voice input stopped</string>
 </resources>
