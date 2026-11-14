@@ -32,8 +32,8 @@ import kotlin.math.roundToInt
 internal class VietnameseKeyboardView(
   context: Context,
   private val announce: (String) -> Unit,
-  private val activate: (String, Boolean) -> Boolean,
-  private val releaseAnnouncement: () -> Unit = {},
+  private val activate: (String, Boolean, Long) -> Boolean,
+  private val releaseAnnouncement: (Boolean) -> Unit = {},
   private val shiftSpoken: () -> Unit = {},
   private val keyName: (String) -> String = { it },
   private val reportBounds: () -> Unit = {},
@@ -109,6 +109,7 @@ internal class VietnameseKeyboardView(
       field = value
       keyAccessibility.invalidateRoot()
     }
+  var hasCommitAnnouncement: (String) -> Boolean = { false }
 
   var layoutSetting = LAYOUT_AUTO
     set(value) {
@@ -147,8 +148,8 @@ internal class VietnameseKeyboardView(
     if (rebuild) rebuildRows() else if (shiftChanged) refreshShiftLabels()
   }
 
-  fun cancelInput() {
-    if (pendingKeyDelay > 0) {
+  fun cancelInput(cancelPendingEdits: Boolean = true) {
+    if (cancelPendingEdits && pendingKeyDelay > 0) {
       touchHandler.removeCallbacksAndMessages(null)
       pendingKeyDelay = 0
     }
@@ -230,7 +231,9 @@ internal class VietnameseKeyboardView(
     var moveChanged = true
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN && pointers.isNotEmpty()) cancelInput()
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && pointers.isNotEmpty()) {
+          cancelInput(cancelPendingEdits = false)
+        }
         val index = event.actionIndex
         val id = event.getPointerId(index)
         val x = event.getX(index)
@@ -300,14 +303,14 @@ internal class VietnameseKeyboardView(
               announceSelected(state, cell)
             }
             val key = state.touch.release(cell?.key, state.method, x, y, event.eventTime, tap)
-            finishAnnouncement(state, cell)
-            if (key != null) submitReleasedKey(key, state.method)
+            finishAnnouncement(state, cell, waitsForCommit = key != null && hasCommitAnnouncement(key.id))
+            if (key != null) submitReleasedKey(key, state.method, event.eventTime)
           }
           if (state.pcShift || state.method == DIRECT_SILENT_TYPING) finishAnnouncement(state, cell)
         }
       }
       MotionEvent.ACTION_CANCEL -> {
-        cancelInput()
+        cancelInput(cancelPendingEdits = false)
         announce("")
       }
     }
@@ -375,20 +378,20 @@ internal class VietnameseKeyboardView(
 
   private fun submitKey(key: VietnameseKeyTouch.Key) {
     if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
-    activate(resolveKey(key), false)
+    activate(resolveKey(key), false, 0)
   }
 
-  private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int) {
-    if (method != SINGLE_TAP_TO_TYPE || timing.directInputMs == 0L) {
-      submitKey(key)
-      return
-    }
+  private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int, releasedAt: Long) {
     if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
     val id = resolveKey(key)
+    if (method != SINGLE_TAP_TO_TYPE || timing.directInputMs == 0L) {
+      activate(id, false, releasedAt)
+      return
+    }
     pendingKeyDelay++
     touchHandler.postDelayed({
       pendingKeyDelay--
-      activate(id, false)
+      activate(id, false, releasedAt)
     }, timing.directInputMs)
   }
 
@@ -425,12 +428,12 @@ internal class VietnameseKeyboardView(
     }
   }
 
-  private fun finishAnnouncement(state: PointerState, cell: Cell?) {
+  private fun finishAnnouncement(state: PointerState, cell: Cell?, waitsForCommit: Boolean = false) {
     if (cell == null) {
       if (state.method != DIRECT_SILENT_TYPING) announceSelected(state, null)
     } else if (speechPointer == state.pointerId || speechPointer == null ||
       state.method == DIRECT_SILENT_TYPING) {
-      releaseAnnouncement()
+      releaseAnnouncement(waitsForCommit)
     }
     if (speechPointer == state.pointerId) speechPointer = null
   }
@@ -507,7 +510,7 @@ internal class VietnameseKeyboardView(
       if (rowsArePc && key.id == SHIFT) {
         shiftSticky = !shiftSticky
         refreshShiftLabels()
-      } else if (!activate(resolveKey(key), true)) {
+      } else if (!activate(resolveKey(key), true, 0)) {
         return false
       }
       sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)

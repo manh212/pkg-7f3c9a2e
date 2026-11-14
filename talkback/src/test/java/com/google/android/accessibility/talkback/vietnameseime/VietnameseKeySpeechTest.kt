@@ -1,7 +1,9 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
 import android.os.Looper
+import android.os.SystemClock
 import com.google.android.accessibility.utils.output.SpeechController.STATUS_INTERRUPTED
+import com.google.android.accessibility.utils.output.SpeechController.STATUS_SPOKEN
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,6 +47,48 @@ class VietnameseKeySpeechTest {
     advance(100)
 
     assertEquals(listOf("a"), labels())
+  }
+
+  @Test
+  fun commitReadsTheSameLabelAgainAtTheReleaseDeadline() {
+    speech.explore("a", 0)
+    requests.single().started()
+    requests.single().completed(STATUS_SPOKEN)
+    speech.release(80, waitsForCommit = true)
+    speech.confirm("a", SystemClock.uptimeMillis() + 80)
+    advance(79)
+    assertEquals(listOf("a"), labels())
+
+    advance(1)
+    assertEquals(listOf("a", "a"), labels())
+  }
+
+  @Test
+  fun rapidEditsKeepTheirOrderAndSurviveNewPreviews() {
+    speech.confirm("a", 0)
+    speech.explore("bê", 0)
+    speech.release(0, waitsForCommit = true)
+    speech.confirm("bê", 0)
+    speech.explore("Xóa", 0)
+    speech.release(0, waitsForCommit = true)
+    speech.confirm("Đã xóa bê", 0)
+    assertEquals(listOf("a"), labels())
+
+    requests[0].completed(STATUS_SPOKEN)
+    requests[0].completed(STATUS_INTERRUPTED)
+    assertEquals(listOf("a", "bê"), labels())
+    requests[1].completed(STATUS_SPOKEN)
+    assertEquals(listOf("a", "bê", "Đã xóa bê"), labels())
+  }
+
+  @Test
+  fun previewCanStartBeforeAnEditWaitingForItsReleaseDelay() {
+    speech.confirm("a", SystemClock.uptimeMillis() + 100)
+    speech.explore("bê", 0)
+    assertEquals(listOf("bê"), labels())
+
+    advance(100)
+    assertEquals(listOf("bê", "a"), labels())
   }
 
   @Test
@@ -127,7 +171,7 @@ class VietnameseKeySpeechTest {
   fun cancellationDropsPendingSpeech() {
     speech.explore("a", 200)
     speech.release(100)
-    speech.cancel(stopSpeech = true)
+    speech.cancel()
     advance(200)
 
     assertEquals(emptyList<String>(), labels())

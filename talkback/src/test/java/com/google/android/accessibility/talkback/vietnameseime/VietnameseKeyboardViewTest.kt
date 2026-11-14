@@ -35,7 +35,7 @@ class VietnameseKeyboardViewTest {
   private val typed = mutableListOf<String>()
   private var released = 0
   private val keyboard = VietnameseKeyboardView(
-    context, { spoken.add(it) }, { id, _ -> typed.add(id) }, { released++ },
+    context, { spoken.add(it) }, { id, _, _ -> typed.add(id) }, { released++ },
   )
 
   @Test

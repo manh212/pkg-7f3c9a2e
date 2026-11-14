@@ -9,6 +9,7 @@
     <string name="vietnamese_ime_telex_on">Đang gõ tiếng Việt Telex</string>
     <string name="vietnamese_ime_telex_off">Đang gõ không dùng Telex</string>
     <string name="vietnamese_ime_delete">Xóa</string>
+    <string name="vietnamese_ime_selected_text">phần văn bản đã chọn</string>
     <string name="vietnamese_ime_space">Dấu cách</string>
     <string name="vietnamese_ime_picker_key">Đổi bàn phím</string>
     <string name="vietnamese_ime_enter">Xuống dòng</string>

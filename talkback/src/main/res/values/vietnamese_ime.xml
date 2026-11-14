@@ -13,6 +13,7 @@
     <string name="vietnamese_ime_telex_on" tools:ignore="MissingTranslation">Đang gõ tiếng Việt Telex</string>
     <string name="vietnamese_ime_telex_off" tools:ignore="MissingTranslation">Đang gõ không dùng Telex</string>
     <string name="vietnamese_ime_delete" tools:ignore="MissingTranslation">Xóa</string>
+    <string name="vietnamese_ime_selected_text" tools:ignore="MissingTranslation">phần văn bản đã chọn</string>
     <string name="vietnamese_ime_space" tools:ignore="MissingTranslation">Dấu cách</string>
     <string name="vietnamese_ime_picker_key" tools:ignore="MissingTranslation">Đổi bàn phím</string>
     <string name="vietnamese_ime_enter" tools:ignore="MissingTranslation">Xuống dòng</string>
