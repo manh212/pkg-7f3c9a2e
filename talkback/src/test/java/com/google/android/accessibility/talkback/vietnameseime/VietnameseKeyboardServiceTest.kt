@@ -210,10 +210,6 @@ class VietnameseKeyboardServiceTest {
     }
     val masked = service.getString(R.string.vietnamese_ime_password_character)
     press(masked)
-    // In the default lift-to-type-letters mode the space key confirms with a
-    // double-tap, so each space needs two taps.
-    tap(200f, 225f)
-    tap(200f, 225f)
     tap(200f, 225f)
     tap(200f, 225f)
 
@@ -391,7 +387,7 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun turningVoiceOffStopsAnnouncementsAndLeavesKeysAccessible() {
+  fun turningVoiceOffKeepsAnnouncementsAndLeavesKeysAccessible() {
     setEcho(PREF_ECHO_CHARACTERS)
     setTypingMethod(LIFT_TO_TYPE)
     startEditor()
@@ -406,14 +402,48 @@ class VietnameseKeyboardServiceTest {
     touch(downTime, MotionEvent.ACTION_CANCEL, 20f, 125f)
     press("Xóa")
     assertTrue(text.isEmpty())
-    assertEquals(listOf("a hoa"), spoken)
+    assertEquals(listOf("a hoa", "a", removed("a hoa")), spoken)
     assertEquals(1, editorReads)
 
     prefs.edit().putBoolean(voiceKey, true).apply()
     press("a")
     press("Xóa")
     assertTrue(text.isEmpty())
-    assertEquals(listOf("a hoa", "a hoa", removed("a hoa")), spoken)
+    assertEquals(listOf("a hoa", "a", removed("a hoa"), "a hoa", removed("a hoa")), spoken)
+  }
+
+  @Test
+  fun typingWithOwnVoiceOffStillSubmitsTheVietnameseName() {
+    setOwnVoice(false)
+    setAutoCapitalize(false)
+    startEditor()
+    press("sờ")
+
+    assertEquals("s", text.toString())
+    assertEquals(listOf("sờ"), spoken)
+  }
+
+  @Test
+  fun deleteEchoWithOwnVoiceOffStillSubmitsTheVietnameseName() {
+    setOwnVoice(false)
+    setAutoCapitalize(false)
+    startEditor()
+    press("sờ")
+    press("Xóa")
+
+    assertTrue(text.isEmpty())
+    assertEquals(listOf("sờ", removed("sờ")), spoken)
+  }
+
+  @Test
+  fun wordEchoWithOwnVoiceOffStillSubmitsTheVietnameseName() {
+    setOwnVoice(false)
+    setEcho(PREF_ECHO_WORDS)
+    startEditor()
+    press("a")
+    assertTrue(spoken.isEmpty())
+    press("Dấu cách")
+    assertEquals(listOf("a hoa"), spoken)
   }
 
   @Test
@@ -432,11 +462,11 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("a")
     press("sờ")
-    assertEquals(listOf("a hoa", "Â", "Ấ"), spoken)
+    assertEquals(listOf("a hoa", "â", "ấ"), spoken)
     press("Xóa")
 
     assertTrue(text.isEmpty())
-    assertEquals(removed("Ấ"), spoken.last())
+    assertEquals(removed("ấ"), spoken.last())
     assertEquals(1, editorReads)
   }
 
@@ -498,7 +528,7 @@ class VietnameseKeyboardServiceTest {
     press("a")
     press("a")
     press("sờ")
-    assertEquals("Ấ", text.toString())
+    assertEquals("ấ", text.toString())
     press(micLabel())
     val callback = checkNotNull(dictatedCallback)
     callback("xin chào")
@@ -596,7 +626,7 @@ class VietnameseKeyboardServiceTest {
     tapDelete()
     tapDelete()
 
-    assertEquals("hello wor", text.toString())
+    assertEquals("hello wo", text.toString())
     assertFalse(spoken.contains(removed("worl")))
   }
 
@@ -619,14 +649,14 @@ class VietnameseKeyboardServiceTest {
     startEditor()
     press("mờ")
     press("a")
-    assertEquals("Ma", text.toString())
+    assertEquals("ma", text.toString())
     tapDelete()
-    assertEquals("M", text.toString())
+    assertEquals("m", text.toString())
     tapDelete()
     assertEquals("", text.toString())
     press("gi")
 
-    assertEquals("J", text.toString())
+    assertEquals("j", text.toString())
   }
 
   @Test
@@ -735,6 +765,12 @@ class VietnameseKeyboardServiceTest {
   private fun setAutoCapitalize(enabled: Boolean) {
     SharedPreferencesUtils.getSharedPreferences(service).edit()
       .putBoolean(service.getString(R.string.pref_vietnamese_keyboard_auto_capitalize_key), enabled)
+      .apply()
+  }
+
+  private fun setOwnVoice(enabled: Boolean) {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(service.getString(R.string.pref_vietnamese_keyboard_own_voice_key), enabled)
       .apply()
   }
 
