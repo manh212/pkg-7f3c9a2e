@@ -698,6 +698,69 @@ class VietnameseKeyboardServiceTest {
     assertEquals(0, editorReads)
   }
 
+  @Test
+  fun keySoundsDefaultOnFreshService() {
+    startEditor()
+
+    assertEquals(KeyboardKeySounds.defaultSounds(), view().keySounds)
+    assertEquals(100, view().vibrateIntensityPercent)
+  }
+
+  @Test
+  fun keySoundPrefsLandOnView() {
+    startEditor()
+    setKeySound(KeyboardKeySounds.Slot.SPACE, "space")
+    setKeySound(KeyboardKeySounds.Slot.NORMAL, "click")
+    setKeySound(KeyboardKeySounds.Slot.DELETE, "tick")
+    setKeySound(KeyboardKeySounds.Slot.ENTER, "clock")
+
+    assertEquals(
+      KeySounds(
+        space = KeyboardKeySounds.resolve(service, KeyboardKeySounds.Slot.SPACE),
+        normal = KeyboardKeySounds.resolve(service, KeyboardKeySounds.Slot.NORMAL),
+        delete = KeyboardKeySounds.resolve(service, KeyboardKeySounds.Slot.DELETE),
+        enter = KeyboardKeySounds.resolve(service, KeyboardKeySounds.Slot.ENTER),
+      ),
+      view().keySounds,
+    )
+  }
+
+  @Test
+  fun vibrationLevelAppliesLiveWhenChangedAfterKeyboardShown() {
+    startEditor()
+    setVibrationLevel(37)
+
+    assertEquals(37, view().vibrateIntensityPercent)
+    setVibrationLevel(150)
+
+    assertEquals(100, view().vibrateIntensityPercent)
+    setVibrationLevel(-5)
+
+    assertEquals(0, view().vibrateIntensityPercent)
+  }
+
+  @Test
+  fun keySoundPrefsDoNotCancelComposingWord() {
+    startEditor()
+    press("a")
+    press("a")
+    press("sờ")
+    assertEquals("Ấ", text.toString())
+    assertEquals(0, finishCount)
+
+    setKeySound(KeyboardKeySounds.Slot.DELETE, "tick")
+    setVibrationLevel(40)
+
+    assertEquals("Ấ", text.toString())
+    assertEquals(0, finishCount)
+    assertEquals(40, view().vibrateIntensityPercent)
+    press("Dấu cách")
+
+    assertEquals("Ấ ", text.toString())
+    assertEquals(1, commits)
+    assertEquals(0, finishCount)
+  }
+
   private fun enableMicWithFakeDictation() {
     service.dictationAvailable = { true }
     service.dictationListen = { callback ->
@@ -783,6 +846,26 @@ class VietnameseKeyboardServiceTest {
       .putBoolean(service.getString(R.string.pref_vietnamese_keyboard_double_space_period_key), enabled)
       .apply()
   }
+
+  private fun setKeySound(slot: KeyboardKeySounds.Slot, value: String) {
+    val key = when (slot) {
+      KeyboardKeySounds.Slot.SPACE -> R.string.pref_vietnamese_keyboard_key_sound_space_key
+      KeyboardKeySounds.Slot.NORMAL -> R.string.pref_vietnamese_keyboard_key_sound_normal_key
+      KeyboardKeySounds.Slot.DELETE -> R.string.pref_vietnamese_keyboard_key_sound_delete_key
+      KeyboardKeySounds.Slot.ENTER -> R.string.pref_vietnamese_keyboard_key_sound_enter_key
+    }
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putString(service.getString(key), value)
+      .apply()
+  }
+
+  private fun setVibrationLevel(percent: Int) {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putInt(service.getString(R.string.pref_vietnamese_keyboard_vibration_level_key), percent)
+      .apply()
+  }
+
+  private fun view(): VietnameseKeyboardView = keyboard as VietnameseKeyboardView
 
   private fun tap(x: Float, y: Float) {
     val downTime = SystemClock.uptimeMillis()

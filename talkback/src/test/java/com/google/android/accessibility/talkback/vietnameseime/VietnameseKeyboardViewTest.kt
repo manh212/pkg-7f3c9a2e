@@ -1345,10 +1345,10 @@ class VietnameseKeyboardViewTest {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
-    assertEquals(listOf(true to true), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
     touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
 
-    assertEquals(listOf(true to true), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
     assertEquals(listOf("q"), typed)
   }
 
@@ -1359,14 +1359,20 @@ class VietnameseKeyboardViewTest {
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
     touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
-    assertEquals(listOf(true to false), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, false, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
 
     keyboard.vibrateOnKey = false
     keyboard.keySound = true
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 200)
     touch(MotionEvent.ACTION_UP, 20f, 60f, 270)
 
-    assertEquals(listOf(true to false, false to true), feedback.calls)
+    assertEquals(
+      listOf(
+        feedbackCall(true, false, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(false, true, KeyboardKeySounds.Slot.NORMAL),
+      ),
+      feedback.calls,
+    )
   }
 
   @Test
@@ -1401,12 +1407,12 @@ class VietnameseKeyboardViewTest {
     keyboard.layout(0, 0, 400, 250)
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
-    assertEquals(listOf(true to true), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
     touch(MotionEvent.ACTION_MOVE, 60f, 60f, 140)
     touch(MotionEvent.ACTION_MOVE, 100f, 60f, 160)
     touch(MotionEvent.ACTION_UP, 100f, 60f, 200)
 
-    assertEquals(listOf(true to true), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
     assertEquals(listOf("q", "w", "e"), spoken)
   }
 
@@ -1416,15 +1422,27 @@ class VietnameseKeyboardViewTest {
     prepareKeyboard()
 
     touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 20f, 60f)), 100)
-    assertEquals(listOf(true to true), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
       listOf(Triple(0, 20f, 60f), Triple(1, 60f, 60f)), 150)
-    assertEquals(listOf(true to true, true to true), feedback.calls)
+    assertEquals(
+      listOf(
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+      ),
+      feedback.calls,
+    )
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
       listOf(Triple(0, 20f, 60f), Triple(1, 60f, 60f)), 200)
     touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 20f, 60f)), 250)
 
-    assertEquals(listOf(true to true, true to true), feedback.calls)
+    assertEquals(
+      listOf(
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+      ),
+      feedback.calls,
+    )
     assertEquals(listOf("q", "w"), typed)
   }
 
@@ -1436,8 +1454,170 @@ class VietnameseKeyboardViewTest {
     touch(MotionEvent.ACTION_DOWN, 360f, 175f, 100)
     touch(MotionEvent.ACTION_UP, 360f, 175f, 170)
 
-    assertEquals(listOf(true to true), feedback.calls)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE)), feedback.calls)
     assertEquals(listOf("delete"), typed)
+  }
+
+  @Test
+  fun keyFeedbackUsesSpaceSoundForSpaceKey() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 200f, 225f, 100)
+    touch(MotionEvent.ACTION_UP, 200f, 225f, 170)
+
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.SPACE)), feedback.calls)
+    assertEquals(listOf(" "), typed)
+  }
+
+  @Test
+  fun keyFeedbackUsesNormalSoundForLetterDigitSymbolAndFunctionKeys() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
+    touch(MotionEvent.ACTION_DOWN, 20f, 25f, 200)
+    touch(MotionEvent.ACTION_UP, 20f, 25f, 270)
+    touch(MotionEvent.ACTION_DOWN, 28f, 175f, 300)
+    touch(MotionEvent.ACTION_UP, 28f, 175f, 370)
+    keyboard.showKeys(false, true, true, "Gửi")
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 400)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 470)
+
+    assertEquals(
+      listOf(
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+      ),
+      feedback.calls,
+    )
+    assertEquals(listOf("q", "1", "shift", "@"), typed)
+  }
+
+  @Test
+  fun keyFeedbackUsesDeleteSoundForDeleteKey() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 368f, 175f, 100)
+    touch(MotionEvent.ACTION_UP, 368f, 175f, 170)
+
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE)), feedback.calls)
+    assertEquals(listOf("delete"), typed)
+  }
+
+  @Test
+  fun keyFeedbackUsesEnterSoundForEnterKey() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 374f, 225f, 100)
+    touch(MotionEvent.ACTION_UP, 374f, 225f, 170)
+
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.ENTER)), feedback.calls)
+    assertEquals(listOf("enter"), typed)
+  }
+
+  @Test
+  fun keyFeedbackStaysSilentForMicKey() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    keyboard.micEnabled = true
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 294f, 225f, 100)
+    touch(MotionEvent.ACTION_UP, 294f, 225f, 200)
+
+    assertTrue(feedback.calls.isEmpty())
+    assertTrue(typed.isEmpty())
+  }
+
+  @Test
+  fun keyFeedbackDoesNotFireWhenBothTogglesOffEvenWithSoundsConfigured() {
+    val feedback = installRecordingFeedback(vibrate = false, sound = false)
+    keyboard.keySounds = KeyboardKeySounds.defaultSounds()
+      .copy(normal = soundFor(KeyboardKeySounds.Slot.SPACE))
+    keyboard.vibrateIntensityPercent = 50
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
+
+    assertTrue(feedback.calls.isEmpty())
+    assertEquals(listOf("q"), typed)
+  }
+
+  @Test
+  fun keyFeedbackDoubleTapDeletePlaysDeleteSoundOnBothDowns() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 368f, 175f, 100)
+    touch(MotionEvent.ACTION_UP, 368f, 175f, 170)
+    touch(MotionEvent.ACTION_DOWN, 368f, 175f, 200)
+    touch(MotionEvent.ACTION_UP, 368f, 175f, 270)
+
+    assertEquals(
+      listOf(
+        feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE),
+      ),
+      feedback.calls,
+    )
+    assertEquals(listOf("delete", "delete_word"), typed)
+  }
+
+  @Test
+  fun keyFeedbackUsesReassignedSoundsAndIntensity() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL)), feedback.calls)
+
+    val reassigned = KeyboardKeySounds.defaultSounds()
+      .copy(normal = soundFor(KeyboardKeySounds.Slot.SPACE))
+    keyboard.keySounds = reassigned
+    keyboard.vibrateIntensityPercent = 50
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 200)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 270)
+
+    assertEquals(
+      listOf(
+        feedbackCall(true, true, KeyboardKeySounds.Slot.NORMAL),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.SPACE, 50),
+      ),
+      feedback.calls,
+    )
+    assertEquals(reassigned, feedback.lastSetSounds)
+  }
+
+  @Test
+  fun keyFeedbackFiresOncePerRepeatedDelete() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 368f, 175f, 100)
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE)), feedback.calls)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(499))
+    assertEquals(listOf(feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE)), feedback.calls)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
+    assertEquals(
+      listOf(
+        feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE),
+        feedbackCall(true, true, KeyboardKeySounds.Slot.DELETE),
+      ),
+      feedback.calls,
+    )
+    assertEquals(listOf("delete", "delete"), typed)
+    touch(MotionEvent.ACTION_UP, 368f, 175f, 1700)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
+
+    assertEquals(2, feedback.calls.size)
+    assertEquals(listOf("delete", "delete"), typed)
   }
 
   private fun installRecordingFeedback(vibrate: Boolean, sound: Boolean): RecordingKeyFeedback {
@@ -1447,12 +1627,34 @@ class VietnameseKeyboardViewTest {
   }
 
   private class RecordingKeyFeedback(context: Context) : VietnameseKeyFeedback(context) {
-    val calls = mutableListOf<Pair<Boolean, Boolean>>()
+    val calls = mutableListOf<FeedbackCall>()
+    var lastSetSounds: KeySounds? = null
 
-    override fun play(view: View, vibrate: Boolean, sound: Boolean) {
-      calls.add(vibrate to sound)
+    override fun play(vibrate: Boolean, sound: Boolean, keySound: KeySound, vibratePercent: Int) {
+      calls.add(FeedbackCall(vibrate, sound, keySound, vibratePercent))
+    }
+
+    override fun setSounds(sounds: KeySounds) {
+      lastSetSounds = sounds
     }
   }
+
+  private data class FeedbackCall(
+    val vibrate: Boolean,
+    val sound: Boolean,
+    val keySound: KeySound,
+    val vibratePercent: Int,
+  )
+
+  private fun soundFor(slot: KeyboardKeySounds.Slot): KeySound =
+    KeyboardKeySounds.defaultSounds()[slot]
+
+  private fun feedbackCall(
+    vibrate: Boolean,
+    sound: Boolean,
+    slot: KeyboardKeySounds.Slot,
+    vibratePercent: Int = 100,
+  ) = FeedbackCall(vibrate, sound, soundFor(slot), vibratePercent)
 
   private fun prepareKeyboard() {
     keyboard.typingMethod = DIRECT_SILENT_TYPING
