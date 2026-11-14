@@ -39,6 +39,21 @@ class TelexTest {
   }
 
   @Test
+  fun wModifiesTheMainVowelOfAVowelCluster() {
+    assertEquals("ưa", type("uaw"))
+    assertEquals("mưa", type("muaw"))
+    assertEquals("hoăn", type("hoanw"))
+    assertEquals("huăn", type("huanw"))
+    assertEquals("ăo", type("aow"))
+    assertEquals("ău", type("auw"))
+    assertEquals("oă", type("oaw"))
+    assertEquals("iă", type("iaw"))
+    assertEquals("eow", type("eow"))
+    assertEquals("oew", type("oew"))
+    assertEquals("uew", type("uew"))
+  }
+
+  @Test
   fun backspaceKeepsTheToneOnTheRemainingSyllable() {
     assertEquals("hòa", Telex.deleteLast("hoàn"))
     assertEquals("hò", Telex.deleteLast("hòa"))
