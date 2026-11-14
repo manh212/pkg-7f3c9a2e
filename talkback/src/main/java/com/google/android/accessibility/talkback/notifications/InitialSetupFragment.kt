@@ -257,7 +257,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   }
 
   private fun currentLanguageName(): String =
-    AppLanguage.entries.getOrNull(currentLanguageIndex())?.name ?: AppLanguage.VIETNAMESE.name
+    AppLanguage.entries.getOrNull(currentLanguageIndex())?.displayName ?: AppLanguage.VIETNAMESE.displayName
 
   /** Every permission with the state it stands in; tapping one goes back to its step. */
   private fun buildSummary(screen: PreferenceGroup, steps: List<Step>) {
@@ -550,7 +550,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   }
 }
 
-private enum class AppLanguage(val tag: String, val name: String) {
+private enum class AppLanguage(val tag: String, val displayName: String) {
   VIETNAMESE("vi", "Tiếng Việt"),
   ENGLISH("en", "English"),
 }
@@ -575,7 +575,7 @@ private class LanguagePreference(
       ArrayAdapter(
           context,
           android.R.layout.simple_spinner_item,
-          AppLanguage.entries.map { it.name },
+          AppLanguage.entries.map { it.displayName },
         )
         .apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
     spinner.setSelection(selected)
