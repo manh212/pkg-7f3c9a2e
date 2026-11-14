@@ -304,6 +304,12 @@
     <string name="timer_setup_status_missing">Not granted</string>
     <!-- State of a permission of the initial setup: its state could not be read. -->
     <string name="timer_setup_status_unknown">Could not be checked</string>
+    <!-- First step of the initial setup: the language Meridian speaks. -->
+    <string name="timer_setup_language_title">Language</string>
+    <!-- The language step: choosing a language applies it at once and moves the walk on. -->
+    <string name="timer_setup_language_detail">Choose the language for Meridian. Your choice applies at once and the setup moves on.</string>
+    <!-- Action of the language step: keeps the language showing and moves the walk on. -->
+    <string name="timer_setup_language_keep">Keep this language and continue</string>
     <!-- Step of the initial setup: the battery saving that can stop Meridian while the phone rests. -->
     <string name="timer_setup_battery_title">Android battery optimization exemption</string>
     <!-- The battery step, held: Meridian is exempt from battery saving. -->
@@ -386,6 +392,43 @@
     <string name="timer_setup_brightness_missing">Not allowed: the brightness item of the reading controls cannot change the system brightness.</string>
     <!-- Action of the brightness step. -->
     <string name="timer_setup_brightness_open">Open the modify-settings permission</string>
+    <string name="timer_setup_camera_title">Camera</string>
+    <string name="timer_setup_camera_granted">Granted: live recognition can read what the camera sees.</string>
+    <string name="timer_setup_camera_missing">Not granted: live recognition, currency reading and the flashlight cannot use the camera.</string>
+    <string name="timer_setup_camera_open">Ask for the camera</string>
+    <string name="timer_setup_call_title">Direct calling</string>
+    <string name="timer_setup_call_granted">Granted: a spoken call command dials the number straight away.</string>
+    <string name="timer_setup_call_missing">Not granted: a spoken call command only opens the dialler with the number filled in, and you press the call button yourself.</string>
+    <string name="timer_setup_call_open">Ask for the call permission</string>
+    <string name="timer_setup_location_title">Location</string>
+    <string name="timer_setup_location_granted">Granted: Meridian can read the current location and the Wi-Fi network name.</string>
+    <string name="timer_setup_location_missing">Not granted: the read-location command cannot read where you are, and the Wi-Fi network name stays hidden.</string>
+    <string name="timer_setup_location_open">Ask for location</string>
+    <string name="timer_setup_bluetooth_title">Bluetooth devices</string>
+    <string name="timer_setup_bluetooth_granted">Granted: notification rules can read the connected Bluetooth device.</string>
+    <string name="timer_setup_bluetooth_missing">Not granted: notification rules for a Bluetooth device cannot tell which device is connected.</string>
+    <string name="timer_setup_bluetooth_open">Ask for Bluetooth</string>
+    <string name="timer_setup_overlay_title">Display over other apps</string>
+    <string name="timer_setup_overlay_granted">Granted: the subtitle status line can show on screen while subtitles are being read.</string>
+    <string name="timer_setup_overlay_missing">Not granted: the small subtitle status line does not show on screen; subtitles are still read as usual.</string>
+    <string name="timer_setup_overlay_open">Open the display-over-apps permission</string>
+    <string name="timer_setup_storage_title">Save downloaded updates</string>
+    <string name="timer_setup_storage_granted">Granted: the updater can save a downloaded update into Downloads.</string>
+    <string name="timer_setup_storage_missing">Not granted: the updater cannot save a downloaded update into Downloads.</string>
+    <string name="timer_setup_storage_open">Ask for storage</string>
+    <string name="timer_setup_usage_title">Usage access</string>
+    <string name="timer_setup_usage_granted">Granted: the quick settings panel can read the state of apps' tiles.</string>
+    <string name="timer_setup_usage_missing">Not granted: the quick settings panel cannot read the state of apps' tiles.</string>
+    <string name="timer_setup_usage_open">Open usage access</string>
+    <string name="timer_setup_dump_title">System state access</string>
+    <string name="timer_setup_dump_granted">Granted: Meridian can fix stuck touch exploration and read tile states in the quick settings panel.</string>
+    <string name="timer_setup_dump_missing">Not granted: fixing stuck touch exploration and reading tile states need this permission, granted through Shizuku or an adb command from a computer.</string>
+    <string name="timer_setup_dump_open">Grant system state access</string>
+    <string name="timer_setup_secure_title">Modify secure settings</string>
+    <string name="timer_setup_secure_granted">Granted: the quick settings panel can change night light, extra dim and colour settings.</string>
+    <string name="timer_setup_secure_missing">Not granted: the quick settings panel cannot change night light, extra dim or colour settings; grant this through Shizuku or an adb command from a computer.</string>
+    <string name="timer_setup_secure_open">Grant modify-secure-settings</string>
+    <string name="timer_setup_shizuku_command">Run this command on a computer connected to the phone:\n%1$s</string>
     <!-- Setting screen of the stopwatch. -->
     <string name="stopwatch_title">Stopwatch</string>
     <!-- Action: starts the stopwatch if it is stopped, and stops it if it is running. -->
