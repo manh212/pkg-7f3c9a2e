@@ -26,17 +26,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The tap-delay row is on the typing-method screen for Direct key input alone. */
 class TypingMethodPrefFragmentTest {
 
   @Test
-  fun directKeyInput_showsTheTapDelayRow() {
+  fun bothDirectTypingModesShowTheTapDelayRow() {
     assertTrue(TypingMethodPrefFragment.isTapDelayRowVisible(SINGLE_TAP_TO_TYPE))
+    assertTrue(TypingMethodPrefFragment.isTapDelayRowVisible(DIRECT_SILENT_TYPING))
   }
 
   @Test
   fun everyOtherMethod_hidesTheTapDelayRow() {
-    assertFalse(TypingMethodPrefFragment.isTapDelayRowVisible(DIRECT_SILENT_TYPING))
     assertFalse(TypingMethodPrefFragment.isTapDelayRowVisible(DOUBLE_TAP))
     assertFalse(TypingMethodPrefFragment.isTapDelayRowVisible(LIFT_TO_TYPE))
     assertFalse(TypingMethodPrefFragment.isTapDelayRowVisible(FORCE_LIFT_TO_TYPE_ON_IME))

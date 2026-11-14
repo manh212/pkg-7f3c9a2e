@@ -36,7 +36,6 @@ internal class VietnameseKeyboardView(
   private val announce: (String) -> Unit,
   private val activate: (String, Long) -> Boolean,
   private val releaseAnnouncement: (Boolean) -> Unit = {},
-  private val shiftSpoken: () -> Unit = {},
   private val keyName: (String) -> String = { it },
   private val reportBounds: () -> Unit = {},
   private val micStop: () -> Unit = {},
@@ -375,8 +374,6 @@ internal class VietnameseKeyboardView(
         if (!confirmingSecondTap && cell != null) announceSelected(state, cell)
         if (key?.id == MIC) {
           armMicHold(state)
-        } else if (!state.pcShift && state.method == DIRECT_SILENT_TYPING && key != null) {
-          submitKey(key, event.eventTime, state.method, id)
         }
       }
       MotionEvent.ACTION_MOVE -> {
@@ -389,7 +386,6 @@ internal class VietnameseKeyboardView(
           state.lastY = y
           if (state.pointerId == micHoldPointer && movedBeyondSlop(state, x, y)) disarmMicHold()
           if (!state.pcShift && state.symbolPage != symbolPage) continue
-          if (!state.pcShift && state.method == DIRECT_SILENT_TYPING) continue
           if (movedBeyondSlop(state, x, y)) state.moved = true
           if (state.pcShift) continue
           val cell = cellAt(x, y)
@@ -418,7 +414,8 @@ internal class VietnameseKeyboardView(
             finishAnnouncement(state, cell)
           } else if (state.pcShift) {
             releaseShiftPointer(state, tap)
-          } else if (state.method != DIRECT_SILENT_TYPING && state.symbolPage == symbolPage) {
+            finishAnnouncement(state, cell)
+          } else if (state.symbolPage == symbolPage) {
             if (cell?.key != state.touch.selected) {
               state.touch.explore(cell?.key)
               announceSelected(state, cell)
@@ -429,7 +426,6 @@ internal class VietnameseKeyboardView(
               submitReleasedKey(key, state.method, event.eventTime, state.pointerId)
             }
           }
-          if ((state.pcShift || state.method == DIRECT_SILENT_TYPING) && !micKey) finishAnnouncement(state, cell)
         }
       }
       MotionEvent.ACTION_CANCEL -> {
@@ -496,7 +492,6 @@ internal class VietnameseKeyboardView(
     }
     shiftHolders.add(state.pointerId)
     refreshShiftLabels()
-    if (!wasHeld) shiftSpoken()
   }
 
   private fun releaseShiftPointer(state: PointerState, tap: Boolean) {
@@ -550,17 +545,6 @@ internal class VietnameseKeyboardView(
     keyFeedback.play(vibrate, keySound, keySounds[slot], vibrateIntensityPercent)
   }
 
-  private fun submitKey(key: VietnameseKeyTouch.Key, eventMs: Long, method: Int, pointerId: Int) {
-    if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
-    val id = resolveKey(key)
-    if (id == DELETE) {
-      activate(deleteTapId(eventMs, method, pointerId), 0)
-      return
-    }
-    lastDeleteTapMs = -1
-    activate(id, 0)
-  }
-
   private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int, releasedAt: Long, pointerId: Int) {
     if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
     val id = resolveKey(key)
@@ -568,7 +552,10 @@ internal class VietnameseKeyboardView(
       lastDeleteTapMs = -1
       id
     }
-    if (method != SINGLE_TAP_TO_TYPE || timing.directInputMs == 0L) {
+    val delay = if (method == SINGLE_TAP_TO_TYPE || method == DIRECT_SILENT_TYPING) {
+      timing.directInputMs
+    } else 0L
+    if (delay == 0L) {
       activate(targetId, releasedAt)
       return
     }
@@ -576,7 +563,7 @@ internal class VietnameseKeyboardView(
     touchHandler.postDelayed({
       pendingKeyDelay--
       activate(targetId, releasedAt)
-    }, timing.directInputMs)
+    }, delay)
   }
 
   private fun deleteTapId(eventMs: Long, method: Int, pointerId: Int): String {
@@ -659,9 +646,8 @@ internal class VietnameseKeyboardView(
 
   private fun finishAnnouncement(state: PointerState, cell: Cell?, waitsForCommit: Boolean = false) {
     if (cell == null) {
-      if (state.method != DIRECT_SILENT_TYPING) announceSelected(state, null)
-    } else if (speechPointer == state.pointerId || speechPointer == null ||
-      state.method == DIRECT_SILENT_TYPING) {
+      announceSelected(state, null)
+    } else if (speechPointer == state.pointerId || speechPointer == null) {
       releaseAnnouncement(waitsForCommit)
     }
     if (speechPointer == state.pointerId) speechPointer = null

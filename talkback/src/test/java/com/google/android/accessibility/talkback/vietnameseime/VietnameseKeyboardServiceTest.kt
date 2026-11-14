@@ -370,25 +370,42 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun directTouchSubmitsCharacterWordAndDeletionOnceWithOwnVoiceOff() {
+  fun directTouchReadsSelectionAndEditsWithOwnVoiceOff() {
     setTypingMethod(DIRECT_SILENT_TYPING)
     setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     setOwnVoice(false)
     setAutoCapitalize(false)
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putInt(service.getString(R.string.pref_direct_input_tap_delay_key), 15)
+      .apply()
     startEditor()
 
     val downTime = SystemClock.uptimeMillis()
     touch(downTime, MotionEvent.ACTION_DOWN, 20f, 125f)
-    assertEquals("a", text.toString())
+    assertTrue(text.isEmpty())
     assertEquals(listOf("a"), spoken)
-    touch(downTime, MotionEvent.ACTION_UP, 20f, 125f)
-    tap(105f, 125f)
-    tap(200f, 225f)
+    touch(downTime, MotionEvent.ACTION_MOVE, 105f, 125f)
+    assertEquals(listOf("a", "dê"), spoken)
+    touch(downTime, MotionEvent.ACTION_UP, 105f, 125f)
+    advance(14)
+    assertTrue(text.isEmpty())
+    advance(1)
+    assertEquals("d", text.toString())
+    assertEquals(listOf("a", "dê", "dê"), spoken)
+
     tap(20f, 125f)
+    advance(15)
+    tap(200f, 225f)
+    advance(15)
+    tap(20f, 125f)
+    advance(15)
     tapDelete()
 
-    assertEquals("ad ", text.toString())
-    assertEquals(listOf("a", "dê", "ad", "a", removed("a")), spoken)
+    assertEquals("da ", text.toString())
+    assertEquals(
+      listOf("a", "dê", "dê", "a", "a", "Dấu cách", "da", "a", "a", "Xóa", removed("a")),
+      spoken,
+    )
   }
 
   @Test

@@ -28,6 +28,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -197,7 +198,8 @@ class OrganizedSettingsTest {
     assertFalse(prefs.getString(key, null) == DIRECT_SILENT_TYPING.toString())
     fragment.onPreferenceTreeClick(row)
     assertEquals(DIRECT_SILENT_TYPING.toString(), prefs.getString(key, null))
-    assertTrue(fragment.findPreference<Preference>(activity.getString(R.string.pref_direct_input_tap_delay_key)) == null)
+    assertNotNull(fragment.findPreference<Preference>(
+      activity.getString(R.string.pref_direct_input_tap_delay_key)))
   }
 
   @Test

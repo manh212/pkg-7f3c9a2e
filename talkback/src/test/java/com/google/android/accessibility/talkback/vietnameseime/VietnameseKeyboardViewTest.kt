@@ -41,7 +41,9 @@ class VietnameseKeyboardViewTest {
     context, { spoken.add(it) }, { id, _ -> typed.add(id) }, { released++ },
     micStop = { micStops++ },
     onDirectKeyTouchDown = { directKeyDowns++ },
-  )
+  ).apply {
+    timing = VietnameseKeyboardTiming(directInputMs = 0)
+  }
 
   @Test
   fun touchscreenHoverSpeaksOnlyWhenEnabledAndDoesNotType() {
@@ -131,20 +133,24 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun directSilentModeCommitsDownKeyOnDownWithoutAccessibilityFocus() {
+  fun directModeReadsWhileSlidingThenTypesOnlyTheKeyAtLift() {
     prepareKeyboard()
+    keyboard.timing = VietnameseKeyboardTiming(directInputMs = 15)
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
     assertEquals(listOf("q"), spoken)
-    assertEquals(listOf("q"), typed)
+    assertTrue(typed.isEmpty())
     assertEquals(1, directKeyDowns)
     assertEquals(0, released)
     touch(MotionEvent.ACTION_MOVE, 60f, 60f, 140)
-    assertEquals(listOf("q"), spoken)
-    assertEquals(listOf("q"), typed)
+    assertEquals(listOf("q", "w"), spoken)
+    assertTrue(typed.isEmpty())
     touch(MotionEvent.ACTION_UP, 60f, 60f, 170)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(14))
+    assertTrue(typed.isEmpty())
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
 
-    assertEquals(listOf("q"), typed)
+    assertEquals(listOf("w"), typed)
     assertEquals(1, released)
     assertEquals(1, directKeyDowns)
     assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, keyboard.importantForAccessibility)
@@ -152,16 +158,16 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun directSilentModeLiftOffKeyboardDoesNotSilenceDownKey() {
+  fun directModeLiftOffKeyboardCancelsTheSelection() {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
-    assertEquals(listOf("q"), typed)
+    assertTrue(typed.isEmpty())
     touch(MotionEvent.ACTION_MOVE, 60f, 300f, 140)
     touch(MotionEvent.ACTION_UP, 60f, 300f, 170)
 
-    assertEquals(listOf("q"), typed)
-    assertEquals(listOf("q"), spoken)
+    assertTrue(typed.isEmpty())
+    assertEquals(listOf("q", ""), spoken)
     assertEquals(0, released)
   }
 
@@ -244,22 +250,27 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun directSilentModeTwoFingersTypeBothKeysOnDown() {
+  fun directModeEachFingerCanSelectAndTypeItsOwnKey() {
     prepareKeyboard()
+    keyboard.timing = VietnameseKeyboardTiming(directInputMs = 15)
 
-    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 20f, 60f)), 100)
+    val first = Triple(3, 20f, 60f)
+    val second = Triple(7, 60f, 60f)
+    val secondMoved = Triple(7, 100f, 60f)
+    touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(first), 100)
     assertEquals(listOf("q"), spoken)
-    assertEquals(listOf("q"), typed)
-    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
-      listOf(Triple(0, 20f, 60f), Triple(1, 60f, 60f)), 150)
-    assertEquals(listOf("q", "w"), spoken)
-    assertEquals(listOf("q", "w"), typed)
-    touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
-      listOf(Triple(0, 20f, 60f), Triple(1, 60f, 60f)), 200)
-    assertEquals(listOf("q", "w"), typed)
-    touchMulti(MotionEvent.ACTION_UP, 0, listOf(Triple(0, 20f, 60f)), 250)
+    touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1, listOf(first, second), 150)
+    touchMulti(MotionEvent.ACTION_MOVE, 0, listOf(first, secondMoved), 175)
+    assertEquals(listOf("q", "w", "e"), spoken)
+    assertTrue(typed.isEmpty())
+    touchMulti(MotionEvent.ACTION_POINTER_UP, 1, listOf(first, secondMoved), 200)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(5))
+    touchMulti(MotionEvent.ACTION_UP, 0, listOf(first), 205)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
+    assertEquals(listOf("e"), typed)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(5))
 
-    assertEquals(listOf("q", "w"), typed)
+    assertEquals(listOf("e", "q"), typed)
     assertEquals(2, released)
   }
 
@@ -370,14 +381,14 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun doubleTapDeleteInDirectModeDeletesWordOnSecondDown() {
+  fun doubleTapDeleteInDirectModeDeletesWordOnSecondLift() {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 368f, 175f, 100)
-    assertEquals(listOf("delete"), typed)
+    assertTrue(typed.isEmpty())
     touch(MotionEvent.ACTION_UP, 368f, 175f, 170)
     touch(MotionEvent.ACTION_DOWN, 368f, 175f, 200)
-    assertEquals(listOf("delete", "delete_word"), typed)
+    assertEquals(listOf("delete"), typed)
     touch(MotionEvent.ACTION_UP, 368f, 175f, 270)
 
     assertEquals(listOf("delete", "delete_word"), typed)
@@ -388,17 +399,17 @@ class VietnameseKeyboardViewTest {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 368f, 175f, 100)
-    assertEquals(listOf("delete"), typed)
+    assertTrue(typed.isEmpty())
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(499))
-    assertEquals(listOf("delete"), typed)
+    assertTrue(typed.isEmpty())
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
-    assertEquals(listOf("delete", "delete"), typed)
+    assertEquals(listOf("delete"), typed)
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
     val afterFirstWindow = typed.size
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
     val afterSecondWindow = typed.size
 
-    assertTrue(afterSecondWindow - afterFirstWindow > afterFirstWindow - 1)
+    assertTrue(afterSecondWindow - afterFirstWindow > afterFirstWindow)
     assertFalse(typed.contains("delete_word"))
     touch(MotionEvent.ACTION_UP, 368f, 175f, 1700)
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
@@ -737,7 +748,7 @@ class VietnameseKeyboardViewTest {
     touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 240f, 360f)), 100)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 720f, 20f)), 150)
-    assertEquals(listOf("!"), typed)
+    assertTrue(typed.isEmpty())
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "!"), spoken)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 720f, 20f)), 200)
@@ -753,7 +764,7 @@ class VietnameseKeyboardViewTest {
     touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 240f, 360f)), 100)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 560f, 20f)), 150)
-    assertEquals(listOf("Q"), typed)
+    assertTrue(typed.isEmpty())
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "Q"), spoken)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 560f, 20f)), 200)
@@ -822,12 +833,12 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun leftEdgeDownAnnouncesAndTypesFirstSecondRowKey() {
+  fun leftEdgeAnnouncesOnDownAndTypesOnLift() {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 10f, 120f, 100)
     assertEquals(listOf("a"), spoken)
-    assertEquals(listOf("a"), typed)
+    assertTrue(typed.isEmpty())
     touch(MotionEvent.ACTION_UP, 10f, 120f, 170)
 
     assertEquals(listOf("a"), typed)
@@ -835,12 +846,12 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun rightEdgeDownAnnouncesAndTypesLastSecondRowKey() {
+  fun rightEdgeAnnouncesOnDownAndTypesOnLift() {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 390f, 120f, 100)
     assertEquals(listOf("l"), spoken)
-    assertEquals(listOf("l"), typed)
+    assertTrue(typed.isEmpty())
     touch(MotionEvent.ACTION_UP, 390f, 120f, 170)
 
     assertEquals(listOf("l"), typed)
@@ -941,7 +952,7 @@ class VietnameseKeyboardViewTest {
     touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 240f, 360f)), 100)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 720f, 20f)), 150)
-    assertEquals(listOf("!"), typed)
+    assertTrue(typed.isEmpty())
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "!"), spoken)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 720f, 20f)), 200)
@@ -958,7 +969,7 @@ class VietnameseKeyboardViewTest {
     touchMulti(MotionEvent.ACTION_DOWN, 0, listOf(Triple(0, 240f, 360f)), 100)
     touchMulti(MotionEvent.ACTION_POINTER_DOWN, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 560f, 20f)), 150)
-    assertEquals(listOf("Q"), typed)
+    assertTrue(typed.isEmpty())
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_uppercase), "Q"), spoken)
     touchMulti(MotionEvent.ACTION_POINTER_UP, 1,
       listOf(Triple(0, 240f, 360f), Triple(1, 560f, 20f)), 200)
@@ -1057,7 +1068,7 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
-  fun directSilentModeDownOnEmptyAreaDoesNotSilence() {
+  fun directModeSecondFingerOutsideDoesNotClearFirstFinger() {
     prepareKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
@@ -1446,7 +1457,7 @@ class VietnameseKeyboardViewTest {
       ),
       feedback.calls,
     )
-    assertEquals(listOf("q", "w"), typed)
+    assertEquals(listOf("w", "q"), typed)
   }
 
   @Test
@@ -1633,12 +1644,12 @@ class VietnameseKeyboardViewTest {
       ),
       feedback.calls,
     )
-    assertEquals(listOf("delete", "delete"), typed)
+    assertEquals(listOf("delete"), typed)
     touch(MotionEvent.ACTION_UP, 368f, 175f, 1700)
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
 
     assertEquals(2, feedback.calls.size)
-    assertEquals(listOf("delete", "delete"), typed)
+    assertEquals(listOf("delete"), typed)
   }
 
   private fun installRecordingFeedback(vibrate: Boolean, sound: Boolean): RecordingKeyFeedback {

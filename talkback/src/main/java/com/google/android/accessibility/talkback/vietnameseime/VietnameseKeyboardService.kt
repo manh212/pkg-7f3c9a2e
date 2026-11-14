@@ -160,10 +160,9 @@ class VietnameseKeyboardService : InputMethodService() {
       ::announceKey,
       ::activateKey,
       { waitsForCommit -> keySpeech.release(timing.releaseSpeechMs, waitsForCommit) },
-      ::speakShiftHeld,
-      keyNames::spokenName,
-      ::reportKeyboardBounds,
-      ::stopMicDictation,
+      keyName = keyNames::spokenName,
+      reportBounds = ::reportKeyboardBounds,
+      micStop = ::stopMicDictation,
       onDirectKeyTouchDown = { TalkBackService.getInstance()?.onDirectKeyboardTouchDown() },
     )
     keyboard = view
@@ -498,7 +497,10 @@ class VietnameseKeyboardService : InputMethodService() {
         shifted = false
       }
     }
-    actionFeedback(id)?.let { keySpeech.confirm(getString(it), speakAt) }
+    if (id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
+      val feedback = if (vietnamese) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off
+      keySpeech.confirm(getString(feedback), speakAt)
+    }
     updateLayout()
     return true
   }
@@ -570,21 +572,6 @@ class VietnameseKeyboardService : InputMethodService() {
       return true
     }
     return commitText(connection, text)
-  }
-
-  private fun actionFeedback(id: String): Int? {
-    if (id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
-      return if (vietnamese) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off
-    }
-    if (method != DIRECT_SILENT_TYPING || !echoesCharacters()) return null
-    return when (id) {
-      VietnameseKeyboardView.SHIFT ->
-        if (shifted) R.string.vietnamese_ime_uppercase else R.string.vietnamese_ime_lowercase
-      VietnameseKeyboardView.SYMBOLS -> R.string.vietnamese_ime_symbols
-      VietnameseKeyboardView.LETTERS -> R.string.vietnamese_ime_letters
-      VietnameseKeyboardView.PICKER -> R.string.vietnamese_ime_picker_key
-      else -> null
-    }
   }
 
   private fun type(connection: InputConnection, letter: Char, speakAt: Long): Boolean {
@@ -882,15 +869,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   private fun announceKey(label: String) {
     if (label.isEmpty()) keySpeech.clearPreview()
-    else if (method != DIRECT_SILENT_TYPING) {
-      keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
-    }
-  }
-
-  private fun speakShiftHeld() {
-    if (method == DIRECT_SILENT_TYPING && echoesCharacters()) {
-      keySpeech.confirm(getString(R.string.vietnamese_ime_uppercase), 0)
-    }
+    else keySpeech.explore(keyNames.spokenName(label), timing.exploreSpeechMs)
   }
 
   private fun speakEnteredCharacter(character: Char, speakAt: Long) {

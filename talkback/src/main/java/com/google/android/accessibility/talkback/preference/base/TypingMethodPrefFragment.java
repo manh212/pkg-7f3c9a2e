@@ -49,13 +49,13 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
   private Context context;
   private SharedPreferences prefs;
 
-  /** Refreshes the long-press row when the typing method changes elsewhere. */
   private final OnSharedPreferenceChangeListener onSharedPreferenceChangeListener =
       (sharedPrefs, key) -> {
         if (!isAdded() || getActivity() == null) {
           return;
         }
         if (TextUtils.equals(key, getString(R.string.pref_typing_confirmation_key))) {
+          updateTapDelayVisibility(currentTypingMethod());
           updateLongPressPreference();
         }
       };
@@ -137,6 +137,7 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
   public void onResume() {
     super.onResume();
     prefs.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
+    updateTapDelayVisibility(currentTypingMethod());
     updateLongPressPreference();
   }
 
@@ -233,16 +234,11 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
     }
   }
 
-  /** The tap-delay row belongs to Direct key input alone; the other methods never read it. */
   @VisibleForTesting
   static boolean isTapDelayRowVisible(int typingMethod) {
-    return typingMethod == SINGLE_TAP_TO_TYPE;
+    return typingMethod == SINGLE_TAP_TO_TYPE || typingMethod == DIRECT_SILENT_TYPING;
   }
 
-  /**
-   * Adds the tap-delay row to the screen or takes it off it, following the typing method in
-   * effect: with any other method the row is gone, not greyed out.
-   */
   private void updateTapDelayVisibility(int typingMethod) {
     if (tapDelayPref == null || getPreferenceScreen() == null) {
       return;

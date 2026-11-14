@@ -1654,13 +1654,13 @@
       Source: Preference title.
       Description: This preference that shows the tap delay of Direct key input. [CHAR_LIMIT=60]
     -->
-    <string name="title_pref_direct_input_tap_delay">Direct key input tap delay</string>
+    <string name="title_pref_direct_input_tap_delay">Độ trễ nhập phím (ms)</string>
 
     <!--
       Source: Preference summary.
       Description: Explains what the Direct key input tap delay is. [CHAR_LIMIT=NONE]
     -->
-    <string name="summary_pref_direct_input_tap_delay">How long after you lift your finger off a key before the key is typed. Only applies to Direct key input.</string>
+    <string name="summary_pref_direct_input_tap_delay">Khoảng chờ sau khi nhấc ngón trước khi nhập phím đã chọn.</string>
     <!--
       Source: Preference title.
       Description: This preference that shows current touch explore time out to exploration. [CHAR_LIMIT=60]
