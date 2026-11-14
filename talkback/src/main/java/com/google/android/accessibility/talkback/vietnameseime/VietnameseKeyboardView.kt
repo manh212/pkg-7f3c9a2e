@@ -189,6 +189,12 @@ internal class VietnameseKeyboardView(
   var vibrateOnKey = false
   var keySound = false
   internal var keyFeedback: VietnameseKeyFeedback = VietnameseKeyFeedback(context)
+  var keySounds: KeySounds = KeyboardKeySounds.defaultSounds()
+    set(value) {
+      field = value
+      keyFeedback.setSounds(value)
+    }
+  var vibrateIntensityPercent: Int = 100
 
   init {
     ViewCompat.setAccessibilityDelegate(this, keyAccessibility)
@@ -358,7 +364,7 @@ internal class VietnameseKeyboardView(
         )
         pointers[id] = state
         val key = cell?.key
-        if (key != null) playKeyFeedback()
+        if (key != null) playKeyFeedback(key)
         if (key?.id == DELETE) startDeleteRepeat(state)
         val confirmingSecondTap = key != null &&
           VietnameseKeyTouch.confirmsWithDoubleTap(key, state.method) &&
@@ -533,9 +539,16 @@ internal class VietnameseKeyboardView(
    * Runs on the local vibrator and tone generator only, never through speech,
    * so it still fires while Meridian is muted, paused, or off.
    */
-  private fun playKeyFeedback() {
+  private fun playKeyFeedback(key: VietnameseKeyTouch.Key) {
+    if (key.id == MIC) return
     if (!vibrateOnKey && !keySound) return
-    keyFeedback.play(this, vibrateOnKey, keySound)
+    val slot = when (key.id) {
+      " " -> KeyboardKeySounds.Slot.SPACE
+      DELETE -> KeyboardKeySounds.Slot.DELETE
+      ENTER -> KeyboardKeySounds.Slot.ENTER
+      else -> KeyboardKeySounds.Slot.NORMAL
+    }
+    keyFeedback.play(vibrateOnKey, keySound, keySounds[slot], vibrateIntensityPercent)
   }
 
   private fun submitKey(key: VietnameseKeyTouch.Key, eventMs: Long, method: Int, pointerId: Int) {
@@ -607,6 +620,7 @@ internal class VietnameseKeyboardView(
       deleteRepeatPointer = null
       return
     }
+    playKeyFeedback(key)
     deleteRepeatIntervalMs = nextDeleteRepeatIntervalMs(deleteRepeatIntervalMs)
     touchHandler.postDelayed(deleteRepeatRunnable, deleteRepeatIntervalMs)
   }

@@ -72,6 +72,8 @@ class VietnameseKeyboardService : InputMethodService() {
   private var doubleSpacePeriod = true
   private var vibrateOnKey = false
   private var keySound = false
+  private var keySounds: KeySounds = KeyboardKeySounds.defaultSounds()
+  private var vibrateIntensityPercent: Int = 100
   private var dictating = false
   internal var dictationAvailable: () -> Boolean = { SandflyDictation.isAvailable }
   internal var dictationListen: ((String?) -> Unit) -> Boolean = SandflyDictation::listen
@@ -122,6 +124,11 @@ class VietnameseKeyboardService : InputMethodService() {
       key == getString(R.string.pref_vietnamese_keyboard_double_space_period_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_vibrate_on_key_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_key_sound_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_key_sound_space_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_key_sound_normal_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_key_sound_delete_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_key_sound_enter_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_vibration_level_key) ||
       VietnameseKeyboardTiming.isTimingKey(key) ||
       key == KeyboardEchoSettings.key(resources, ON_SCREEN_KEYBOARD)) readPreferences()
   }
@@ -348,6 +355,15 @@ class VietnameseKeyboardService : InputMethodService() {
     val newKeySound = prefs.getBoolean(
       getString(R.string.pref_vietnamese_keyboard_key_sound_key), false,
     )
+    val newKeySounds = KeySounds(
+      space = KeyboardKeySounds.resolve(this, KeyboardKeySounds.Slot.SPACE),
+      normal = KeyboardKeySounds.resolve(this, KeyboardKeySounds.Slot.NORMAL),
+      delete = KeyboardKeySounds.resolve(this, KeyboardKeySounds.Slot.DELETE),
+      enter = KeyboardKeySounds.resolve(this, KeyboardKeySounds.Slot.ENTER),
+    )
+    val newVibrateIntensityPercent = prefs.getInt(
+      getString(R.string.pref_vietnamese_keyboard_vibration_level_key), 100,
+    ).coerceIn(0, 100)
     if (method != newMethod || timing != newTiming || layout != newLayout || ownVoice != newOwnVoice ||
       sizePortraitPercent != newSizePortrait || sizeLandscapePercent != newSizeLandscape ||
       micEnabled != newMicEnabled || showNumberRow != newShowNumberRow ||
@@ -370,6 +386,8 @@ class VietnameseKeyboardService : InputMethodService() {
     doubleSpacePeriod = newDoubleSpacePeriod
     vibrateOnKey = newVibrateOnKey
     keySound = newKeySound
+    keySounds = newKeySounds
+    vibrateIntensityPercent = newVibrateIntensityPercent
     if (ownVoice != newOwnVoice) {
       ownVoice = newOwnVoice
       if (!ownVoice) {
@@ -403,6 +421,8 @@ class VietnameseKeyboardService : InputMethodService() {
       doubleSpacePeriod = this@VietnameseKeyboardService.doubleSpacePeriod
       vibrateOnKey = this@VietnameseKeyboardService.vibrateOnKey
       keySound = this@VietnameseKeyboardService.keySound
+      keySounds = this@VietnameseKeyboardService.keySounds
+      vibrateIntensityPercent = this@VietnameseKeyboardService.vibrateIntensityPercent
     }
   }
 
