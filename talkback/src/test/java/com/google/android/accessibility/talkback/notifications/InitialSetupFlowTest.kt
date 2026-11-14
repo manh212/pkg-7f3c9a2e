@@ -28,6 +28,8 @@ import org.robolectric.annotation.Config
 /**
  * The initial setup's walk: no button between one permission and the next — dealing with a
  * step only moves on after a grant is verified, granted steps are passed over, and the end is the summary.
+ * Choosing the language moves on at once, and a step whose grant cannot be checked moves on
+ * when the walk returns from its page, while a denied step that can be checked stays put.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -219,6 +221,120 @@ class InitialSetupFlowTest {
     flow.leaveScreen()
     flow.returnToScreen(3, granted = true)
     flow.completeOpen(3)
+    assertEquals(1, flow.step)
+  }
+
+  @Test
+  fun languageChoice_advancesAtOnce() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.chooseLanguage(3)
+
+    assertEquals(1, flow.step)
+    assertFalse(flow.atSummary(3))
+  }
+
+  @Test
+  fun languageChoiceOnTheLastStep_endsAtTheSummary() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+    flow.skip()
+    flow.skip()
+
+    flow.chooseLanguage(3)
+
+    assertTrue(flow.atSummary(3))
+  }
+
+  @Test
+  fun languageChoiceFromSummary_returnsToSummary() {
+    val flow = SetupFlow()
+    flow.review(1)
+
+    flow.chooseLanguage(3)
+
+    assertFalse(flow.reviewing)
+    assertTrue(flow.atSummary(3))
+  }
+
+  @Test
+  fun languageChoice_dropsAPendingOpen() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.tapOpen()
+    flow.chooseLanguage(3)
+
+    flow.leaveScreen()
+    flow.returnToScreen(3, granted = true)
+    assertEquals(1, flow.step)
+  }
+
+  @Test
+  fun unverifiableStep_advancesOnReturnWithoutAGrant() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.tapOpen()
+    flow.leaveScreen()
+    flow.returnToScreen(3, granted = false, unverifiable = true)
+
+    assertEquals(1, flow.step)
+  }
+
+  @Test
+  fun unverifiableStep_advancesToTheSummaryOnTheLastStep() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+    flow.skip()
+    flow.skip()
+
+    flow.tapOpen()
+    flow.leaveScreen()
+    flow.returnToScreen(3, granted = false, unverifiable = true)
+
+    assertTrue(flow.atSummary(3))
+  }
+
+  @Test
+  fun unverifiableStepFromSummary_returnsToSummaryWithoutAGrant() {
+    val flow = SetupFlow()
+    flow.review(1)
+
+    flow.tapOpen()
+    flow.leaveScreen()
+    flow.returnToScreen(3, granted = false, unverifiable = true)
+
+    assertFalse(flow.reviewing)
+    assertTrue(flow.atSummary(3))
+  }
+
+  @Test
+  fun unverifiableStepThatWasNeverLeft_staysPut() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.tapOpen()
+    flow.returnToScreen(3, granted = false, unverifiable = true)
+
+    assertEquals(0, flow.step)
+    assertFalse(flow.atSummary(3))
+  }
+
+  @Test
+  fun deniedVerifiableStep_doesNotAdvanceWithoutUnverifiableFlag() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.tapOpen()
+    flow.leaveScreen()
+    flow.returnToScreen(3, granted = false, unverifiable = false)
+
+    assertEquals(0, flow.step)
+    assertFalse(flow.atSummary(3))
+
+    flow.skip()
     assertEquals(1, flow.step)
   }
 }

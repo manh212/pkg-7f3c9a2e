@@ -23,6 +23,7 @@ import android.app.Application
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
@@ -184,5 +185,133 @@ class TimerPermissionChecksTest {
     )
 
     assertEquals(Status.GRANTED, TimerPermissionChecks.serviceStatus(context))
+  }
+
+  @Test
+  fun camera_followsTheGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.cameraStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.CAMERA)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.cameraStatus(context))
+  }
+
+  @Test
+  fun camera_absentOnPhonesWithoutACamera() {
+    Shadows.shadowOf(context.packageManager)
+      .setSystemFeature(PackageManager.FEATURE_CAMERA, true)
+    assertEquals(true, TimerPermissionChecks.hasCamera(context))
+
+    Shadows.shadowOf(context.packageManager)
+      .setSystemFeature(PackageManager.FEATURE_CAMERA, false)
+    assertEquals(false, TimerPermissionChecks.hasCamera(context))
+  }
+
+  @Test
+  fun call_followsTheGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.callStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.CALL_PHONE)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.callStatus(context))
+  }
+
+  @Test
+  fun location_followsTheFineGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.locationStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.locationStatus(context))
+  }
+
+  @Test
+  fun location_followsTheCoarseGrantAlone() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.locationStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.locationStatus(context))
+  }
+
+  @Test
+  fun bluetooth_followsTheGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.bluetoothStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.bluetoothStatus(context))
+  }
+
+  @Test
+  fun overlay_followsTheDrawOverlaysOp() {
+    val appOps = Shadows.shadowOf(context.getSystemService(AppOpsManager::class.java))
+    appOps.setMode(
+      AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW,
+      Process.myUid(),
+      context.packageName,
+      AppOpsManager.MODE_ERRORED,
+    )
+    assertEquals(Status.MISSING, TimerPermissionChecks.overlayStatus(context))
+
+    appOps.setMode(
+      AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW,
+      Process.myUid(),
+      context.packageName,
+      AppOpsManager.MODE_ALLOWED,
+    )
+    assertEquals(Status.GRANTED, TimerPermissionChecks.overlayStatus(context))
+  }
+
+  @Test
+  fun storage_followsTheGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.storageStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.storageStatus(context))
+  }
+
+  @Test
+  fun usage_followsThePermissionAndTheUsageAccessOp() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.usageStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.PACKAGE_USAGE_STATS)
+    Shadows.shadowOf(context.getSystemService(AppOpsManager::class.java))
+      .setMode(
+        AppOpsManager.OPSTR_GET_USAGE_STATS,
+        Process.myUid(),
+        context.packageName,
+        AppOpsManager.MODE_ALLOWED,
+      )
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.usageStatus(context))
+  }
+
+  @Test
+  fun dump_followsTheGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.dumpStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.DUMP)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.dumpStatus(context))
+  }
+
+  @Test
+  fun secureSettings_followsTheGrant() {
+    assertEquals(Status.MISSING, TimerPermissionChecks.secureSettingsStatus(context))
+
+    Shadows.shadowOf(context as Application)
+      .grantPermissions(Manifest.permission.WRITE_SECURE_SETTINGS)
+
+    assertEquals(Status.GRANTED, TimerPermissionChecks.secureSettingsStatus(context))
   }
 }
