@@ -111,8 +111,15 @@ class TypingSettingsStructureTest {
   fun vietnameseKeyboardSoundScreen_holdsVibrationAndKeySound() {
     assertEquals(
       listOf(
-        "pref_vietnamese_keyboard_vibrate_on_key",
+        "pref_vietnamese_keyboard_key_sound_category",
         "pref_vietnamese_keyboard_key_sound",
+        "pref_vietnamese_keyboard_key_sound_space",
+        "pref_vietnamese_keyboard_key_sound_normal",
+        "pref_vietnamese_keyboard_key_sound_delete",
+        "pref_vietnamese_keyboard_key_sound_enter",
+        "pref_vietnamese_keyboard_vibration_category",
+        "pref_vietnamese_keyboard_vibrate_on_key",
+        "pref_vietnamese_keyboard_vibration_level",
       ),
       rowsOf(R.xml.vietnamese_keyboard_sound_preferences).map { it.first },
     )
@@ -206,6 +213,13 @@ class TypingSettingsStructureTest {
     assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_size_landscape" })
     assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_vibrate_on_key" })
     assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound_category" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound_space" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound_normal" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound_delete" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound_enter" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_vibration_category" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_vibration_level" })
     assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_show_number_row" })
     assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_show_symbols_row" })
     assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_auto_capitalize" })
