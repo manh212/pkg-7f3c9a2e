@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
 import org.robolectric.shadows.ShadowAlarmManager
+import org.robolectric.shadows.ShadowSettings
 import org.robolectric.annotation.Config
 
 /** The initial setup's readings: each permission's state is the system's own answer. */
@@ -249,22 +250,11 @@ class TimerPermissionChecksTest {
   }
 
   @Test
-  fun overlay_followsTheDrawOverlaysOp() {
-    val appOps = Shadows.shadowOf(context.getSystemService(AppOpsManager::class.java))
-    appOps.setMode(
-      AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW,
-      Process.myUid(),
-      context.packageName,
-      AppOpsManager.MODE_ERRORED,
-    )
+  fun overlay_followsTheDrawOverlaysSetting() {
+    ShadowSettings.setCanDrawOverlays(false)
     assertEquals(Status.MISSING, TimerPermissionChecks.overlayStatus(context))
 
-    appOps.setMode(
-      AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW,
-      Process.myUid(),
-      context.packageName,
-      AppOpsManager.MODE_ALLOWED,
-    )
+    ShadowSettings.setCanDrawOverlays(true)
     assertEquals(Status.GRANTED, TimerPermissionChecks.overlayStatus(context))
   }
 
