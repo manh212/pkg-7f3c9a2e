@@ -889,7 +889,9 @@ class VietnameseKeyboardService : InputMethodService() {
     val reader = speechController()
     observeReaderSpeech(reader)
     if (ownVoice) {
-      if (reader != null && (reader.isMute || reader.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD))) {
+      // Do not wait for Meridian speech: refusing the submit holds the echo in the
+      // retry loop for seconds, then drains several queued echoes as one burst.
+      if (reader?.isMute == true) {
         return false
       }
       warmUpKeyboardVoice()
