@@ -28,13 +28,19 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
+
 import com.google.android.accessibility.talkback.permission.PermissionUtils
 import com.google.android.accessibility.talkback.selector.ScreenBrightness
 import com.google.android.accessibility.talkback.shizuku.PlayInstaller
+import com.google.android.accessibility.talkback.shizuku.ShizukuGrants
 import com.google.android.accessibility.talkback.shizuku.ShizukuShell
+import com.google.android.accessibility.talkback.utils.ClipboardUtils
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * The permissions SandFly stands on, checked and asked for in the open: enabling a feature
@@ -327,5 +333,159 @@ object TimerPermissionChecks {
     } catch (e: ActivityNotFoundException) {
       // No page to open on this phone.
     }
+  }
+
+  fun hasCamera(context: Context): Boolean =
+    context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA)
+
+  fun cameraStatus(context: Context): Status =
+    if (
+      ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+
+  fun requestCamera(context: Context) {
+    PermissionUtils.requestPermissions(context, Manifest.permission.CAMERA)
+  }
+
+  fun callStatus(context: Context): Status =
+    if (
+      ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+
+  fun requestCall(context: Context) {
+    PermissionUtils.requestPermissions(context, Manifest.permission.CALL_PHONE)
+  }
+
+  fun locationStatus(context: Context): Status =
+    if (
+      ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+          PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+
+  fun requestLocation(context: Context) {
+    PermissionUtils.requestPermissions(
+      context,
+      Manifest.permission.ACCESS_FINE_LOCATION,
+      Manifest.permission.ACCESS_COARSE_LOCATION,
+    )
+  }
+
+  fun bluetoothStatus(context: Context): Status {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return Status.GRANTED
+    return if (
+      ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+  }
+
+  fun requestBluetooth(context: Context) {
+    PermissionUtils.requestPermissions(context, Manifest.permission.BLUETOOTH_CONNECT)
+  }
+
+  fun overlayStatus(context: Context): Status {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return Status.GRANTED
+    return if (Settings.canDrawOverlays(context)) Status.GRANTED else Status.MISSING
+  }
+
+  fun openOverlaySettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+    try {
+      context.startActivity(
+        Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:" + context.packageName),
+          )
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+    } catch (_: ActivityNotFoundException) {
+    }
+  }
+
+  fun storageStatus(context: Context): Status =
+    if (
+      ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+
+  fun requestStorage(context: Context) {
+    PermissionUtils.requestPermissions(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+  }
+
+  fun usageStatus(context: Context): Status =
+    if (ShizukuGrants.Grant.USAGE_STATS.isGranted(context)) Status.GRANTED else Status.MISSING
+
+  fun openUsageSettings(context: Context) {
+    try {
+      context.startActivity(
+        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+    } catch (_: ActivityNotFoundException) {
+    }
+  }
+
+  fun dumpStatus(context: Context): Status =
+    if (
+      context.checkSelfPermission(Manifest.permission.DUMP) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+
+  fun secureSettingsStatus(context: Context): Status =
+    if (
+      context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      Status.GRANTED
+    } else {
+      Status.MISSING
+    }
+
+  fun requestShizukuGrant(
+    context: Context,
+    @StringRes title: Int,
+    grant: ShizukuGrants.Grant,
+    onDone: () -> Unit,
+  ) {
+    if (ShizukuGrants.isReady()) {
+      ShizukuGrants.request(context, grant) { onDone() }
+      return
+    }
+    val command = "adb shell " + grant.shellCommand(context.packageName).joinToString(" ")
+    MaterialAlertDialogBuilder(context)
+      .setTitle(title)
+      .setMessage(context.getString(R.string.timer_setup_shizuku_command, command))
+      .setPositiveButton(R.string.action_copy_command) { _, _ ->
+        ClipboardUtils.copyToClipboard(context, command)
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .setOnDismissListener { onDone() }
+      .show()
   }
 }

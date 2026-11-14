@@ -18,36 +18,66 @@ package com.google.android.accessibility.talkback.notifications
 
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import androidx.preference.Preference
 import androidx.preference.PreferenceGroup
+import androidx.preference.PreferenceViewHolder
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.calls.CallLimitController
 import com.google.android.accessibility.talkback.calls.CallPermissions
 import com.google.android.accessibility.talkback.notifications.TimerPermissionChecks.Status
+import com.google.android.accessibility.talkback.shizuku.ShizukuGrants
 import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import java.util.Locale
 
 /**
- * Initial setup: every permission SandFly stands on, one at a time. A step the phone already
- * grants is passed over; dealing with a step — in the system's own dialog or settings page —
- * moves the walk on by itself when this screen comes back, so there is no button to press
- * between one permission and the next. Each step says where the walk stands and the state it
- * finds — for the battery, the state the system itself reports, never a guess. A step can be
- * passed by, the setup can be left at any time, and the end lists every state as it stands.
+ * Initial setup: the language first, then every permission SandFly stands on, one at a time.
+ * Choosing a language applies it at once and moves the walk on by itself. A step the phone
+ * already grants is passed over; dealing with a step — in the system's own dialog or settings
+ * page — moves the walk on by itself when this screen comes back, so there is no button to press
+ * between one permission and the next, and a step whose grant cannot be checked moves on when
+ * the walk returns from its page all the same. Each step says where the walk stands and the
+ * state it finds — for the battery, the state the system itself reports, never a guess. A step
+ * can be passed by, the setup can be left at any time, and the end lists every state as it
+ * stands, with the language as the language chosen rather than a grant.
  */
 class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title) {
   private val flow = SetupFlow()
 
-  /** One permission: what it is called, what its states say, and where it is given. */
+  private var languageChosen = false
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    languageChosen = savedInstanceState?.getBoolean(KEY_LANGUAGE_CHOSEN) ?: false
+  }
+
+  override fun onSaveInstanceState(outState: Bundle) {
+    outState.putBoolean(KEY_LANGUAGE_CHOSEN, languageChosen)
+    super.onSaveInstanceState(outState)
+  }
+
+  /** One step of the walk: a permission, what it is called, what its states say, and where it
+   * is given — or the language choice, which has no grant state and is shown as the language
+   * chosen, or a step whose grant cannot be checked. */
   private class Step(
     @StringRes val title: Int,
-    @StringRes val grantedText: Int,
-    @StringRes val missingText: Int,
-    @StringRes val openLabel: Int,
+    @StringRes val grantedText: Int = 0,
+    @StringRes val missingText: Int = 0,
+    @StringRes val openLabel: Int = 0,
     val status: (Context) -> Status,
-    val open: (Context) -> Unit,
+    val open: (Context) -> Unit = {},
     val applicable: (Context) -> Boolean = { true },
     val automatic: Boolean = true,
+    val unverifiable: Boolean = false,
+    val choice: Boolean = false,
+    val summaryText: ((Context) -> String)? = null,
   )
 
   override fun onPause() {
@@ -60,8 +90,9 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     val context = requireContext()
     val availableSteps = steps().filter { it.applicable(context) }
     val current = availableSteps.getOrNull(flow.step)
-    val granted = current?.status?.invoke(context) == Status.GRANTED
-    flow.returnToScreen(availableSteps.size, granted)
+    val status = current?.status?.invoke(context)
+    val unverifiable = current?.unverifiable == true || status == Status.UNKNOWN
+    flow.returnToScreen(availableSteps.size, status == Status.GRANTED, unverifiable)
     super.onResume()
   }
 
@@ -77,6 +108,10 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   }
 
   private fun buildStep(screen: PreferenceGroup, steps: List<Step>, current: Step) {
+    if (current.choice) {
+      buildLanguageStep(screen, steps)
+      return
+    }
     val context = requireContext()
     val status = current.status(context)
     val category = screen.category(current.title)
@@ -113,6 +148,24 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
               rebuild()
             }
           }
+        } else if (
+          current.title == R.string.timer_setup_dump_title ||
+            current.title == R.string.timer_setup_secure_title
+        ) {
+          TimerPermissionChecks.requestShizukuGrant(
+            context,
+            current.title,
+            if (current.title == R.string.timer_setup_dump_title) {
+              ShizukuGrants.Grant.DUMP
+            } else {
+              ShizukuGrants.Grant.WRITE_SECURE_SETTINGS
+            },
+          ) {
+            if (isAdded) {
+              flow.completeOpen(steps.size)
+              rebuild()
+            }
+          }
         } else if (current.title == R.string.timer_setup_keep_alive_title) {
           current.open(context)
           flow.completeOpen(steps.size)
@@ -140,12 +193,80 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     }
   }
 
+  private fun buildLanguageStep(screen: PreferenceGroup, steps: List<Step>) {
+    val context = requireContext()
+    val category = screen.category(R.string.timer_setup_language_title)
+    category.action(
+      getString(
+        R.string.timer_setup_progress,
+        flow.step + 1,
+        steps.size,
+        currentLanguageName(),
+      ),
+      getString(R.string.timer_setup_language_detail),
+    ) {
+      rebuild()
+    }
+    category.addPreference(
+      LanguagePreference(context, currentLanguageIndex()) { index ->
+        onLanguageSelected(steps.size, index)
+      }
+    )
+    if (flow.reviewing) {
+      category.action(getString(R.string.timer_setup_back)) {
+        flow.backToSummary(steps.size)
+        rebuild()
+      }
+    } else {
+      category.action(getString(R.string.timer_setup_language_keep)) {
+        keepLanguage(steps.size)
+      }
+      category.action(getString(R.string.timer_setup_exit)) { leave() }
+    }
+  }
+
+  private fun onLanguageSelected(stepCount: Int, index: Int) {
+    val language = AppLanguage.entries[index]
+    if (storedLanguageTag() == language.tag) return
+    languageChosen = true
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.tag))
+    flow.chooseLanguage(stepCount)
+    rebuild()
+  }
+
+  private fun keepLanguage(stepCount: Int) {
+    val language = AppLanguage.entries[currentLanguageIndex()]
+    languageChosen = true
+    if (storedLanguageTag() != language.tag) {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.tag))
+    }
+    flow.skip()
+    rebuild()
+  }
+
+  private fun storedLanguageTag(): String? {
+    val stored = AppCompatDelegate.getApplicationLocales()
+    if (stored.isEmpty) return null
+    return stored[0]?.toLanguageTag()?.substringBefore('-')
+  }
+
+  private fun currentLanguageIndex(): Int {
+    val tag = storedLanguageTag()
+    val index = AppLanguage.entries.indexOfFirst { it.tag == tag }
+    return if (index >= 0) index else 0
+  }
+
+  private fun currentLanguageName(): String =
+    AppLanguage.entries.getOrNull(currentLanguageIndex())?.name ?: AppLanguage.VIETNAMESE.name
+
   /** Every permission with the state it stands in; tapping one goes back to its step. */
   private fun buildSummary(screen: PreferenceGroup, steps: List<Step>) {
     val context = requireContext()
     val category = screen.category(R.string.timer_setup_summary_title)
     steps.forEachIndexed { index, item ->
-      category.action(getString(item.title), getString(statusText(item.status(context)))) {
+      val summary =
+        item.summaryText?.invoke(context) ?: getString(statusText(item.status(context)))
+      category.action(getString(item.title), summary) {
         flow.review(index)
         rebuild()
       }
@@ -161,6 +282,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
 
   private fun leave() {
     flow.finish()
+    languageChosen = false
     runCatching { parentFragmentManager.popBackStack() }
   }
 
@@ -196,6 +318,12 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   private fun steps(): List<Step> =
     listOf(
       Step(
+        R.string.timer_setup_language_title,
+        status = { if (languageChosen) Status.GRANTED else Status.MISSING },
+        choice = true,
+        summaryText = { currentLanguageName() },
+      ),
+      Step(
         R.string.timer_setup_service_title,
         R.string.timer_setup_service_granted,
         R.string.timer_setup_service_missing,
@@ -219,6 +347,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { TimerPermissionChecks.autostartStatus(it) },
         { TimerPermissionChecks.openAutoStartSettings(it) },
         { isAutoStartFamily() },
+        unverifiable = true,
       ),
       Step(
         R.string.timer_setup_exact_alarm_title,
@@ -334,5 +463,134 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { TimerPermissionChecks.brightnessStatus(it) },
         { TimerPermissionChecks.openBrightnessSettings(it) },
       ),
+      Step(
+        R.string.timer_setup_camera_title,
+        R.string.timer_setup_camera_granted,
+        R.string.timer_setup_camera_missing,
+        R.string.timer_setup_camera_open,
+        { TimerPermissionChecks.cameraStatus(it) },
+        { TimerPermissionChecks.requestCamera(it) },
+        { TimerPermissionChecks.hasCamera(it) },
+      ),
+      Step(
+        R.string.timer_setup_call_title,
+        R.string.timer_setup_call_granted,
+        R.string.timer_setup_call_missing,
+        R.string.timer_setup_call_open,
+        { TimerPermissionChecks.callStatus(it) },
+        { TimerPermissionChecks.requestCall(it) },
+      ),
+      Step(
+        R.string.timer_setup_location_title,
+        R.string.timer_setup_location_granted,
+        R.string.timer_setup_location_missing,
+        R.string.timer_setup_location_open,
+        { TimerPermissionChecks.locationStatus(it) },
+        { TimerPermissionChecks.requestLocation(it) },
+      ),
+      Step(
+        R.string.timer_setup_bluetooth_title,
+        R.string.timer_setup_bluetooth_granted,
+        R.string.timer_setup_bluetooth_missing,
+        R.string.timer_setup_bluetooth_open,
+        { TimerPermissionChecks.bluetoothStatus(it) },
+        { TimerPermissionChecks.requestBluetooth(it) },
+        { Build.VERSION.SDK_INT >= Build.VERSION_CODES.S },
+      ),
+      Step(
+        R.string.timer_setup_overlay_title,
+        R.string.timer_setup_overlay_granted,
+        R.string.timer_setup_overlay_missing,
+        R.string.timer_setup_overlay_open,
+        { TimerPermissionChecks.overlayStatus(it) },
+        { TimerPermissionChecks.openOverlaySettings(it) },
+        { Build.VERSION.SDK_INT >= Build.VERSION_CODES.M },
+      ),
+      Step(
+        R.string.timer_setup_storage_title,
+        R.string.timer_setup_storage_granted,
+        R.string.timer_setup_storage_missing,
+        R.string.timer_setup_storage_open,
+        { TimerPermissionChecks.storageStatus(it) },
+        { TimerPermissionChecks.requestStorage(it) },
+        { Build.VERSION.SDK_INT < Build.VERSION_CODES.Q },
+      ),
+      Step(
+        R.string.timer_setup_usage_title,
+        R.string.timer_setup_usage_granted,
+        R.string.timer_setup_usage_missing,
+        R.string.timer_setup_usage_open,
+        { TimerPermissionChecks.usageStatus(it) },
+        { TimerPermissionChecks.openUsageSettings(it) },
+      ),
+      Step(
+        R.string.timer_setup_dump_title,
+        R.string.timer_setup_dump_granted,
+        R.string.timer_setup_dump_missing,
+        R.string.timer_setup_dump_open,
+        { TimerPermissionChecks.dumpStatus(it) },
+        {},
+        { true },
+        automatic = false,
+      ),
+      Step(
+        R.string.timer_setup_secure_title,
+        R.string.timer_setup_secure_granted,
+        R.string.timer_setup_secure_missing,
+        R.string.timer_setup_secure_open,
+        { TimerPermissionChecks.secureSettingsStatus(it) },
+        {},
+        { true },
+        automatic = false,
+      ),
     )
+
+  companion object {
+    private const val KEY_LANGUAGE_CHOSEN = "initial_setup_language_chosen"
+  }
+}
+
+private enum class AppLanguage(val tag: String, val name: String) {
+  VIETNAMESE("vi", "Tiếng Việt"),
+  ENGLISH("en", "English"),
+}
+
+private class LanguagePreference(
+  context: Context,
+  private val selected: Int,
+  private val onSelect: (Int) -> Unit,
+) : Preference(context) {
+  init {
+    layoutResource = R.layout.timer_setup_language
+    isPersistent = false
+    isSelectable = false
+    isIconSpaceReserved = false
+  }
+
+  override fun onBindViewHolder(holder: PreferenceViewHolder) {
+    super.onBindViewHolder(holder)
+    val spinner = holder.findViewById(R.id.timer_setup_language_spinner) as Spinner
+    spinner.contentDescription = context.getString(R.string.timer_setup_language_title)
+    spinner.adapter =
+      ArrayAdapter(
+          context,
+          android.R.layout.simple_spinner_item,
+          AppLanguage.entries.map { it.name },
+        )
+        .apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+    spinner.setSelection(selected)
+    spinner.onItemSelectedListener =
+      object : AdapterView.OnItemSelectedListener {
+        override fun onItemSelected(
+          parent: AdapterView<*>?,
+          view: View?,
+          position: Int,
+          id: Long,
+        ) {
+          onSelect(position)
+        }
+
+        override fun onNothingSelected(parent: AdapterView<*>?) {}
+      }
+  }
 }

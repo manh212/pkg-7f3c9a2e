@@ -22,7 +22,9 @@ import com.google.android.accessibility.talkback.notifications.TimerPermissionCh
  * Where the initial setup stands in its walk, kept apart from the screen so the walk itself
  * can be tested. There is no button between one permission and the next: dealing with a step
  * advances only after the system confirms a grant; denied steps remain visible until explicitly
- * skipped. Steps already granted are passed over, and the end of the walk is the summary.
+ * skipped. A step whose grant cannot be checked advances when the walk returns from its page
+ * all the same, and choosing the language moves on at once. Steps already granted are passed
+ * over, and the end of the walk is the summary.
  */
 class SetupFlow {
   /** The step showing, or the number of steps when the walk stands at its summary. */
@@ -64,11 +66,12 @@ class SetupFlow {
   }
 
   /**
-   * Returning from system settings only advances when the permission is actually granted.
-   * A denied request leaves the step visible for another try or an explicit Skip.
+   * Returning from system settings only advances when the permission is actually granted, or
+   * when its grant cannot be checked at all. A denied request leaves the step visible for
+   * another try or an explicit Skip.
    */
-  fun returnToScreen(stepCount: Int, granted: Boolean) {
-    val advance = openTapped && wentAway && granted
+  fun returnToScreen(stepCount: Int, granted: Boolean, unverifiable: Boolean = false) {
+    val advance = openTapped && wentAway && (granted || unverifiable)
     openTapped = false
     wentAway = false
     if (!advance) return
@@ -78,6 +81,16 @@ class SetupFlow {
     } else {
       step++
     }
+  }
+
+  /** A language was chosen: the walk moves on at once, with no pending open surviving it. */
+  fun chooseLanguage(stepCount: Int) {
+    openTapped = false
+    wentAway = false
+    if (reviewing) {
+      reviewing = false
+      step = stepCount
+    } else step++
   }
 
   /** Passes the step showing by, at once. */
