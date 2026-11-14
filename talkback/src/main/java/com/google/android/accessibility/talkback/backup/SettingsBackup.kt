@@ -36,6 +36,7 @@ import com.google.android.accessibility.talkback.timer.CountdownAlarm
 import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
 import com.google.android.accessibility.talkback.timer.TimerSounds
 import com.google.android.accessibility.talkback.utils.VerbosityPreferences
+import com.google.android.accessibility.talkback.vietnameseime.KeyboardKeySounds
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -575,7 +576,8 @@ object SettingsBackup {
         key == "pref_gesture_profile" ||
         key == CountdownAlarm.KEY_ALARMS ||
         key == TimerKeepAliveService.PREF_ALLOWED ||
-        key in TimerSounds.Slot.entries.map { it.key })
+        key in TimerSounds.Slot.entries.map { it.key } ||
+        key in KeyboardKeySounds.Slot.entries.map { it.key })
 
   private fun isBraillePhoneKey(name: String?, key: String) =
     name == BRAILLE_PREFS && key in BRAILLE_PHONE_KEYS
