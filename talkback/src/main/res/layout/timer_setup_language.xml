@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/customize_menus_settings_layout_margin_start_16"
+    android:paddingEnd="@dimen/customize_menus_settings_layout_margin_end_6">
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@android:id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/customize_menus_settings_layout_margin_start_24"
+        android:layout_marginTop="@dimen/customize_menus_settings_menuitem_margin_top"
+        android:textAppearance="?android:attr/textAppearanceListItem"
+        android:textColor="@color/actionBarTextColorPrimary" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@android:id/summary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/customize_menus_settings_layout_margin_start_24"
+        android:textAppearance="?android:attr/textAppearanceSmall" />
+
+    <Spinner
+        android:id="@+id/timer_setup_language_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/customize_menus_settings_layout_margin_start_24"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="@dimen/customize_menus_settings_menuitem_margin_bottom"
+        android:minHeight="48dp" />
+
+</LinearLayout>
