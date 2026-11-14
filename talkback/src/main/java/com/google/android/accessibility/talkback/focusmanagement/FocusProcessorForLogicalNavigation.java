@@ -2080,8 +2080,7 @@ public class FocusProcessorForLogicalNavigation {
   }
 
   /**
-   * The middle-pivot must be WebView container or native element. If it is WebView container,
-   * navigates to WebView container inside. Otherwise returns the native element.
+   * Navigates inside a WebView container or returns an element found by the node filter.
    */
   private @NonNull NavigationResult findTargetFromMiddlePivot(
       AccessibilityNodeInfoCompat middlePivot,
@@ -2092,15 +2091,9 @@ public class FocusProcessorForLogicalNavigation {
     if (middlePivot == null) {
       return NavigationResult.create(NavigationResult.Type.EMPTY);
     }
-    if (!WebInterfaceUtils.supportsWebActions(middlePivot)) {
-      // Middle-pivot is the native element and should be the target.
+    if (Role.getRole(middlePivot) != Role.ROLE_WEB_VIEW
+        || !WebInterfaceUtils.supportsWebActions(middlePivot)) {
       return NavigationResult.create(middlePivot);
-    }
-
-    // Middle-pivot must be WebView container
-    if (Role.getRole(middlePivot) != Role.ROLE_WEB_VIEW) {
-      throw new IllegalArgumentException(
-          "Middle-pivot must be either native or WebView container!");
     }
     if (navigationAction.targetType == NavigationTarget.TARGET_DEFAULT) {
       int searchDirection = navigationAction.searchDirection;

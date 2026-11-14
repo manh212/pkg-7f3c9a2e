@@ -28,7 +28,10 @@ import com.google.android.accessibility.talkback.focusmanagement.action.Navigati
 import com.google.android.accessibility.utils.Filter
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
+import com.google.android.accessibility.utils.Performance.EventId
 import com.google.android.accessibility.utils.input.CursorGranularity
+import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy
+import com.google.android.accessibility.utils.traversal.TraversalStrategy
 import com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_BACKWARD
 import com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_FORWARD
 import com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_LEFT
@@ -45,6 +48,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
+import org.robolectric.util.ReflectionHelpers.ClassParameter
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -206,6 +210,28 @@ class WebNavigationFirstTest {
   fun nativeItemsUseTheWindowOrder() {
     assertReadsWindow(Pivot(web = false), action(SEARCH_FOCUS_FORWARD))
     assertEquals(listOf("window"), requests)
+  }
+
+  @Test
+  fun aFocusableWebChildSelectedByTheWindowOrderCanBeFocusedDirectly() {
+    val child = Pivot().apply { className = "android.widget.Button" }
+    val filter = object : Filter<AccessibilityNodeInfoCompat>() {
+      override fun accept(node: AccessibilityNodeInfoCompat): Boolean = true
+    }
+    val result = ReflectionHelpers.callInstanceMethod<Any>(
+      processor,
+      "findTargetFromMiddlePivot",
+      ClassParameter.from(AccessibilityNodeInfoCompat::class.java, child),
+      ClassParameter.from(NavigationAction::class.java, action(SEARCH_FOCUS_FORWARD)),
+      ClassParameter.from(Filter::class.java, filter),
+      ClassParameter.from(TraversalStrategy::class.java, OrderedTraversalStrategy(null)),
+      ClassParameter.from(EventId::class.java, EVENT_ID_UNTRACKED),
+    )
+    assertEquals(
+      child,
+      ReflectionHelpers.callInstanceMethod<AccessibilityNodeInfoCompat>(result, "getNode"),
+    )
+    assertTrue(requests.isEmpty())
   }
 
   @Test

@@ -2,8 +2,6 @@ package com.google.android.accessibility.talkback.vietnameseime
 
 import android.os.Looper
 import android.os.SystemClock
-import com.google.android.accessibility.utils.output.SpeechController.STATUS_INTERRUPTED
-import com.google.android.accessibility.utils.output.SpeechController.STATUS_SPOKEN
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -15,7 +13,7 @@ import java.time.Duration
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class VietnameseKeySpeechTest {
-  private data class Request(val label: String, val started: () -> Unit, val completed: (Int) -> Unit)
+  private data class Request(val label: String, val started: () -> Unit, val completed: () -> Unit)
 
   private val requests = mutableListOf<Request>()
   private var voiceBusy = false
@@ -54,7 +52,7 @@ class VietnameseKeySpeechTest {
   fun commitReadsTheSameLabelAgainAtTheReleaseDeadline() {
     speech.explore("a", 0)
     requests.single().started()
-    requests.single().completed(STATUS_SPOKEN)
+    requests.single().completed()
     speech.release(80, waitsForCommit = true)
     speech.confirm("a", SystemClock.uptimeMillis() + 80)
     advance(79)
@@ -65,17 +63,18 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
-  fun consecutiveEditsKeepTheirOrderWithoutNewExploration() {
+  fun rapidEditsKeepOnlyTheLatestWaitingAnnouncement() {
     speech.confirm("a", 0)
     speech.confirm("bê", 0)
     speech.confirm("Đã xóa bê", 0)
     assertEquals(listOf("a"), labels())
 
-    requests[0].completed(STATUS_SPOKEN)
-    requests[0].completed(STATUS_INTERRUPTED)
-    assertEquals(listOf("a", "bê"), labels())
-    requests[1].completed(STATUS_SPOKEN)
-    assertEquals(listOf("a", "bê", "Đã xóa bê"), labels())
+    requests[0].completed()
+    requests[0].completed()
+    assertEquals(listOf("a", "Đã xóa bê"), labels())
+    requests[1].completed()
+    advance(4000)
+    assertEquals(listOf("a", "Đã xóa bê"), labels())
   }
 
   @Test
@@ -90,7 +89,7 @@ class VietnameseKeySpeechTest {
     assertEquals(1, stops)
 
     advance(1)
-    previous.completed(STATUS_INTERRUPTED)
+    previous.completed()
     assertEquals(listOf("a", "Xóa"), labels())
     speech.release(0, waitsForCommit = true)
     speech.confirm("Đã xóa bê", 0)
@@ -98,8 +97,9 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
-  fun editWithNoCompletionExpiresAndAllowsLaterConfirmation() {
+  fun editWithNoCompletionExpiresWithoutPlayingStaleWaitingAnnouncement() {
     speech.confirm("a", 0)
+    requests.single().started()
     advance(200)
     speech.confirm("bê", 0)
     advance(3799)
@@ -107,7 +107,9 @@ class VietnameseKeySpeechTest {
 
     advance(1)
     assertEquals(1, stops)
-    assertEquals(listOf("a", "bê"), labels())
+    assertEquals(listOf("a"), labels())
+    speech.confirm("xê", 0)
+    assertEquals(listOf("a", "xê"), labels())
   }
 
   @Test
@@ -134,22 +136,25 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
-  fun interruptedBeforeStartIsRetriedAfterRelease() {
+  fun acceptedPreviewIsNeverReplayedAfterRelease() {
     speech.explore("a", 0)
     speech.release(0)
-    requests.single().completed(STATUS_INTERRUPTED)
-    advance(80)
+    requests.single().completed()
+    advance(1000)
 
-    assertEquals(listOf("a", "a"), labels())
+    assertEquals(listOf("a"), labels())
   }
 
   @Test
-  fun interruptedBeforeStartIsRetriedWhileFingerIsStillDown() {
-    speech.explore("a", 0)
-    requests.single().completed(STATUS_INTERRUPTED)
-    advance(80)
+  fun duplicateCallbacksCannotReplayAnAcceptedDeletion() {
+    speech.confirm("Đã xóa a", 0)
+    val request = requests.single()
+    request.started()
+    request.completed()
+    request.completed()
+    advance(1000)
 
-    assertEquals(listOf("a", "a"), labels())
+    assertEquals(listOf("Đã xóa a"), labels())
   }
 
   @Test
@@ -164,15 +169,15 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
-  fun completionFromReplacedKeyCannotPreventFinalKeyFromRetrying() {
+  fun completionFromReplacedKeyCannotReplayTheFinalKey() {
     speech.explore("a", 0)
     speech.explore("b", 0)
     speech.release(0)
-    requests.first().completed(STATUS_INTERRUPTED)
-    requests.last().completed(STATUS_INTERRUPTED)
-    advance(80)
+    requests.first().completed()
+    requests.last().completed()
+    advance(1000)
 
-    assertEquals(listOf("a", "b", "b"), labels())
+    assertEquals(listOf("a", "b"), labels())
   }
 
   @Test
@@ -195,6 +200,43 @@ class VietnameseKeySpeechTest {
     advance(16000)
 
     assertEquals(126, submitCount)
+  }
+
+  @Test
+  fun unsubmittedConfirmationExpiresBeforeVoiceBecomesAvailableAgain() {
+    voiceBusy = true
+    speech.confirm("a", 0)
+    advance(700)
+    voiceBusy = false
+    advance(1000)
+    assertEquals(emptyList<String>(), labels())
+
+    speech.confirm("a", 0)
+    assertEquals(listOf("a"), labels())
+  }
+
+  @Test
+  fun releasedPreviewDoesNotPlayAfterVoiceRecoversLate() {
+    voiceBusy = true
+    speech.explore("a", 0)
+    speech.release(0)
+    advance(700)
+    voiceBusy = false
+    advance(1000)
+    assertEquals(emptyList<String>(), labels())
+
+    speech.explore("a", 0)
+    assertEquals(listOf("a"), labels())
+  }
+
+  @Test
+  fun queuedPreviewThatHasNotStartedIsStoppedAfterLift() {
+    speech.explore("a", 0)
+    speech.release(0)
+    advance(700)
+
+    assertEquals(1, stops)
+    assertEquals(listOf("a"), labels())
   }
 
   @Test

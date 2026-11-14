@@ -11,9 +11,12 @@ import android.text.SpannableString
 import android.text.style.LocaleSpan
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.dictation.SandflyDictation
@@ -33,11 +36,10 @@ import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE_INTERRUPT_AND_UNINTERRUPTIBLE_BY_NEW_SPEECH
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD
-import com.google.android.accessibility.utils.output.SpeechController.UtteranceCompleteRunnable
-import com.google.android.accessibility.utils.output.SpeechController.UtteranceStartRunnable
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class VietnameseKeyboardService : InputMethodService() {
   private lateinit var prefs: SharedPreferences
@@ -105,7 +107,7 @@ class VietnameseKeyboardService : InputMethodService() {
   }
   private val keySpeech = VietnameseKeySpeech(
     ::submitKeySpeech,
-    ::stopKeyboardVoice,
+    ::stopKeySpeech,
     ::shouldRetryKeySpeech,
   )
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -163,7 +165,12 @@ class VietnameseKeyboardService : InputMethodService() {
     keyboard = view
     configureView()
     updateLayout()
-    return view
+    return FrameLayout(this).apply {
+      setBackgroundResource(R.color.vietnamese_ime_background)
+      val bottomSpacing = (KEYBOARD_BOTTOM_SPACING_DP * resources.displayMetrics.density).roundToInt()
+      setPadding(0, 0, 0, bottomSpacing)
+      addView(view, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+    }
   }
 
   override fun onEvaluateFullscreenMode(): Boolean = false
@@ -884,29 +891,20 @@ class VietnameseKeyboardService : InputMethodService() {
     keySpeech.confirm(getString(R.string.template_text_removed, keyNames.spokenName(text)), speakAt)
   }
 
-  private fun submitKeySpeech(label: String, started: () -> Unit, completed: (Int) -> Unit): Boolean {
+  private fun submitKeySpeech(label: String, started: () -> Unit, completed: () -> Unit): Boolean {
     if (dictating || PauseController.isPaused()) return false
     val reader = speechController()
-    observeReaderSpeech(reader)
     if (ownVoice) {
+      observeReaderSpeech(reader)
       // Do not wait for Meridian speech: refusing the submit holds the echo in the
       // retry loop for seconds, then drains several queued echoes as one burst.
       if (reader?.isMute == true) {
         return false
       }
       warmUpKeyboardVoice()
-      return keyboardVoice?.speak(label, started, { status -> main.post { completed(status) } }) == true
+      return keyboardVoice?.speak(label, started, { main.post { completed() } }) == true
     }
-    return speak(label, { main.post { started() } }, { status -> main.post { completed(status) } })
-  }
-
-  private fun speak(
-    label: String,
-    started: UtteranceStartRunnable? = null,
-    completed: UtteranceCompleteRunnable? = null,
-  ): Boolean {
-    val speaker = speechController()
-    if (speaker == null || !speaker.isTtsReady || speaker.isMute) return false
+    if (reader == null || !reader.isTtsReady || reader.isMute) return false
     val localized = SpannableString(label)
     localized.setSpan(LocaleSpan(VIETNAMESE), 0, localized.length, 0)
     val options = SpeakOptions.create()
@@ -917,9 +915,9 @@ class VietnameseKeyboardService : InputMethodService() {
           FLAG_CLEAR_QUEUED_UTTERANCES_WITH_SAME_UTTERANCE_GROUP or
           FLAG_INTERRUPT_CURRENT_UTTERANCE_WITH_SAME_UTTERANCE_GROUP,
       )
-      .setCompletedAction(completed)
-    if (started != null) options.setStartingAction(started)
-    speaker.speak(localized, null, options)
+      .setStartingAction { main.post { started() } }
+      .setCompletedAction { main.post { completed() } }
+    reader.speak(localized, null, options)
     return true
   }
 
@@ -927,8 +925,7 @@ class VietnameseKeyboardService : InputMethodService() {
     if (dictating || PauseController.isPaused()) return false
     val speaker = speechController()
     if (ownVoice) return speaker?.isMute != true
-    if (speaker == null) return true
-    return !speaker.isTtsReady && !speaker.isMute
+    return speaker != null && !speaker.isTtsReady && !speaker.isMute
   }
 
   private fun observeReaderSpeech(reader: SpeechControllerImpl?) {
@@ -948,6 +945,11 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun stopKeyboardVoice() {
     keyboardVoice?.stop(pauseWarmup = !windowShown)
     if (!windowShown) voiceWarmedUp = false
+  }
+
+  private fun stopKeySpeech() {
+    if (ownVoice) stopKeyboardVoice()
+    else speechController()?.stopUtteranceGroup(UTTERANCE_GROUP_KEYBOARD)
   }
 
   private fun releaseKeyboardVoice() {
@@ -1003,6 +1005,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   companion object {
     private val VIETNAMESE = Locale.forLanguageTag("vi-VN")
+    private const val KEYBOARD_BOTTOM_SPACING_DP = 12
     private const val MAX_WORD_LENGTH = 48
     private const val MAX_WORD_DELETE_LOOKBACK = 512
 

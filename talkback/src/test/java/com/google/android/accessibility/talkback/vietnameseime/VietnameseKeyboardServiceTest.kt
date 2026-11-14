@@ -1,5 +1,6 @@
 package com.google.android.accessibility.talkback.vietnameseime
 
+import android.graphics.Rect
 import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
@@ -9,6 +10,7 @@ import android.text.SpannableStringBuilder
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
@@ -24,8 +26,8 @@ import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_NO
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_SILENT_TYPING
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_WORDS
 import com.google.android.accessibility.utils.input.TextEventFilter.TypingInput.ON_SCREEN_KEYBOARD
-import com.google.android.accessibility.utils.output.SpeechController.STATUS_SPOKEN
 import java.time.Duration
+import kotlin.math.roundToInt
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,7 +64,7 @@ class VietnameseKeyboardServiceTest {
     val feedback = VietnameseKeySpeech({ label, started, completed ->
       spoken += label
       started()
-      completed(STATUS_SPOKEN)
+      completed()
       true
     }, {})
     ReflectionHelpers.setField(service, "keySpeech", feedback)
@@ -387,6 +389,42 @@ class VietnameseKeyboardServiceTest {
     assertEquals(listOf("a"), spoken)
     advance(80)
     assertEquals(listOf("a", "a hoa"), spoken)
+  }
+
+  @Test
+  fun spaceKeyStaysAboveTheUnmappedAreaAtTheBottomOfTheInputView() {
+    setTypingMethod(LIFT_TO_TYPE)
+    startEditor()
+    val inputView = checkNotNull(keyboard.parent) as View
+    inputView.measure(
+      View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.AT_MOST),
+    )
+    inputView.layout(0, 0, 400, inputView.measuredHeight)
+    val spacing = (12 * service.resources.displayMetrics.density).roundToInt()
+    assertEquals(spacing, inputView.height - keyboard.bottom)
+
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    val space = (0 until host.childCount).mapNotNull { provider.createAccessibilityNodeInfo(it) }
+      .first { it.text == "Dấu cách" }
+    val bounds = Rect()
+    @Suppress("DEPRECATION")
+    space.getBoundsInParent(bounds)
+    assertEquals(inputView.height - spacing, bounds.bottom)
+    val now = SystemClock.uptimeMillis()
+    val x = bounds.exactCenterX()
+    val y = inputView.height - spacing / 2f
+    for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+      val event = MotionEvent.obtain(now, now, action, x, y, 0)
+      try {
+        inputView.dispatchTouchEvent(event)
+      } finally {
+        event.recycle()
+      }
+    }
+    assertTrue(text.isEmpty())
+    assertTrue(spoken.isEmpty())
   }
 
   @Test
@@ -815,7 +853,7 @@ class VietnameseKeyboardServiceTest {
       configure()
     }
     service.onStartInput(info, false)
-    keyboard = service.onCreateInputView()
+    keyboard = (service.onCreateInputView() as ViewGroup).getChildAt(0)
     keyboard.layout(0, 0, 400, 250)
   }
 

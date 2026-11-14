@@ -3,12 +3,9 @@ package com.google.android.accessibility.talkback.vietnameseime
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import com.google.android.accessibility.utils.output.SpeechController.STATUS_ERROR
-import com.google.android.accessibility.utils.output.SpeechController.STATUS_INTERRUPTED
-import com.google.android.accessibility.utils.output.SpeechController.STATUS_SPOKEN
 
 internal class VietnameseKeySpeech(
-  private val submit: (String, () -> Unit, (Int) -> Unit) -> Boolean,
+  private val submit: (String, () -> Unit, () -> Unit) -> Boolean,
   private val stop: () -> Unit,
   private val retryable: () -> Boolean = { true },
 ) {
@@ -18,7 +15,6 @@ internal class VietnameseKeySpeech(
     var started = false
     var finished = false
     var submitted = false
-    var interruptions = 0
     var retries = 0
     var retryAt = 0L
   }
@@ -52,6 +48,7 @@ internal class VietnameseKeySpeech(
 
   fun confirm(label: String, speakAt: Long) {
     if (selected?.released == false) return
+    if (confirmed.lastOrNull()?.submitted == false) confirmed.removeLast()
     confirmed.addLast(Key(label, maxOf(SystemClock.uptimeMillis(), speakAt)))
     requestNext()
   }
@@ -75,7 +72,7 @@ internal class VietnameseKeySpeech(
     while (true) {
       val now = SystemClock.uptimeMillis()
       val edit = confirmed.firstOrNull()
-      val editExpiresAt = edit?.let { it.speakAt + EDIT_TIMEOUT_MS } ?: Long.MAX_VALUE
+      val editExpiresAt = edit?.let(::editDeadline) ?: Long.MAX_VALUE
       if (edit != null && now >= editExpiresAt) {
         finish(edit)
         if (edit.submitted) stop()
@@ -86,12 +83,20 @@ internal class VietnameseKeySpeech(
         return
       }
       val editDue = edit?.let { minOf(dueAt(it), editExpiresAt) } ?: Long.MAX_VALUE
+      val previewExpiresAt = selected
+        ?.takeIf { it.released && !it.started && !it.finished }
+        ?.let { it.releaseAt + SUBMISSION_TIMEOUT_MS } ?: Long.MAX_VALUE
+      if (now >= previewExpiresAt) {
+        val wasSubmitted = lastPreview === selected
+        selected = null
+        if (wasSubmitted) stopPreview()
+        continue
+      }
       val preview = selected?.takeUnless { it.finished || it.started || it.submitted }
       val previewDue = preview?.let(::dueAt) ?: Long.MAX_VALUE
       val key = if (editDue <= now) edit else preview?.takeIf { previewDue <= now && previewDue < editDue }
       if (key == null) {
-        val nextDue = minOf(editDue, previewDue)
-        if (nextDue != Long.MAX_VALUE) handler.postDelayed(trySpeech, nextDue - now)
+        scheduleNext(minOf(editDue, previewDue, previewExpiresAt))
         return
       }
       if (key === edit) selected?.finished = true
@@ -101,28 +106,18 @@ internal class VietnameseKeySpeech(
       val accepted = submit(
         key.label,
         { key.started = true },
-        completion@{ status ->
+        completion@{
           if (completed) return@completion
           completed = true
           key.submitted = false
           if (lastPreview === key) lastPreview = null
           if (key.finished || (selected !== key && confirmed.firstOrNull() !== key)) return@completion
-          val confirmedKey = confirmed.firstOrNull() === key
-          val shouldRetry = if (confirmedKey) status != STATUS_SPOKEN
-            else !key.started && (status == STATUS_INTERRUPTED || status == STATUS_ERROR)
-          if (shouldRetry && key.interruptions < 2) {
-            key.interruptions++
-            key.retryAt = SystemClock.uptimeMillis() + RETRY_MS
-            requestNext()
-          } else {
-            if (finish(key)) requestNext()
-          }
+          if (finish(key)) requestNext()
         },
       )
       if (accepted) {
         if (!completed) {
-          if (key === edit) handler.postAtTime(trySpeech, editExpiresAt)
-          else if (edit != null && editDue > now) handler.postAtTime(trySpeech, editDue)
+          scheduleNext(if (key === edit) editDeadline(key) else minOf(editDue, previewExpiresAt))
         }
         return
       }
@@ -140,6 +135,13 @@ internal class VietnameseKeySpeech(
   private fun dueAt(key: Key): Long =
     maxOf(if (key.released) key.releaseAt else key.speakAt, key.retryAt)
 
+  private fun editDeadline(key: Key): Long =
+    key.speakAt + (if (key.started) EDIT_COMPLETION_TIMEOUT_MS else SUBMISSION_TIMEOUT_MS)
+
+  private fun scheduleNext(at: Long) {
+    if (at != Long.MAX_VALUE) handler.postAtTime(trySpeech, at)
+  }
+
   private fun stopPreview() {
     if (lastPreview == null) return
     lastPreview = null
@@ -156,6 +158,7 @@ internal class VietnameseKeySpeech(
   private companion object {
     const val RETRY_MS = 80L
     const val MAX_SUBMIT_RETRIES = 125
-    const val EDIT_TIMEOUT_MS = 4000L
+    const val SUBMISSION_TIMEOUT_MS = 700L
+    const val EDIT_COMPLETION_TIMEOUT_MS = 4000L
   }
 }
