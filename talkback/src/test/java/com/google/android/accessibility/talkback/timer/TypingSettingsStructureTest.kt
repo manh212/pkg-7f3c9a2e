@@ -66,12 +66,62 @@ class TypingSettingsStructureTest {
   }
 
   @Test
-  fun vietnameseKeyboardScreenHasItsOwnVoiceSwitchBeforeLayoutAndTiming() {
+  fun vietnameseKeyboardScreen_listsOwnVoiceLayoutAndFiveSubScreens() {
+    val rows = rowsOf(R.xml.vietnamese_keyboard_preferences)
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_android_settings",
         "pref_vietnamese_keyboard_own_voice",
         "pref_vietnamese_keyboard_layout",
+        "pref_vietnamese_keyboard_size_screen",
+        "pref_vietnamese_keyboard_sound_screen",
+        "pref_vietnamese_keyboard_timing_screen",
+        "pref_vietnamese_keyboard_rows_screen",
+        "pref_vietnamese_keyboard_typing_screen",
+      ),
+      rows.map { it.first },
+    )
+    assertEquals(
+      listOf(
+        null,
+        null,
+        null,
+        "VietnameseKeyboardSizeFragment",
+        "VietnameseKeyboardSoundFragment",
+        "VietnameseKeyboardTimingFragment",
+        "VietnameseKeyboardRowsFragment",
+        "VietnameseKeyboardTypingFragment",
+      ),
+      rows.map { it.second?.substringAfterLast('.') },
+    )
+  }
+
+  @Test
+  fun vietnameseKeyboardSizeScreen_holdsTwoSizeSliders() {
+    assertEquals(
+      listOf(
+        "pref_vietnamese_keyboard_size_portrait",
+        "pref_vietnamese_keyboard_size_landscape",
+      ),
+      rowsOf(R.xml.vietnamese_keyboard_size_preferences).map { it.first },
+    )
+  }
+
+  @Test
+  fun vietnameseKeyboardSoundScreen_holdsVibrationAndKeySound() {
+    assertEquals(
+      listOf(
+        "pref_vietnamese_keyboard_vibrate_on_key",
+        "pref_vietnamese_keyboard_key_sound",
+      ),
+      rowsOf(R.xml.vietnamese_keyboard_sound_preferences).map { it.first },
+    )
+  }
+
+  @Test
+  fun vietnameseKeyboardTimingScreen_holdsFiveTimingSliders() {
+    assertEquals(
+      listOf(
         "pref_vietnamese_keyboard_timing",
         "pref_vietnamese_keyboard_explore_speech",
         "pref_vietnamese_keyboard_release_speech",
@@ -79,7 +129,33 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_double_tap",
         "pref_vietnamese_keyboard_tap_hold",
       ),
-      rowsOf(R.xml.vietnamese_keyboard_preferences).map { it.first },
+      rowsOf(R.xml.vietnamese_keyboard_timing_preferences).map { it.first },
+    )
+  }
+
+  @Test
+  fun vietnameseKeyboardRowsScreen_holdsRowTogglesAndSymbolsCustomization() {
+    val rows = rowsOf(R.xml.vietnamese_keyboard_rows_preferences)
+    assertEquals(
+      listOf(
+        "pref_vietnamese_keyboard_show_number_row",
+        "pref_vietnamese_keyboard_show_symbols_row",
+        "pref_vietnamese_keyboard_symbols_screen",
+      ),
+      rows.map { it.first },
+    )
+    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardSymbolsFragment") == true)
+  }
+
+  @Test
+  fun vietnameseKeyboardTypingScreen_holdsAutoCapitalizeDoubleSpaceAndMic() {
+    assertEquals(
+      listOf(
+        "pref_vietnamese_keyboard_auto_capitalize",
+        "pref_vietnamese_keyboard_double_space_period",
+        "pref_vietnamese_keyboard_mic_enabled",
+      ),
+      rowsOf(R.xml.vietnamese_keyboard_typing_preferences).map { it.first },
     )
   }
 
@@ -119,6 +195,30 @@ class TypingSettingsStructureTest {
     assertFalse(rows.any { it == "pref_typing_long_press_duration" })
     assertTrue(rows.any { it == "pref_typing_echo_screen" })
     assertTrue(rows.any { it == "pref_typing_interrupt_screen" })
+    val keyboardRows = rowsOf(R.xml.vietnamese_keyboard_preferences).map { it.first }
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_timing" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_explore_speech" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_release_speech" })
+    assertFalse(keyboardRows.any { it == "pref_direct_input_tap_delay" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_double_tap" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_tap_hold" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_size_portrait" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_size_landscape" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_vibrate_on_key" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_key_sound" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_show_number_row" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_show_symbols_row" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_auto_capitalize" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_double_space_period" })
+    assertFalse(keyboardRows.any { it == "pref_vietnamese_keyboard_mic_enabled" })
+    assertTrue(keyboardRows.any { it == "pref_vietnamese_keyboard_timing_screen" })
+    assertTrue(keyboardRows.any { it == "pref_vietnamese_keyboard_size_screen" })
+    assertTrue(keyboardRows.any { it == "pref_vietnamese_keyboard_sound_screen" })
+    assertTrue(keyboardRows.any { it == "pref_vietnamese_keyboard_rows_screen" })
+    assertTrue(keyboardRows.any { it == "pref_vietnamese_keyboard_typing_screen" })
+    val timingRows = rowsOf(R.xml.vietnamese_keyboard_timing_preferences).map { it.first }
+    assertTrue(timingRows.any { it == "pref_vietnamese_keyboard_explore_speech" })
+    assertTrue(timingRows.any { it == "pref_direct_input_tap_delay" })
   }
 
   private fun rowsOf(@XmlRes resId: Int): List<Pair<String, String?>> {
