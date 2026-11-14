@@ -879,10 +879,10 @@ class VietnameseKeyboardService : InputMethodService() {
     if (dictating || PauseController.isPaused()) return false
     val reader = speechController()
     observeReaderSpeech(reader)
-    if (reader != null && (reader.isMute || reader.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD))) {
-      return false
-    }
     if (ownVoice) {
+      if (reader != null && (reader.isMute || reader.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD))) {
+        return false
+      }
       warmUpKeyboardVoice()
       return keyboardVoice?.speak(label, started, { status -> main.post { completed(status) } }) == true
     }
