@@ -18,15 +18,12 @@ package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.media.MediaPlayer
 import android.media.SoundPool
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.utils.output.FeedbackController
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
 /**
  * The sound each timer plays when its own sound switch is on, chosen by the user apart from
@@ -36,30 +33,21 @@ import java.util.concurrent.Executors
  * the settings backup, like the Braille keyboard's custom sounds. Until a sound is chosen
  * — or if the copied file is gone — the timer keeps the sound it has always played.
  */
-object TimerSounds {
+object TimerSounds : SoundChoiceStore {
 
-  /** One timer's sound choice: its preference key, its copied file's name, its old sound. */
-  enum class Slot(val key: String, val fileName: String, val defaultResId: Int) {
+  enum class Slot(
+    override val key: String,
+    override val fileName: String,
+    override val defaultResId: Int,
+  ) : SoundSlot {
     CLOCK("pref_timer_sound_choice", "clock", R.raw.lib_new_clock),
     STOPWATCH("pref_stopwatch_sound_choice", "stopwatch", R.raw.chime_up),
     COUNTDOWN("pref_countdown_alarm_sound_choice", "countdown", R.raw.lib_new_clock),
   }
 
-  /** How copying a chosen sound in went, mirroring the sound themes' outcomes. */
-  enum class Result {
-    OK,
-    TOO_LARGE,
-    NOT_AUDIO,
-    FAILED,
-  }
+  typealias Result = SoundFileStore.Result
 
-  private const val MAX_SOUND_BYTES = 5L * 1024 * 1024
-
-  /** Copies sounds in off the settings screens' thread, one at a time. */
-  val copyExecutor: ExecutorService =
-    Executors.newSingleThreadExecutor { task ->
-      Thread(task, "timer-sound-copy").apply { isDaemon = true }
-    }
+  val copyExecutor: ExecutorService get() = SoundFileStore.copyExecutor
 
   private val lock = Any()
   private var pool: SoundPool? = null
@@ -68,50 +56,36 @@ object TimerSounds {
   private val soundIds = HashMap<String, Int>()
   private val soundStamps = HashMap<String, Long>()
 
-  private fun directory(context: Context): File =
-    File(context.createDeviceProtectedStorageContext().dataDir, "timer_sounds")
+  override fun soundFile(context: Context, slot: SoundSlot): File? =
+    SoundFileStore.soundFile(SoundFileStore.directory(context, "timer_sounds"), slot.fileName)
 
-  /** The copied file of [slot]'s chosen sound, or null while the timer uses its own sound. */
-  fun soundFile(context: Context, slot: Slot): File? =
-    directory(context).listFiles()
-      ?.filter {
-        it.isFile && it.name.startsWith(slot.fileName + ".") && !it.name.endsWith(".part")
-      }
-      ?.minByOrNull { it.name }
-
-  /** The name of [slot]'s chosen sound as the settings row shows it, or null for its own. */
-  fun label(context: Context, prefs: SharedPreferences, slot: Slot): String? =
+  override fun label(context: Context, prefs: SharedPreferences, slot: SoundSlot): String? =
     prefs.getString(slot.key, null)?.takeIf { it.isNotEmpty() && soundFile(context, slot) != null }
 
-  /**
-   * Makes [input], an audio file whose name ends in [extension], [slot]'s sound, shown as
-   * [label]. The previous choice, if any, is replaced only once the new one is safely in.
-   */
-  fun setSound(
+  override fun setSound(
     context: Context,
     prefs: SharedPreferences,
-    slot: Slot,
+    slot: SoundSlot,
     input: InputStream,
     extension: String,
     label: String,
   ): Result {
-    val directory = directory(context).apply { mkdirs() }
-    val staging = File(directory, slot.fileName + ".part")
-    val result = copy(input, staging)
-    if (result != Result.OK) return result
-    val target = File(directory, slot.fileName + "." + extension)
-    soundFile(context, slot)?.delete()
-    if (!staging.renameTo(target)) {
-      staging.delete()
-      return Result.FAILED
-    }
-    prefs.edit().putString(slot.key, label).apply()
-    preload(context)
-    return Result.OK
+    val result =
+      SoundFileStore.setSound(
+        context,
+        prefs,
+        "timer_sounds",
+        slot.fileName,
+        slot.key,
+        input,
+        extension,
+        label,
+      )
+    if (result == Result.OK) preload(context)
+    return result
   }
 
-  /** Makes [slot] play its own sound again. */
-  fun useDefault(context: Context, prefs: SharedPreferences, slot: Slot) {
+  override fun useDefault(context: Context, prefs: SharedPreferences, slot: SoundSlot) {
     soundFile(context, slot)?.delete()
     prefs.edit().remove(slot.key).apply()
   }
@@ -155,47 +129,5 @@ object TimerSounds {
     soundIds[path] = soundId
     soundStamps[path] = stamp
     return soundId
-  }
-
-  private fun copy(input: InputStream, file: File): Result {
-    try {
-      file.outputStream().use { output ->
-        val buffer = ByteArray(64 * 1024)
-        var total = 0L
-        while (true) {
-          val count = input.read(buffer)
-          if (count < 0) break
-          total += count
-          if (total > MAX_SOUND_BYTES) {
-            output.close()
-            file.delete()
-            return Result.TOO_LARGE
-          }
-          output.write(buffer, 0, count)
-        }
-      }
-    } catch (e: IOException) {
-      file.delete()
-      return Result.FAILED
-    }
-    if (!isAudio(file)) {
-      file.delete()
-      return Result.NOT_AUDIO
-    }
-    return Result.OK
-  }
-
-  /** Whether the player can read [file] as a sound at all. */
-  private fun isAudio(file: File): Boolean {
-    val player = MediaPlayer()
-    return try {
-      player.setDataSource(file.path)
-      player.prepare()
-      true
-    } catch (e: Exception) {
-      false
-    } finally {
-      player.release()
-    }
   }
 }
