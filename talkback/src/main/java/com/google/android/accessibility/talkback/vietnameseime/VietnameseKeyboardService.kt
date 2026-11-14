@@ -164,6 +164,7 @@ class VietnameseKeyboardService : InputMethodService() {
       keyNames::spokenName,
       ::reportKeyboardBounds,
       ::stopMicDictation,
+      onDirectKeyTouchDown = { TalkBackService.getInstance()?.onDirectKeyboardTouchDown() },
     )
     keyboard = view
     configureView()

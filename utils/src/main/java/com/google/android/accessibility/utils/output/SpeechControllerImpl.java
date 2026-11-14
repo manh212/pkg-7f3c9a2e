@@ -719,6 +719,12 @@ public class SpeechControllerImpl implements SpeechController {
       return SpeechControllerImpl.this.isSpeaking();
     }
 
+    public boolean isSpeakingInUtteranceGroup(@UtteranceGroup int group) {
+      return isSpeaking()
+          && currentFeedbackItem != null
+          && currentFeedbackItem.getUtteranceGroup() == group;
+    }
+
     /**
      * In addition to check any feedback items are queued or spoken by {@link
      * #isSpeakingOrSpeechQueued()}, this method excludes the feedback items which are tagged with

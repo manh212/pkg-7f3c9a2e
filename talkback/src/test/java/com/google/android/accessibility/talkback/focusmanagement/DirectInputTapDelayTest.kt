@@ -19,19 +19,31 @@ package com.google.android.accessibility.talkback.focusmanagement
 import android.accessibilityservice.AccessibilityService
 import android.content.SharedPreferences
 import android.os.Looper
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import com.google.android.accessibility.talkback.ActorState
+import com.google.android.accessibility.talkback.ActorStateWritable
 import com.google.android.accessibility.talkback.Interpretation
 import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.action.TouchExplorationAction
+import com.google.android.accessibility.utils.Performance.EVENT_TYPE_ACCESSIBILITY
 import com.google.android.accessibility.utils.Performance.EventId
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
+import com.google.android.accessibility.utils.output.FeedbackItem
+import com.google.android.accessibility.utils.output.SpeechController
+import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_DEFAULT
+import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD
+import com.google.android.accessibility.utils.output.SpeechControllerImpl
 import java.util.concurrent.TimeUnit
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +52,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 /**
  * Pins the Direct key input tap delay end to end: the value of the setting — and nothing else —
@@ -71,12 +84,17 @@ class DirectInputTapDelayTest {
     }
 
     fun touchEnds(): Int = inputs.count { it is Interpretation.TouchInteraction }
+
+    fun touchStartInterrupts(): Int = inputs.count {
+      it is Interpretation.Touch && it.action() == Interpretation.Touch.Action.TOUCH_START
+    }
   }
 
   private lateinit var service: TestService
   private lateinit var prefs: SharedPreferences
   private lateinit var receiver: RecordingReceiver
   private lateinit var processor: FocusProcessorForTapAndTouchExploration
+  private var speaker: SpeechControllerImpl? = null
 
   @Before
   fun setUp() {
@@ -87,6 +105,11 @@ class DirectInputTapDelayTest {
     processor = FocusProcessorForTapAndTouchExploration(service, object : TalkBackAnalytics {})
     processor.setInterpretationReceiver(receiver)
     processor.setTypingMethod(SINGLE_TAP_TO_TYPE)
+  }
+
+  @After
+  fun tearDown() {
+    speaker?.shutdown()
   }
 
   private fun delayKey(): String = service.getString(R.string.pref_direct_input_tap_delay_key)
@@ -160,5 +183,92 @@ class DirectInputTapDelayTest {
 
     runMainQueueFor(1_000)
     assertEquals(0, receiver.touchEnds())
+  }
+
+  @Test
+  fun keyboardTouchDeliveredFirstKeepsItsSpeech() {
+    processor.setTypingMethod(DIRECT_SILENT_TYPING)
+    setSpeaking(UTTERANCE_GROUP_KEYBOARD)
+    val event = touchStartEvent()
+    runMainQueueFor(3)
+    processor.onDirectKeyboardTouchDown()
+    startTouch(event)
+    runMainQueueFor(100)
+
+    assertEquals(0, receiver.touchStartInterrupts())
+    assertEquals(1, receiver.inputs.count {
+      it is Interpretation.TouchInteraction && it.interactionActive()
+    })
+  }
+
+  @Test
+  fun anotherKeyboardTapKeepsSpeechWhenAndroidReportsTheStartFirst() {
+    processor.setTypingMethod(DIRECT_SILENT_TYPING)
+    setSpeaking(UTTERANCE_GROUP_KEYBOARD)
+    startTouch(touchStartEvent())
+    runMainQueueFor(3)
+    processor.onDirectKeyboardTouchDown()
+    runMainQueueFor(100)
+
+    assertEquals(0, receiver.touchStartInterrupts())
+  }
+
+  @Test
+  fun touchOutsideKeyboardStillInterruptsTheKeyboardSpeech() {
+    processor.setTypingMethod(DIRECT_SILENT_TYPING)
+    setSpeaking(UTTERANCE_GROUP_KEYBOARD)
+    processor.onDirectKeyboardTouchDown()
+    runMainQueueFor(3)
+    startTouch(touchStartEvent())
+    runMainQueueFor(100)
+
+    assertEquals(1, receiver.touchStartInterrupts())
+  }
+
+  @Test
+  fun touchStillImmediatelyInterruptsRegularSpeech() {
+    processor.setTypingMethod(DIRECT_SILENT_TYPING)
+    setSpeaking(UTTERANCE_GROUP_DEFAULT)
+    startTouch(touchStartEvent())
+
+    assertEquals(1, receiver.touchStartInterrupts())
+  }
+
+  private fun touchStartEvent() = EventId(
+    SystemClock.uptimeMillis(), EVENT_TYPE_ACCESSIBILITY, AccessibilityEvent.TYPE_TOUCH_INTERACTION_START,
+  )
+
+  private fun startTouch(event: EventId) {
+    processor.onTouchExplorationAction(
+      TouchExplorationAction(TouchExplorationAction.TOUCH_INTERACTION_START, null), event,
+    )
+  }
+
+  private fun setSpeaking(group: Int) {
+    val controller = SpeechControllerImpl(
+      service,
+      object : SpeechController.Delegate {
+        override fun isAudioPlaybackActive() = false
+        override fun isMicrophoneActiveAndHeadphoneOff() = false
+        override fun isSsbActive() = false
+        override fun isPhoneCallActive() = false
+        override fun onSpeakingForcedFeedback() = Unit
+      },
+      null,
+      object : FailoverTextToSpeech(service, false) {
+        override fun updateDefaultEngine() = Unit
+      },
+      false,
+    )
+    speaker = controller
+    val item = FeedbackItem(touchStartEvent()).apply {
+      utteranceGroup = group
+      utteranceId = "talkback_0"
+    }
+    ReflectionHelpers.setField(controller, "currentFeedbackItem", item)
+    ReflectionHelpers.setField(controller, "mIsSpeaking", true)
+    processor.setActorState(ActorState(ActorStateWritable(
+      null, controller.state, null, null, null, null, null, null, null, null, null, null, null, null,
+    )))
   }
 }

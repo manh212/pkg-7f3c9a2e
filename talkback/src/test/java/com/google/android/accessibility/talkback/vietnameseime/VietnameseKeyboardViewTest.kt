@@ -34,11 +34,13 @@ class VietnameseKeyboardViewTest {
   private val context = RuntimeEnvironment.getApplication()
   private val spoken = mutableListOf<String>()
   private val typed = mutableListOf<String>()
+  private var directKeyDowns = 0
   private var released = 0
   private var micStops = 0
   private val keyboard = VietnameseKeyboardView(
     context, { spoken.add(it) }, { id, _ -> typed.add(id) }, { released++ },
     micStop = { micStops++ },
+    onDirectKeyTouchDown = { directKeyDowns++ },
   )
 
   @Test
@@ -135,6 +137,7 @@ class VietnameseKeyboardViewTest {
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
     assertEquals(listOf("q"), spoken)
     assertEquals(listOf("q"), typed)
+    assertEquals(1, directKeyDowns)
     assertEquals(0, released)
     touch(MotionEvent.ACTION_MOVE, 60f, 60f, 140)
     assertEquals(listOf("q"), spoken)
@@ -143,6 +146,7 @@ class VietnameseKeyboardViewTest {
 
     assertEquals(listOf("q"), typed)
     assertEquals(1, released)
+    assertEquals(1, directKeyDowns)
     assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, keyboard.importantForAccessibility)
     assertFalse(keyboard.isFocusable)
   }
@@ -170,6 +174,7 @@ class VietnameseKeyboardViewTest {
     touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
 
     assertEquals(emptyList<String>(), typed)
+    assertEquals(0, directKeyDowns)
   }
 
   @Test
@@ -1694,6 +1699,7 @@ class VietnameseKeyboardViewTest {
 
   private fun touch(action: Int, x: Float, y: Float, time: Long) {
     val event = MotionEvent.obtain(100, time, action, x, y, 0)
+    event.source = InputDevice.SOURCE_TOUCHSCREEN
     try {
       keyboard.onTouchEvent(event)
     } finally {

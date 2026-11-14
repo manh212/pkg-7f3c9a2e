@@ -28,6 +28,7 @@ import static com.google.android.accessibility.talkback.Interpretation.Touch.Act
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.GESTURE_LIFT_TO_TYPE;
 import static com.google.android.accessibility.talkback.compositor.Compositor.EVENT_INPUT_DESCRIBE_NODE;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
+import static com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD;
 
 import android.content.Context;
 import android.os.Message;
@@ -126,6 +127,7 @@ public class FocusProcessorForTapAndTouchExploration {
 
   /** The longest early-end delay the Direct key input tap-delay setting can ask for. */
   private static final long DIRECT_INPUT_TAP_DELAY_MAX_MS = 300;
+  private static final long DIRECT_KEYBOARD_TOUCH_DELIVERY_MS = 32;
 
   // It is copied from  Gboard's code.
   private static final long LIFT_TO_TYPE_LONG_PRESS_DELAY_MS = 3000;
@@ -200,6 +202,9 @@ public class FocusProcessorForTapAndTouchExploration {
   private boolean touchEndConsumed = false;
 
   private long touchInteractionStartTime;
+  private long lastDirectKeyboardTouchDown = -1;
+  private @Nullable EventId pendingKeyboardSpeechInterrupt;
+  private final Runnable interruptPendingKeyboardSpeech = this::finishPendingKeyboardSpeechInterrupt;
   private final Context context;
   private final TalkBackAnalytics analytics;
   private final boolean splitTapEverywhere;
@@ -254,6 +259,11 @@ public class FocusProcessorForTapAndTouchExploration {
     };
   }
 
+  public void onDirectKeyboardTouchDown() {
+    lastDirectKeyboardTouchDown = SystemClock.uptimeMillis();
+    cancelPendingKeyboardSpeechInterrupt();
+  }
+
   /**
    * Handles the beginning of a new touch interaction event. It cancels the ongoing speech and reset
    * variables.
@@ -263,6 +273,7 @@ public class FocusProcessorForTapAndTouchExploration {
   private boolean handleTouchInteractionStart(EventId eventId) {
     // Reset cached information at the beginning of a new touch interaction cycle.
     reset();
+    cancelPendingKeyboardSpeechInterrupt();
 
     touchInteractionStartTime = SystemClock.uptimeMillis();
 
@@ -270,11 +281,43 @@ public class FocusProcessorForTapAndTouchExploration {
     if (actorState.getSpeechState().isSpeaking()) {
       // We refocus and re-announce a node if TalkBack is currently speaking.
       mayBeRefocusAction = true;
-      interpretationReceiver.input(
-          eventId, /* event= */ null, Interpretation.Touch.create(TOUCH_START));
+      if (typingMethod == DIRECT_SILENT_TYPING && eventId != null && isSpeakingKeyboard()) {
+        if (eventId.getEventTimeMs() > lastDirectKeyboardTouchDown) {
+          pendingKeyboardSpeechInterrupt = eventId;
+          postDelayHandler.postDelayed(
+              interruptPendingKeyboardSpeech, DIRECT_KEYBOARD_TOUCH_DELIVERY_MS);
+        }
+      } else {
+        interruptSpeechAtTouchStart(eventId);
+      }
     }
     // Always return false because no accessibility action is performed.
     return false;
+  }
+
+  private boolean isSpeakingKeyboard() {
+    return actorState.getSpeechState().isSpeakingInUtteranceGroup(UTTERANCE_GROUP_KEYBOARD);
+  }
+
+  private void cancelPendingKeyboardSpeechInterrupt() {
+    if (pendingKeyboardSpeechInterrupt == null) {
+      return;
+    }
+    postDelayHandler.removeCallbacks(interruptPendingKeyboardSpeech);
+    pendingKeyboardSpeechInterrupt = null;
+  }
+
+  private void finishPendingKeyboardSpeechInterrupt() {
+    EventId eventId = pendingKeyboardSpeechInterrupt;
+    cancelPendingKeyboardSpeechInterrupt();
+    if (eventId != null && isSpeakingKeyboard()) {
+      interruptSpeechAtTouchStart(eventId);
+    }
+  }
+
+  private void interruptSpeechAtTouchStart(EventId eventId) {
+    interpretationReceiver.input(
+        eventId, /* event= */ null, Interpretation.Touch.create(TOUCH_START));
   }
 
   /** Resets the cached information of the current touch interaction. */
@@ -298,6 +341,7 @@ public class FocusProcessorForTapAndTouchExploration {
    */
   private boolean handleHoverEnterNode(
       @Nullable AccessibilityNodeInfoCompat touchedFocusableNode, EventId eventId) {
+    finishPendingKeyboardSpeechInterrupt();
     postDelayHandler.cancelLongPress();
     postDelayHandler.cancelRefocusTimeout();
     postDelayHandler.cancelEarlyTouchEnd();
@@ -636,6 +680,10 @@ public class FocusProcessorForTapAndTouchExploration {
   }
 
   public void setTypingMethod(@TypingMethod int type) {
+    if (typingMethod != type) {
+      cancelPendingKeyboardSpeechInterrupt();
+      lastDirectKeyboardTouchDown = -1;
+    }
     if (!splitTapEverywhere || typingMethod != type) {
       reset();
       typingMethod = type;

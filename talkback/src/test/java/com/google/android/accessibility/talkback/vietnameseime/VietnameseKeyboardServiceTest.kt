@@ -22,6 +22,7 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_CHARACTERS
+import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_CHARACTERS_AND_WORDS
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_NONE
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_SILENT_TYPING
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_WORDS
@@ -366,6 +367,28 @@ class VietnameseKeyboardServiceTest {
 
     assertEquals("a", text.toString())
     assertEquals(listOf("a", "a"), spoken)
+  }
+
+  @Test
+  fun directTouchSubmitsCharacterWordAndDeletionOnceWithOwnVoiceOff() {
+    setTypingMethod(DIRECT_SILENT_TYPING)
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
+    setOwnVoice(false)
+    setAutoCapitalize(false)
+    startEditor()
+
+    val downTime = SystemClock.uptimeMillis()
+    touch(downTime, MotionEvent.ACTION_DOWN, 20f, 125f)
+    assertEquals("a", text.toString())
+    assertEquals(listOf("a"), spoken)
+    touch(downTime, MotionEvent.ACTION_UP, 20f, 125f)
+    tap(105f, 125f)
+    tap(200f, 225f)
+    tap(20f, 125f)
+    tapDelete()
+
+    assertEquals("ad ", text.toString())
+    assertEquals(listOf("a", "dê", "ad", "a", removed("a")), spoken)
   }
 
   @Test

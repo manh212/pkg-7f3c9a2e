@@ -202,6 +202,10 @@ public class AccessibilityFocusInterpreter
     return focusProcessorForTapAndTouchExploration.onTouchExplorationAction(action, eventId);
   }
 
+  public void onDirectKeyboardTouchDown() {
+    focusProcessorForTapAndTouchExploration.onDirectKeyboardTouchDown();
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////
   // Notifies changes from framework
 

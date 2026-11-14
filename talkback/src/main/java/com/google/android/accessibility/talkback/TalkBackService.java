@@ -2184,6 +2184,12 @@ public class TalkBackService extends AccessibilityServiceCompat
     return true;
   }
 
+  public void onDirectKeyboardTouchDown() {
+    if (accessibilityFocusInterpreter != null) {
+      accessibilityFocusInterpreter.onDirectKeyboardTouchDown();
+    }
+  }
+
   public FeedbackController getFeedbackController() {
     if (feedbackController == null) {
       throw new IllegalStateException("mFeedbackController has not been initialized");

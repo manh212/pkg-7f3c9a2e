@@ -40,6 +40,7 @@ internal class VietnameseKeyboardView(
   private val keyName: (String) -> String = { it },
   private val reportBounds: () -> Unit = {},
   private val micStop: () -> Unit = {},
+  private val onDirectKeyTouchDown: () -> Unit = {},
 ) : View(context) {
   private class Cell(
     val key: VietnameseKeyTouch.Key,
@@ -358,6 +359,10 @@ internal class VietnameseKeyboardView(
         )
         pointers[id] = state
         val key = cell?.key
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && state.method == DIRECT_SILENT_TYPING &&
+          event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN) && key != null && isKeyEnabled(key)) {
+          onDirectKeyTouchDown()
+        }
         if (key != null) playKeyFeedback(key)
         if (key?.id == DELETE) startDeleteRepeat(state)
         val confirmingSecondTap = key != null &&
