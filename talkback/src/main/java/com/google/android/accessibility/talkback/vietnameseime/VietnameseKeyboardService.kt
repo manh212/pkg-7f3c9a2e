@@ -111,6 +111,9 @@ class VietnameseKeyboardService : InputMethodService() {
     ::shouldRetryKeySpeech,
   )
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+    if (key == null || key == getString(R.string.pref_vietnamese_keyboard_bottom_spacing_key)) {
+      updateBottomSpacing()
+    }
     if (key == null || key == getString(R.string.pref_typing_confirmation_key) ||
       key == getString(R.string.pref_direct_input_tap_delay_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_layout_key) ||
@@ -167,16 +170,26 @@ class VietnameseKeyboardService : InputMethodService() {
     updateLayout()
     return FrameLayout(this).apply {
       setBackgroundResource(R.color.vietnamese_ime_background)
-      val bottomSpacing = (KEYBOARD_BOTTOM_SPACING_DP * resources.displayMetrics.density).roundToInt()
-      setPadding(0, 0, 0, bottomSpacing)
       addView(view, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+      updateBottomSpacing()
     }
+  }
+
+  private fun updateBottomSpacing() {
+    val container = keyboard?.parent as? FrameLayout ?: return
+    val spacingDp = prefs.getInt(
+      getString(R.string.pref_vietnamese_keyboard_bottom_spacing_key),
+      resources.getInteger(R.integer.pref_vietnamese_keyboard_bottom_spacing_default),
+    ).coerceIn(0, resources.getInteger(R.integer.pref_vietnamese_keyboard_bottom_spacing_max))
+    val spacing = (spacingDp * resources.displayMetrics.density).roundToInt()
+    if (container.paddingBottom != spacing) container.setPadding(0, 0, 0, spacing)
   }
 
   override fun onEvaluateFullscreenMode(): Boolean = false
 
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
+    updateBottomSpacing()
     updateLayout()
   }
 
@@ -1005,7 +1018,6 @@ class VietnameseKeyboardService : InputMethodService() {
 
   companion object {
     private val VIETNAMESE = Locale.forLanguageTag("vi-VN")
-    private const val KEYBOARD_BOTTOM_SPACING_DP = 12
     private const val MAX_WORD_LENGTH = 48
     private const val MAX_WORD_DELETE_LOOKBACK = 512
 

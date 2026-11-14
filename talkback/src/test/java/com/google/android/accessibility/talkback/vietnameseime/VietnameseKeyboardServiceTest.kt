@@ -401,7 +401,7 @@ class VietnameseKeyboardServiceTest {
       View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.AT_MOST),
     )
     inputView.layout(0, 0, 400, inputView.measuredHeight)
-    val spacing = (12 * service.resources.displayMetrics.density).roundToInt()
+    val spacing = (32 * service.resources.displayMetrics.density).roundToInt()
     assertEquals(spacing, inputView.height - keyboard.bottom)
 
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
@@ -425,6 +425,26 @@ class VietnameseKeyboardServiceTest {
     }
     assertTrue(text.isEmpty())
     assertTrue(spoken.isEmpty())
+  }
+
+  @Test
+  fun bottomSpacingPreferenceMovesTheKeysWithoutChangingTheirMeasuredHeight() {
+    startEditor()
+    val inputView = checkNotNull(keyboard.parent) as View
+    val width = View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY)
+    val height = View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.AT_MOST)
+    inputView.measure(width, height)
+    val keysHeight = keyboard.measuredHeight
+
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putInt(service.getString(R.string.pref_vietnamese_keyboard_bottom_spacing_key), 64)
+      .commit()
+    inputView.measure(width, height)
+    inputView.layout(0, 0, 400, inputView.measuredHeight)
+
+    assertEquals(keysHeight, keyboard.height)
+    val spacing = (64 * service.resources.displayMetrics.density).roundToInt()
+    assertEquals(spacing, inputView.height - keyboard.bottom)
   }
 
   @Test

@@ -5,6 +5,9 @@
     <string name="pref_vietnamese_keyboard_own_voice_key" translatable="false">pref_vietnamese_keyboard_own_voice</string>
     <string name="pref_vietnamese_keyboard_size_portrait_key" translatable="false">pref_vietnamese_keyboard_size_portrait</string>
     <string name="pref_vietnamese_keyboard_size_landscape_key" translatable="false">pref_vietnamese_keyboard_size_landscape</string>
+    <string name="pref_vietnamese_keyboard_bottom_spacing_key" translatable="false">pref_vietnamese_keyboard_bottom_spacing</string>
+    <integer name="pref_vietnamese_keyboard_bottom_spacing_default">32</integer>
+    <integer name="pref_vietnamese_keyboard_bottom_spacing_max">80</integer>
     <string name="pref_vietnamese_keyboard_mic_enabled_key" translatable="false">pref_vietnamese_keyboard_mic_enabled</string>
     <string name="pref_vietnamese_keyboard_show_number_row_key" translatable="false">pref_vietnamese_keyboard_show_number_row</string>
     <string name="pref_vietnamese_keyboard_show_symbols_row_key" translatable="false">pref_vietnamese_keyboard_show_symbols_row</string>
@@ -56,6 +59,8 @@
     <string name="vietnamese_ime_keyboard_size" tools:ignore="MissingTranslation">Keyboard size</string>
     <string name="vietnamese_ime_keyboard_size_portrait" tools:ignore="MissingTranslation">Portrait size</string>
     <string name="vietnamese_ime_keyboard_size_landscape" tools:ignore="MissingTranslation">Landscape size</string>
+    <string name="vietnamese_ime_keyboard_bottom_spacing" tools:ignore="MissingTranslation">Khoảng cách dưới bàn phím</string>
+    <string name="vietnamese_ime_spacing_dp" translatable="false">%1$d dp</string>
     <string name="vietnamese_ime_sound_and_vibration" tools:ignore="MissingTranslation">Sound and vibration</string>
     <string name="vietnamese_ime_vibrate_on_key" tools:ignore="MissingTranslation">Vibrate when a key lands</string>
     <string name="vietnamese_ime_key_sound" tools:ignore="MissingTranslation">Keypress sound</string>

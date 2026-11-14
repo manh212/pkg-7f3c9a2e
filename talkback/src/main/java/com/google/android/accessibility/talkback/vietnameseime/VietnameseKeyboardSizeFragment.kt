@@ -23,13 +23,21 @@ class VietnameseKeyboardSizeFragment :
       context.getString(R.string.pref_vietnamese_keyboard_size_landscape_key),
       prefs.getInt(context.getString(R.string.pref_vietnamese_keyboard_size_landscape_key), 100),
     )
+    val spacingKey = context.getString(R.string.pref_vietnamese_keyboard_bottom_spacing_key)
+    showCurrentValue(
+      spacingKey,
+      prefs.getInt(
+        spacingKey,
+        resources.getInteger(R.integer.pref_vietnamese_keyboard_bottom_spacing_default),
+      ),
+    )
   }
 
-  private fun showCurrentValue(key: String, percent: Int) {
+  private fun showCurrentValue(key: String, currentValue: Int) {
     findPreference<SeekBarPreference>(key)?.apply {
       val wasPersistent = isPersistent
       isPersistent = false
-      value = percent
+      value = currentValue
       isPersistent = wasPersistent
     }
   }

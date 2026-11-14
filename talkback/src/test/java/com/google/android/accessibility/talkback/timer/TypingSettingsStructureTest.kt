@@ -97,11 +97,12 @@ class TypingSettingsStructureTest {
   }
 
   @Test
-  fun vietnameseKeyboardSizeScreen_holdsTwoSizeSliders() {
+  fun vietnameseKeyboardSizeScreen_holdsSizeAndBottomSpacingSliders() {
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_size_portrait",
         "pref_vietnamese_keyboard_size_landscape",
+        "pref_vietnamese_keyboard_bottom_spacing",
       ),
       rowsOf(R.xml.vietnamese_keyboard_size_preferences).map { it.first },
     )

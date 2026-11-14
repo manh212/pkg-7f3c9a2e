@@ -342,6 +342,53 @@ class DirectTouchControllerTest {
     assertEquals("region [50,1100][1030,2200] complex=false", transcript.last())
   }
 
+  @Test
+  fun vietnameseSilentTypingPassesOnlyTheKeysWhenItsOwnVoiceIsOff() {
+    val typingKey = service.getString(R.string.pref_typing_confirmation_key)
+    val voiceKey = service.getString(R.string.pref_vietnamese_keyboard_own_voice_key)
+    prefs.edit()
+      .putString(typingKey, LIFT_TO_TYPE.toString())
+      .putBoolean(voiceKey, false)
+      .commit()
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
+    val keys = Rect(0, 1400, 1080, 2188)
+    val keyboardWindow = window(20, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Keyboard", Rect(0, 1400, 1080, 2220), service.packageName, layer = 4)
+    serviceWindows.onScreen = listOf(game(), keyboardWindow, navigationBar())
+    controller.setVietnameseKeyboardBounds(keys)
+    assertTranscript()
+
+    prefs.edit().putString(typingKey, DIRECT_SILENT_TYPING.toString()).commit()
+    assertEquals("region [0,1400][1080,2188] complex=false", transcript.last())
+    assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(GAME)))
+
+    prefs.edit().putString(typingKey, LIFT_TO_TYPE.toString()).commit()
+    assertEquals("region none", transcript.last())
+    prefs.edit().putString(typingKey, DIRECT_SILENT_TYPING.toString()).commit()
+    controller.setVietnameseKeyboardBounds(null)
+    controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
+    assertEquals("region none", transcript.last())
+  }
+
+  @Test
+  fun vietnameseSilentTypingUsesReportedKeysBeforeArmingTheRegion() {
+    val typingKey = service.getString(R.string.pref_typing_confirmation_key)
+    val component = ComponentName(service, VietnameseKeyboardService::class.java)
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      component.flattenToString())
+    shadowOf(Looper.getMainLooper()).idle()
+    serviceWindows.onScreen = listOf(game(), window(20, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Keyboard", Rect(0, 1400, 1080, 2220), service.packageName, layer = 4))
+    prefs.edit().putString(typingKey, DIRECT_SILENT_TYPING.toString()).commit()
+    assertTranscript()
+
+    controller.setVietnameseKeyboardBounds(Rect(0, 800, 1080, 1300))
+    assertTranscript()
+    controller.setVietnameseKeyboardBounds(Rect(0, 1400, 1080, 2188))
+    assertEquals("region [0,1400][1080,2188] complex=false", transcript.last())
+  }
+
   private fun keyboardEvent(windowId: Int): AccessibilityEvent =
     AccessibilityEvent(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED).also {
       ReflectionHelpers.callInstanceMethod<Any>(it, "setWindowId",

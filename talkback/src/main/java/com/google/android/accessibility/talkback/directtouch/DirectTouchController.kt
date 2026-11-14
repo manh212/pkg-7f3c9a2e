@@ -457,7 +457,7 @@ class DirectTouchController(
       component.className == VietnameseKeyboardService::class.java.name
 
   private fun usesVietnameseKeyboardDirectTouch(): Boolean =
-    vietnameseKeyboardOwnVoice && isVietnameseKeyboard(keyboard)
+    (isSilentDirectTyping() || vietnameseKeyboardOwnVoice) && isVietnameseKeyboard(keyboard)
 
   private fun readVietnameseKeyboardOwnVoice(): Boolean =
     SharedPreferencesUtils.getBooleanPref(
@@ -494,13 +494,15 @@ class DirectTouchController(
     val region = Region()
     if (vietnameseKeyboardClosing) return region
     val reported = vietnameseKeyboardBounds
+    val silentTyping = isSilentDirectTyping()
+    if (silentTyping && (reported == null || reported.isEmpty)) return region
     val windowRegion = Region()
     for (window in imeWindows) {
       getWindowRegion(window, windowRegion)
       region.op(windowRegion, Region.Op.UNION)
     }
     if (reported != null) {
-      if (region.isEmpty || !Rect.intersects(region.bounds, reported)) {
+      if (region.isEmpty || (!silentTyping && !Rect.intersects(region.bounds, reported))) {
         region.set(reported)
       } else {
         region.op(reported, Region.Op.INTERSECT)

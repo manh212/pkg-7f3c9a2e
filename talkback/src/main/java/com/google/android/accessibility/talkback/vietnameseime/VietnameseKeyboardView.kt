@@ -533,16 +533,16 @@ internal class VietnameseKeyboardView(
    * Runs on the local vibrator and tone generator only, never through speech,
    * so it still fires while Meridian is muted, paused, or off.
    */
-  private fun playKeyFeedback(key: VietnameseKeyTouch.Key) {
+  private fun playKeyFeedback(key: VietnameseKeyTouch.Key, vibrate: Boolean = vibrateOnKey) {
     if (key.id == MIC) return
-    if (!vibrateOnKey && !keySound) return
+    if (!vibrate && !keySound) return
     val slot = when (key.id) {
       " " -> KeyboardKeySounds.Slot.SPACE
       DELETE -> KeyboardKeySounds.Slot.DELETE
       ENTER -> KeyboardKeySounds.Slot.ENTER
       else -> KeyboardKeySounds.Slot.NORMAL
     }
-    keyFeedback.play(vibrateOnKey, keySound, keySounds[slot], vibrateIntensityPercent)
+    keyFeedback.play(vibrate, keySound, keySounds[slot], vibrateIntensityPercent)
   }
 
   private fun submitKey(key: VietnameseKeyTouch.Key, eventMs: Long, method: Int, pointerId: Int) {
@@ -733,6 +733,7 @@ internal class VietnameseKeyboardView(
       } else if (!activate(resolveKey(key), 0)) {
         return false
       }
+      playKeyFeedback(key, vibrate = false)
       sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)
       return true
     }

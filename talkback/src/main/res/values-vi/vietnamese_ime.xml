@@ -35,6 +35,7 @@
     <string name="vietnamese_ime_keyboard_size">Kích thước bàn phím</string>
     <string name="vietnamese_ime_keyboard_size_portrait">Kích thước khi cầm dọc</string>
     <string name="vietnamese_ime_keyboard_size_landscape">Kích thước khi cầm ngang</string>
+    <string name="vietnamese_ime_keyboard_bottom_spacing">Khoảng cách dưới bàn phím</string>
     <string name="vietnamese_ime_sound_and_vibration">Âm thanh và rung</string>
     <string name="vietnamese_ime_vibrate_on_key">Rung khi chạm phím</string>
     <string name="vietnamese_ime_key_sound">Tiếng bấm phím</string>

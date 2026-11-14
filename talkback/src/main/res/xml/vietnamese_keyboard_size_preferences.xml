@@ -18,4 +18,12 @@
       app:min="50"
       app:seekBarIncrement="5"
       app:showSeekBarValue="true" />
+  <com.google.android.accessibility.talkback.vietnameseime.KeyboardSpacingSeekBarPreference
+      android:defaultValue="@integer/pref_vietnamese_keyboard_bottom_spacing_default"
+      android:key="@string/pref_vietnamese_keyboard_bottom_spacing_key"
+      android:max="@integer/pref_vietnamese_keyboard_bottom_spacing_max"
+      android:title="@string/vietnamese_ime_keyboard_bottom_spacing"
+      app:min="0"
+      app:seekBarIncrement="4"
+      app:showSeekBarValue="true" />
 </PreferenceScreen>

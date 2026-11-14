@@ -1469,6 +1469,24 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  fun accessibilityClickPlaysTheConfiguredSpaceSoundOnce() {
+    val feedback = installRecordingFeedback(vibrate = true, sound = true)
+    keyboard.keySounds = KeyboardKeySounds.defaultSounds()
+      .copy(space = soundFor(KeyboardKeySounds.Slot.ENTER))
+    prepareKeyboard()
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    val spaceId = (0 until host.childCount).first {
+      provider.createAccessibilityNodeInfo(it)?.text == context.getString(R.string.vietnamese_ime_space)
+    }
+
+    assertTrue(provider.performAction(spaceId, AccessibilityNodeInfo.ACTION_CLICK, null))
+
+    assertEquals(listOf(" "), typed)
+    assertEquals(listOf(feedbackCall(false, true, KeyboardKeySounds.Slot.ENTER)), feedback.calls)
+  }
+
+  @Test
   fun keyFeedbackUsesNormalSoundForLetterDigitSymbolAndFunctionKeys() {
     val feedback = installRecordingFeedback(vibrate = true, sound = true)
     prepareKeyboard()
