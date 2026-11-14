@@ -19,6 +19,7 @@ import android.view.ViewTreeObserver
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
@@ -38,6 +39,7 @@ internal class VietnameseKeyboardView(
   private val shiftSpoken: () -> Unit = {},
   private val keyName: (String) -> String = { it },
   private val reportBounds: () -> Unit = {},
+  private val micStop: () -> Unit = {},
 ) : View(context) {
   private class Cell(
     val key: VietnameseKeyTouch.Key,
@@ -72,6 +74,10 @@ internal class VietnameseKeyboardView(
   private val keyAccessibility = KeyAccessibility()
   private val touchHandler = Handler(Looper.getMainLooper())
   private var pendingKeyDelay = 0
+  private var lastDeleteTapMs = -1L
+  private var deleteRepeatPointer: Int? = null
+  private var deleteRepeatIntervalMs = DELETE_REPEAT_START_INTERVAL_MS
+  private val deleteRepeatRunnable = Runnable { repeatDelete() }
   private val reportBeforeDraw = ViewTreeObserver.OnPreDrawListener {
     reportBounds()
     true
@@ -80,6 +86,14 @@ internal class VietnameseKeyboardView(
   private val shiftHolders = LinkedHashSet<Int>()
   private var shiftSticky = false
   private var shiftUsed = false
+  private var micHoldPointer: Int? = null
+  private var micListeningPointer: Int? = null
+  private val micHoldRunnable = Runnable {
+    val pointer = micHoldPointer ?: return@Runnable
+    if (pointers[pointer]?.startingCell?.key?.id != MIC) return@Runnable
+    if (activate(MIC, 0L)) micListeningPointer = pointer
+    micHoldPointer = null
+  }
 
   private class PointerState(
     val pointerId: Int,
@@ -93,6 +107,9 @@ internal class VietnameseKeyboardView(
     val pcShift: Boolean,
     var moved: Boolean = false,
     var lastSpoken: Cell? = null,
+    var lastX: Float = downX,
+    var lastY: Float = downY,
+    var deleteRepeated: Boolean = false,
   )
 
   var typingMethod = 0
@@ -125,6 +142,53 @@ internal class VietnameseKeyboardView(
       field = value
       rebuildRows()
     }
+  var sizePortraitPercent = 100
+    set(value) {
+      val percent = value.coerceIn(50, 150)
+      if (field == percent) return
+      field = percent
+      requestLayout()
+    }
+  var sizeLandscapePercent = 100
+    set(value) {
+      val percent = value.coerceIn(50, 150)
+      if (field == percent) return
+      field = percent
+      requestLayout()
+    }
+  var micEnabled = false
+    set(value) {
+      if (field == value) return
+      cancelInput()
+      field = value
+      rebuildRows()
+    }
+  var showNumberRow = true
+    set(value) {
+      if (field == value) return
+      cancelInput()
+      field = value
+      rebuildRows()
+    }
+  var showSymbolsRow = false
+    set(value) {
+      if (field == value) return
+      cancelInput()
+      field = value
+      rebuildRows()
+    }
+  var symbolsRowString = VietnameseKeyboardSymbols.DEFAULT_ROW
+    set(value) {
+      if (field == value) return
+      cancelInput()
+      field = value
+      rebuildRows()
+    }
+  var autoCapitalize = true
+  var doubleSpacePeriod = true
+  var vibrateOnKey = false
+  var keySound = false
+  internal var keyFeedback: VietnameseKeyFeedback = VietnameseKeyFeedback(context)
 
   init {
     ViewCompat.setAccessibilityDelegate(this, keyAccessibility)
@@ -146,7 +210,10 @@ internal class VietnameseKeyboardView(
       this.telexAvailable != telexAvailable || this.actionLabel != actionLabel
     val shiftChanged = this.shifted != shifted
     if (layoutChanged) cancelInput()
-    if (pageChanged) firstTaps.clear()
+    if (pageChanged) {
+      firstTaps.clear()
+      lastDeleteTapMs = -1
+    }
     this.shifted = shifted
     symbolPage = symbols
     telexEnabled = telex
@@ -160,8 +227,16 @@ internal class VietnameseKeyboardView(
       touchHandler.removeCallbacksAndMessages(null)
       pendingKeyDelay = 0
     }
+    disarmMicHold()
+    if (micListeningPointer != null) {
+      micListeningPointer = null
+      micStop()
+    }
     pointers.clear()
     firstTaps.clear()
+    lastDeleteTapMs = -1
+    deleteRepeatPointer = null
+    touchHandler.removeCallbacks(deleteRepeatRunnable)
     speechPointer = null
     hoveredKey = null
     val hadShift = shiftHolders.isNotEmpty() || shiftSticky
@@ -176,9 +251,10 @@ internal class VietnameseKeyboardView(
     val heightDp = if (isPcLayout()) {
       configuration.screenHeightDp
     } else if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-      195
+      (195 * activeSizePercent() / 100f).roundToInt()
     } else {
-      maxOf(240, (configuration.screenHeightDp * 0.48f).roundToInt())
+      (maxOf(240, (configuration.screenHeightDp * 0.48f).roundToInt()) * activeSizePercent() / 100f)
+        .roundToInt()
     }
     setMeasuredDimension(
       MeasureSpec.getSize(widthMeasureSpec),
@@ -204,6 +280,7 @@ internal class VietnameseKeyboardView(
   override fun onDetachedFromWindow() {
     viewTreeObserver.removeOnPreDrawListener(reportBeforeDraw)
     cancelInput()
+    keyFeedback.release()
     super.onDetachedFromWindow()
   }
 
@@ -281,6 +358,8 @@ internal class VietnameseKeyboardView(
         )
         pointers[id] = state
         val key = cell?.key
+        if (key != null) playKeyFeedback()
+        if (key?.id == DELETE) startDeleteRepeat(state)
         val confirmingSecondTap = key != null &&
           VietnameseKeyTouch.confirmsWithDoubleTap(key, state.method) &&
           state.touch.hasPendingFirstTap(key, x, y, event.eventTime)
@@ -289,18 +368,23 @@ internal class VietnameseKeyboardView(
           pressShiftPointer(state)
         }
         if (!confirmingSecondTap && cell != null) announceSelected(state, cell)
-        if (!state.pcShift && state.method == DIRECT_SILENT_TYPING && key != null) {
-          submitKey(key)
+        if (key?.id == MIC) {
+          armMicHold(state)
+        } else if (!state.pcShift && state.method == DIRECT_SILENT_TYPING && key != null) {
+          submitKey(key, event.eventTime, state.method, id)
         }
       }
       MotionEvent.ACTION_MOVE -> {
         moveChanged = false
         for (index in 0 until event.pointerCount) {
           val state = pointers[event.getPointerId(index)] ?: continue
-          if (!state.pcShift && state.symbolPage != symbolPage) continue
-          if (!state.pcShift && state.method == DIRECT_SILENT_TYPING) continue
           val x = event.getX(index)
           val y = event.getY(index)
+          state.lastX = x
+          state.lastY = y
+          if (state.pointerId == micHoldPointer && movedBeyondSlop(state, x, y)) disarmMicHold()
+          if (!state.pcShift && state.symbolPage != symbolPage) continue
+          if (!state.pcShift && state.method == DIRECT_SILENT_TYPING) continue
           if (movedBeyondSlop(state, x, y)) state.moved = true
           if (state.pcShift) continue
           val cell = cellAt(x, y)
@@ -316,13 +400,18 @@ internal class VietnameseKeyboardView(
         val index = event.actionIndex
         val state = pointers.remove(event.getPointerId(index))
         if (state != null) {
+          stopDeleteRepeat(state.pointerId)
           val x = event.getX(index)
           val y = event.getY(index)
           val cell = cellAt(x, y)
+          val micKey = state.startingCell?.key?.id == MIC
           val tap = !state.moved && !movedBeyondSlop(state, x, y) &&
             event.eventTime - state.downTime <= timing.tapHoldMs &&
             cell?.key == state.startingCell?.key
-          if (state.pcShift) {
+          if (micKey) {
+            finishMicHold(state)
+            finishAnnouncement(state, cell)
+          } else if (state.pcShift) {
             releaseShiftPointer(state, tap)
           } else if (state.method != DIRECT_SILENT_TYPING && state.symbolPage == symbolPage) {
             if (cell?.key != state.touch.selected) {
@@ -331,9 +420,11 @@ internal class VietnameseKeyboardView(
             }
             val key = state.touch.release(cell?.key, state.method, x, y, event.eventTime, tap)
             finishAnnouncement(state, cell, waitsForCommit = key != null && hasCommitAnnouncement(key.id))
-            if (key != null) submitReleasedKey(key, state.method, event.eventTime)
+            if (key != null && !state.deleteRepeated) {
+              submitReleasedKey(key, state.method, event.eventTime, state.pointerId)
+            }
           }
-          if (state.pcShift || state.method == DIRECT_SILENT_TYPING) finishAnnouncement(state, cell)
+          if ((state.pcShift || state.method == DIRECT_SILENT_TYPING) && !micKey) finishAnnouncement(state, cell)
         }
       }
       MotionEvent.ACTION_CANCEL -> {
@@ -350,6 +441,21 @@ internal class VietnameseKeyboardView(
       (layoutSetting == LAYOUT_AUTO &&
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
+  private fun activeSizePercent(): Int =
+    if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+      sizeLandscapePercent
+    } else {
+      sizePortraitPercent
+    }
+
+  private fun textScalePercent(): Int = if (rowsArePc) 100 else activeSizePercent()
+
+  @VisibleForTesting
+  internal fun keyTextSizeSp(keyId: String): Float {
+    val cell = rows.flatten().firstOrNull { it.key.id == keyId } ?: return 0f
+    return cell.textSize / density
+  }
+
   private fun isShiftHeld(): Boolean = shiftHolders.isNotEmpty()
 
   private fun isShiftActive(): Boolean = shifted || isShiftHeld() || shiftSticky
@@ -357,6 +463,25 @@ internal class VietnameseKeyboardView(
   private fun movedBeyondSlop(state: PointerState, x: Float, y: Float): Boolean =
     abs(x - state.downX) > configuration.scaledTouchSlop ||
       abs(y - state.downY) > configuration.scaledTouchSlop
+
+  private fun armMicHold(state: PointerState) {
+    disarmMicHold()
+    micHoldPointer = state.pointerId
+    touchHandler.postDelayed(micHoldRunnable, MIC_HOLD_MS)
+  }
+
+  private fun disarmMicHold() {
+    micHoldPointer = null
+    touchHandler.removeCallbacks(micHoldRunnable)
+  }
+
+  private fun finishMicHold(state: PointerState) {
+    disarmMicHold()
+    if (micListeningPointer == state.pointerId) {
+      micListeningPointer = null
+      micStop()
+    }
+  }
 
   private fun pressShiftPointer(state: PointerState) {
     val wasHeld = isShiftHeld()
@@ -403,23 +528,87 @@ internal class VietnameseKeyboardView(
     invalidate()
   }
 
-  private fun submitKey(key: VietnameseKeyTouch.Key) {
-    if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
-    activate(resolveKey(key), 0)
+  /**
+   * Short vibration and/or keypress tone for a touch-down that landed on a key.
+   * Runs on the local vibrator and tone generator only, never through speech,
+   * so it still fires while Meridian is muted, paused, or off.
+   */
+  private fun playKeyFeedback() {
+    if (!vibrateOnKey && !keySound) return
+    keyFeedback.play(this, vibrateOnKey, keySound)
   }
 
-  private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int, releasedAt: Long) {
+  private fun submitKey(key: VietnameseKeyTouch.Key, eventMs: Long, method: Int, pointerId: Int) {
     if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
     val id = resolveKey(key)
+    if (id == DELETE) {
+      activate(deleteTapId(eventMs, method, pointerId), 0)
+      return
+    }
+    lastDeleteTapMs = -1
+    activate(id, 0)
+  }
+
+  private fun submitReleasedKey(key: VietnameseKeyTouch.Key, method: Int, releasedAt: Long, pointerId: Int) {
+    if (!isKeyEnabled(key) || (rowsArePc && key.id == SHIFT)) return
+    val id = resolveKey(key)
+    val targetId = if (id == DELETE) deleteTapId(releasedAt, method, pointerId) else {
+      lastDeleteTapMs = -1
+      id
+    }
     if (method != SINGLE_TAP_TO_TYPE || timing.directInputMs == 0L) {
-      activate(id, releasedAt)
+      activate(targetId, releasedAt)
       return
     }
     pendingKeyDelay++
     touchHandler.postDelayed({
       pendingKeyDelay--
-      activate(id, releasedAt)
+      activate(targetId, releasedAt)
     }, timing.directInputMs)
+  }
+
+  private fun deleteTapId(eventMs: Long, method: Int, pointerId: Int): String {
+    if (VietnameseKeyTouch.confirmsWithDoubleTap(VietnameseKeyTouch.Key(DELETE), method)) {
+      lastDeleteTapMs = -1
+      return DELETE
+    }
+    val doubleTap = lastDeleteTapMs >= 0 && eventMs - lastDeleteTapMs in 0..timing.doubleTapMs &&
+      pointers.values.none {
+        it.pointerId != pointerId && it.startingCell?.key?.id == DELETE
+      }
+    lastDeleteTapMs = if (doubleTap) -1 else eventMs
+    return if (doubleTap) DELETE_WORD else DELETE
+  }
+
+  private fun startDeleteRepeat(state: PointerState) {
+    if (deleteRepeatPointer != null) return
+    deleteRepeatPointer = state.pointerId
+    deleteRepeatIntervalMs = DELETE_REPEAT_START_INTERVAL_MS
+    touchHandler.postDelayed(deleteRepeatRunnable, timing.tapHoldMs)
+  }
+
+  private fun stopDeleteRepeat(pointerId: Int) {
+    if (deleteRepeatPointer != pointerId) return
+    deleteRepeatPointer = null
+    touchHandler.removeCallbacks(deleteRepeatRunnable)
+  }
+
+  private fun repeatDelete() {
+    val pointerId = deleteRepeatPointer ?: return
+    val state = pointers[pointerId] ?: return
+    val key = state.touch.selected
+    if (key?.id != DELETE || cellAt(state.lastX, state.lastY)?.key?.id != DELETE) {
+      deleteRepeatPointer = null
+      return
+    }
+    state.deleteRepeated = true
+    lastDeleteTapMs = -1
+    if (!isKeyEnabled(key) || !activate(DELETE, 0)) {
+      deleteRepeatPointer = null
+      return
+    }
+    deleteRepeatIntervalMs = nextDeleteRepeatIntervalMs(deleteRepeatIntervalMs)
+    touchHandler.postDelayed(deleteRepeatRunnable, deleteRepeatIntervalMs)
   }
 
   private fun resolveKey(key: VietnameseKeyTouch.Key): String {
@@ -486,6 +675,7 @@ internal class VietnameseKeyboardView(
       if (telexEnabled) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off,
     )
     DELETE -> context.getString(R.string.vietnamese_ime_delete)
+    MIC -> context.getString(R.string.vietnamese_ime_voice_input)
     else -> cell.title
   }
 
@@ -534,6 +724,7 @@ internal class VietnameseKeyboardView(
       if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
       val key = virtualCells[id]?.key ?: return false
       if (!isKeyEnabled(key)) return false
+      lastDeleteTapMs = -1
       finishHover(hasCommitAnnouncement(key.id))
       if (rowsArePc && key.id == SHIFT) {
         shiftSticky = !shiftSticky
@@ -601,7 +792,7 @@ internal class VietnameseKeyboardView(
 
   private fun measureTitle(cell: Cell, title: String) {
     cell.title = title
-    paint.textSize = (if (title.length > 4) 13 else 18) * density
+    paint.textSize = (if (title.length > 4) 13 else 18) * density * textScalePercent() / 100f
     val available = cell.bounds.width() - 6 * density
     val textWidth = paint.measureText(title)
     if (available > 0 && textWidth > available) paint.textSize *= available / textWidth
@@ -637,20 +828,26 @@ internal class VietnameseKeyboardView(
     val shift = function(SHIFT, "↑", if (pc) 2.0f else 1.4f)
     val delete = function(DELETE, "⌫", if (pc) 1.0f else 1.6f)
     val thirdRow = listOf(shift) + third + delete
-    val bottom = listOf(
+    val bottom = listOfNotNull(
       if (symbolPage) function(LETTERS, "ABC", 1.3f) else function(SYMBOLS, "123", 1.3f),
       function(LANGUAGE, if (telexEnabled) "VI" else "EN", 1.1f),
       characters(",").single(),
       Cell(VietnameseKeyTouch.Key(" "),
         context.getString(R.string.vietnamese_ime_space), if (pc) 6.5f else 3.2f),
       characters(".").single(),
+      function(MIC, context.getString(R.string.vietnamese_ime_voice_input), 1.1f)
+        .takeIf { micEnabled },
       function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f),
       Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
+    val symbolsRow = if (showSymbolsRow && !symbolPage) characters(symbolsRowString) else null
+    val digitsRow = if (showNumberRow || symbolPage) digits else null
     return if (pc) {
-      listOf(bottom, third + shift, second, first, digits + delete)
+      val digitsColumn = digitsRow?.let { it + delete }
+      val bottomColumn = if (digitsColumn == null) bottom + delete else bottom
+      listOfNotNull(bottomColumn, third + shift, second, first, digitsColumn, symbolsRow)
     } else {
-      listOf(digits, first, second, thirdRow, bottom)
+      listOfNotNull(symbolsRow, digitsRow, first, second, thirdRow, bottom)
     }
   }
 
@@ -666,18 +863,29 @@ internal class VietnameseKeyboardView(
   companion object {
     const val SHIFT = "shift"
     const val DELETE = "delete"
+    const val DELETE_WORD = "delete_word"
     const val ENTER = "enter"
     const val SYMBOLS = "symbols"
     const val LETTERS = "letters"
     const val LANGUAGE = "language"
     const val PICKER = "picker"
+    const val MIC = "mic"
     const val LAYOUT_PHONE = "phone"
     const val LAYOUT_PC = "pc"
     const val LAYOUT_AUTO = "auto"
+
+    private const val MIC_HOLD_MS = 1000L
 
     private val SHIFT_SYMBOLS = mapOf(
       '1' to "!", '2' to "@", '3' to "#", '4' to "$", '5' to "%",
       '6' to "^", '7' to "&", '8' to "*", '9' to "(", '0' to ")",
     )
+
+    private const val DELETE_REPEAT_START_INTERVAL_MS = 120L
+    private const val DELETE_REPEAT_MIN_INTERVAL_MS = 40L
+    private const val DELETE_REPEAT_SHRINK_PERCENT = 85L
+
+    internal fun nextDeleteRepeatIntervalMs(currentMs: Long): Long =
+      maxOf(DELETE_REPEAT_MIN_INTERVAL_MS, currentMs * DELETE_REPEAT_SHRINK_PERCENT / 100)
   }
 }
