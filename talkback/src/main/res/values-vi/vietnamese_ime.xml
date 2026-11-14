@@ -32,4 +32,24 @@
     <string name="vietnamese_ime_layout_phone">Điện thoại</string>
     <string name="vietnamese_ime_layout_pc">Máy tính</string>
     <string name="vietnamese_ime_layout_auto">Tự động theo hướng xoay</string>
+    <string name="vietnamese_ime_keyboard_size">Kích thước bàn phím</string>
+    <string name="vietnamese_ime_keyboard_size_portrait">Kích thước khi cầm dọc</string>
+    <string name="vietnamese_ime_keyboard_size_landscape">Kích thước khi cầm ngang</string>
+    <string name="vietnamese_ime_sound_and_vibration">Âm thanh và rung</string>
+    <string name="vietnamese_ime_vibrate_on_key">Rung khi chạm phím</string>
+    <string name="vietnamese_ime_key_sound">Tiếng bấm phím</string>
+    <string name="vietnamese_ime_keyboard_rows">Hàng phím</string>
+    <string name="vietnamese_ime_show_number_row">Hiện hàng số</string>
+    <string name="vietnamese_ime_show_symbols_row">Hiện hàng ký hiệu</string>
+    <string name="vietnamese_ime_symbols_row_customize">Tùy chỉnh hàng ký hiệu</string>
+    <string name="vietnamese_ime_symbols_row_choose_position">Chọn vị trí cho ký hiệu %1$s</string>
+    <string name="vietnamese_ime_symbols_row_position">Vị trí %1$d</string>
+    <string name="vietnamese_ime_symbols_row_position_current">Vị trí %1$d (hiện tại: %2$s)</string>
+    <string name="vietnamese_ime_symbols_row_in_position">Đang ở vị trí %1$d</string>
+    <string name="vietnamese_ime_typing">Gõ phím</string>
+    <string name="vietnamese_ime_auto_capitalize">Tự viết hoa đầu câu</string>
+    <string name="vietnamese_ime_double_space_period">Hai lần cách thành dấu chấm</string>
+    <string name="vietnamese_ime_mic_enabled">Hiện nút nhập bằng giọng nói</string>
+    <string name="vietnamese_ime_voice_input">Nhập bằng giọng nói</string>
+    <string name="vietnamese_ime_voice_input_stopped">Đã dừng nhập bằng giọng nói</string>
 </resources>
