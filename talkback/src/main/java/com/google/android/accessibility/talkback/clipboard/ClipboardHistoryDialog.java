@@ -260,7 +260,11 @@ public class ClipboardHistoryDialog {
         speak(context.getString(R.string.clipboard_history_no_target), eventId);
         return;
       }
-      if (!ClipboardUtils.copyToClipboardWithoutRecording(context, entry)) {
+      boolean copied =
+          favorites
+              ? ClipboardUtils.copyToClipboardWithoutRecording(context, entry)
+              : ClipboardUtils.copyToClipboard(context, entry);
+      if (!copied) {
         speak(context.getString(R.string.clipboard_history_paste_failed), eventId);
         return;
       }

@@ -119,9 +119,9 @@ public class ClipboardHistoryDialogTest {
     android.content.ClipboardManager clipboard =
         (android.content.ClipboardManager)
             context.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("", ""));
     ClipboardHistory.clear();
     ClipboardHistory.record("paste this");
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("", "newer copy"));
     boolean[] pasted = {false};
     new ClipboardHistoryDialog(context, null)
         .show(
@@ -129,19 +129,22 @@ public class ClipboardHistoryDialogTest {
             null,
             (eventId, originalTarget) -> {
               assertEquals(null, originalTarget);
+              assertEquals(
+                  "paste this", clipboard.getPrimaryClip().getItemAt(0).coerceToText(context));
               pasted[0] = true;
               return true;
             });
     AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
     ListView list = findList(dialog.getWindow().getDecorView());
     assertNotNull(list);
-    list.getOnItemClickListener().onItemClick(list, null, 0, 0);
+    assertEquals("newer copy", list.getItemAtPosition(0));
+    list.getOnItemClickListener().onItemClick(list, null, 1, 1);
     assertFalse(dialog.isShowing());
     assertFalse(pasted[0]);
     shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
     assertTrue(pasted[0]);
     assertEquals("paste this", clipboard.getPrimaryClip().getItemAt(0).coerceToText(context));
-    assertEquals(Arrays.asList("paste this"), ClipboardHistory.getEntries());
+    assertEquals(Arrays.asList("paste this", "newer copy"), ClipboardHistory.getEntries());
   }
 
 
