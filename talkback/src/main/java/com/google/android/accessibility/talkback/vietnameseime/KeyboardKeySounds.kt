@@ -41,6 +41,17 @@ object KeyboardKeySounds : SoundChoiceStore {
   override fun soundFile(context: Context, slot: SoundSlot): File? =
     SoundFileStore.soundFile(SoundFileStore.directory(context, "key_sounds"), slot.fileName)
 
+  /** The key sounds as the settings backup carries them. */
+  fun backupJson(context: Context): String =
+    SoundFileStore.backupSoundsJson(context, "key_sounds", Slot.entries.toTypedArray())
+
+  /**
+   * Replaces the key sounds with the ones in a settings backup. Returns false if the
+   * backup's sounds cannot be read, and then changes nothing.
+   */
+  fun restoreBackup(context: Context, json: String): Boolean =
+    SoundFileStore.restoreSounds(context, "key_sounds", Slot.entries.toTypedArray(), json)
+
   override fun label(context: Context, prefs: SharedPreferences, slot: SoundSlot): String? =
     prefs.getString(slot.key, null)?.takeIf { it.isNotEmpty() && soundFile(context, slot) != null }
 
