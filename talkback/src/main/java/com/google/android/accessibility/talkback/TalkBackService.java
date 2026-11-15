@@ -4010,6 +4010,8 @@ public class TalkBackService extends AccessibilityServiceCompat
             R.bool.pref_disable_latency_extras_default);
     EventFilter.setLatencyExtrasEnabled(latencyExtrasEnabled);
     LatencyExperiments.setPreparationAllowed(latencyExtrasEnabled);
+    LatencyExperiments.setKeepPreparationOnFocusChange(
+        prefs.getBoolean("pref_keep_preparation_on_focus_change", /* defValue= */ true));
     WindowNodePrefetcher.setEnabled(latencyExtrasEnabled);
     if (speechController != null) speechController.getFailoverTts().refreshNavigationCache();
     EventFilter.setPreparedSpeechOptions(
