@@ -919,14 +919,11 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
 
     // Assume windows are stable if they all have titles from state-change-events, if the window
     // picture stopped changing while every changed window already has a title from the window
-    // list, or if the settle cap is reached.
-    long settleCapMs =
-        LatencyExperiments.Feature.WINDOW_SETTLE.enabled()
-            ? WINDOW_CHANGE_DELAY_MS
-            : interpretation.getMaxDelayMs();
-    if (interpretation.hasTitlesFromStateChange()
+    // list, or if maximum delay is reached.
+    if (LatencyExperiments.Feature.WINDOW_IMMEDIATE.enabled()
+        || interpretation.hasTitlesFromStateChange()
         || windowPictureSettled(interpretation, newWindowRoles)
-        || (settleCapMs <= interpretation.getTotalDelayMs())) {
+        || (interpretation.getMaxDelayMs() <= interpretation.getTotalDelayMs())) {
       LogDepth.log(
           TAG, depth, "Assumes windows are stable, delay=%d", interpretation.getTotalDelayMs());
       interpretation.setWindowsStable(true);
