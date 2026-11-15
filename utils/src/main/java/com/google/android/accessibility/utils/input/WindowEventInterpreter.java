@@ -890,10 +890,6 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
     int depth = 0;
     LogDepth.log(TAG, depth, "delayedInterpret()");
 
-    if (interpretation.areWindowsStable()) {
-      return;
-    }
-
     interpretation.setOriginalEvent(false);
 
     // Map windows to roles, detect window role changes.
