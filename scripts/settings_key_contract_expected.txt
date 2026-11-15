@@ -308,6 +308,7 @@ pref_latency_cached_text
 pref_latency_early_controls
 pref_latency_experiment_category
 pref_latency_fast_scroll
+pref_latency_fast_window_transitions
 pref_latency_fresh_prepared
 pref_latency_immediate_speech
 pref_latency_input_priority
@@ -321,6 +322,7 @@ pref_latency_scoped_cache
 pref_latency_stall_capture
 pref_latency_start_session
 pref_latency_toast_filter
+pref_latency_touch_speech_with_rotation
 pref_latency_trace
 pref_lift_to_activate_key
 pref_lines_navigation_menu_setting_key

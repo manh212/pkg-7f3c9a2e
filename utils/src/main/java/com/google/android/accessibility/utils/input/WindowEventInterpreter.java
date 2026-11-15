@@ -51,6 +51,7 @@ import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.Filter;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.LogDepth;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -623,6 +624,15 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
 
     // Check whether windows are stable.
     long delayMs = calculateDelayMs(interpretation);
+    if (delayMs > 0 && allowEvent && LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS.enabled()) {
+      AccessibilityWindowInfo readyWindow = findReadyApplicationWindow(interpretation);
+      if (readyWindow != null) {
+        interpretation.readyApplicationWindow = readyWindow;
+        delayMs = 0;
+        stableTransitionStartMs = screenTransitionStartTime;
+        stableTransitionDelayMs = 0;
+      }
+    }
     interpretation.setWindowsStable(delayMs == 0);
     interpretation.setMaxDelay(delayMs);
     interpretation.setAllowAnnounce(allowEvent);
@@ -769,6 +779,62 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
     return (interpretation.getOtherActiveWindow().getId() == WINDOW_ID_NONE)
         ? getWindowTransitionDelayMs()
         : NONE_APPLICATION_WINDOW_DELAY_MS;
+  }
+
+  private @Nullable AccessibilityWindowInfo findReadyApplicationWindow(
+      EventInterpretation interpretation) {
+    WindowInterpretation application = interpretation.getWindowA();
+    int windowId = application.getId();
+    if (interpretation.getDisplayId() != Display.DEFAULT_DISPLAY
+        || !interpretation.getMainWindowsChanged()
+        || windowId == WINDOW_ID_NONE
+        || windowId == application.getOldId()
+        || interpretation.getWindowB().idOrTitleChanged()
+        || interpretation.getWindowB().getId() != WINDOW_ID_NONE
+        || interpretation.getOtherActiveWindow().idOrTitleChanged()
+        || interpretation.getOtherActiveWindow().getId() != WINDOW_ID_NONE
+        || interpretation.getInputMethodChanged()
+        || interpretation.getShouldAnnounceInputMethodChange()
+        || interpretation.getPicInPicChanged()
+        || interpretation.getAnnouncement() != null
+        || interpretation.isInterpretFirstTimeWhenWakeUp()
+        || !isApplicationWindowTransitionEvent(interpretation, application)
+        || TextUtils.isEmpty(application.getTitle())) {
+      return null;
+    }
+    AccessibilityWindowInfo window = findWindow(windowId);
+    if (window == null || !window.isActive() || !window.isFocused()) {
+      return null;
+    }
+    AccessibilityNodeInfo root = AccessibilityWindowInfoUtils.getRoot(window);
+    if (root == null) {
+      return null;
+    }
+    try {
+      return root.isVisibleToUser() && (root.getChildCount() > 0 || root.isFocusable())
+          ? window
+          : null;
+    } finally {
+      root.recycle();
+    }
+  }
+
+  private static boolean isApplicationWindowTransitionEvent(
+      EventInterpretation interpretation, WindowInterpretation application) {
+    int eventWindowId = interpretation.getWindowIdFromEvent();
+    if (interpretation.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+      return eventWindowId == application.getId()
+          && !isPaneContentChangeTypes(interpretation.getContentChangeTypes());
+    }
+    if (interpretation.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        || !BuildVersionUtils.isAtLeastP()) {
+      return false;
+    }
+    int changes = interpretation.getWindowChangeTypes();
+    return (eventWindowId == application.getId()
+            && (changes & AccessibilityEvent.WINDOWS_CHANGE_ADDED) != 0)
+        || (eventWindowId == application.getOldId()
+            && (changes & AccessibilityEvent.WINDOWS_CHANGE_REMOVED) != 0);
   }
 
   /**
@@ -1603,6 +1669,7 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
     private long totalDelayMs = 0;
     private boolean interpretFirstTimeWhenWakeUp = false;
     private @Nullable AccessibilityNodeInfo sourceNode = null;
+    private @Nullable AccessibilityWindowInfo readyApplicationWindow;
 
     /** Bitmask of getContentChangeTypes() from the window state changed event. */
     private int contentChangeTypes = 0;
@@ -1649,6 +1716,10 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
 
     public WindowInterpretation getWindowA() {
       return windowA;
+    }
+
+    public @Nullable AccessibilityWindowInfo getReadyApplicationWindow() {
+      return readyApplicationWindow;
     }
 
     public WindowInterpretation getWindowB() {

@@ -2228,6 +2228,15 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
+  public void onContinuedGestureTouchDown(long eventTime) {
+    if (accessibilityFocusInterpreter != null
+        && isServiceActive()
+        && !PauseController.isPaused()
+        && !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) {
+      accessibilityFocusInterpreter.onContinuedGestureTouchDown(eventTime);
+    }
+  }
+
   public FeedbackController getFeedbackController() {
     if (feedbackController == null) {
       throw new IllegalStateException("mFeedbackController has not been initialized");

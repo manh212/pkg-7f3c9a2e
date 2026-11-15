@@ -22,6 +22,8 @@ public final class LatencyExperiments {
     PCM_ADJACENT("pcm_adjacent"),
     PCM_SECOND("pcm_second"),
     IMMEDIATE_SPEECH("immediate_speech"),
+    TOUCH_SPEECH_WITH_ROTATION("touch_speech_with_rotation"),
+    FAST_WINDOW_TRANSITIONS("fast_window_transitions"),
     FAST_SCROLL("fast_scroll"),
     LIVE_EDGE_REUSE("live_edge_reuse"),
     AUDIO_RESAMPLE("audio_resample"),

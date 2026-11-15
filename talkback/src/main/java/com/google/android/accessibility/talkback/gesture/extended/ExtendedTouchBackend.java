@@ -13,7 +13,9 @@ import android.view.ViewConfiguration;
 import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.talkback.gesture.TwoFingerRotationTracker;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.gestures.GestureManifold;
 import com.google.android.accessibility.utils.gestures.TwoFingerDirectionalGesture;
@@ -145,6 +147,13 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
     try {
       if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        if (rotationEnabled
+            && completedInteraction
+            && state == TouchInteractionController.STATE_TOUCH_INTERACTING
+            && LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION.enabled()
+            && FocusFeedbackMapper.isTouchStopsSpeechEnabled()) {
+          service.onContinuedGestureTouchDown(event.getEventTime());
+        }
         resetTwoFingerTracking();
         if (completedInteraction || state == TouchInteractionController.STATE_CLEAR) {
           detector.clear();

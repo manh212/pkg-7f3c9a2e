@@ -33,6 +33,7 @@ import com.google.android.accessibility.talkback.focusmanagement.record.FocusAct
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.talkback.interpreters.AccessibilityFocusInterpreter;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -118,6 +119,9 @@ public class FocusProcessorForScreenStateChange {
     }
     if (windowEventInterpreterDelayTimeMs <= 0
         || windowEventInterpreterDelayTimeMs >= windowChangeDelayMs) {
+      if (LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS.enabled()) {
+        screenStateDelayer.removeCallbacksAndMessages(null);
+      }
       FocusResult result = onScreenStateChangedInternal(screenState, eventId);
       LogUtils.d(TAG, "Screen state changed with result=%s", result);
       return (result == FocusResult.SUCCESS);

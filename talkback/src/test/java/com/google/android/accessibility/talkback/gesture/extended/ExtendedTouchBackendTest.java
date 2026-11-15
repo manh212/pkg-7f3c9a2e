@@ -13,6 +13,8 @@ import android.os.Looper;
 import android.view.Display;
 import android.view.MotionEvent;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +38,7 @@ import org.robolectric.Shadows;
 public class ExtendedTouchBackendTest {
   public static class TestService extends TalkBackService {
     final List<Integer> gestures = new ArrayList<>();
+    final List<Long> continuedTouches = new ArrayList<>();
     final List<String> actions = new ArrayList<>();
     final List<Path> scrolls = new ArrayList<>();
     final List<Path> secondScrolls = new ArrayList<>();
@@ -51,6 +54,9 @@ public class ExtendedTouchBackendTest {
     }
     @Override public void performCatalogAction(String action) { actions.add(action); }
     @Override public void onCreate() {}
+    @Override public void onContinuedGestureTouchDown(long eventTime) {
+      continuedTouches.add(eventTime);
+    }
     @Override public boolean onGesture(AccessibilityGestureEvent event) {
       gestures.add(event.getGestureId());
       return true;
@@ -84,15 +90,21 @@ public class ExtendedTouchBackendTest {
   private TestService service;
   private ExtendedTouchBackend backend;
   private TouchShadow touch;
+  private boolean touchSpeechWasEnabled;
 
   @Before public void setUp() {
+    touchSpeechWasEnabled = FocusFeedbackMapper.isTouchStopsSpeechEnabled();
     service = Robolectric.buildService(TestService.class).create().get();
     touch = Shadow.extract(service.getTouchInteractionController(Display.DEFAULT_DISPLAY));
     backend = new ExtendedTouchBackend(service, () -> { throw new AssertionError("Gesture backend failed"); });
     backend.start();
   }
 
-  @After public void tearDown() { backend.stop(); }
+  @After public void tearDown() {
+    backend.stop();
+    FocusFeedbackMapper.setTouchStopsSpeech(touchSpeechWasEnabled);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, false);
+  }
 
   @Test public void touchClickUsesControllerAndReportsUnavailableStates() {
     assertTrue(backend.performClick());
@@ -121,6 +133,61 @@ public class ExtendedTouchBackendTest {
     assertTrue(service.gestures.isEmpty());
     motion(MotionEvent.ACTION_UP, 520);
     assertEquals(List.of(AccessibilityService.GESTURE_SWIPE_UP), service.gestures);
+  }
+
+  @Test public void continuedSwipeRequestsSpeechInterruptOnlyWhenBothSettingsAreOn() {
+    backend.stop();
+    backend = new ExtendedTouchBackend(
+        service, () -> { throw new AssertionError("Rotation backend failed"); }, true, false);
+    backend.start();
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
+    FocusFeedbackMapper.setTouchStopsSpeech(true);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, true);
+
+    swipeUp();
+    assertTrue(service.continuedTouches.isEmpty());
+    motion(MotionEvent.ACTION_DOWN, 700);
+    long continuedTouchTime = time;
+    assertEquals(List.of(continuedTouchTime), service.continuedTouches);
+    assertEquals(1, service.gestures.size());
+    finishSwipeUp();
+
+    FocusFeedbackMapper.setTouchStopsSpeech(false);
+    swipeUp();
+    FocusFeedbackMapper.setTouchStopsSpeech(true);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, false);
+    swipeUp();
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, true);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_CLEAR);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
+    swipeUp();
+
+    assertEquals(List.of(continuedTouchTime), service.continuedTouches);
+    assertEquals(5, service.gestures.size());
+  }
+
+  @Test public void extendedGesturesWithoutRotationDoNotUseContinuedTouchSpeech() {
+    FocusFeedbackMapper.setTouchStopsSpeech(true);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, true);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
+
+    swipeUp();
+    swipeUp();
+
+    assertEquals(2, service.gestures.size());
+    assertTrue(service.continuedTouches.isEmpty());
+  }
+
+  private void swipeUp() {
+    motion(MotionEvent.ACTION_DOWN, 700);
+    finishSwipeUp();
+  }
+
+  private void finishSwipeUp() {
+    for (int step = 1; step <= 6; step++) {
+      motion(MotionEvent.ACTION_MOVE, 700 - step * 30);
+    }
+    motion(MotionEvent.ACTION_UP, 520);
   }
 
   @Test public void simpleOneFingerSwipesCompleteInAllDirectionsWhenExtendedGesturesAreOn() {

@@ -1,7 +1,7 @@
 # Navigation latency experiments
 
-The developer settings contain **Thử nghiệm độ trễ điều hướng**. All nineteen
-new switches default to **off**, independently of existing preferences. Existing
+The developer settings contain **Thử nghiệm độ trễ điều hướng**. Experiment
+switches default to **off**, independently of existing preferences. Existing
 settings, including the reading-order cache, split speech and text lookahead,
 keep their stored values. Changing one experiment never enables another.
 
@@ -22,6 +22,8 @@ keep their stored values. Changing one experiment never enables another.
 | `pcm_adjacent` | Prepare PCM for the predicted adjacent target in both directions. |
 | `pcm_second` | Prepare PCM for targets two steps away, independently of adjacent PCM. |
 | `immediate_speech` | Prioritize speech from navigation actions and linked responses over older noncritical speech. Preserve globally uninterruptible and wait-cap-exempt messages under their existing policies. |
+| `touch_speech_with_rotation` | Apply the existing stop-speech-on-touch setting when a new finger-down follows a completed gesture in the same Android touch interaction. Requires two-finger rotation and stop-speech-on-touch to be enabled. |
+| `fast_window_transitions` | Use a ready, named application window on the default display as soon as the transition event identifies it. Reuse the target window's root during one window-navigation action. |
 | `fast_scroll` | Resume from ready scroll data with a shorter settling delay and faster early checks. Preserve target/readiness checks and the existing bounded fallback. |
 | `live_edge_reuse` | Allow same-window edge checks to reuse a live traversal strategy. |
 | `audio_resample` | Resample each new speech stream outside the shared audio-output lock, under a per-stream lock. Takes effect for newly opened streams. |

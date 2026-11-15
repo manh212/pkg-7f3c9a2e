@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.focusmanagement;
 
+import static android.view.accessibility.AccessibilityEvent.TYPE_TOUCH_INTERACTION_START;
 import static androidx.core.view.accessibility.AccessibilityWindowInfoCompat.TYPE_INPUT_METHOD;
 import static com.google.android.accessibility.talkback.Interpretation.Touch.Action.LIFT;
 import static com.google.android.accessibility.talkback.Interpretation.Touch.Action.LONG_PRESS;
@@ -28,6 +29,7 @@ import static com.google.android.accessibility.talkback.Interpretation.Touch.Act
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.GESTURE_LIFT_TO_TYPE;
 import static com.google.android.accessibility.talkback.compositor.Compositor.EVENT_INPUT_DESCRIBE_NODE;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
+import static com.google.android.accessibility.utils.Performance.EVENT_TYPE_ACCESSIBILITY;
 import static com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD;
 
 import android.content.Context;
@@ -278,6 +280,17 @@ public class FocusProcessorForTapAndTouchExploration {
     touchInteractionStartTime = SystemClock.uptimeMillis();
 
     interpretationReceiver.input(eventId, null, Interpretation.TouchInteraction.create(true));
+    requestSpeechInterruptAtTouchStart(eventId);
+    return false;
+  }
+
+  public void onContinuedGestureTouchDown(long eventTime) {
+    cancelPendingKeyboardSpeechInterrupt();
+    requestSpeechInterruptAtTouchStart(
+        new EventId(eventTime, EVENT_TYPE_ACCESSIBILITY, TYPE_TOUCH_INTERACTION_START));
+  }
+
+  private void requestSpeechInterruptAtTouchStart(EventId eventId) {
     if (actorState.getSpeechState().isSpeaking()) {
       // We refocus and re-announce a node if TalkBack is currently speaking.
       mayBeRefocusAction = true;
@@ -291,8 +304,6 @@ public class FocusProcessorForTapAndTouchExploration {
         interruptSpeechAtTouchStart(eventId);
       }
     }
-    // Always return false because no accessibility action is performed.
-    return false;
   }
 
   private boolean isSpeakingKeyboard() {

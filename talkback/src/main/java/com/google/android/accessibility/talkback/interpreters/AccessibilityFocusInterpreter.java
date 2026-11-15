@@ -206,6 +206,10 @@ public class AccessibilityFocusInterpreter
     focusProcessorForTapAndTouchExploration.onDirectKeyboardTouchDown();
   }
 
+  public void onContinuedGestureTouchDown(long eventTime) {
+    focusProcessorForTapAndTouchExploration.onContinuedGestureTouchDown(eventTime);
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////
   // Notifies changes from framework
 

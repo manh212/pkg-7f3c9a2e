@@ -2608,11 +2608,13 @@ public class FocusProcessorForLogicalNavigation {
 
       // Try to find the initial focus in the target window. Note this doesn't care about the
       // direction.
+      @Nullable AccessibilityNodeInfoCompat rootCompat = null;
       if (isInitialFocus) {
+        rootCompat = AccessibilityNodeInfoUtils.toCompat(targetWindow.getRoot());
         AccessibilityNodeInfoCompat initialFocus =
             FocusManagerInternal.findInitialFocusFromTargetWindowRoot(
                 service,
-                AccessibilityNodeInfoUtils.toCompat(targetWindow.getRoot()),
+                rootCompat,
                 currentScreenState,
                 actorState.getFocusHistory(),
                 focusFinder,
@@ -2623,8 +2625,9 @@ public class FocusProcessorForLogicalNavigation {
       }
 
       // Search for the first node in the direction in the target window.
-      AccessibilityNodeInfoCompat rootCompat =
-          AccessibilityNodeInfoUtils.toCompat(targetWindow.getRoot());
+      if (rootCompat == null || !LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS.enabled()) {
+        rootCompat = AccessibilityNodeInfoUtils.toCompat(targetWindow.getRoot());
+      }
       if (rootCompat != null) {
         TraversalStrategy traversalStrategy =
             TraversalStrategyUtils.getTraversalStrategy(rootCompat, focusFinder, direction);

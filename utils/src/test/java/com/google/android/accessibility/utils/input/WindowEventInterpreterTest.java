@@ -42,6 +42,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.annotation.Nullable;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.Announcement;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.EventInterpretation;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.WindowInterpretation;
@@ -178,6 +179,47 @@ public class WindowEventInterpreterTest {
   @After
   public void tearDown() {
     WindowEventInterpreter.setReduceWindowDelay(false);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS, false);
+  }
+
+  @Test
+  public void fastTransitionPublishesReadyApplicationBeforeItsStateChangedEvent() {
+    openSettings();
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS, true);
+    List<EventInterpretation> events = new ArrayList<>();
+    interpreter.addListener((interpretation, eventId) -> events.add(interpretation));
+    AccessibilityWindowInfo wifi = app(WIFI, "Wi-Fi").active().build();
+    AccessibilityNodeInfo root = new AccessibilityNodeInfo();
+    root.setVisibleToUser(true);
+    root.setFocusable(true);
+    shadowOf(wifi).setRoot(root);
+    setWindows(statusBar(), navigationBar(), wifi);
+
+    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ADDED));
+
+    EventInterpretation ready = events.get(0);
+    assertTrue(ready.areWindowsStable());
+    assertEquals(WIFI, ready.getReadyApplicationWindow().getId());
+    assertEquals(0, WindowEventInterpreter.getStableTransitionDelayMs(ready.getEventStartTime()));
+    interpret(stateChanged(WIFI, "Wi-Fi", SETTINGS_PACKAGE));
+    interpret(windowsChanged(SETTINGS, WINDOWS_CHANGE_REMOVED));
+    waitMs(600);
+    assertEquals(1, events.stream().filter(EventInterpretation::getMainWindowsChanged).count());
+  }
+
+  @Test
+  public void fastTransitionWaitsWhenTheNewWindowHasNoRoot() {
+    openSettings();
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS, true);
+    List<EventInterpretation> events = new ArrayList<>();
+    interpreter.addListener((interpretation, eventId) -> events.add(interpretation));
+    setWindows(statusBar(), navigationBar(), app(WIFI, "Wi-Fi").active().build());
+
+    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ADDED));
+
+    assertFalse(events.get(0).areWindowsStable());
+    waitMs(600);
+    assertTrue(events.get(events.size() - 1).areWindowsStable());
   }
 
   @Test

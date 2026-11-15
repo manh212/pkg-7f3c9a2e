@@ -109,8 +109,10 @@ public class ScreenStateMonitor implements WindowEventHandler {
                 && inputMethodMonitor.useInputWindowAsActiveWindow());
     if (windowsChanged && interpretation.areWindowsStable()) {
       areMainWindowsStable = true;
-      AccessibilityWindowInfo activeWindow =
-          AccessibilityServiceCompatUtils.getActiveWidow(service);
+      AccessibilityWindowInfo activeWindow = interpretation.getReadyApplicationWindow();
+      if (activeWindow == null) {
+        activeWindow = AccessibilityServiceCompatUtils.getActiveWidow(service);
+      }
       if (inputMethodMonitor.useInputWindowAsActiveWindow()
           && AccessibilityServiceCompatUtils.isInputWindowOnScreen(service)) {
         activeWindow = inputMethodMonitor.getActiveInputWindow();
