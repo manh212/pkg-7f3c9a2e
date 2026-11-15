@@ -17,25 +17,6 @@
     use more processing.
   </string>
 
-  <string name="title_pref_keep_preparation_on_focus_change" translatable="false">Keep preparation when focus moves</string>
-  <string name="summary_pref_keep_preparation_on_focus_change" translatable="false">
-    Let a preparation pass finish its targets when focus moves onto one of them during rapid
-    swiping, and keep it running when the reading control changes, instead of dropping it.
-    Available only while Turn off latency extras is off.
-  </string>
-
-  <string name="title_latency_touch_explore" translatable="false">Explore on touch-down</string>
-  <string name="summary_latency_touch_explore" translatable="false">
-    Ask for touch exploration as soon as a finger touches down, after the delay below, instead of
-    waiting for the system to decide. Touch goes through the app gesture backend while this is on,
-    so every swipe briefly focuses the item under the finger first.
-  </string>
-  <string name="title_latency_touch_explore_delay" translatable="false">Touch exploration delay</string>
-  <string name="summary_latency_touch_explore_delay" translatable="false">
-    Milliseconds to wait after touch-down before asking for exploration. 0 asks at once; 250 waits
-    about as long as the system does today.
-  </string>
-
   <string name="title_pref_order_cache" translatable="false">Dùng lại bộ đệm thứ tự điều hướng</string>
   <string name="title_pref_split_control_speech" translatable="false">Tách lời đọc điều khiển và nội dung</string>
   <string name="title_pref_event_processing_level" translatable="false">Mức xử lý sự kiện</string>
