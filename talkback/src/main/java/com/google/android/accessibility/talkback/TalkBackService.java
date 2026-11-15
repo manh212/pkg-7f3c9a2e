@@ -4959,6 +4959,11 @@ public class TalkBackService extends AccessibilityServiceCompat
           progressBarAnnouncer.onModeChanged();
           return;
         }
+        if (LatencyExperiments.DOUBLE_TAP_CLICK_DURATION_KEY.equals(key)
+            || LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY.equals(key)) {
+          LatencyExperiments.loadTouchTiming(prefs);
+          return;
+        }
         // The prepared announcements may have been worked out with the setting as it was, such as
         // a verbosity setting changed from the reading controls.
         PreparedFocusSpeech.clear();

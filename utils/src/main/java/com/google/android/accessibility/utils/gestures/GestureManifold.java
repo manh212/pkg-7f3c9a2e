@@ -78,6 +78,10 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
       return false;
     }
 
+    default int minimumTouchExplorationMoveTimeMs() {
+      return 0;
+    }
+
     default boolean invalidSwipeGestureEarlyDetection() {
       return false;
     }

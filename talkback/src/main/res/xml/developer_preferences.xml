@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:key="@string/pref_category_developer_key">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="@string/pref_developer_version_code_key"
@@ -47,6 +48,17 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="pref_latency_start_session"
         android:title="@string/title_latency_start_session" />
+    <com.google.android.accessibility.talkback.preference.base.TouchTimingSeekBarPreference
+        android:key="pref_latency_double_tap_click_duration_ms"
+        android:title="@string/title_latency_double_tap_click_duration"
+        app:seekBarIncrement="1"
+        app:showSeekBarValue="true" />
+    <com.google.android.accessibility.talkback.preference.base.TouchTimingSeekBarPreference
+        android:key="pref_latency_stationary_touch_delay_ms"
+        android:summary="@string/summary_latency_stationary_touch_delay"
+        android:title="@string/title_latency_stationary_touch_delay"
+        app:seekBarIncrement="1"
+        app:showSeekBarValue="true" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_latency_trace"

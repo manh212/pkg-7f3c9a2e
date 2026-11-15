@@ -7,6 +7,7 @@ import android.accessibilityservice.TouchInteractionController;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
@@ -50,6 +51,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean transitionPending;
   private boolean gestureStarted;
   private boolean firstPointerOnly;
+  private boolean stationaryExplorationPending;
+  private long defaultExplorationAt;
+  private int minimumTouchExplorationMoveTimeMs;
   private int state = TouchInteractionController.STATE_CLEAR;
   private final Runnable armExtendedAfterHold = () -> {
     if (active && twoFingerTracking && !twoFingerMoved && !completedInteraction
@@ -62,6 +66,15 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       requestExploration();
     }
   };
+  private final Runnable exploreStationaryTouch = this::exploreStationaryTouch;
+
+  private void exploreStationaryTouch() {
+    cancelStationaryTouchExploration();
+    if (active && firstPointerOnly && !gestureStarted && !transitionPending
+        && controllerState() == TouchInteractionController.STATE_TOUCH_INTERACTING) {
+      requestExploration();
+    }
+  }
 
   ExtendedTouchBackend(TalkBackService service, Runnable failure) {
     this(service, failure, false, true);
@@ -90,6 +103,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     if (controller == null) throw new IllegalStateException("No touch controller");
     detector = new GestureManifold(service, this, new GestureManifold.GestureConfigProvider() {
       @Override public boolean getSpeedUpTouchExploreState() { return true; }
+      @Override public int minimumTouchExplorationMoveTimeMs() {
+        return ExtendedTouchBackend.this.minimumTouchExplorationMoveTimeMs;
+      }
     }, event -> {}, Display.DEFAULT_DISPLAY,
         ImmutableList.copyOf(service.getResources().getStringArray(R.array.extended_standard_gestures)));
     detector.setMultiFingerGesturesEnabled(true);
@@ -130,6 +146,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     LatencyExperiments.resetTouchControllerContact();
     firstPointerOnly = false;
     handler.removeCallbacks(explore);
+    defaultExplorationAt = 0;
+    cancelStationaryTouchExploration();
     resetTwoFingerTracking();
     detector.clear();
     rotationTracker.clear();
@@ -157,6 +175,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         LatencyExperiments.onTouchControllerContact(false);
         service.onGestureFingerReleased();
       }
+      if (stationaryExplorationPending
+          && (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL
+              || (action == MotionEvent.ACTION_MOVE && movedBeyondTouchSlop(event)))) {
+        cancelStationaryTouchExploration();
+        if (action != MotionEvent.ACTION_CANCEL) {
+          handler.postAtTime(explore, defaultExplorationAt);
+        }
+      }
       if (action == MotionEvent.ACTION_MOVE && firstPointerOnly && event.getPointerCount() == 1
           && rotationEnabled && LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE.enabled()
           && canDetectGesture()) {
@@ -165,6 +191,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       }
       if (action == MotionEvent.ACTION_DOWN) {
         firstPointerOnly = true;
+        cancelStationaryTouchExploration();
         if (rotationEnabled
             && completedInteraction
             && state == TouchInteractionController.STATE_TOUCH_INTERACTING
@@ -180,13 +207,13 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         downY[event.getPointerId(0)] = event.getY();
         downX[event.getPointerId(0)] = event.getX();
         if (!gestureStarted) {
-          handler.removeCallbacks(explore);
-          handler.postDelayed(explore, Math.max(150, ViewConfiguration.getDoubleTapTimeout() - 50));
+          scheduleExploration();
         }
       } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
         firstPointerOnly = false;
         int index = event.getActionIndex();
         handler.removeCallbacks(explore);
+        cancelStationaryTouchExploration();
         downY[event.getPointerId(index)] = event.getY(index);
         downX[event.getPointerId(index)] = event.getX(index);
         if (state == TouchInteractionController.STATE_TOUCH_EXPLORING) detector.clear();
@@ -266,6 +293,44 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         || state == TouchInteractionController.STATE_CLEAR;
   }
 
+  private void scheduleExploration() {
+    handler.removeCallbacks(explore);
+    int defaultDelayMs = LatencyExperiments.defaultStationaryTouchDelayMs();
+    int selectedDelayMs = LatencyExperiments.stationaryTouchDelayMs();
+    if (selectedDelayMs == defaultDelayMs) {
+      handler.postDelayed(explore, defaultDelayMs);
+      return;
+    }
+    long now = SystemClock.uptimeMillis();
+    defaultExplorationAt = now + defaultDelayMs;
+    stationaryExplorationPending = true;
+    minimumTouchExplorationMoveTimeMs = selectedDelayMs;
+    handler.postAtTime(exploreStationaryTouch, now + selectedDelayMs);
+  }
+
+  private void cancelStationaryTouchExploration() {
+    if (stationaryExplorationPending) {
+      stationaryExplorationPending = false;
+      minimumTouchExplorationMoveTimeMs = 0;
+      handler.removeCallbacks(exploreStationaryTouch);
+    }
+  }
+
+  private boolean movedBeyondTouchSlop(MotionEvent event) {
+    if (event.getPointerCount() != 1) {
+      return true;
+    }
+    int pointerId = event.getPointerId(0);
+    float startX = downX[pointerId];
+    float startY = downY[pointerId];
+    for (int i = 0; i < event.getHistorySize(); i++) {
+      if (Math.hypot(event.getHistoricalX(i) - startX, event.getHistoricalY(i) - startY) > dragSlop) {
+        return true;
+      }
+    }
+    return Math.hypot(event.getX() - startX, event.getY() - startY) > dragSlop;
+  }
+
   @Override public void onStateChanged(int next) {
     if (!active) return;
     if (state == TouchInteractionController.STATE_CLEAR && next != state) {
@@ -279,6 +344,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       resetTwoFingerTracking();
     }
     handler.removeCallbacks(explore);
+    cancelStationaryTouchExploration();
     if (next == TouchInteractionController.STATE_DELEGATING
         || next == TouchInteractionController.STATE_DRAGGING) {
       LatencyExperiments.resetTouchControllerContact();
@@ -297,6 +363,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   @Override public void onGestureStarted(int gestureId) {
     gestureStarted = true;
     handler.removeCallbacks(explore);
+    cancelStationaryTouchExploration();
   }
 
   @Override public void onGestureCancelled(int gestureId) {}
@@ -310,6 +377,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     int id = event.getGestureId();
     if (ExtendedGestures.contains(id) && !heldTwoFingerGesture) return;
     handler.removeCallbacks(explore);
+    cancelStationaryTouchExploration();
     if (id == GestureManifold.GESTURE_TOUCH_EXPLORE || id == GestureManifold.GESTURE_TAP_UP_TOUCH_EXPLORE) {
       requestExploration();
       return;
@@ -396,6 +464,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     if (!active || transitionPending) return;
     int current = controllerState();
     if (current == TouchInteractionController.STATE_DELEGATING || current == TouchInteractionController.STATE_TOUCH_EXPLORING) return;
+    handler.removeCallbacks(explore);
     transitionPending = true;
     try { controller.requestTouchExploration(); } catch (RuntimeException error) { fail(); }
   }

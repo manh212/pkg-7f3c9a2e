@@ -39,8 +39,10 @@ import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.report.LatencyMeasurementSession;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityMessageFormat;
+import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.material.A11yAlertDialogWrapper;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -90,6 +92,9 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     // Remove preferences for features that are not supported by device.
     initTouchExplorationPreference();
     initLatencyPreparationPreferences();
+    if (!BuildVersionUtils.isAtLeastT()) {
+      getPreferenceScreen().removePreferenceRecursively(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY);
+    }
     Preference session = findPreference("pref_latency_start_session");
     if (session != null) {
       session.setEnabled(!LatencyMeasurementSession.isRunning());

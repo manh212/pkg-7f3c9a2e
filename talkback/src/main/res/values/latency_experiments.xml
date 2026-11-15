@@ -2,6 +2,9 @@
 <resources>
   <string name="title_latency_experiment_category" translatable="false">Thử nghiệm độ trễ điều hướng</string>
   <string name="title_latency_start_session" translatable="false">Đo độ trễ trong 10 giây</string>
+  <string name="title_latency_double_tap_click_duration" translatable="false">Tổng thời gian chạm mô phỏng sau nhấn đúp</string>
+  <string name="title_latency_stationary_touch_delay" translatable="false">Thời gian chờ đọc khi giữ yên một ngón</string>
+  <string name="summary_latency_stationary_touch_delay" translatable="false">Áp dụng khi bật xoay hai ngón hoặc cử chỉ mở rộng.</string>
   <string name="message_latency_session_running" translatable="false">Đang đo trong 10 giây. Hãy vuốt như bình thường.</string>
   <string name="title_latency_session_results" translatable="false">Kết quả đo độ trễ</string>
   <string name="message_latency_report_count" translatable="false">Đã ghi nhận %1$d lượt vuốt điều hướng trong 10 giây.</string>

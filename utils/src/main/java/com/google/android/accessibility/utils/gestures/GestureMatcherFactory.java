@@ -208,7 +208,8 @@ class GestureMatcherFactory {
       gestureMatchers.add(
           new TapToTouchExplore(context, GESTURE_TOUCH_EXPLORE, listener, configResolver, logger));
       gestureMatchers.add(
-          new TapUpToTouchExplore(context, GESTURE_TAP_UP_TOUCH_EXPLORE, listener, logger));
+          new TapUpToTouchExplore(
+              context, GESTURE_TAP_UP_TOUCH_EXPLORE, listener, configResolver, logger));
     }
     for (GestureMatchConfig iterator : GestureMatchConfig.values()) {
       if (supportGestureList.contains(iterator.name())) {

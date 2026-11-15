@@ -10,6 +10,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.TouchInteractionController;
 import android.graphics.Path;
 import android.os.Looper;
+import android.view.ViewConfiguration;
 import android.view.Display;
 import android.view.MotionEvent;
 import com.google.android.accessibility.talkback.TalkBackService;
@@ -69,6 +70,7 @@ public class ExtendedTouchBackendTest {
     TouchInteractionController.Callback callback;
     int state = TouchInteractionController.STATE_TOUCH_INTERACTING;
     int clicks;
+    int explorationRequests;
     boolean failClick;
     @Implementation protected void performClick() {
       if (failClick) throw new IllegalStateException();
@@ -85,6 +87,7 @@ public class ExtendedTouchBackendTest {
     }
     @Implementation protected int getState() { return state; }
     @Implementation protected void requestDragging(int pointerId) { draggedPointers.add(pointerId); }
+    @Implementation protected void requestTouchExploration() { explorationRequests++; }
   }
 
   private TestService service;
@@ -105,6 +108,78 @@ public class ExtendedTouchBackendTest {
     FocusFeedbackMapper.setTouchStopsSpeech(touchSpeechWasEnabled);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, false);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, false);
+    service.getSharedPreferences("touch-timing-test", 0).edit().clear().commit();
+    LatencyExperiments.loadTouchTiming(service.getSharedPreferences("touch-timing-test", 0));
+  }
+
+  @Test public void stationaryFingerRequestsExplorationAfterTheReducedDelay() {
+    setStationaryTouchDelay(100);
+    motion(MotionEvent.ACTION_DOWN, 700);
+
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(99, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.explorationRequests);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.explorationRequests);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(300, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.explorationRequests);
+  }
+
+  @Test public void liftingBeforeTheStationaryDelayKeepsDoubleTapAvailable() {
+    setStationaryTouchDelay(100);
+    motion(MotionEvent.ACTION_DOWN, 700);
+    motion(MotionEvent.ACTION_UP, 700);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.explorationRequests);
+    time += 100;
+    motion(MotionEvent.ACTION_DOWN, 700);
+    motion(MotionEvent.ACTION_UP, 700);
+    assertEquals(1, touch.clicks);
+  }
+
+  @Test public void movingFartherThanTouchSlopCancelsOnlyTheEarlyExplorationRequest() {
+    setStationaryTouchDelay(100);
+    int slop = ViewConfiguration.get(service).getScaledTouchSlop();
+    motion(MotionEvent.ACTION_DOWN, 700);
+    motion(MotionEvent.ACTION_MOVE, 700 - slop - 1);
+
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.explorationRequests);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(200, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.explorationRequests);
+  }
+
+  @Test public void stationaryFingerWaitsForTheSelectedDelayEvenWithTinyMoves() {
+    int initialRequests = touch.explorationRequests;
+    for (int selectedMs : new int[] {200, 350}) {
+      touch.callback.onStateChanged(TouchInteractionController.STATE_CLEAR);
+      setStationaryTouchDelay(selectedMs);
+      motion(MotionEvent.ACTION_DOWN, 700);
+
+      time += 155;
+      motion(MotionEvent.ACTION_MOVE, 700);
+      Shadows.shadowOf(Looper.getMainLooper()).idleFor(selectedMs - 1, TimeUnit.MILLISECONDS);
+      assertEquals(initialRequests, touch.explorationRequests);
+      Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
+      assertEquals(++initialRequests, touch.explorationRequests);
+    }
+  }
+
+  @Test public void missingStationaryDelayKeepsTheExistingTimer() {
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
+    int baseline = LatencyExperiments.defaultStationaryTouchDelayMs();
+    motion(MotionEvent.ACTION_DOWN, 700);
+
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(baseline - 1, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.explorationRequests);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.explorationRequests);
+  }
+
+  private void setStationaryTouchDelay(int delayMs) {
+    var preferences = service.getSharedPreferences("touch-timing-test", 0);
+    preferences.edit().putInt(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY, delayMs).commit();
+    LatencyExperiments.loadTouchTiming(preferences);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
   }
 
   @Test public void touchClickUsesControllerAndReportsUnavailableStates() {

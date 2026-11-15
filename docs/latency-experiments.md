@@ -30,6 +30,18 @@ keep their stored values. Changing one experiment never enables another.
 | `audio_resample` | Resample each new speech stream outside the shared audio-output lock, under a per-stream lock. Takes effect for newly opened streams. |
 | `audio_keep_warm` | Extend idle audio-track retention from 2 seconds to 10 seconds. The shorter microphone-in-use policy remains. |
 
+The two touch timing sliders show absolute milliseconds and use the current
+device timings by default. **Tổng thời gian chạm mô phỏng sau nhấn đúp** starts
+at two system tap durations plus the existing 40 ms gap when Meridian simulates
+activation. A shorter setting shortens both strokes. A longer setting holds
+the gesture before the first stroke to keep the strokes valid. The gap and
+the physical double-tap recognition thresholds stay the same.
+**Thời gian chờ đọc khi giữ yên một ngón** starts at the existing exploration
+delay, the system double-tap timeout minus 50 ms with a 150 ms floor. It
+applies while Meridian handles touch for rotation or extended gestures on
+Android 13 and later. Real taps, movement beyond touch slop and multi-finger
+gestures leave the stationary timer.
+
 ## Preparation and cache boundaries
 
 **Tắt việc phụ gây trễ** is the master veto for background preparation. It must

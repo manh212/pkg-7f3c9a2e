@@ -28,10 +28,12 @@ import android.view.MotionEvent;
 import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.R;
+import com.google.android.accessibility.utils.gestures.GestureManifold.GestureConfigProvider;
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class TapUpToTouchExplore extends GestureMatcher {
   private static final String TAG = "TapUpToTouchExplore";
+  private final GestureConfigProvider configProvider;
   private float baseX;
   private float baseY;
   private long firstDownTime;
@@ -44,8 +46,10 @@ class TapUpToTouchExplore extends GestureMatcher {
       Context context,
       int gesture,
       GestureMatcher.StateChangeListener listener,
+      GestureConfigProvider configProvider,
       GestureMatcher.AnalyticsEventLogger logger) {
     super(gesture, new Handler(context.getMainLooper()), listener, logger);
+    this.configProvider = configProvider;
     initializeViewConfigurationParameters(context);
     clear();
   }
@@ -96,7 +100,7 @@ class TapUpToTouchExplore extends GestureMatcher {
       return;
     }
     final long timeDelta = event.getEventTime() - firstDownTime;
-    if (timeDelta > maxStartThreshold) {
+    if (timeDelta > Math.max(maxStartThreshold, configProvider.minimumTouchExplorationMoveTimeMs())) {
       debugMotionEvent(TAG, "onMove/timeDelta is over. Gesture:%d", getGestureId());
       completeGesture(eventId, event);
       return;

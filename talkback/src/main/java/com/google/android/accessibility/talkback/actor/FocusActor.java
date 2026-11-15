@@ -31,6 +31,7 @@ import android.text.style.URLSpan;
 import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
+import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.view.accessibility.AccessibilityWindowInfoCompat;
 import com.Braille.BrailleImeInputPolicy;
@@ -57,7 +58,9 @@ import com.google.android.accessibility.talkback.utils.LinkUtils;
 import com.google.android.accessibility.talkback.utils.LinkUtils.LinkSpan;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.FocusFinder;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.PerformActionUtils;
+import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -70,7 +73,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class FocusActor implements UserInputEventListener {
 
   private static final String TAG = "FocusActor";
-  private static final int STROKE_TIME_GAP_MS = 40;
+  private static final int STROKE_TIME_GAP_MS = LatencyExperiments.SIMULATED_CLICK_GAP_MS;
 
   /** The only class in TalkBack which has direct access to accessibility focus from framework. */
   private final FocusManagerInternal focusManagerInternal;
@@ -196,7 +199,7 @@ public class FocusActor implements UserInputEventListener {
       return true;
     }
     // When none of the preceding conditions are met, the last resort is simulating click event.
-    return simulateClickOnNode(service, node);
+    return simulateClickOnNode(service, node, eventId);
   }
 
   public boolean doubleClickCurrentFocus(EventId eventId) {
@@ -448,19 +451,31 @@ public class FocusActor implements UserInputEventListener {
 
   /** Simulates a click on the center of a view. */
   private boolean simulateClickOnNode(
-      AccessibilityService accessibilityService, AccessibilityNodeInfoCompat node) {
+      AccessibilityService accessibilityService, AccessibilityNodeInfoCompat node, EventId eventId) {
     Rect rect = new Rect();
     node.getBoundsInScreen(rect);
+    return accessibilityService.dispatchGesture(
+        buildFallbackClickGesture(rect, eventId), /* callback= */ null, /* handler= */ null);
+  }
+
+  @VisibleForTesting
+  static GestureDescription buildFallbackClickGesture(Rect rect, @Nullable EventId eventId) {
     Path path = new Path();
     path.moveTo(rect.centerX(), rect.centerY());
+    boolean followsDoubleTap = eventId != null
+        && eventId.getEventType() == Performance.EVENT_TYPE_GESTURE
+        && eventId.getEventSubtype() == AccessibilityService.GESTURE_DOUBLE_TAP;
     int durationMs = ViewConfiguration.getTapTimeout();
-    GestureDescription gestureDescription =
-        new GestureDescription.Builder()
-            .addStroke(new StrokeDescription(path, /* startTime= */ 0, durationMs))
-            .addStroke(new StrokeDescription(path, durationMs + STROKE_TIME_GAP_MS, durationMs))
-            .build();
-    return accessibilityService.dispatchGesture(
-        gestureDescription, /* callback= */ null, /* handler= */ null);
+    int startMs = 0;
+    if (followsDoubleTap) {
+      int contactBudgetMs = LatencyExperiments.doubleTapClickDurationMs() - STROKE_TIME_GAP_MS;
+      durationMs = Math.min(durationMs, contactBudgetMs / 2);
+      startMs = contactBudgetMs - 2 * durationMs;
+    }
+    return new GestureDescription.Builder()
+        .addStroke(new StrokeDescription(path, startMs, durationMs))
+        .addStroke(new StrokeDescription(path, startMs + durationMs + STROKE_TIME_GAP_MS, durationMs))
+        .build();
   }
 
   /** Simulates a double-click on the center of a view. */

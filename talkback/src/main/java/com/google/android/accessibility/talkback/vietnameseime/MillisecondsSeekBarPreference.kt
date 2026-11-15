@@ -11,7 +11,7 @@ import androidx.preference.PreferenceViewHolder
 import com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
 import com.google.android.accessibility.talkback.R
 
-class MillisecondsSeekBarPreference(context: Context, attrs: AttributeSet) :
+open class MillisecondsSeekBarPreference(context: Context, attrs: AttributeSet) :
   AccessibilitySeekBarPreference(context, attrs) {
 
   override fun onBindViewHolder(holder: PreferenceViewHolder) {

@@ -305,6 +305,7 @@ pref_latency_async_order
 pref_latency_audio_keep_warm
 pref_latency_audio_resample
 pref_latency_cached_text
+pref_latency_double_tap_click_duration_ms
 pref_latency_early_controls
 pref_latency_experiment_category
 pref_latency_fast_scroll
@@ -322,6 +323,7 @@ pref_latency_reset_session
 pref_latency_scoped_cache
 pref_latency_stall_capture
 pref_latency_start_session
+pref_latency_stationary_touch_delay_ms
 pref_latency_toast_filter
 pref_latency_touch_speech_with_rotation
 pref_latency_trace
