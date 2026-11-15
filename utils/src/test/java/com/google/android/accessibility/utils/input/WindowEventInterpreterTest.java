@@ -180,7 +180,7 @@ public class WindowEventInterpreterTest {
   @After
   public void tearDown() {
     WindowEventInterpreter.setReduceWindowDelay(false);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_SETTLE, false);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, false);
   }
 
   @Test
@@ -569,9 +569,9 @@ public class WindowEventInterpreterTest {
   }
 
   @Test
-  public void slowTitleWaitsPastTheReducedCapWhenWindowSettleFixIsOn() {
+  public void slowTitleIsAnnouncedUntitledAtOnceWhenWindowImmediateIsOn() {
     WindowEventInterpreter.setReduceWindowDelay(true);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_SETTLE, true);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, true);
     openSettings();
 
     // The new window has no title yet, and none arrives by state-change either.
@@ -583,20 +583,20 @@ public class WindowEventInterpreterTest {
     setWindows(statusBar(), navigationBar(), app(WIFI, "Wi-Fi").active().build());
     waitMs(600);
 
-    // The loop kept polling past the old 50 ms cap and settled once the title arrived.
+    // Immediate mode announces at the first check, before the title exists.
     assertTranscript(
         "0ms windows from=11 changes=0x1 original start=0 delay=10/50 main | src 11 feedback"
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
         "0ms windows from=10 changes=0x2 original start=0 delay=10/50 main | src 10 feedback"
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "120ms windows from=10 changes=0x2 stable start=0 delay=120/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11\"Wi-Fi\" was 10\"Settings\"");
+        "10ms windows from=10 changes=0x2 stable start=0 delay=10/50 main | src 10 feedback"
+            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"");
   }
 
   @Test
-  public void slowTitleIsAnnouncedTwiceWhenWindowSettleFixIsOff() {
+  public void slowTitleIsAnnouncedTwiceWhenWindowImmediateIsOff() {
     WindowEventInterpreter.setReduceWindowDelay(true);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_SETTLE, false);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, false);
     openSettings();
 
     setWindows(statusBar(), navigationBar(), app(WIFI, null).active().build());
@@ -623,9 +623,9 @@ public class WindowEventInterpreterTest {
   }
 
   @Test
-  public void slowTitleIsAnnouncedOnceWhenWindowSettleFixIsOn() {
+  public void slowTitleIsAnnouncedAtOnceThenAgainWhenTitleArrivesWithWindowImmediateOn() {
     WindowEventInterpreter.setReduceWindowDelay(true);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_SETTLE, true);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, true);
     openSettings();
 
     setWindows(statusBar(), navigationBar(), app(WIFI, null).active().build());
@@ -636,15 +636,16 @@ public class WindowEventInterpreterTest {
     interpret(windowsChanged(WIFI, WINDOWS_CHANGE_TITLE));
     waitMs(600);
 
+    // Immediate mode announces at the first check of each cycle, then again with the title.
     assertTranscript(
         "0ms windows from=11 changes=0x1 original start=0 delay=10/50 main | src 11 feedback"
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
         "0ms windows from=10 changes=0x2 original start=0 delay=10/50 main | src 10 feedback"
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "100ms windows from=11 changes=0x4 original start=0 delay=10/50 main | src"
-            + " 11\"Wi-Fi\" was 10\"Settings\" | A 11\"Wi-Fi\" was 10\"Settings\"",
-        "120ms windows from=11 changes=0x4 stable start=0 delay=20/50 main | src"
-            + " 11\"Wi-Fi\" was 10\"Settings\" | A 11\"Wi-Fi\" was 10\"Settings\"");
+        "100ms windows from=11 changes=0x4 original start=100 delay=10/50 main | src"
+            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11",
+        "110ms windows from=11 changes=0x4 stable start=100 delay=10/50 main | src"
+            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11");
   }
 
   @Test
