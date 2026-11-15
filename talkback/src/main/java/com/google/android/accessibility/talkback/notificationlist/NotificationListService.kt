@@ -32,6 +32,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.calls.CallAnnouncements
 import com.google.android.accessibility.talkback.calls.CallSettings
+import com.google.android.accessibility.talkback.compositor.ProgressBarAnnouncer
 import com.google.android.accessibility.talkback.notifications.NotificationReader
 import com.google.android.accessibility.talkback.notifications.NotificationSettings
 import com.google.android.accessibility.talkback.notifications.SpokenSchedules
@@ -51,6 +52,7 @@ class NotificationListService : NotificationListenerService() {
         key == NotificationSettings.Companion.Keys.APP_CANCEL ||
         key == NotificationSettings.Companion.Keys.DND ||
         key == NotificationSettings.Companion.Keys.ENABLED ||
+        key == ProgressBarAnnouncer.KEY ||
         key == CallSettings.ANNOUNCE) {
         if (!isNeeded(this)) {
           unbind()
@@ -86,7 +88,15 @@ class NotificationListService : NotificationListenerService() {
     SharedPreferencesUtils.getSharedPreferences(this)
       .registerOnSharedPreferenceChangeListener(switchListener)
     if (listEnabled()) connectList()
+    publishProgress()
     checkLater()
+  }
+
+  fun publishProgress() {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(this)
+    if (!ProgressBarAnnouncer.enabled(prefs)) return
+    val progress = TalkBackService.getInstance()?.progressBarAnnouncer ?: return
+    runCatching { activeNotifications }.getOrNull()?.forEach(progress::onNotificationPosted)
   }
 
   private fun connectList() {
@@ -122,6 +132,7 @@ class NotificationListService : NotificationListenerService() {
   private val postedTexts = LinkedHashMap<String, Posted>()
 
   override fun onNotificationPosted(notification: StatusBarNotification, ranking: RankingMap?) {
+    TalkBackService.getInstance()?.progressBarAnnouncer?.onNotificationPosted(notification)
     if (notification.notification.category == Notification.CATEGORY_CALL) {
       CallAnnouncements.onCallNotification(
         notification.packageName, notification.notification)
@@ -151,6 +162,7 @@ class NotificationListService : NotificationListenerService() {
   }
 
   override fun onNotificationRemoved(notification: StatusBarNotification, ranking: RankingMap?) {
+    TalkBackService.getInstance()?.progressBarAnnouncer?.onNotificationRemoved(notification.key)
     if (notification.notification.category == Notification.CATEGORY_CALL) {
       CallAnnouncements.onCallNotificationRemoved(notification.packageName)
     }
@@ -223,6 +235,7 @@ class NotificationListService : NotificationListenerService() {
             // With notification speech on, it reads notifications that Android sends no
             // accessibility event for, such as those on silent channels.
             NotificationSettings.read(it).let { s -> s.needsListener || s.enabled } ||
+              ProgressBarAnnouncer.enabled(it) ||
               CallSettings.read(it).announce ||
               it.getBoolean(SpokenSchedules.KEY_SUMMARY_DAILY, false)
           })

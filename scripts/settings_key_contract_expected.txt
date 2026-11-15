@@ -444,6 +444,7 @@ pref_play_installer
 pref_practice_gestures_entry_point_key
 pref_prepare_adjacent_speech
 pref_prepare_second_ahead_speech
+pref_progress_bar_feedback
 pref_proximity
 pref_punctuation
 pref_punctuation_verbosity

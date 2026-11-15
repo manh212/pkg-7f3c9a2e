@@ -142,18 +142,17 @@ class TypingSettingsStructureTest {
   }
 
   @Test
-  fun vietnameseKeyboardRowsScreen_holdsRowTogglesKeyboardPickerAndSymbolsCustomization() {
+  fun vietnameseKeyboardRowsScreen_holdsRowTogglesAndSymbolsCustomization() {
     val rows = rowsOf(R.xml.vietnamese_keyboard_rows_preferences)
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_show_number_row",
         "pref_vietnamese_keyboard_show_symbols_row",
-        "pref_vietnamese_keyboard_show_picker",
         "pref_vietnamese_keyboard_symbols_screen",
       ),
       rows.map { it.first },
     )
-    assertTrue(rows[3].second?.endsWith("VietnameseKeyboardSymbolsFragment") == true)
+    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardSymbolsFragment") == true)
   }
 
   @Test
@@ -163,6 +162,7 @@ class TypingSettingsStructureTest {
       listOf(
         "pref_vietnamese_keyboard_quick_telex",
         "pref_vietnamese_keyboard_show_language",
+        "pref_vietnamese_keyboard_show_picker",
         "pref_vietnamese_keyboard_shortcuts_screen",
         "pref_vietnamese_keyboard_auto_capitalize",
         "pref_vietnamese_keyboard_double_space_period",
@@ -170,7 +170,7 @@ class TypingSettingsStructureTest {
       ),
       rows.map { it.first },
     )
-    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardShortcutsFragment") == true)
+    assertTrue(rows[3].second?.endsWith("VietnameseKeyboardShortcutsFragment") == true)
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_shortcuts_enabled",

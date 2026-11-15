@@ -14,11 +14,13 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.dictation.SandflyDictation
@@ -26,6 +28,7 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.talkback.selector.SelectorController
+import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.input.CursorGranularity
 import com.google.android.accessibility.utils.input.ImeEditFeedback
@@ -561,12 +564,16 @@ class VietnameseKeyboardService : InputMethodService() {
         return true
       }
       VietnameseKeyboardView.DELETE, VietnameseKeyboardView.DELETE_WORD -> {
-        val currentWord = usesWordGranularity()
         val announceDeletion = echo != TextEventFilter.PREF_ECHO_SILENT_TYPING
-        return if (currentWord || id == VietnameseKeyboardView.DELETE_WORD) {
-          deleteWord(connection, announceDeletion, speakAt, currentWord)
-        } else {
-          delete(connection, announceDeletion, speakAt)
+        return when (deletionGranularity()) {
+          CursorGranularity.LINE -> deleteTextUnit(connection, false, announceDeletion, speakAt)
+          CursorGranularity.PARAGRAPH -> deleteTextUnit(connection, true, announceDeletion, speakAt)
+          CursorGranularity.WORD -> deleteWord(connection, announceDeletion, speakAt, true)
+          else -> if (id == VietnameseKeyboardView.DELETE_WORD) {
+            deleteWord(connection, announceDeletion, speakAt, false)
+          } else {
+            delete(connection, announceDeletion, speakAt)
+          }
         }
       }
       VietnameseKeyboardView.ENTER -> if (!enter(connection, speakAt)) return false
@@ -690,8 +697,10 @@ class VietnameseKeyboardService : InputMethodService() {
   ): Boolean {
     if (composingUnavailable) return false
     if (!composing && wordLost) recoverWord(connection)
-    val useQuickTelex = quickTelex && word.length == 2 && word[0].equals(word[1], ignoreCase = true) &&
-      connection.getTextBeforeCursor(4, 0)?.let { WORD_BEFORE_CURSOR.find(it)?.value == word } == true
+    val useQuickTelex = quickTelex && letter.lowercaseChar() in "aeiouy" && word.length in 2..3 &&
+      word.all { it.equals(word[0], ignoreCase = true) } &&
+      connection.getTextBeforeCursor(word.length + 2, 0)
+        ?.let { WORD_BEFORE_CURSOR.find(it)?.value == word } == true
     val updated = Telex.apply(word, letter, useQuickTelex)
     if (speakAt != null) markEdit()
     if (updated.length > MAX_WORD_LENGTH || !updateComposition(connection, updated)) {
@@ -842,13 +851,92 @@ class VietnameseKeyboardService : InputMethodService() {
     return true
   }
 
-  private fun usesWordGranularity(): Boolean {
+  private fun deletionGranularity(): CursorGranularity {
     val current = TalkBackService.getInstance()?.takeIf { TalkBackService.isServiceActive() }
       ?.getActorState()?.getDirectionNavigation()?.currentGranularity
-    return if (current == null || current == CursorGranularity.DEFAULT) {
-      SelectorController.getCurrentSetting(this) == SelectorController.Setting.GRANULARITY_WORDS
-    } else {
-      current == CursorGranularity.WORD
+    if (current != null && current != CursorGranularity.DEFAULT) return current
+    return when (SelectorController.getCurrentSetting(this)) {
+      SelectorController.Setting.GRANULARITY_WORDS -> CursorGranularity.WORD
+      SelectorController.Setting.GRANULARITY_LINES -> CursorGranularity.LINE
+      SelectorController.Setting.GRANULARITY_PARAGRAPHS -> CursorGranularity.PARAGRAPH
+      else -> CursorGranularity.CHARACTER
+    }
+  }
+
+  private fun deleteTextUnit(
+    connection: InputConnection, paragraph: Boolean, announceDeletion: Boolean, speakAt: Long,
+  ): Boolean {
+    if (editor?.inputType == InputType.TYPE_NULL) return delete(connection, announceDeletion, speakAt)
+    val extracted = connection.getExtractedText(ExtractedTextRequest(), 0)?.takeIf {
+      val length = it.text?.length ?: return@takeIf false
+      it.startOffset == 0 && it.selectionStart in 0..length && it.selectionEnd in 0..length
+    }
+    val selected = extracted?.let { it.selectionStart != it.selectionEnd }
+      ?: !connection.getSelectedText(0).isNullOrEmpty()
+    connection.beginBatchEdit()
+    try {
+      if (composing && !connection.finishComposingText()) return false
+      resetWord()
+      if (selected) {
+        markEdit()
+        if (!connection.commitText("", 1)) return false
+        expectSelection(extracted?.let { minOf(it.selectionStart, it.selectionEnd) } ?: -1)
+        if (announceDeletion) speakDeletedText(getString(R.string.vietnamese_ime_selected_text), speakAt)
+        return true
+      }
+      val nearby = if (extracted == null) nearbyTextForDeletion(connection) ?: return false else null
+      val text = extracted?.text?.toString() ?: checkNotNull(nearby).first
+      val caret = extracted?.selectionEnd ?: checkNotNull(nearby).second
+      val range = textUnitToDelete(text, caret, paragraph) { start, end ->
+        if (extracted == null) null else visualLine(text, caret, start, end)
+      }
+      if (range.isEmpty()) return true
+      markEdit()
+      if (!connection.deleteSurroundingTextInCodePoints(
+          text.codePointCount(range.first, caret), text.codePointCount(caret, range.last + 1),
+        )) return false
+      expectSelection(if (extracted != null) range.first else -1)
+    } finally {
+      connection.endBatchEdit()
+    }
+    if (announceDeletion) {
+      val message = if (paragraph) R.string.vietnamese_ime_deleted_paragraph
+        else R.string.vietnamese_ime_deleted_line
+      keySpeech.confirm(getString(message), speakAt)
+    }
+    return true
+  }
+
+  private fun nearbyTextForDeletion(connection: InputConnection): Pair<String, Int>? {
+    val before = connection.getTextBeforeCursor(MAX_UNIT_LOOKAROUND, 0)?.toString() ?: return null
+    val after = connection.getTextAfterCursor(MAX_UNIT_LOOKAROUND, 0)?.toString() ?: return null
+    if ((before.length == MAX_UNIT_LOOKAROUND && '\n' !in before) ||
+      (after.length == MAX_UNIT_LOOKAROUND && '\n' !in after)) return null
+    return (before + after) to before.length
+  }
+
+  private fun visualLine(text: String, caret: Int, start: Int, end: Int): IntRange? {
+    val reader = TalkBackService.getInstance()?.takeIf { TalkBackService.isServiceActive() } ?: return null
+    val focused = reader.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+    val node = AccessibilityNodeInfoCompat.wrap(focused)
+    try {
+      if (!node.isEditable || node.packageName?.toString() != editor?.packageName ||
+        node.textSelectionStart != caret || node.textSelectionEnd != caret ||
+        node.text?.toString() != text || !AccessibilityNodeInfoUtils.supportsTextLocation(node)) return null
+      val anchor = minOf(caret, end - 1)
+      val from = maxOf(start, anchor - 511)
+      val to = minOf(end, anchor + 512)
+      val locations = AccessibilityNodeInfoUtils.getTextLocations(node, text, from, to, false)
+        ?.takeIf { it.size == to - from } ?: return null
+      val top = locations[anchor - from].top
+      var left = anchor
+      var right = anchor + 1
+      while (left > from && locations[left - from - 1].top == top) left--
+      while (right < to && locations[right - from].top == top) right++
+      if ((left == from && from > start) || (right == to && to < end)) return null
+      return left until right
+    } finally {
+      node.recycle()
     }
   }
 
@@ -1203,6 +1291,7 @@ class VietnameseKeyboardService : InputMethodService() {
     private val VIETNAMESE = Locale.forLanguageTag("vi-VN")
     private const val MAX_WORD_LENGTH = 48
     private const val MAX_WORD_DELETE_LOOKBACK = 512
+    private const val MAX_UNIT_LOOKAROUND = 16_384
     private const val WORD_CHARACTERS = VietnameseKeyboardShortcuts.WORD_CHARACTERS
     private val WORD_BEFORE_CURSOR = Regex("""$WORD_CHARACTERS\z""")
     private val WORD_BEFORE_WHITESPACE = Regex("""$WORD_CHARACTERS\s*\z""")

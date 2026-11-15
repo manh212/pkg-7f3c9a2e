@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="progress_bar_feedback_title" translatable="false">Phản hồi thanh tiến trình</string>
+  <string name="progress_bar_processing" translatable="false">Đang xử lý</string>
+  <string name="progress_bar_complete" translatable="false">Đã hoàn tất</string>
+  <string name="progress_bar_remaining" translatable="false">Còn %1$d phần trăm</string>
+  <string-array name="progress_bar_feedback_entries" translatable="false">
+    <item>Chỉ âm thanh</item>
+    <item>Âm thanh và giọng nói</item>
+    <item>Chỉ giọng nói</item>
+    <item>Tắt</item>
+  </string-array>
+  <string-array name="progress_bar_feedback_values" translatable="false">
+    <item>sound</item>
+    <item>both</item>
+    <item>speech</item>
+    <item>off</item>
+  </string-array>
+</resources>

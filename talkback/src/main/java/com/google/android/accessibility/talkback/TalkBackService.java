@@ -146,6 +146,7 @@ import com.google.android.accessibility.talkback.compositor.EarlyFocusSpeech;
 import com.google.android.accessibility.talkback.compositor.EventFilter;
 import com.google.android.accessibility.talkback.compositor.GlobalVariables;
 import com.google.android.accessibility.talkback.compositor.PreparedFocusSpeech;
+import com.google.android.accessibility.talkback.compositor.ProgressBarAnnouncer;
 import com.google.android.accessibility.talkback.compositor.UsageHintMode;
 import com.google.android.accessibility.talkback.compositor.roledescription.RoleDescriptionExtractor.DescriptionOrder;
 import com.google.android.accessibility.talkback.contextmenu.ListMenuManager;
@@ -183,6 +184,7 @@ import com.google.android.accessibility.talkback.focusmanagement.interpreter.Scr
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.TouchExplorationInterpreter;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
 import com.google.android.accessibility.talkback.gesture.BackTapCommands;
+import com.google.android.accessibility.talkback.gesture.EditBoxDoubleTap;
 import com.google.android.accessibility.talkback.gesture.GestureController;
 import com.google.android.accessibility.talkback.gesture.GestureHistory;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
@@ -279,6 +281,7 @@ import com.google.android.accessibility.utils.AccessibilityEventListener;
 import com.google.android.accessibility.utils.monitor.RecentUserInput;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
@@ -643,8 +646,13 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   /** Staged pipeline for separating interpreters, feedback-mappers, and actors. */
   private Pipeline pipeline;
+  private boolean editBoxHandlesDoubleTap;
+  private boolean editBoxKeyboardVisible;
+  private boolean selectorHandlesDoubleTap;
   private final FullScreenMonitor fullScreenMonitor =
       new FullScreenMonitor(this, super::getRootInActiveWindow, this::canReadScreenMonitor);
+  private final ProgressBarAnnouncer progressBarAnnouncer =
+      new ProgressBarAnnouncer(this, super::getRootInActiveWindow);
 
   /** Controller for audio and haptic feedback. */
   private FeedbackController feedbackController;
@@ -945,6 +953,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   @Override
   public boolean onUnbind(Intent intent) {
     fullScreenMonitor.stop();
+    progressBarAnnouncer.stop();
     releaseTouchHandling();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
     com.google.android.accessibility.talkback.licensing.AdminAnnouncement.stopService(this);
@@ -999,6 +1008,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   @Override
   public void onDestroy() {
     fullScreenMonitor.stop();
+    progressBarAnnouncer.stop();
     com.google.android.accessibility.talkback.licensing.ActivationReminder.stopService(this);
     com.google.android.accessibility.talkback.licensing.AdminAnnouncement.stopService(this);
     SpeechControllerImpl.setParallelBilingualVoice(null);
@@ -1204,8 +1214,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     long receivedAt = SystemClock.uptimeMillis();
     if (pipeline != null) {
       fullScreenMonitor.onEvent(event, pipeline.getFeedbackReturner());
+      progressBarAnnouncer.onEvent(event);
     }
     if (gestureController != null) {
+      updateEditBoxDoubleTap(event);
       gestureController.onRawAccessibilityEvent(event);
     }
     boolean strict = backgroundEventGate != null && backgroundEventGate.isStrict();
@@ -2198,6 +2210,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
 
     return speechController;
+  }
+
+  public ProgressBarAnnouncer getProgressBarAnnouncer() {
+    return progressBarAnnouncer;
   }
 
   public boolean setVietnameseKeyboardBounds(@Nullable Rect bounds) {
@@ -3426,6 +3442,10 @@ public class TalkBackService extends AccessibilityServiceCompat
                 R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default),
             OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this),
             FeatureFlagReader.enableReadCurrentUrl(this));
+    if ((info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0
+        && (editBoxHandlesDoubleTap || selectorHandlesDoubleTap)) {
+      info.flags |= FLAG_SERVICE_HANDLES_DOUBLE_TAP;
+    }
     info.notificationTimeout = 0;
     if (BuildVersionUtils.isAtLeastQ()) {
       info.setInteractiveUiTimeoutMillis(DEFAULT_INTERACTIVE_UI_TIMEOUT_MILLIS);
@@ -3468,7 +3488,6 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (readCurrentUrlEnabled) {
       flags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
     }
-    // The framework detects gestures and handles double tap itself.
     flags &= ~FLAG_SERVICE_HANDLES_DOUBLE_TAP;
     return flags;
   }
@@ -4589,8 +4608,10 @@ public class TalkBackService extends AccessibilityServiceCompat
   private void onPauseChanged(boolean paused) {
     if (paused) {
       CallAnnouncements.stopSpeech();
+      progressBarAnnouncer.stop();
       if (gestureController != null) {
         gestureController.stopScreenRecognitionForPause();
+        gestureController.onEditBoxAccessibilityFocusChanged(null);
       }
       if (directTouchController != null) {
         directTouchController.setPaused(true);
@@ -4615,13 +4636,55 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
-  /**
-   * Attempts to change the service info flag.
-   *
-   * @param flags to specify the service flags to change.
-   * @param newValue {@code true} to request service flag change.
-   */
+  private void updateEditBoxDoubleTap(AccessibilityEvent event) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || PauseController.isPaused()) return;
+    int type = event.getEventType();
+    if (editBoxHandlesDoubleTap && type == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        && (event.getWindowChanges()
+            & (AccessibilityEvent.WINDOWS_CHANGE_ADDED | AccessibilityEvent.WINDOWS_CHANGE_REMOVED))
+            != 0) {
+      boolean showing = AccessibilityServiceCompatUtils.isInputWindowOnScreen(this);
+      AccessibilityNodeInfoCompat node = accessibilityFocusMonitor.getAccessibilityFocus(false);
+      gestureController.onEditBoxAccessibilityFocusChanged(
+          editBoxKeyboardVisible && !showing ? null : node);
+      editBoxKeyboardVisible = showing;
+      updateEditBoxDoubleTapFlag(EditBoxDoubleTap.handles(node));
+      return;
+    }
+    if (type != AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+        && (type != AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED
+            || !editBoxHandlesDoubleTap)) return;
+    AccessibilityNodeInfoCompat focused =
+        type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+            ? AccessibilityEventUtils.sourceCompat(event)
+            : accessibilityFocusMonitor.getAccessibilityFocus(false);
+    try {
+      gestureController.onEditBoxAccessibilityFocusChanged(focused);
+      updateEditBoxDoubleTapFlag(EditBoxDoubleTap.handles(focused));
+    } finally {
+      if (type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED && focused != null) {
+        focused.recycle();
+      }
+    }
+  }
+
+  private void updateEditBoxDoubleTapFlag(boolean enabled) {
+    if (editBoxHandlesDoubleTap == enabled) return;
+    editBoxHandlesDoubleTap = enabled;
+    editBoxKeyboardVisible = enabled && AccessibilityServiceCompatUtils.isInputWindowOnScreen(this);
+    applyRequestedServiceFlag(
+        FLAG_SERVICE_HANDLES_DOUBLE_TAP, editBoxHandlesDoubleTap || selectorHandlesDoubleTap);
+  }
+
   private void requestServiceFlag(int flags, boolean newValue) {
+    if (flags == FLAG_SERVICE_HANDLES_DOUBLE_TAP) {
+      selectorHandlesDoubleTap = newValue;
+      newValue = editBoxHandlesDoubleTap || selectorHandlesDoubleTap;
+    }
+    applyRequestedServiceFlag(flags, newValue);
+  }
+
+  private void applyRequestedServiceFlag(int flags, boolean newValue) {
     final AccessibilityServiceInfo info = getServiceInfo();
     if (info == null) {
       return;
@@ -4843,6 +4906,10 @@ public class TalkBackService extends AccessibilityServiceCompat
   private final OnSharedPreferenceChangeListener sharedPreferenceChangeListener =
       (prefs, key) -> {
         LogUtils.d(TAG, "A shared preference changed: %s", key);
+        if (ProgressBarAnnouncer.KEY.equals(key)) {
+          progressBarAnnouncer.onModeChanged();
+          return;
+        }
         // The prepared announcements may have been worked out with the setting as it was, such as
         // a verbosity setting changed from the reading controls.
         PreparedFocusSpeech.clear();

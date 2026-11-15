@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.graphics.Rect
 import android.os.Looper
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.google.android.accessibility.talkback.imagecaption.installOfflineOcrTestModels
@@ -166,17 +167,48 @@ class SubtitleControllerTest {
     assertEquals(listOf(second to true, third to true), speaker.spoken)
   }
 
-  @Test fun automaticWaitsForKnownPlayerAndKeepsMarkedCaptionsOutsideTheVideo() {
+  @Test fun automaticKeepsMarkedCaptionsOutsideTheVideoAndIgnoresStaticPageText() {
     service.foregroundBounds = Rect(0, 0, 1000, 560)
     restartWithRegion("auto")
-    assertTrue(readAccessible(captionContainer("Tiêu đề trang ngoài video")))
+    assertFalse(readAccessible(captionContainer("Tiêu đề trang ngoài video")))
     val requestWithoutPlayer = get("generation") as Int
-    frameLines(requestWithoutPlayer, listOf(SubtitleLine("Chữ trên trang web", Rect(100, 400, 900, 440), 95)))
+    repeat(3) {
+      frameLines(requestWithoutPlayer, listOf(SubtitleLine("Chữ trên trang web", Rect(100, 400, 900, 440), 95)))
+    }
     assertTrue(speaker.spoken.isEmpty())
 
     val caption = "Dải phụ đề bên dưới video"
     assertTrue(readAccessible(playerContainer(caption, marked = true)))
     assertEquals(listOf(caption to true), speaker.spoken)
+  }
+
+  @Test fun automaticReadsChangingImageSubtitlesWithoutAnAccessiblePlayer() {
+    service.foregroundBounds = Rect(0, 0, 1000, 560)
+    restartWithRegion("auto")
+    assertFalse(readAccessible(captionContainer(null)))
+    val request = get("generation") as Int
+    val bounds = Rect(100, 400, 900, 440)
+
+    frameLines(request, listOf(SubtitleLine("Chữ đầu tiên nằm trong hình", bounds, 95)))
+    assertTrue(speaker.spoken.isEmpty())
+    frameLines(request, listOf(SubtitleLine("Câu tiếp theo trong video", bounds, 95)))
+
+    assertEquals(listOf("Câu tiếp theo trong video" to true), speaker.spoken)
+  }
+
+  @Test fun automaticResumesImageRecognitionWhenTheAccessibleCaptionGoesAway() {
+    service.foregroundBounds = Rect(0, 0, 1000, 560)
+    restartWithRegion("auto")
+    assertTrue(readAccessible(playerContainer("Dòng văn bản", marked = true)))
+    set("lastAccessibleCaptionAt", SystemClock.uptimeMillis() - 2_100L)
+    assertFalse(readAccessible(playerContainer(null, marked = true)))
+
+    val request = get("generation") as Int
+    repeat(2) {
+      frameLines(request, listOf(SubtitleLine("Dòng chữ trong ảnh", Rect(100, 360, 900, 390), 95)))
+    }
+
+    assertEquals(listOf("Dòng văn bản" to true, "Dòng chữ trong ảnh" to true), speaker.spoken)
   }
 
   @Test fun aNarrowCustomRegionKeepsTheAccessibleSourceWhenTextIsTemporarilyAbsent() {

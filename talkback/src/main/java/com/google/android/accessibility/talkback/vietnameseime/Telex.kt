@@ -8,15 +8,24 @@ internal object Telex {
   private const val SHAPED_VOWELS = "ăâêôơư"
   private const val VOWELS = "aeiouyăâêôơư"
   private val quickInitials = mapOf(
-    'c' to 'h', 't' to 'r', 'g' to 'i', 'k' to 'h', 'n' to 'g', 'p' to 'h', 'q' to 'u',
+    "cc" to "ch", "tt" to "tr", "gg" to "gi", "kk" to "kh", "nn" to "ng", "pp" to "ph",
+    "qq" to "qu", "hh" to "nh", "ggg" to "gh", "ttt" to "th",
   )
 
   fun apply(word: String, key: Char, quickTelex: Boolean = false): String {
     val letter = key.lowercaseChar()
-    if (quickTelex && word.length == 2 && letter in "aeiouy" &&
-      word[0].equals(word[1], ignoreCase = true)) {
-      val second = quickInitials[word[0].lowercaseChar()]
-      if (second != null) return replace(word, 1, second) + key
+    if (quickTelex && letter in "aeiouy") {
+      val initial = quickInitials[word.lowercase()]
+      if (initial != null) {
+        val spelledInitial = if (initial == "ng" && letter in "ei") "ngh" else initial
+        return buildString {
+          spelledInitial.forEachIndexed { index, character ->
+            append(if (word[minOf(index, word.lastIndex)].isUpperCase()) character.uppercaseChar()
+              else character)
+          }
+          append(key)
+        }
+      }
     }
     val (plain, tone) = splitTone(word)
     val newTone = TONE_KEYS.indexOf(letter)

@@ -847,7 +847,7 @@ internal class VietnameseKeyboardView(
       characters(",").single(),
       Cell(VietnameseKeyTouch.Key(" "),
         context.getString(R.string.vietnamese_ime_space), if (pc) 6.5f else 3.2f),
-      function(HIDE, "⌄", 1.1f).takeIf { rowsAreLandscape },
+      function(HIDE, "⌄", 1.1f).takeIf { pc || rowsAreLandscape },
       characters(".").single(),
       function(MIC, context.getString(R.string.vietnamese_ime_voice_input), 1.1f)
         .takeIf { micEnabled },

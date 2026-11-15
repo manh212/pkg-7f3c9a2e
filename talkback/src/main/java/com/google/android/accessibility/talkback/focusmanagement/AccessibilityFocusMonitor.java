@@ -257,7 +257,10 @@ public class AccessibilityFocusMonitor {
         && AccessibilityNodeInfoUtils.isKeyboard(accessibilityFocusNode)) {
       AccessibilityNodeInfoCompat inputFocus = getInputFocus();
       if (inputFocus != null
-          && inputFocus.isVisibleToUser()
+          && (inputFocus.isVisibleToUser()
+              || (inputFocus.isFocused()
+                  && android.text.TextUtils.equals(
+                      accessibilityFocusNode.getPackageName(), service.getPackageName())))
           && Role.getRole(inputFocus) == Role.ROLE_EDIT_TEXT) {
         LogUtils.d(TAG, "Get the editing node from input focus. node=%s", inputFocus);
         return inputFocus;

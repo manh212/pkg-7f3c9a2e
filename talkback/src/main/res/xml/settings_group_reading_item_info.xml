@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:key="pref_spoken_item_information">
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
@@ -18,6 +20,13 @@
         android:key="@string/pref_speak_roles_key"
         android:summary="@string/pref_speak_roles_summary"
         android:title="@string/pref_speak_roles_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:defaultValue="off"
+        android:entries="@array/progress_bar_feedback_entries"
+        android:entryValues="@array/progress_bar_feedback_values"
+        android:key="pref_progress_bar_feedback"
+        android:title="@string/progress_bar_feedback_title"
+        app:useSimpleSummaryProvider="true" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.ItemDetailsOrderFragment"
         android:key="@string/pref_node_desc_order_key"

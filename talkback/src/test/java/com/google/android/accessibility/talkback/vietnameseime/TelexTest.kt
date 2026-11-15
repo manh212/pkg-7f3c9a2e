@@ -23,7 +23,7 @@ class TelexTest {
   }
 
   @Test
-  fun quickTelexExpandsTheSevenInitialsWhenAVowelFollows() {
+  fun quickTelexExpandsInitialsWhenAVowelFollows() {
     assertEquals("chào", type("ccaof", quickTelex = true))
     assertEquals("trời", type("ttowif", quickTelex = true))
     assertEquals("gia", type("gga", quickTelex = true))
@@ -31,8 +31,14 @@ class TelexTest {
     assertEquals("nga", type("nna", quickTelex = true))
     assertEquals("pha", type("ppa", quickTelex = true))
     assertEquals("qua", type("qqa", quickTelex = true))
+    assertEquals("nha", type("hha", quickTelex = true))
+    assertEquals("ghi", type("gggi", quickTelex = true))
+    assertEquals("tha", type("ttta", quickTelex = true))
+    assertEquals("nghi", type("nni", quickTelex = true))
+    assertEquals("nghê", type("nnee", quickTelex = true))
     assertEquals("CHÀO", type("CCAOF", quickTelex = true))
     assertEquals("TT", type("TT", quickTelex = true))
+    assertEquals("ggg", type("ggg", quickTelex = true))
     assertEquals("lcca", type("lcca", quickTelex = true))
     assertEquals("ccào", type("ccaof"))
   }

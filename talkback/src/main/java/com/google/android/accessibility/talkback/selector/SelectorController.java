@@ -1446,6 +1446,11 @@ public class SelectorController implements UserInputEventListener {
       return;
     }
     AccessibilityNodeInfoCompat focusedNode = AccessibilityNodeInfoCompat.wrap(nodeInfo);
+    if (keepsTextReadingControl(currentSetting, focusedNode)
+        || (isTextReadingControl(currentSetting)
+            && accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null)) {
+      return;
+    }
     if (actionsSettingActivatedForEditText
         && currentSetting == ACTIONS
         && !isEditingContext(focusedNode)) {
@@ -1923,6 +1928,15 @@ public class SelectorController implements UserInputEventListener {
   private boolean isEditingContext(AccessibilityNodeInfoCompat node) {
     return Role.getRole(node) == Role.ROLE_EDIT_TEXT
         || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(node) != null;
+  }
+
+  static boolean keepsTextReadingControl(Setting setting, AccessibilityNodeInfoCompat node) {
+    return isTextReadingControl(setting) && node.isFocused() && node.isEditable();
+  }
+
+  private static boolean isTextReadingControl(Setting setting) {
+    return setting == GRANULARITY_CHARACTERS || setting == GRANULARITY_WORDS
+        || setting == GRANULARITY_LINES || setting == GRANULARITY_PARAGRAPHS;
   }
 
   private void clearEditTextActionsRestore() {
@@ -2614,6 +2628,11 @@ public class SelectorController implements UserInputEventListener {
     return true;
   }
 
+  public boolean hasSelectedCustomAction() {
+    return currentActionId != null
+        && currentActionId.itemId() != AccessibilityNodeInfoCompat.ACTION_CLICK;
+  }
+
   /** Activate the currently selected action in the actions setting. */
   public void activateCurrentAction(EventId eventId) {
     applyPendingSwitch();
@@ -2723,6 +2742,8 @@ public class SelectorController implements UserInputEventListener {
             eventId,
             Feedback.focusDirection(isNext ? SEARCH_FOCUS_FORWARD : SEARCH_FOCUS_BACKWARD)
                 .setInputMode(INPUT_MODE_TOUCH)
+                .setGranularity(granularity.cursorGranularity.isMicroGranularity()
+                    ? granularity.cursorGranularity : null)
                 .setToWindow(setting.equals(GRANULARITY_WINDOWS))
                 .setToContainer(setting.equals(GRANULARITY_CONTAINERS))
                 .setDefaultToInputFocus(true)

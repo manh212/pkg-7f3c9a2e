@@ -65,17 +65,20 @@ class ReadingSettingsStructureTest {
   }
 
   @Test
-  fun readingItemInfoScreen_hasFourRows() {
+  fun readingItemInfoScreen_includesProgressFeedback() {
     assertEquals(
       listOf(
         "pref_spoken_item_information",
         context.getString(R.string.pref_speak_element_ids_key),
         context.getString(R.string.pref_a11y_hints_key),
         context.getString(R.string.pref_speak_roles_key),
+        "pref_progress_bar_feedback",
         context.getString(R.string.pref_node_desc_order_key),
       ),
       rowsOf(R.xml.settings_group_reading_item_info).map { it.first },
     )
+    assertEquals(listOf("sound", "both", "speech", "off"),
+      context.resources.getStringArray(R.array.progress_bar_feedback_values).toList())
   }
 
   @Test

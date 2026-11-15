@@ -30,6 +30,7 @@ internal class SubtitleTracker(
     private set
   private var candidateBounds: Rect? = null
   private var candidateFrames = 0
+  private var firstCandidateText = ""
   private var candidateText = ""
   private var textFrames = 0
   private var previousText = ""
@@ -46,6 +47,7 @@ internal class SubtitleTracker(
     avoidedBounds = avoidedBounds?.let { resizeBounds(it, previous, next) }
     candidateBounds = null
     candidateFrames = 0
+    firstCandidateText = ""
     previousOcrCandidates = emptyList()
   }
 
@@ -53,6 +55,7 @@ internal class SubtitleTracker(
     lockedBounds = null
     candidateBounds = null
     candidateFrames = 0
+    firstCandidateText = ""
     candidateText = ""
     textFrames = 0
     previousText = ""
@@ -73,6 +76,7 @@ internal class SubtitleTracker(
     input: List<SubtitleLine>,
     viewport: Rect,
     fastText: Boolean = fastOcr,
+    requireChangingCandidate: Boolean = false,
   ): SubtitleFrameObservation {
     if (avoidanceFrames > 0) avoidanceFrames-- else avoidedBounds = null
     var lines = input.filter { it.text.isNotBlank() && !it.bounds.isEmpty }
@@ -85,9 +89,15 @@ internal class SubtitleTracker(
       if (group.isEmpty()) return noCandidate(rawTextPresent)
       val box = union(group)
       val previous = candidateBounds
-      candidateFrames = if (previous != null && near(previous, box)) candidateFrames + 1 else 1
+      val text = normalize(group.joinToString(" ") { it.text })
+      if (previous != null && near(previous, box)) {
+        candidateFrames++
+      } else {
+        candidateFrames = 1
+        firstCandidateText = text
+      }
       candidateBounds = box
-      if (candidateFrames < 2) {
+      if (candidateFrames < 2 || (requireChangingCandidate && similar(firstCandidateText, text))) {
         return SubtitleFrameObservation(null, SubtitleFrameStatus.WAITING_FOR_STABILITY, group.size)
       }
       val height = max(viewport.height() * 18 / 100, box.height() * 3)
@@ -180,6 +190,7 @@ internal class SubtitleTracker(
     textFrames = 0
     candidateFrames = 0
     candidateBounds = null
+    firstCandidateText = ""
     unchangedFrames = 0
     if (++blankFrames >= 2) {
       previousText = ""
@@ -205,6 +216,7 @@ internal class SubtitleTracker(
     unchangedFrames = 0
     candidateBounds = null
     candidateFrames = 0
+    firstCandidateText = ""
     candidateText = ""
     textFrames = 0
   }

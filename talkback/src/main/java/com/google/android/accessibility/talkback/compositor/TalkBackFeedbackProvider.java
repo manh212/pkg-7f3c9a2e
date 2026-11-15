@@ -17,6 +17,7 @@ package com.google.android.accessibility.talkback.compositor;
 
 import static android.view.View.ACCESSIBILITY_LIVE_REGION_NONE;
 import static com.google.android.accessibility.talkback.compositor.Compositor.EVENT_TYPE_VIEW_CLICKED;
+import static com.google.android.accessibility.talkback.compositor.Compositor.EVENT_TYPE_VIEW_SELECTED;
 import static com.google.android.accessibility.talkback.compositor.Compositor.EVENT_TYPE_WINDOW_CONTENT_CHANGED;
 import static com.google.android.accessibility.talkback.compositor.Compositor.FLAVOR_TV;
 
@@ -58,6 +59,7 @@ import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.imagecaption.ImageContents;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.FormFactorUtils;
+import com.google.android.accessibility.utils.Role;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.HashMap;
 import java.util.Map;
@@ -108,6 +110,10 @@ public class TalkBackFeedbackProvider implements EventFeedbackProvider {
   public EventFeedback buildEventFeedback(@Event int event, HandleEventOptions eventOptions) {
     Function<HandleEventOptions, EventFeedback> eventFeedbackFunction = feedbackRules.get(event);
     if (eventFeedbackFunction == null) {
+      return EMPTY_FEEDBACK;
+    }
+    if ((event == EVENT_TYPE_VIEW_SELECTED || event == EVENT_TYPE_WINDOW_CONTENT_CHANGED)
+        && Role.getRole(eventOptions.sourceNode) == Role.ROLE_PROGRESS_BAR) {
       return EMPTY_FEEDBACK;
     }
 

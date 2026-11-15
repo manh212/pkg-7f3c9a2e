@@ -18,8 +18,6 @@ package com.google.android.accessibility.talkback.menurules;
 
 import static com.google.android.accessibility.talkback.Feedback.EditText.Action.CLEAR_ALL;
 import static com.google.android.accessibility.talkback.Feedback.EditText.Action.COPY;
-import static com.google.android.accessibility.talkback.Feedback.EditText.Action.CURSOR_TO_BEGINNING;
-import static com.google.android.accessibility.talkback.Feedback.EditText.Action.CURSOR_TO_END;
 import static com.google.android.accessibility.talkback.Feedback.EditText.Action.CUT;
 import static com.google.android.accessibility.talkback.Feedback.EditText.Action.END_SELECT;
 import static com.google.android.accessibility.talkback.Feedback.EditText.Action.PASTE;
@@ -126,36 +124,6 @@ public class EditingAndSelectingMenu implements NodeMenu {
               Menu.NONE,
               context.getString(R.string.shortcut_clear_all_text));
       items.add(clearAll);
-    }
-
-    if (Role.getRole(node) == Role.ROLE_EDIT_TEXT
-        && AccessibilityNodeInfoUtils.supportsAnyAction(
-            node,
-            AccessibilityNodeInfoCompat.ACTION_SET_SELECTION,
-            AccessibilityNodeInfoCompat.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY)) {
-      ContextMenuItem moveToBeginning =
-          ContextMenu.createMenuItem(
-              context,
-              Menu.NONE,
-              R.id.edittext_breakout_move_to_beginning,
-              Menu.NONE,
-              context.getString(R.string.title_edittext_breakout_move_to_beginning));
-      items.add(moveToBeginning);
-    }
-
-    if (Role.getRole(node) == Role.ROLE_EDIT_TEXT
-        && AccessibilityNodeInfoUtils.supportsAnyAction(
-            node,
-            AccessibilityNodeInfoCompat.ACTION_SET_SELECTION,
-            AccessibilityNodeInfoCompat.ACTION_NEXT_AT_MOVEMENT_GRANULARITY)) {
-      ContextMenuItem moveToEnd =
-          ContextMenu.createMenuItem(
-              context,
-              Menu.NONE,
-              R.id.edittext_breakout_move_to_end,
-              Menu.NONE,
-              context.getString(R.string.title_edittext_breakout_move_to_end));
-      items.add(moveToEnd);
     }
 
     // TODO: We can remove the condition of form factor if action supported logic is completed at
@@ -313,11 +281,7 @@ public class EditingAndSelectingMenu implements NodeMenu {
         }
         final boolean result;
         EventId eventId = EVENT_ID_UNTRACKED; // Not tracking performance for menu events.
-        if (itemId == R.id.edittext_breakout_move_to_beginning) {
-          result = pipeline.returnFeedback(eventId, Feedback.edit(node, CURSOR_TO_BEGINNING));
-        } else if (itemId == R.id.edittext_breakout_move_to_end) {
-          result = pipeline.returnFeedback(eventId, Feedback.edit(node, CURSOR_TO_END));
-        } else if (itemId == R.id.edittext_breakout_cut) {
+        if (itemId == R.id.edittext_breakout_cut) {
           result = pipeline.returnFeedback(eventId, Feedback.edit(node, CUT));
         } else if (itemId == R.id.edittext_breakout_copy) {
           result = pipeline.returnFeedback(eventId, Feedback.edit(node, COPY));
@@ -365,9 +329,7 @@ public class EditingAndSelectingMenu implements NodeMenu {
      * changes or uses in the field with input focus.
      */
     private static boolean needsInputFocus(int itemId) {
-      return itemId == R.id.edittext_breakout_move_to_beginning
-          || itemId == R.id.edittext_breakout_move_to_end
-          || itemId == R.id.edittext_breakout_cut
+      return itemId == R.id.edittext_breakout_cut
           || itemId == R.id.edittext_breakout_paste
           || itemId == R.id.edittext_breakout_select_all
           || itemId == R.id.edittext_breakout_start_selection_mode;

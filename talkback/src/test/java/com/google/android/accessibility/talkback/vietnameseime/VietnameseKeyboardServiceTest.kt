@@ -368,6 +368,19 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun threeLetterInitialExpandsInTheEditorWhenAVowelFollows() {
+    setAutoCapitalize(false)
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_quick_telex_key, true)
+    startEditor()
+    repeat(3) { press("gờ") }
+    assertEquals("ggg", text.toString())
+
+    press("i")
+
+    assertEquals("ghi", text.toString())
+  }
+
+  @Test
   fun shortcutMatchesTypedKeysBeforeTelexAndInsertsMultilineTextOnce() {
     saveShortcuts(mapOf("as" to "Một dòng\nHai dòng"))
     startEditor()
@@ -456,6 +469,53 @@ class VietnameseKeyboardServiceTest {
     press("Xóa")
 
     assertEquals("xin", text.toString())
+  }
+
+  @Test
+  fun lineNavigationDeletesTheWholeLineAtTheCursor() {
+    text.append("Dòng đầu\nDòng giữa\nDòng cuối")
+    val caret = text.indexOf("giữa") + 2
+    Selection.setSelection(text, caret)
+    startEditor { initialSelStart = caret; initialSelEnd = caret }
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.LINE)
+
+    press("Xóa")
+
+    assertEquals("Dòng đầu\nDòng cuối", text.toString())
+    assertEquals("Đã xóa dòng", spoken.last())
+  }
+
+  @Test
+  fun paragraphNavigationDeletesTheParagraphAndItsSeparatorWithEmoji() {
+    text.append("Đầu\n\n🙂 Đoạn cần xóa\n\nCuối")
+    val caret = text.indexOf("cần")
+    Selection.setSelection(text, caret)
+    startEditor { initialSelStart = caret; initialSelEnd = caret }
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.PARAGRAPH)
+
+    press("Xóa")
+
+    assertEquals("Đầu\n\nCuối", text.toString())
+    assertEquals("Đã xóa đoạn", spoken.last())
+  }
+
+  @Test
+  fun lineNavigationKeepsExplicitTextSelectionAsTheDeletionTarget() {
+    text.append("một hai ba")
+    Selection.setSelection(text, 4, 8)
+    startEditor { initialSelStart = 4; initialSelEnd = 8 }
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.LINE)
+
+    press("Xóa")
+
+    assertEquals("một ba", text.toString())
+  }
+
+  @Test
+  fun aWrappedLineKeepsTheParagraphSeparator() {
+    val text = "First wrap\nOther paragraph"
+    val range = textUnitToDelete(text, 8, paragraph = false) { _, _ -> 6 until 10 }
+    assertEquals("First \nOther paragraph", text.removeRange(range))
   }
 
   @Test

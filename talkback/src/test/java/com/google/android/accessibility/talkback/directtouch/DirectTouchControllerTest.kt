@@ -322,7 +322,7 @@ class DirectTouchControllerTest {
   }
 
   @Test
-  fun vietnameseKeyboardHandsTouchExplorationBackWhenItsOwnVoiceIsOff() {
+  fun vietnameseKeyboardKeepsDirectTouchWhenItsOwnVoiceIsOff() {
     Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
       ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
     val keyboardBounds = Rect(50, 1100, 1030, 2200)
@@ -335,7 +335,7 @@ class DirectTouchControllerTest {
     prefs.edit().putBoolean(voiceKey, false).commit()
     val windowChange = AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED)
     controller.onRawAccessibilityEvent(windowChange)
-    assertEquals("region none", transcript.last())
+    assertEquals("region [50,1100][1030,2200] complex=false", transcript.last())
     assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(20)))
 
     prefs.edit().putBoolean(voiceKey, true).commit()
@@ -357,14 +357,14 @@ class DirectTouchControllerTest {
       "Keyboard", Rect(0, 1400, 1080, 2220), service.packageName, layer = 4)
     serviceWindows.onScreen = listOf(game(), keyboardWindow, navigationBar())
     controller.setVietnameseKeyboardBounds(keys)
-    assertTranscript()
+    assertEquals("region [0,1400][1080,2188] complex=false", transcript.last())
 
     prefs.edit().putString(typingKey, DIRECT_SILENT_TYPING.toString()).commit()
     assertEquals("region [0,1400][1080,2188] complex=false", transcript.last())
     assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(GAME)))
 
     prefs.edit().putString(typingKey, LIFT_TO_TYPE.toString()).commit()
-    assertEquals("region none", transcript.last())
+    assertEquals("region [0,1400][1080,2188] complex=false", transcript.last())
     prefs.edit().putString(typingKey, DIRECT_SILENT_TYPING.toString()).commit()
     controller.setVietnameseKeyboardBounds(null)
     controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))

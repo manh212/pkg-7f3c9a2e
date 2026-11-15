@@ -95,7 +95,6 @@ class DirectTouchController(
   private var evaluating = false
   private var silentKeyboardIds = emptySet<Int>()
   private var silentDirectTyping = readSilentDirectTyping()
-  private var vietnameseKeyboardOwnVoice = readVietnameseKeyboardOwnVoice()
   private var vietnameseKeyboardBounds: Rect? = null
   private var vietnameseKeyboardClosing = false
   private var keyboard = readSelectedKeyboard()
@@ -124,21 +123,15 @@ class DirectTouchController(
         key == DirectTouchSettings.PREF_APPS ||
         key.startsWith(DirectTouchSettings.PREF_TYPING_PREFIX) ||
         key == liftToActivateKey ||
-        key == typingMethodKey ||
-        key == vietnameseKeyboardOwnVoiceKey
+        key == typingMethodKey
       ) {
         if (key == null || key == typingMethodKey) silentDirectTyping = readSilentDirectTyping()
-        if (key == null || key == vietnameseKeyboardOwnVoiceKey) {
-          vietnameseKeyboardOwnVoice = readVietnameseKeyboardOwnVoice()
-        }
         evaluate()
       }
     }
 
   private val liftToActivateKey = service.getString(R.string.pref_lift_to_activate_key)
   private val typingMethodKey = service.getString(R.string.pref_typing_confirmation_key)
-  private val vietnameseKeyboardOwnVoiceKey =
-    service.getString(R.string.pref_vietnamese_keyboard_own_voice_key)
 
   // The last navigation bar button spoken, so that the same tap reported twice is said once.
   private var lastNavBarButton: CharSequence? = null
@@ -457,13 +450,7 @@ class DirectTouchController(
       component.className == VietnameseKeyboardService::class.java.name
 
   private fun usesVietnameseKeyboardDirectTouch(): Boolean =
-    (isSilentDirectTyping() || vietnameseKeyboardOwnVoice) && isVietnameseKeyboard(keyboard)
-
-  private fun readVietnameseKeyboardOwnVoice(): Boolean =
-    SharedPreferencesUtils.getBooleanPref(
-      prefs, service.resources, R.string.pref_vietnamese_keyboard_own_voice_key,
-      R.bool.pref_vietnamese_keyboard_own_voice_default,
-    )
+    isVietnameseKeyboard(keyboard)
 
   private fun directKeyboards(
     imeWindows: List<AccessibilityWindowInfo>, component: ComponentName?,

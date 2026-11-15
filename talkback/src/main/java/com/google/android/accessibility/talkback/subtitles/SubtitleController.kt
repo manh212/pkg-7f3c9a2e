@@ -76,6 +76,7 @@ class SubtitleController internal constructor(
   private var tracker = SubtitleTracker(true)
   private val accessibilityTracker = SubtitleTracker(false)
   private var captionBranch: SubtitleAccessibility.Branch? = null
+  private var lastAccessibleCaptionAt: Long? = null
   private var captionSamples = emptyMap<SubtitleAccessibility.Branch, CaptionSample>()
   private var readPosted = false
   private var ocrEnabled = false
@@ -127,6 +128,7 @@ class SubtitleController internal constructor(
     const val CAPTURE_TIMEOUT_MS = 8_000L
     const val ACCESSIBILITY_EVENT_INTERVAL_MS = 200L
     const val CAPTION_CONFIRMATION_MS = 3_000L
+    const val CAPTION_FALLBACK_MS = 2_000L
   }
   private val speakPending = object : Runnable {
     override fun run() {
@@ -213,6 +215,7 @@ class SubtitleController internal constructor(
     tracker = SubtitleTracker(SubtitleSettings.region(prefs) == "auto", fastOcr = true)
     accessibilityTracker.reset()
     captionBranch = null
+    lastAccessibleCaptionAt = null
     captionSamples = emptyMap()
     emptyFrames = 0
     noTextAnnounced = false
@@ -284,6 +287,7 @@ class SubtitleController internal constructor(
     tracker.reset()
     accessibilityTracker.reset()
     captionBranch = null
+    lastAccessibleCaptionAt = null
     captionSamples = emptyMap()
     playerKey = null
     playerAvailable = false
@@ -367,6 +371,7 @@ class SubtitleController internal constructor(
     tracker.reset()
     accessibilityTracker.reset()
     captionBranch = null
+    lastAccessibleCaptionAt = null
     captionSamples = emptyMap()
     pendingText = null
     pendingSource = null
@@ -384,7 +389,11 @@ class SubtitleController internal constructor(
     val wasAvailable = playerAvailable
     playerAvailable = player != null
     if (player == null) {
-      if (wasAvailable && SubtitleSettings.region(prefs) == "auto") invalidateCapture()
+      if (wasAvailable && SubtitleSettings.region(prefs) == "auto") {
+        invalidateCapture()
+        tracker.reset()
+        ocrViewport = Rect(viewport)
+      }
       return
     }
     val key = player.key
@@ -455,14 +464,17 @@ class SubtitleController internal constructor(
       return
     }
     if (!ocrEnabled) {
-      if (!ocrUnavailableAnnounced) {
+      ocrEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && TesseractOcr.isDataDownloaded(service)
+      if (!ocrEnabled && !ocrUnavailableAnnounced) {
         ocrUnavailableAnnounced = true
         val message = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
           R.string.subtitle_requires_android else R.string.subtitle_model_missing
         setStatus(service.getString(message))
       }
-      schedule()
-      return
+      if (!ocrEnabled) {
+        schedule()
+        return
+      }
     }
     if (SystemClock.uptimeMillis() < ocrRetryAfter) {
       schedule()
@@ -512,12 +524,12 @@ class SubtitleController internal constructor(
             if (cropped !== bitmap) bitmap.recycle()
             val stats = SubtitleImageProcessor.inspect(cropped)
             captureWasDark = stats.nearlyUniformDark
-            val controls = controlBounds()
-            val enhance = emptyFrames >= 3 && emptyFrames % 2 == 1
+            val exclusions = screenExclusions(SubtitleSettings.region(prefs) == "auto" && !playerAvailable)
+            val enhance = emptyFrames >= 2 && emptyFrames % 4 >= 2
             LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d enhanced=%s",
               cropped.width, cropped.height, region, stats.darkPercent, stats.contrastRange, enhance)
             try {
-              worker.execute { recognize(cropped, region, controls, request, enhance) }
+              worker.execute { recognize(cropped, region, exclusions, request, enhance) }
             } catch (e: RuntimeException) {
               cropped.recycle()
               LogUtils.w(TAG, "OCR worker unavailable: %s", e.message)
@@ -534,7 +546,7 @@ class SubtitleController internal constructor(
   }
 
   private fun recognize(
-    bitmap: Bitmap, region: Rect, controls: List<Rect>, request: Int, enhanced: Boolean,
+    bitmap: Bitmap, region: Rect, exclusions: ScreenExclusions, request: Int, enhanced: Boolean,
   ) {
     val prepared = SubtitleImageProcessor.prepare(bitmap, enhanced)
     val image = prepared.bitmap
@@ -546,9 +558,7 @@ class SubtitleController internal constructor(
       image.recycle()
     }
     handler.post {
-      complete(request, lines?.filterNot { line ->
-        controls.any { it.contains(line.bounds.centerX(), line.bounds.centerY()) }
-      })
+      complete(request, lines?.filterNot(exclusions::contains))
     }
   }
 
@@ -568,13 +578,14 @@ class SubtitleController internal constructor(
     if (!sameApplication()) { stop(false); return }
     if (request != generation) { schedule(); return }
     val automatic = SubtitleSettings.region(prefs) == "auto"
-    if (captionBranch != null || (automatic && !playerAvailable)) {
+    if (hasRecentAccessibleCaption()) {
       schedule()
       return
     }
     if (lines == null) { captureFailed("screenshot/recognizer"); return }
     failures = 0
-    val result = tracker.observeFrame(lines, if (automatic) ocrViewport else viewport)
+    val result = tracker.observeFrame(lines, if (automatic) ocrViewport else viewport,
+      requireChangingCandidate = automatic && !playerAvailable)
     LogUtils.d(TAG, "OCR frame: rawLines=%d candidateLines=%d state=%s locked=%s released=%s",
       lines.size, result.candidateLines, result.status, tracker.lockedBounds != null, result.regionReleased)
     // Important: unrelated OCR text must NOT reset the missing-caption watchdog.
@@ -582,7 +593,7 @@ class SubtitleController internal constructor(
         result.status == SubtitleFrameStatus.NO_SUBTITLE_CANDIDATE) {
       emptyFrames++
       nearDarkFrames = if (captureWasDark) nearDarkFrames + 1 else 0
-    } else {
+    } else if (result.status != SubtitleFrameStatus.WAITING_FOR_STABILITY) {
       emptyFrames = 0
       nearDarkFrames = 0
       noTextAnnounced = false
@@ -626,16 +637,16 @@ class SubtitleController internal constructor(
     val player = SubtitleVideoViewport.findPlayer(root, viewport)
     try {
       updatePlayer(player)
-      if (player == null && mode == "auto") {
-        if (captionBranch != null) observeAccessible(emptyList())
-        return true
-      }
       val region = SubtitleSettings.bounds(prefs, viewport, focus) ?: return true
       val playerGroups = player?.let { SubtitleAccessibility.findPlayerGroups(it.node, it.bounds, region) }.orEmpty()
-      val groups = if (playerGroups.isEmpty() && mode != "auto" && mode != "full" &&
-        (captionBranch == null || captionBranch == SubtitleAccessibility.MANUAL_BRANCH)) {
-        SubtitleAccessibility.findPlayerGroups(root, viewport, region, manual = true)
-      } else playerGroups
+      val groups = when {
+        playerGroups.isNotEmpty() -> playerGroups
+        mode == "auto" && player == null -> SubtitleAccessibility.findPlayerGroups(root, viewport, region)
+        mode != "auto" && mode != "full" &&
+          (captionBranch == null || captionBranch == SubtitleAccessibility.MANUAL_BRANCH) ->
+          SubtitleAccessibility.findPlayerGroups(root, viewport, region, manual = true)
+        else -> emptyList()
+      }
       val selected = captionBranch
       if (selected != null) {
         val current = groups.firstOrNull { it.branch == selected }
@@ -645,7 +656,7 @@ class SubtitleController internal constructor(
           val replacement = confirmCaption(groups)
           if (replacement != null) selectCaption(replacement) else observeAccessible(emptyList())
         }
-        return true
+        return hasRecentAccessibleCaption()
       }
       val confirmed = confirmCaption(groups)
       if (confirmed != null) {
@@ -691,6 +702,14 @@ class SubtitleController internal constructor(
   }
 
   private fun observeAccessible(lines: List<SubtitleLine>) {
+    if (lines.isNotEmpty()) {
+      lastAccessibleCaptionAt = SystemClock.uptimeMillis()
+      if (pendingSource == Source.OCR) {
+        pendingText = null
+        pendingSource = null
+        handler.removeCallbacks(speakPending)
+      }
+    }
     val frame = accessibilityTracker.observeFrame(lines, viewport, fastText = true)
     if (lines.isEmpty() && pendingSource == Source.ACCESSIBILITY) {
       pendingText = null
@@ -698,6 +717,9 @@ class SubtitleController internal constructor(
     }
     frame.text?.let { queueSubtitle(it, Source.ACCESSIBILITY) }
   }
+
+  private fun hasRecentAccessibleCaption(): Boolean =
+    lastAccessibleCaptionAt?.let { SystemClock.uptimeMillis() - it < CAPTION_FALLBACK_MS } == true
 
   private fun matchesRecentDelivery(text: String): Boolean =
     SystemClock.uptimeMillis() - lastDeliveredAt < 1500L &&
@@ -725,7 +747,7 @@ class SubtitleController internal constructor(
     pendingText = null
     pendingSource = null
     if (!active || !sameApplication()) { stop(false); return }
-    if (request != generation || (source == Source.OCR && captionBranch != null)) return
+    if (request != generation || (source == Source.OCR && hasRecentAccessibleCaption())) return
     lastDelivered = SubtitleTracker.normalize(text)
     lastDeliveredAt = SystemClock.uptimeMillis()
     lastDeliveredSource = source
@@ -739,9 +761,23 @@ class SubtitleController internal constructor(
     if (Settings.canDrawOverlays(service)) overlay.show(message)
   }
 
-  private fun controlBounds(): List<Rect> {
-    val root = foregroundRoot() ?: return emptyList()
+  private data class ScreenExclusions(val controls: List<Rect>, val labels: List<SubtitleLine>) {
+    fun contains(line: SubtitleLine): Boolean {
+      val x = line.bounds.centerX()
+      val y = line.bounds.centerY()
+      if (controls.any { it.contains(x, y) }) return true
+      if (labels.isEmpty()) return false
+      val text = SubtitleTracker.normalize(line.text)
+      return text.isNotEmpty() && labels.any {
+        it.bounds.contains(x, y) && SubtitleTracker.similar(it.text, text)
+      }
+    }
+  }
+
+  private fun screenExclusions(includeLabels: Boolean): ScreenExclusions {
+    val root = foregroundRoot() ?: return ScreenExclusions(emptyList(), emptyList())
     val boxes = mutableListOf<Rect>()
+    val labels = mutableListOf<SubtitleLine>()
     val queue = java.util.ArrayDeque<AccessibilityNodeInfo>()
     queue.add(root)
     var visited = 0
@@ -750,14 +786,21 @@ class SubtitleController internal constructor(
       while (queue.isNotEmpty() && visited++ < 250 && SystemClock.uptimeMillis() < deadline) {
         val node = queue.removeFirst()
         try {
-          if (node.isVisibleToUser && (node.isClickable || node.isEditable || node.rangeInfo != null)) {
-            val box = Rect().also { node.getBoundsInScreen(it) }
-            if (box.width().toLong() * box.height() < viewport.width().toLong() * viewport.height() / 10) boxes.add(box)
+          if (node.isVisibleToUser) {
+            val control = node.isClickable || node.isEditable || node.rangeInfo != null
+            val text = if (includeLabels && !control && node.childCount == 0) {
+              node.text?.toString()?.let { SubtitleTracker.normalize(it) }.orEmpty()
+            } else ""
+            if (control || text.isNotEmpty()) {
+              val box = Rect().also(node::getBoundsInScreen)
+              if (control && box.width().toLong() * box.height() < viewport.width().toLong() * viewport.height() / 10) boxes.add(box)
+              if (text.isNotEmpty() && !box.isEmpty) labels.add(SubtitleLine(text, box))
+            }
           }
           for (index in 0 until minOf(node.childCount, 250 - visited - queue.size)) node.getChild(index)?.let { queue.add(it) }
         } finally { node.recycle() }
       }
     } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
-    return boxes
+    return ScreenExclusions(boxes, labels)
   }
 }

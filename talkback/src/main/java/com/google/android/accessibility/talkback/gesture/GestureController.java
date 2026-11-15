@@ -213,6 +213,7 @@ public class GestureController {
   private final FocusMonitor focusMonitor;
   private final ScreenRecognitionController screenRecognitionController;
   private final SubtitleController subtitleController;
+  private final EditBoxDoubleTap editBoxDoubleTap = new EditBoxDoubleTap();
 
   private final @NonNull Map<Integer, Integer> captureGestureIdToAnnouncements = new HashMap<>();
   private final @NonNull Map<Integer, Integer> captureFingerprintGestureIdToAnnouncements =
@@ -284,6 +285,7 @@ public class GestureController {
     dictation.shutdown();
     screenRecognitionController.stop();
     subtitleController.shutdown();
+    editBoxDoubleTap.onAccessibilityFocusChanged(null);
   }
 
   public boolean stopScreenRecognition() {
@@ -307,6 +309,10 @@ public class GestureController {
   public void onRawAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
     subtitleController.onAccessibilityEvent(event);
     listEdgeScroller.onAccessibilityEvent(event);
+  }
+
+  public void onEditBoxAccessibilityFocusChanged(@Nullable AccessibilityNodeInfoCompat node) {
+    editBoxDoubleTap.onAccessibilityFocusChanged(node);
   }
 
   public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
@@ -349,7 +355,7 @@ public class GestureController {
   }
 
   public void performAction(String action, EventId eventId) {
-    performAction(action, eventId, null, false);
+    performAction(action, eventId, null, false, false);
   }
 
   public boolean replayTwoFingerScroll(android.graphics.Path path, long duration) {
@@ -376,14 +382,15 @@ public class GestureController {
 
   public void performMenuAction(
       String action, EventId eventId, @Nullable AccessibilityNodeInfoCompat menuTarget) {
-    performAction(action, eventId, menuTarget, true);
+    performAction(action, eventId, menuTarget, true, false);
   }
 
   private void performAction(
       String action,
       EventId eventId,
       @Nullable AccessibilityNodeInfoCompat menuTarget,
-      boolean fromCustomMenu) {
+      boolean fromCustomMenu,
+      boolean doubleTap) {
     RecentUserInput.mark();
     NotificationReader.onUserAction();
     selectorController.applyPendingSwitch();
@@ -906,6 +913,12 @@ public class GestureController {
       // the same behavior as the native "Double-Tap" gesture.
       if (selectorController.activateLiveRecognition()) {
         return;
+      } else if (doubleTap
+          && (SelectorController.getCurrentSetting(service) != Setting.ACTIONS
+              || !selectorController.hasSelectedCustomAction())
+          && editBoxDoubleTap.activate(
+              accessibilityFocusMonitor.getAccessibilityFocus(false), eventId, pipeline)) {
+        return;
       } else if (SelectorController.getCurrentSetting(service).equals(Setting.ACTIONS)) {
         selectorController.activateCurrentAction(eventId);
       } else {
@@ -1302,11 +1315,13 @@ public class GestureController {
       }
     }
     String fallbackAction = action;
+    boolean doubleTap = gestureId == AccessibilityService.GESTURE_DOUBLE_TAP;
     if (!turnsScriptsOff(action)
-        && Scripts.onGesture(actionGestureId, () -> performAction(fallbackAction, eventId))) {
+        && Scripts.onGesture(actionGestureId,
+            () -> performAction(fallbackAction, eventId, null, false, doubleTap))) {
       return;
     }
-    performAction(action, eventId);
+    performAction(action, eventId, null, false, doubleTap);
   }
 
   public void setCaptureGestureIdToAnnouncements(

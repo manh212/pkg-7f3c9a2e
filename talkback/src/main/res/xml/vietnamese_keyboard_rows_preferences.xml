@@ -10,10 +10,6 @@
       android:defaultValue="false"
       android:key="@string/pref_vietnamese_keyboard_show_symbols_row_key"
       android:title="@string/vietnamese_ime_show_symbols_row" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="true"
-      android:key="@string/pref_vietnamese_keyboard_show_picker_key"
-      android:title="@string/vietnamese_ime_show_picker" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardSymbolsFragment"
       android:key="pref_vietnamese_keyboard_symbols_screen"

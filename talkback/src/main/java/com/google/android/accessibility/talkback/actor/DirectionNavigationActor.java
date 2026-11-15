@@ -375,7 +375,14 @@ public class DirectionNavigationActor implements UserInputEventListener, EventFi
     }
     // Set the requested granularity to the current granularity to the current node if the current
     // node is not null; otherwise, it will fall back to default granularity navigation.
-    setCurrentGranularityToCurrentNode(granularity, eventId);
+    boolean granularitySet = setCurrentGranularityToCurrentNode(granularity, eventId);
+    if (!granularitySet && granularity.isMicroGranularity()) {
+      AccessibilityNodeInfoCompat focus = accessibilityFocusMonitor.getAccessibilityFocus(true);
+      AccessibilityNodeInfoCompat editing = accessibilityFocusMonitor.getNodeForEditingActions(focus);
+      if (editing != null && editing.isEditable() && editing.isFocused()) {
+        return false;
+      }
+    }
 
     if (isNavigatingWithMicroGranularity()) {
       // Navigate with character, word, line, or paragraph granularity.

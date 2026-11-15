@@ -1035,7 +1035,20 @@ class VietnameseKeyboardViewTest {
   @Config(qualifiers = "w400dp-h800dp-port")
   fun pcLayoutPortraitColumnsAreVertical() {
     preparePcKeyboardPortrait()
-    assertFalse(keyLabels().contains(context.getString(R.string.vietnamese_ime_hide)))
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val labels = keyLabels()
+    val space = checkNotNull(provider.createAccessibilityNodeInfo(labels.indexOf("Dấu cách")))
+    val hideId = labels.indexOf(context.getString(R.string.vietnamese_ime_hide))
+    val hide = checkNotNull(provider.createAccessibilityNodeInfo(hideId))
+    val spaceBounds = Rect().also(space::getBoundsInParent)
+    val hideBounds = Rect().also(hide::getBoundsInParent)
+    assertEquals(spaceBounds.bottom, hideBounds.top)
+    assertEquals(spaceBounds.left, hideBounds.left)
+    assertTrue(provider.performAction(hideId, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertEquals(listOf(VietnameseKeyboardView.HIDE), typed)
+    typed.clear()
+    spoken.clear()
+    released = 0
 
     touch(MotionEvent.ACTION_DOWN, 120f, 14f, 100)
     touch(MotionEvent.ACTION_UP, 120f, 14f, 170)

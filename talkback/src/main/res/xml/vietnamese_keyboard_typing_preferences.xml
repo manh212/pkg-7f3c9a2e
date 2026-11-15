@@ -10,6 +10,10 @@
       android:defaultValue="true"
       android:key="@string/pref_vietnamese_keyboard_show_language_key"
       android:title="@string/vietnamese_ime_show_language" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="@string/pref_vietnamese_keyboard_show_picker_key"
+      android:title="@string/vietnamese_ime_show_picker" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardShortcutsFragment"
       android:key="pref_vietnamese_keyboard_shortcuts_screen"
