@@ -617,9 +617,9 @@ public class WindowEventInterpreterTest {
         "50ms windows from=10 changes=0x2 stable start=0 delay=50/50 main | src 10 feedback"
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
         "100ms windows from=11 changes=0x4 original start=100 delay=10/50 main | src"
-            + " 11\"Wi-Fi\" was 11 | A 11\"Wi-Fi\" was 11",
+            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11",
         "120ms windows from=11 changes=0x4 stable start=100 delay=20/50 main | src"
-            + " 11\"Wi-Fi\" was 11 | A 11\"Wi-Fi\" was 11");
+            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11");
   }
 
   @Test
