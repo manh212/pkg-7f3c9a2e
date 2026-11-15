@@ -690,7 +690,7 @@ public class Compositor {
     return (speaks || feedback.earcon() != -1) && Scripts.isSilenced(source);
   }
 
-  public void prepareNavigationFeedback(EventFeedback feedback) {
+  public void prepareNavigationFeedback(EventFeedback feedback, long preparationGeneration) {
     if (TranslationSettings.INSTANCE.auto(SharedPreferencesUtils.getSharedPreferences(mContext))) return;
     CharSequence text = feedback.ttsOutput().orElse(null);
     if (TextUtils.isEmpty(text)) return;
@@ -698,7 +698,7 @@ public class Compositor {
     params.putFloat(SpeechParam.PITCH, (float) feedback.ttsPitch());
     addSpeech(SpeechCleanupUtils.cleanUp(mContext, text), null, params,
         new com.google.android.accessibility.utils.output.NavigationPcmCache.PreparationNotifier(
-            feedback.getOutputSpeechFlags()));
+            feedback.getOutputSpeechFlags(), preparationGeneration));
   }
 
   private void addSpeech(

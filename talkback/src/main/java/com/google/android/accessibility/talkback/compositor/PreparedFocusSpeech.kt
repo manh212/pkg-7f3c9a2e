@@ -16,12 +16,16 @@
 
 package com.google.android.accessibility.talkback.compositor
 
+import android.os.Build
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget
 import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCache
 import com.google.android.accessibility.utils.LatencyExperiments
+import com.google.android.accessibility.utils.Performance
+import com.google.android.accessibility.utils.Performance.PreparedSpeechWork
+import com.google.android.accessibility.utils.WindowCachePolicy
 
 /**
  * The announcements of the nodes that a swipe from the focused node would most likely reach,
@@ -45,6 +49,8 @@ object PreparedFocusSpeech {
 
   private const val NO_WINDOW_ID = -1
   private const val MAX_PREPARED_ANNOUNCEMENTS = 8
+  private const val WINDOW_ACTIVATION_CHANGES =
+    AccessibilityEvent.WINDOWS_CHANGE_ACTIVE or AccessibilityEvent.WINDOWS_CHANGE_FOCUSED
 
   /** Wasted preparation rounds in a row after which a window's preparation pauses. */
   private const val MAX_WASTED_STREAK = 3
@@ -108,6 +114,7 @@ object PreparedFocusSpeech {
       if (oldest != null) prepared.remove(oldest)
     }
     prepared += Prepared(node, feedback, containerTitle, targetType)
+    Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARED)
   }
 
   /** Returns whether an announcement of focusing [node] as a [targetType] target is kept. */
@@ -131,8 +138,13 @@ object PreparedFocusSpeech {
 
   private fun takeForType(node: AccessibilityNodeInfoCompat, targetType: Int?): Prepared? {
     val found = find(node, targetType)
-    if (found == null || (!LatencyExperiments.Feature.FRESH_PREPARED.enabled() &&
-        !isOldEnough(found.time, SystemClock.uptimeMillis()))) {
+    if (found == null) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.MISSING_ENTRY)
+      return null
+    }
+    if (!LatencyExperiments.Feature.FRESH_PREPARED.enabled() &&
+        !isOldEnough(found.time, SystemClock.uptimeMillis())) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.TOO_NEW)
       return null
     }
     prepared.remove(found)
@@ -159,7 +171,26 @@ object PreparedFocusSpeech {
   /** Forgets all announcements if [event] can change what a node in their window says. */
   @JvmStatic
   fun onAccessibilityEvent(event: AccessibilityEvent) {
-    if (prepared.isNotEmpty() && canChange(event.eventType, event.windowId, windowId)) {
+    if (prepared.isEmpty()) {
+      return
+    }
+    val activationChange = event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED &&
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+      event.windowChanges and WINDOW_ACTIVATION_CHANGES != 0
+    if (!activationChange && !canChange(event.eventType, event.windowId, windowId)) {
+      return
+    }
+    val previousSize = prepared.size
+    if (LatencyExperiments.Feature.SCOPED_CACHE.enabled() &&
+      event.windowId == windowId && WindowCachePolicy.isNonStructuralContent(event)) {
+      prepared.removeAll { !TraversalTreeCache.holdsCurrent(it.node) }
+    } else {
+      prepared.clear()
+    }
+    if (prepared.size != previousSize) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.INVALIDATED)
+    }
+    if (prepared.isEmpty()) {
       noteWasted()
       clear()
     }

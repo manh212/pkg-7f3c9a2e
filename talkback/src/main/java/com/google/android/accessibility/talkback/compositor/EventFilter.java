@@ -33,6 +33,7 @@ import com.google.android.accessibility.talkback.focusmanagement.ColumnWrap;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget.TargetType;
 import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCache;
+import com.google.android.accessibility.talkback.focusmanagement.action.NavigationAction;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
 import com.google.android.accessibility.talkback.calls.CallAnnouncements;
 import com.google.android.accessibility.talkback.notifications.NotificationReader;
@@ -43,6 +44,7 @@ import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.Performance.PreparedSpeechWork;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.accessibility.utils.TelegramChatCell;
@@ -106,6 +108,10 @@ public class EventFilter {
   private final Runnable prepareSwipeTargets = this::prepareSwipeTargets;
   private final Runnable prepareNextSwipeTarget = this::prepareNextSwipeTarget;
   private @Nullable PreparationPass preparationPass;
+  private boolean waitingForTouchEnd;
+  private boolean retriedMissingOrder;
+  private int preferredDirectionIndex;
+  private long preparationGeneration;
 
   /**
    * How long after focus moves the announcements of the next and previous nodes are prepared: after
@@ -114,6 +120,7 @@ public class EventFilter {
   private static final long PREPARE_DELAY_MS = 30;
   /** Yield between target preparations so a swipe is not queued behind a whole prefetch pass. */
   private static final long PREPARE_STEP_DELAY_MS = 8;
+  private static final long PREPARE_ORDER_RETRY_MS = 48;
 
   /**
    * Whether a swipe's target that is only partly on screen is spoken before the swipe has scrolled
@@ -135,20 +142,56 @@ public class EventFilter {
     final AccessibilityNodeInfoCompat focusedNode;
     final int maximumDistance;
     final int controlTargetType;
+    final int preferredDirectionIndex;
     int targetTypeIndex;
     int directionIndex;
     int distance = 1;
-    @Nullable AccessibilityNodeInfoCompat pivot;
+    @Nullable AccessibilityNodeInfoCompat firstAdjacent;
+    @Nullable AccessibilityNodeInfoCompat secondAdjacent;
 
     PreparationPass(
-        AccessibilityNodeInfoCompat focusedNode, int maximumDistance, int controlTargetType) {
+        AccessibilityNodeInfoCompat focusedNode, int maximumDistance, int controlTargetType,
+        int preferredDirectionIndex) {
       this.focusedNode = focusedNode;
       this.maximumDistance = maximumDistance;
       this.controlTargetType = controlTargetType;
+      this.preferredDirectionIndex = preferredDirectionIndex;
     }
 
     @TargetType int targetType() {
-      return targetTypeIndex == 0 ? NavigationTarget.TARGET_DEFAULT : controlTargetType;
+      return targetTypeIndex == 0 ? controlTargetType : NavigationTarget.TARGET_DEFAULT;
+    }
+
+    @SearchDirection int direction() {
+      return SWIPE_DIRECTIONS[(preferredDirectionIndex + directionIndex) % SWIPE_DIRECTIONS.length];
+    }
+
+    @Nullable AccessibilityNodeInfoCompat pivot() {
+      if (distance == 1) {
+        return focusedNode;
+      }
+      return directionIndex == 0 ? firstAdjacent : secondAdjacent;
+    }
+
+    boolean advance(@Nullable AccessibilityNodeInfoCompat target) {
+      if (distance == 1) {
+        if (directionIndex == 0) {
+          firstAdjacent = target;
+        } else {
+          secondAdjacent = target;
+        }
+      }
+      if (++directionIndex < SWIPE_DIRECTIONS.length) {
+        return true;
+      }
+      directionIndex = 0;
+      if (++distance <= maximumDistance) {
+        return true;
+      }
+      firstAdjacent = null;
+      secondAdjacent = null;
+      distance = 1;
+      return targetTypeIndex++ == 0 && controlTargetType != NavigationTarget.TARGET_DEFAULT;
     }
   }
 
@@ -366,17 +409,23 @@ public class EventFilter {
       @Nullable EventId eventId,
       long actionTime) {
     // The focus is moving, so the prepared announcements are used now or not at all.
-    int targetType = info.navigationAction == null
-        ? NavigationTarget.TARGET_DEFAULT : info.navigationAction.targetType;
-    PreparedFocusSpeech.@Nullable Prepared prepared =
-        PreparedFocusSpeech.take(focusedNode, targetType);
-    if (!shouldSpeakFocusEarly(info)) {
+    NavigationAction action = info.navigationAction;
+    if (action == null || !shouldSpeakFocusEarly(info)) {
       return false;
     }
+    if (action.actionType == NavigationAction.DIRECTIONAL_NAVIGATION) {
+      if (action.searchDirection == TraversalStrategy.SEARCH_FOCUS_FORWARD) {
+        preferredDirectionIndex = 0;
+      } else if (action.searchDirection == TraversalStrategy.SEARCH_FOCUS_BACKWARD) {
+        preferredDirectionIndex = 1;
+      }
+    }
+    PreparedFocusSpeech.@Nullable Prepared prepared = info.columnWrap == ColumnWrap.NONE
+        ? PreparedFocusSpeech.take(focusedNode, action.targetType) : null;
     AccessibilityNodeInfoCompat node;
     @Nullable EventFeedback preparedFeedback;
     @Nullable CharSequence preparedContainerTitle = null;
-    if (prepared != null && info.columnWrap == ColumnWrap.NONE) {
+    if (prepared != null) {
       // Prepared from the node read again from the app, and thrown away had anything in its
       // window changed since, even its text or state. So it needs no second read, which would
       // wait for the app to finish drawing the focus it was just given.
@@ -562,14 +611,41 @@ public class EventFilter {
   /** Prepares the announcements of the nodes next to {@code node}, which focus just moved to. */
   private void onFocusMoved(AccessibilityNodeInfoCompat node) {
     lastFocusedNode = node;
+    schedulePreparation();
+  }
+
+  private boolean preparationEnabled() {
+    return latencyExtrasEnabled && (prepareAdjacentSpeechEnabled || prepareSecondAheadSpeechEnabled
+        || LatencyExperiments.preparePcm());
+  }
+
+  private void schedulePreparation() {
+    preparationGeneration++;
     preparationPass = null;
+    waitingForTouchEnd = false;
+    retriedMissingOrder = false;
     handler.removeCallbacks(prepareSwipeTargets);
     handler.removeCallbacks(prepareNextSwipeTarget);
-    if (latencyExtrasEnabled
-        && (prepareAdjacentSpeechEnabled || prepareSecondAheadSpeechEnabled || LatencyExperiments.preparePcm())
+    if (preparationEnabled() && lastFocusedNode != null
         && targetPredictor != null) {
       handler.postDelayed(prepareSwipeTargets, PREPARE_DELAY_MS);
     }
+  }
+
+  public void onTouchInteractionEnded() {
+    if (waitingForTouchEnd) {
+      waitingForTouchEnd = false;
+      handler.post(preparationPass == null ? prepareSwipeTargets : prepareNextSwipeTarget);
+    }
+  }
+
+  private boolean waitForTouchEnd() {
+    if (!LatencyExperiments.preparationTouchActive(fingerDown.getAsBoolean())) {
+      return false;
+    }
+    waitingForTouchEnd = true;
+    Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.WAITING_FOR_TOUCH);
+    return true;
   }
 
   /**
@@ -579,23 +655,33 @@ public class EventFilter {
    * finds them already fetched.
    */
   private void prepareSwipeTargets() {
-    if (!latencyExtrasEnabled
-        || (!prepareAdjacentSpeechEnabled && !prepareSecondAheadSpeechEnabled && !LatencyExperiments.preparePcm())) {
+    if (!preparationEnabled()) {
       return;
     }
     @Nullable AccessibilityNodeInfoCompat pivot = lastFocusedNode;
-    if (pivot == null || targetPredictor == null || fingerDown.getAsBoolean()) {
+    if (pivot == null || targetPredictor == null || waitForTouchEnd()) {
       // A swipe may be starting, and must not wait for this.
       return;
     }
     if (!PreparedFocusSpeech.shouldPrepare(pivot)) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.SUPPRESSED_WINDOW);
       // This window keeps throwing preparations away unused, so preparation is paused for it.
+      return;
+    }
+    if (TraversalTreeCache.orderForPrediction(pivot) == null) {
+      TraversalTreeCache.rememberPivot(pivot);
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.MISSING_ORDER);
+      if (!retriedMissingOrder) {
+        retriedMissingOrder = true;
+        handler.postDelayed(prepareSwipeTargets, PREPARE_ORDER_RETRY_MS);
+      }
       return;
     }
     int maximumDistance = prepareSecondAheadSpeechEnabled
         || LatencyExperiments.Feature.PCM_SECOND.enabled() ? 2 : 1;
     preparationPass =
-        new PreparationPass(pivot, maximumDistance, targetPredictor.currentTargetType());
+        new PreparationPass(pivot, maximumDistance, targetPredictor.currentTargetType(),
+            preferredDirectionIndex);
     prepareNextSwipeTarget.run();
   }
 
@@ -604,30 +690,36 @@ public class EventFilter {
     PreparationPass pass = preparationPass;
     TargetPredictor predictor = targetPredictor;
     if (pass == null
-        || !latencyExtrasEnabled
-        || (!prepareAdjacentSpeechEnabled && !prepareSecondAheadSpeechEnabled && !LatencyExperiments.preparePcm())
+        || !preparationEnabled()
         || predictor == null
-        || fingerDown.getAsBoolean()
         || !Objects.equals(pass.focusedNode, lastFocusedNode)
         || !PreparedFocusSpeech.shouldPrepare(pass.focusedNode)) {
       preparationPass = null;
       return;
     }
-
-    if (LatencyExperiments.Feature.INPUT_PRIORITY.enabled() && LatencyExperiments.inputIsActive(80)) {
-      handler.postDelayed(prepareNextSwipeTarget, PREPARE_STEP_DELAY_MS);
+    if (waitForTouchEnd()) {
+      return;
+    }
+    long waitMs = LatencyExperiments.Feature.INPUT_PRIORITY.enabled()
+        ? LatencyExperiments.inputQuietDelay(80) : 0;
+    if (waitMs > 0) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.WAITING_FOR_IDLE);
+      handler.postDelayed(prepareNextSwipeTarget, waitMs);
       return;
     }
     int targetType = pass.targetType();
-    int direction = SWIPE_DIRECTIONS[pass.directionIndex];
-    AccessibilityNodeInfoCompat currentPivot =
-        pass.pivot == null ? pass.focusedNode : pass.pivot;
-    @Nullable AccessibilityNodeInfoCompat target;
+    int direction = pass.direction();
+    @Nullable AccessibilityNodeInfoCompat currentPivot = pass.pivot();
+    @Nullable AccessibilityNodeInfoCompat target = null;
     try {
-      target =
-          targetType == NavigationTarget.TARGET_DEFAULT
+      if (currentPivot != null) {
+        target = targetType == NavigationTarget.TARGET_DEFAULT
               ? predictor.predictTarget(currentPivot, direction)
               : predictor.predictTarget(currentPivot, direction, targetType);
+        if (target == null) {
+          Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.NO_TARGET);
+        }
+      }
     } catch (RuntimeException e) {
       LogUtils.e(TAG, "Cannot predict swipe target: %s", e);
       preparationPass = null;
@@ -648,27 +740,14 @@ public class EventFilter {
         if (cached == null) {
           prepareFocusSpeech(target, targetType, prepareAudio);
         } else if (prepareAudio) {
-          compositor.prepareNavigationFeedback(cached.getFeedback());
+          compositor.prepareNavigationFeedback(cached.getFeedback(), preparationGeneration);
         }
       }
-      pass.pivot = target;
     }
 
-    if (target == null || pass.distance >= pass.maximumDistance) {
-      pass.pivot = null;
-      pass.distance = 1;
-      if (pass.directionIndex + 1 < SWIPE_DIRECTIONS.length) {
-        pass.directionIndex++;
-      } else if (pass.targetTypeIndex == 0
-          && pass.controlTargetType != NavigationTarget.TARGET_DEFAULT) {
-        pass.targetTypeIndex++;
-        pass.directionIndex = 0;
-      } else {
-        preparationPass = null;
-        return;
-      }
-    } else {
-      pass.distance++;
+    if (!pass.advance(target)) {
+      preparationPass = null;
+      return;
     }
     handler.postDelayed(prepareNextSwipeTarget, PREPARE_STEP_DELAY_MS);
   }
@@ -678,43 +757,28 @@ public class EventFilter {
    * swipe would reach changed with it: prepare them around the focused node again.
    */
   public void onGranularityChanged() {
-    preparationPass = null;
-    handler.removeCallbacks(prepareSwipeTargets);
-    handler.removeCallbacks(prepareNextSwipeTarget);
-    if (latencyExtrasEnabled
-        && (prepareAdjacentSpeechEnabled || prepareSecondAheadSpeechEnabled || LatencyExperiments.preparePcm())
-        && lastFocusedNode != null
-        && targetPredictor != null) {
-      handler.postDelayed(prepareSwipeTargets, PREPARE_DELAY_MS);
-    }
-  }
-
-  /** Works out and keeps what focusing {@code focusedNode} by a swipe would say. */
-  private void prepareFocusSpeech(AccessibilityNodeInfoCompat focusedNode) {
-    prepareFocusSpeech(focusedNode, NavigationTarget.TARGET_DEFAULT);
-  }
-
-  /**
-   * Works out and keeps what focusing {@code focusedNode} by a swipe at a reading control whose
-   * target type is {@code targetType} would say.
-   */
-  private void prepareFocusSpeech(
-      AccessibilityNodeInfoCompat focusedNode, @TargetType int targetType) {
-    prepareFocusSpeech(focusedNode, targetType, false);
+    schedulePreparation();
   }
 
   private void prepareFocusSpeech(
       AccessibilityNodeInfoCompat focusedNode, @TargetType int targetType, boolean prepareAudio) {
     // Read the node again from the app, as a swipe to it would, rather than prepare from a copy
     // that the saved reading order may have kept since before its text or state changed.
-    @SuppressWarnings("deprecation") // obtain(): copy, so that the saved node is left as it was.
+    @SuppressWarnings("deprecation")
     AccessibilityNodeInfoCompat node = AccessibilityNodeInfoCompat.obtain(focusedNode);
     if (LatencyExperiments.Feature.CACHED_TEXT.enabled()) {
-      if (!TraversalTreeCache.holdsCurrent(focusedNode)) return;
-    } else if (!node.refresh()) {
-      return;
+      if (!TraversalTreeCache.holdsCurrent(node)) {
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
+        return;
+      }
+    } else {
+      if (!node.refresh()) {
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
+        return;
+      }
     }
     if (globalVariables.hasSkipFocusProcessing() || !shouldSpeakFocusEarly(node)) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.INELIGIBLE_NODE);
       return;
     }
     AccessibilityEvent event = focusEventFor(node);
@@ -737,7 +801,9 @@ public class EventFilter {
     }
     if (hasSpeech(feedback)) {
       PreparedFocusSpeech.put(node, feedback, containerTitle, targetType);
-      if (prepareAudio) compositor.prepareNavigationFeedback(feedback);
+      if (prepareAudio) compositor.prepareNavigationFeedback(feedback, preparationGeneration);
+    } else {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.EMPTY_SPEECH);
     }
   }
 

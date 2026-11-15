@@ -104,6 +104,7 @@ public class ExtendedTouchBackendTest {
     backend.stop();
     FocusFeedbackMapper.setTouchStopsSpeech(touchSpeechWasEnabled);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION, false);
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, false);
   }
 
   @Test public void touchClickUsesControllerAndReportsUnavailableStates() {
@@ -191,6 +192,20 @@ public class ExtendedTouchBackendTest {
   }
 
   @Test public void simpleOneFingerSwipesCompleteInAllDirectionsWhenExtendedGesturesAreOn() {
+    verifySimpleOneFingerSwipes();
+  }
+
+  @Test public void fastOneFingerSwipesWithRotationKeepAllDirections() {
+    backend.stop();
+    backend = new ExtendedTouchBackend(
+        service, () -> { throw new AssertionError("Rotation backend failed"); }, true, false);
+    backend.start();
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, true);
+
+    verifySimpleOneFingerSwipes();
+  }
+
+  private void verifySimpleOneFingerSwipes() {
     int[] ids = {
       AccessibilityService.GESTURE_SWIPE_UP,
       AccessibilityService.GESTURE_SWIPE_DOWN,
@@ -208,6 +223,7 @@ public class ExtendedTouchBackendTest {
             400 + (destinations[index][0] - 400) * step / 6,
             700 + (destinations[index][1] - 700) * step / 6);
       }
+      assertEquals(index, service.gestures.size());
       motionAt(MotionEvent.ACTION_UP, destinations[index][0], destinations[index][1]);
       assertEquals(ids[index], service.gestures.get(index).intValue());
     }
@@ -231,8 +247,10 @@ public class ExtendedTouchBackendTest {
     backend = new ExtendedTouchBackend(
         service, () -> { throw new AssertionError("Rotation backend failed"); }, true, false);
     backend.start();
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, true);
     touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
     multiMotion(MotionEvent.ACTION_DOWN, 0, 1);
+    multiMotion(MotionEvent.ACTION_MOVE, 0, 1);
     multiMotion(MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT), 0, 2);
     multiMotion(MotionEvent.ACTION_MOVE, 25, 2);
     assertEquals(List.of(

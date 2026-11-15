@@ -264,6 +264,15 @@ object TraversalTreeCache {
       firstIgnoredChangeTime == 0L && holds(node)
     }
 
+  @JvmStatic
+  fun orderForPrediction(pivot: AccessibilityNodeInfoCompat): OrderedTraversalStrategy? {
+    if (!enabled || (firstIgnoredChangeTime != 0L &&
+        SystemClock.uptimeMillis() - firstIgnoredChangeTime > MAX_AGE_AFTER_TEXT_CHANGE_MS)) {
+      return null
+    }
+    return strategy?.takeIf { root?.windowId == pivot.windowId && it.containsNode(pivot) }
+  }
+
   internal fun noteGracedChange(windowId: Int, sourceBounds: Rect?) {
     if (firstIgnoredChangeTime == 0L) {
       firstIgnoredChangeTime = SystemClock.uptimeMillis()

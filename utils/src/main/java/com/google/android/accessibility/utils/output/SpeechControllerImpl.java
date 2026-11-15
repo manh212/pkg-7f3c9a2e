@@ -1208,7 +1208,9 @@ public class SpeechControllerImpl implements SpeechController {
       @Nullable Bundle speechParams,
       @Nullable EventId eventId) {
     if (resultNotifier instanceof NavigationPcmCache.PreparationNotifier preparation) {
-      if (LatencyExperiments.preparePcm()) prepareNavigationSpeech(text, preparation.getFlags(), speechParams);
+      if (LatencyExperiments.preparePcm()) {
+        prepareNavigationSpeech(text, preparation.getFlags(), speechParams, preparation.getGeneration());
+      }
       return;
     }
     final HashMap<String, String> params = new HashMap<>();
@@ -1228,7 +1230,8 @@ public class SpeechControllerImpl implements SpeechController {
     failoverTts.addSpeech(text, resultNotifier, pitch, rate, eventId);
   }
 
-  private void prepareNavigationSpeech(CharSequence text, int flags, @Nullable Bundle speechParams) {
+  private void prepareNavigationSpeech(
+      CharSequence text, int flags, @Nullable Bundle speechParams, long preparationGeneration) {
     if (isMuteSpeech || TextUtils.isEmpty(text)) return;
     CharSequence source = EmojiSpeech.process(mContext, replaceSpanByContentDescription(text));
     FeedbackItem prepared = FeedbackProcessingUtils.generateFeedbackItemFromInput(
@@ -1236,14 +1239,16 @@ public class SpeechControllerImpl implements SpeechController {
         formattingFeedbackMode, removeUnnecessarySpans, null, null, flags,
         UTTERANCE_GROUP_DEFAULT, speechParams, null, null);
     makeSpeakablePunctuation(prepared);
-    int count = 0;
     for (FeedbackFragment fragment : prepared.getFragments()) {
-      if (++count > 4) break;
+      if (TextUtils.isEmpty(fragment.getText())) {
+        continue;
+      }
       Bundle parameters = fragment.getSpeechParams();
       float pitch = speechPitch * (mUseIntonation ? parameters.getFloat(SpeechParam.PITCH, 1f) : 1f);
       float rate = speechRate * (mUseIntonation ? parameters.getFloat(SpeechParam.RATE, 1f) : 1f);
       failoverTts.prepareNavigationPcm(fragment.getText(), fragment.getLocale(), pitch, rate,
-          prepared.hasFlag(FeedbackItem.FLAG_RATE_IS_ABSOLUTE));
+          prepared.hasFlag(FeedbackItem.FLAG_RATE_IS_ABSOLUTE), preparationGeneration);
+      break;
     }
   }
 
@@ -2171,6 +2176,10 @@ public class SpeechControllerImpl implements SpeechController {
   @Override
   public void interrupt(boolean stopTtsSpeechCompletely) {
     interrupt(stopTtsSpeechCompletely, true /* notifyObserver */);
+  }
+
+  public boolean holdLocalSpeechForTouch() {
+    return mHandler.getLooper().isCurrentThread() && failoverTts.holdLocalSpeechForTouch();
   }
 
   @Override

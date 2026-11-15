@@ -49,6 +49,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean active;
   private boolean transitionPending;
   private boolean gestureStarted;
+  private boolean firstPointerOnly;
   private int state = TouchInteractionController.STATE_CLEAR;
   private final Runnable armExtendedAfterHold = () -> {
     if (active && twoFingerTracking && !twoFingerMoved && !completedInteraction
@@ -126,6 +127,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
 
   void stop() {
     active = false;
+    LatencyExperiments.resetTouchControllerContact();
+    firstPointerOnly = false;
     handler.removeCallbacks(explore);
     resetTwoFingerTracking();
     detector.clear();
@@ -140,13 +143,28 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
 
   @Override public void onMotionEvent(MotionEvent event) {
     if (!active) return;
+    int action = event.getActionMasked();
+    if (action == MotionEvent.ACTION_DOWN) {
+      LatencyExperiments.onTouchControllerContact(true);
+    }
     if (transitionPending) {
       if (queued.size() >= 128) { fail(); return; }
       queued.add(MotionEvent.obtain(event));
       return;
     }
     try {
-      if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+      if (action == MotionEvent.ACTION_UP && canDetectGesture()) {
+        LatencyExperiments.onTouchControllerContact(false);
+        service.onGestureFingerReleased();
+      }
+      if (action == MotionEvent.ACTION_MOVE && firstPointerOnly && event.getPointerCount() == 1
+          && rotationEnabled && LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE.enabled()
+          && canDetectGesture()) {
+        detector.onSinglePointerMove(Performance.EVENT_ID_UNTRACKED, event);
+        return;
+      }
+      if (action == MotionEvent.ACTION_DOWN) {
+        firstPointerOnly = true;
         if (rotationEnabled
             && completedInteraction
             && state == TouchInteractionController.STATE_TOUCH_INTERACTING
@@ -165,7 +183,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
           handler.removeCallbacks(explore);
           handler.postDelayed(explore, Math.max(150, ViewConfiguration.getDoubleTapTimeout() - 50));
         }
-      } else if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN) {
+      } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
+        firstPointerOnly = false;
         int index = event.getActionIndex();
         handler.removeCallbacks(explore);
         downY[event.getPointerId(index)] = event.getY(index);
@@ -214,8 +233,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         return;
       }
       if (event.getActionMasked() == MotionEvent.ACTION_MOVE && trackTwoFingerScroll(event)) return;
-      if (state == TouchInteractionController.STATE_TOUCH_INTERACTING ||
-          state == TouchInteractionController.STATE_TOUCH_EXPLORING || state == TouchInteractionController.STATE_CLEAR) {
+      if (canDetectGesture()) {
         if (extendedEnabled && event.getPointerCount() == 1) {
           detector.onSingleFingerMotionEvent(Performance.EVENT_ID_UNTRACKED, event);
         } else {
@@ -226,9 +244,12 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         handler.removeCallbacks(armExtendedAfterHold);
         twoFingerTracking = false;
       }
-      if (event.getActionMasked() == MotionEvent.ACTION_UP) resetTwoFingerTracking();
-      if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+      if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+        firstPointerOnly = false;
         resetTwoFingerTracking();
+      }
+      if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        LatencyExperiments.resetTouchControllerContact();
         detector.clear();
         rotationTracker.clear();
         gestureStarted = false;
@@ -239,6 +260,12 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
   }
 
+  private boolean canDetectGesture() {
+    return state == TouchInteractionController.STATE_TOUCH_INTERACTING
+        || state == TouchInteractionController.STATE_TOUCH_EXPLORING
+        || state == TouchInteractionController.STATE_CLEAR;
+  }
+
   @Override public void onStateChanged(int next) {
     if (!active) return;
     if (state == TouchInteractionController.STATE_CLEAR && next != state) {
@@ -247,10 +274,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
     state = next;
     transitionPending = false;
-    if (next == TouchInteractionController.STATE_CLEAR) resetTwoFingerTracking();
+    if (next == TouchInteractionController.STATE_CLEAR) {
+      firstPointerOnly = false;
+      resetTwoFingerTracking();
+    }
     handler.removeCallbacks(explore);
     if (next == TouchInteractionController.STATE_DELEGATING
         || next == TouchInteractionController.STATE_DRAGGING) {
+      LatencyExperiments.resetTouchControllerContact();
       resetTwoFingerTracking();
       detector.clear();
       rotationTracker.clear();

@@ -32,6 +32,7 @@ import com.google.android.accessibility.talkback.Feedback.Focus;
 import com.google.android.accessibility.talkback.Feedback.Focus.Action;
 import com.google.android.accessibility.talkback.Feedback.NodeAction;
 import com.google.android.accessibility.talkback.Feedback.Part;
+import com.google.android.accessibility.talkback.Interpretation.Touch;
 import com.google.android.accessibility.talkback.Mappers;
 import com.google.android.accessibility.talkback.Mappers.Variables;
 import com.google.android.accessibility.talkback.R;
@@ -117,16 +118,23 @@ public class FocusFeedbackMapper {
 
     @Nullable AccessibilityNodeInfoCompat touchTarget = variables.touchTarget(depth); // Not owner
 
-    switch (variables.touchAction(depth)) {
+    Touch.Action touchAction = variables.touchAction(depth);
+    switch (touchAction) {
       case TOUCH_NOTHING -> {
         return Feedback.create(
             eventId,
             Feedback.sound(R.raw.view_entered).vibration(R.array.view_hovered_pattern).build());
       }
-      case TOUCH_START, TOUCH_ENTERED_UNFOCUSED_NODE -> {
+      case TOUCH_START, TOUCH_ENTERED_UNFOCUSED_NODE, CONTINUED_GESTURE_TOUCH_START -> {
         // Speech of an item that touch focuses still interrupts what was being said.
         return touchStopsSpeech
-            ? Feedback.create(eventId, Feedback.part().setInterruptGentle(true).build())
+            ? Feedback.create(
+                eventId,
+                Feedback.part()
+                    .setInterruptGentle(true)
+                    .setHoldSpeechFirst(
+                        touchAction == Touch.Action.CONTINUED_GESTURE_TOUCH_START)
+                    .build())
             : null;
       }
       case TOUCH_FOCUSED_NODE -> {

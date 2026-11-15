@@ -110,6 +110,10 @@
         android:title="@string/title_latency_immediate_speech" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
+        android:key="pref_latency_fast_single_finger_swipe"
+        android:title="@string/title_latency_fast_single_finger_swipe" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="false"
         android:key="pref_latency_touch_speech_with_rotation"
         android:title="@string/title_latency_touch_speech_with_rotation" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference

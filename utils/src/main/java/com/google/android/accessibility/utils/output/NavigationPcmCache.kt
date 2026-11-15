@@ -15,20 +15,27 @@ import java.nio.ByteBuffer
 import java.util.ArrayDeque
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicLongArray
 
 class NavigationPcmCache(context: Context) {
-  class PreparationNotifier(val flags: Int) : SpeechCacheManager.LoadSpeechResultNotifier {
+  class PreparationNotifier(val flags: Int, val generation: Long) : SpeechCacheManager.LoadSpeechResultNotifier {
     override fun onFinished(speechInfo: SpeechCachePlayer.SpeechInfo?, success: Boolean?) {}
   }
 
   private data class Identity(val engine: String, val voice: String, val locale: String,
     val outputRate: Int, val configuration: Long)
   private data class Key(val identity: Identity, val text: String, val pitch: Int, val rate: Int)
+  private enum class Work {
+    QUEUED, WAITING_FOR_INPUT, WAITING_FOR_ENGINE, NO_VOICE, DIFFERENT_LANGUAGE,
+    EXPIRED, SUPERSEDED, QUEUE_FULL, IDENTITY_MISS, TEXT_MISS
+  }
+
   private class Request(
     val key: Key, val voice: Voice, val params: Bundle,
     val foreground: TextToSpeech, val epoch: Long,
   ) {
     val id = "nav_pcm_" + nextId.incrementAndGet()
+    val queuedAt = SystemClock.uptimeMillis()
     val bytes = ByteArrayOutputStream()
     var file: File? = null
     var timeout: Runnable? = null
@@ -48,12 +55,15 @@ class NavigationPcmCache(context: Context) {
   private val misses = AtomicLong()
   private val prepared = AtomicLong()
   private val cancelled = AtomicLong()
+  private val work = AtomicLongArray(Work.entries.size)
   @Volatile private var identity: Identity? = null
   @Volatile private var closed = false
+  @Volatile private var foregroundStartedAt = 0L
   private var engine: TextToSpeech? = null
   private var engineName: String? = null
   private var ready = false
-  private var active: Request? = null
+  private var pendingGeneration = Long.MIN_VALUE
+  @Volatile private var active: Request? = null
   private val failures = AtomicLong()
   private var disabledUntil = 0L
   private var engineGeneration = 0L
@@ -61,7 +71,7 @@ class NavigationPcmCache(context: Context) {
 
   fun prepare(
     foreground: TextToSpeech, engineName: String, text: CharSequence,
-    locale: Locale, params: Bundle, outputRate: Int,
+    locale: Locale, params: Bundle, outputRate: Int, generation: Long,
   ) {
     if (closed || !LatencyExperiments.preparePcm() || text.isEmpty() || text.length > 1200) return
     val requestedEpoch = epoch.get()
@@ -70,19 +80,37 @@ class NavigationPcmCache(context: Context) {
     val parameters = Bundle(params)
     handler.post {
       if (closed || requestedEpoch != epoch.get() || requestedConfiguration != configuration.get()
-        || !LatencyExperiments.preparePcm()) return@post
-      val voice = try { foreground.voice } catch (failure: RuntimeException) { null } ?: return@post
-      if (voice.locale != locale) return@post
+        || !LatencyExperiments.preparePcm() || generation < pendingGeneration) return@post
+      val voice = try { foreground.voice } catch (failure: RuntimeException) { null }
+      if (voice == null) {
+        note(Work.NO_VOICE)
+        return@post
+      }
+      if (voice.locale.language != locale.language) {
+        note(Work.DIFFERENT_LANGUAGE)
+        return@post
+      }
+      if (requestedConfiguration != configuration.get()) return@post
       val current = Identity(engineName, voice.name, locale.toLanguageTag(), outputRate, requestedConfiguration)
       if (identity != current) {
         cache.clear()
         identity = current
       }
       val key = Key(current, spoken, parameters.getInt("pitch", 100), parameters.getInt("rate", 100))
-      if (cache.contains(key) ||
-        active?.key == key || queue.any { it.key == key }) return@post
-      if (queue.size >= 4) queue.removeFirst()
+      if (generation != pendingGeneration) {
+        if (queue.isNotEmpty()) {
+          work.addAndGet(Work.SUPERSEDED.ordinal, queue.size.toLong())
+          queue.clear()
+        }
+        pendingGeneration = generation
+      }
+      if (cache.contains(key) || active?.key == key || queue.any { it.key == key }) return@post
+      if (queue.size >= 4) {
+        note(Work.QUEUE_FULL)
+        return@post
+      }
       queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch))
+      note(Work.QUEUED)
       schedule(0)
     }
   }
@@ -93,30 +121,58 @@ class NavigationPcmCache(context: Context) {
     if (!LatencyExperiments.preparePcm() || closed) return null
     val current = identity
     if (current == null || current.engine != engineName ||
-      current.outputRate != outputRate || current.configuration != configuration.get() || (locale != null && current.locale != locale.toLanguageTag())) {
+      current.outputRate != outputRate || current.configuration != configuration.get() ||
+      current.locale != locale?.toLanguageTag()) {
       misses.incrementAndGet()
+      note(Work.IDENTITY_MISS)
       return null
     }
     val key = Key(current, text.toString(), params.getInt("pitch", 100), params.getInt("rate", 100))
     val result = cache.get(key)
-    if (result == null) misses.incrementAndGet() else hits.incrementAndGet()
+    if (result == null) {
+      misses.incrementAndGet()
+      note(Work.TEXT_MISS)
+    } else {
+      hits.incrementAndGet()
+    }
     return result
   }
 
-  fun cancelPreparation() {
+  fun onInput() {
+    val request = active ?: return
+    handler.post {
+      if (active === request) {
+        cancelActiveRequest()
+        schedule(INPUT_QUIET_MS)
+      }
+    }
+  }
+
+  fun onForegroundSpeech() {
+    foregroundStartedAt = SystemClock.uptimeMillis()
+    onInput()
+  }
+
+  private fun shouldYield(): Boolean =
+    LatencyExperiments.preparationInputIsActive(INPUT_QUIET_MS) ||
+      SystemClock.uptimeMillis() - foregroundStartedAt < INPUT_QUIET_MS
+
+  private fun cancelActiveRequest() {
+    val request = active ?: return
+    active = null
+    cancelled.incrementAndGet()
+    engine?.stop()
+    request.timeout?.let { handler.removeCallbacks(it) }
+    request.file?.delete()
+  }
+
+  private fun cancelPreparation() {
     if (closed) return
     epoch.incrementAndGet()
     handler.post {
       queue.clear()
       handler.removeCallbacks(pump)
-      val request = active
-      if (request != null) {
-        active = null
-        cancelled.incrementAndGet()
-        engine?.stop()
-        request.timeout?.let { handler.removeCallbacks(it) }
-        request.file?.delete()
-      }
+      cancelActiveRequest()
     }
   }
 
@@ -151,11 +207,17 @@ class NavigationPcmCache(context: Context) {
     prepared.set(0)
     cancelled.set(0)
     failures.set(0)
+    Work.entries.forEach { work.set(it.ordinal, 0) }
   }
 
   fun summary(): String =
     "Navigation PCM cache: hits=${hits.get()}, misses=${misses.get()}, " +
-      "prepared=${prepared.get()}, cancelled=${cancelled.get()}, failures=${failures.get()}, bytes=${cache.byteCount()}"
+      "prepared=${prepared.get()}, cancelled=${cancelled.get()}, failures=${failures.get()}, bytes=${cache.byteCount()}\n" +
+      "Navigation PCM work: " + Work.entries.joinToString { "${it.name}=${work.get(it.ordinal)}" }
+
+  private fun note(reason: Work) {
+    work.incrementAndGet(reason.ordinal)
+  }
 
   private fun schedule(delay: Long) {
     handler.removeCallbacks(pump)
@@ -165,11 +227,23 @@ class NavigationPcmCache(context: Context) {
   private fun startNext() {
     if (closed || active != null || !LatencyExperiments.preparePcm()) return
     if (SystemClock.uptimeMillis() < disabledUntil) { queue.clear(); return }
-    while (queue.peekFirst()?.let { it.epoch != epoch.get() } == true) queue.removeFirst()
+    val now = SystemClock.uptimeMillis()
+    while (queue.peekFirst()?.let { it.epoch != epoch.get() || now - it.queuedAt > MAX_PENDING_AGE_MS } == true) {
+      queue.removeFirst()
+      note(Work.EXPIRED)
+    }
     val request = queue.peekFirst() ?: return
-    if (LatencyExperiments.inputIsActive(120)) { schedule(40); return }
+    if (shouldYield()) {
+      note(Work.WAITING_FOR_INPUT)
+      schedule(RETRY_MS)
+      return
+    }
     val foregroundBusy = try { request.foreground.isSpeaking } catch (failure: RuntimeException) { true }
-    if (foregroundBusy) { schedule(60); return }
+    if (foregroundBusy) {
+      note(Work.WAITING_FOR_ENGINE)
+      schedule(RETRY_MS)
+      return
+    }
     if (engine == null || engineName != request.key.identity.engine) {
       engine?.shutdown()
       ready = false
@@ -195,12 +269,24 @@ class NavigationPcmCache(context: Context) {
       return
     }
     if (!ready) return
+    if (shouldYield()) {
+      schedule(RETRY_MS)
+      return
+    }
     queue.removeFirst()
     if (engine?.setVoice(request.voice) != TextToSpeech.SUCCESS) { schedule(0); return }
     val file = try { File.createTempFile("nav-pcm-", ".wav", appContext.cacheDir) }
       catch (failure: java.io.IOException) { schedule(0); return }
     request.file = file
     active = request
+    if (closed || request.epoch != epoch.get() || shouldYield()) {
+      active = null
+      request.file?.delete()
+      request.file = null
+      queue.addFirst(request)
+      schedule(RETRY_MS)
+      return
+    }
     val params = Bundle(request.params).apply {
       putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1f)
     }
@@ -276,6 +362,9 @@ class NavigationPcmCache(context: Context) {
   companion object {
     private val nextId = AtomicLong()
     private const val MAX_CACHE_BYTES = 8 * 1024 * 1024
+    private const val MAX_PENDING_AGE_MS = 2_000L
+    private const val INPUT_QUIET_MS = 60L
+    private const val RETRY_MS = 24L
   }
 }
 

@@ -44,6 +44,7 @@ object LatencyMeasurementSession {
       null
     }
     speechController?.failoverTts?.resetNavigationCacheStatistics()
+    TalkBackService.getInstance()?.updateNavigationMotionReporting()
     LogUtils.i("LatencyTrace", "Measurement counters reset")
   }
 
@@ -70,6 +71,7 @@ object LatencyMeasurementSession {
     reset()
     reportContext = context.applicationContext
     Performance.getInstance().startNavigationMeasurement()
+    TalkBackService.getInstance()?.updateNavigationMotionReporting()
     synchronized(lock) {
       running = true
       finishFuture =
@@ -101,6 +103,7 @@ object LatencyMeasurementSession {
       "Timed navigation measurement finished with ${samples.size} gestures",
     )
     mainHandler.post {
+      TalkBackService.getInstance()?.updateNavigationMotionReporting()
       val listener = synchronized(lock) {
         running = false
         if (completionListener == null) {
@@ -125,6 +128,7 @@ object LatencyMeasurementSession {
       return context.getString(R.string.message_latency_report_no_gestures)
     }
 
+    val inputTimings = samples.mapNotNull { it.inputToCallbackMs.takeIf { value -> value >= 0 } }
     val actionResults = samples.mapNotNull { it.actionResultMs.takeIf { value -> value >= 0 } }
     val sounded = samples.mapNotNull { it.firstSoundPcmMs.takeIf { value -> value >= 0 } }
     val submitted = samples.mapNotNull { it.soundSubmittedMs.takeIf { value -> value >= 0 } }
@@ -132,6 +136,18 @@ object LatencyMeasurementSession {
     val report = StringBuilder()
     report.append(context.getString(R.string.message_latency_report_count, samples.size))
     report.append("\n\n")
+    if (inputTimings.isNotEmpty()) {
+      report.append(
+        context.getString(
+          R.string.message_latency_report_input_summary,
+          inputTimings.size,
+          samples.size,
+          average(inputTimings),
+          inputTimings.maxOrNull() ?: 0,
+        )
+      )
+      report.append("\n")
+    }
     if (actionResults.isEmpty()) {
       report.append(context.getString(R.string.message_latency_report_no_action_result))
     } else {
@@ -180,6 +196,10 @@ object LatencyMeasurementSession {
     report.append(context.getString(R.string.message_latency_report_recent))
     recentSamples.forEachIndexed { index, sample ->
       val details = mutableListOf<String>()
+      if (sample.inputToCallbackMs >= 0) {
+        details.add(
+          context.getString(R.string.message_latency_report_row_input, sample.inputToCallbackMs))
+      }
       if (sample.actionResultMs >= 0) {
         details.add(
           context.getString(R.string.message_latency_report_row_action, sample.actionResultMs))

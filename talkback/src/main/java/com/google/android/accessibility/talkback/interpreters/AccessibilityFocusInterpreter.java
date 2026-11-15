@@ -59,6 +59,7 @@ import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.DisplayUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Role;
@@ -89,6 +90,7 @@ public class AccessibilityFocusInterpreter
   // 100 ms matches the framework's own scroll-event grouping interval, so a shorter wait would
   // mostly fire between the grouped events of a scroll that is still moving.
   private static final long MANUAL_SCROLL_SETTLE_MS = 100;
+  private static final long FAST_NATIVE_SCROLL_SETTLE_MS = 32;
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Member variables
@@ -245,7 +247,22 @@ public class AccessibilityFocusInterpreter
   private void schedulePendingManualScroll() {
     cancelWebFocusRecovery();
     handler.removeCallbacks(handlePendingManualScroll);
-    handler.postDelayed(handlePendingManualScroll, MANUAL_SCROLL_SETTLE_MS);
+    handler.postDelayed(handlePendingManualScroll,
+        useFastManualScroll() && !touchMonitor.isUserTouchingScreen()
+            ? FAST_NATIVE_SCROLL_SETTLE_MS : MANUAL_SCROLL_SETTLE_MS);
+  }
+
+  private boolean useFastManualScroll() {
+    return LatencyExperiments.Feature.FAST_SCROLL.enabled()
+        && pendingManualScroll != null && pendingManualScroll != webScroll
+        && pendingManualScroll.scrolledHoldsFocus();
+  }
+
+  public void onTouchInteractionEnded() {
+    if (useFastManualScroll()) {
+      handler.removeCallbacks(handlePendingManualScroll);
+      handler.postDelayed(handlePendingManualScroll, FAST_NATIVE_SCROLL_SETTLE_MS);
+    }
   }
 
   private boolean onWebScroll(ManualScrollInterpretation interpretation) {

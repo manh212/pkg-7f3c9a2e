@@ -25,7 +25,6 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.CollectionInfoCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.CollectionItemInfoCompat;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
-import com.google.android.accessibility.utils.TreeDebug;
 import com.google.android.accessibility.utils.output.ScrollActionRecord.AutoScrollSuccessChecker;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.Objects;
@@ -105,21 +104,20 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
   @Override
   public boolean isAutoScrollSuccess(
       AccessibilityNodeInfoCompat scrolledNodeInRecord, AccessibilityEvent scrolledEvent) {
-    if (scrolledEvent.getSource() == null) {
+    AccessibilityNodeInfo source = scrolledEvent.getSource();
+    if (source == null) {
       return false;
     }
 
-    AccessibilityNodeInfoCompat scrolledNode =
-        AccessibilityNodeInfoCompat.wrap(scrolledEvent.getSource());
-    if (!scrolledNode.equals(scrolledNodeInRecord)) {
+    boolean matches;
+    try {
+      matches = AccessibilityNodeInfoCompat.wrap(source).equals(scrolledNodeInRecord);
+    } finally {
+      source.recycle();
+    }
+    if (!matches) {
       return false;
     }
-    LogUtils.d(
-        TAG,
-        "isAutoScrollSuccess - record.getScrolledNode() = %s , event node = %s",
-        TreeDebug.nodeDebugDescription(scrolledNodeInRecord),
-        TreeDebug.nodeDebugDescription(scrolledNode));
-
     long scrollDeltaX = AccessibilityEventUtils.getScrollDeltaX(scrolledEvent);
     long scrollDeltaY = AccessibilityEventUtils.getScrollDeltaY(scrolledEvent);
     if (reachEdge(scrollDeltaX, scrollDeltaY, scrolledEvent)) {

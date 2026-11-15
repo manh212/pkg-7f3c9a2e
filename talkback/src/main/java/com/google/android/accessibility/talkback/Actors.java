@@ -34,6 +34,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.View.OnClickListener;
 import android.widget.Toast;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -116,6 +117,7 @@ import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryDialo
 import com.google.android.accessibility.talkback.translation.SpeechHistoryDialog;
 import com.google.android.accessibility.utils.AccessibilityNode;
 import com.google.android.accessibility.utils.FormFactorUtils;
+import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.PerformActionUtils;
@@ -1032,7 +1034,7 @@ class Actors {
    *       performAction implementation.
    * </ul>
    */
-  public void interruptGentle(EventId eventId) {
+  public void interruptGentle(EventId eventId, boolean holdSpeechFirst) {
     // Every item touch exploration moves to interrupts gently, so asking the app for its focus
     // here was a round trip on each one, the largest part of handling a hover. When dragging, that
     // was slower than the hovers came, so Backtalk fell further and further behind. The focus
@@ -1049,6 +1051,11 @@ class Actors {
     if (actorState.continuousRead.isActive()) {
       interruptSoundAndVibration();
     } else {
+      if (holdSpeechFirst && speaker.holdLocalSpeechForTouch()
+          && eventId != null && Performance.getInstance().isMeasuringNavigation()) {
+        LogUtils.i("LatencyTrace", "Continued gesture touch to local speech hold: %d ms",
+            SystemClock.uptimeMillis() - eventId.getEventTimeMs());
+      }
       interruptAllFeedback(/* stopTtsSpeechCompletely= */ false);
     }
   }

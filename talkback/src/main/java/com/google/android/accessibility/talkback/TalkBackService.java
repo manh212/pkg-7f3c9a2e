@@ -1236,6 +1236,12 @@ public class TalkBackService extends AccessibilityServiceCompat
       LatencyExperiments.onTouch(true);
     } else if (event.getEventType() == AccessibilityEvent.TYPE_TOUCH_INTERACTION_END) {
       LatencyExperiments.onTouch(false);
+      if (eventFilter != null) {
+        eventFilter.onTouchInteractionEnded();
+      }
+      if (accessibilityFocusInterpreter != null) {
+        accessibilityFocusInterpreter.onTouchInteractionEnded();
+      }
     }
     if (strict || backgroundEventGate == null
         || backgroundEventGate.onAccessibilityEvent(event, receivedAt)) {
@@ -2140,17 +2146,27 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   protected boolean onGesture(int gestureId) {
-    return handleOnGestureById(Display.DEFAULT_DISPLAY, gestureId);
+    return handleOnGestureById(Display.DEFAULT_DISPLAY, gestureId, -1, SystemClock.uptimeMillis());
   }
 
   @Override
   public boolean onGesture(AccessibilityGestureEvent accessibilityGestureEvent) {
-    if (handleOnGestureById(
-        accessibilityGestureEvent.getDisplayId(), accessibilityGestureEvent.getGestureId(),
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S
-            || accessibilityGestureEvent.getMotionEvents().isEmpty() ? -1
-            : accessibilityGestureEvent.getMotionEvents()
-                .get(accessibilityGestureEvent.getMotionEvents().size() - 1).getEventTime())) {
+    long callbackUptimeMs = SystemClock.uptimeMillis();
+    int gestureId = accessibilityGestureEvent.getGestureId();
+    if (!GestureReporter.ENABLED
+        && (gestureId == GESTURE_UNKNOWN || gestureId == GestureShortcutMapping.GESTURE_PASSTHROUGH
+            || gestureId == GestureShortcutMapping.GESTURE_TOUCH_EXPLORATION)) {
+      return false;
+    }
+    long motionEnd = -1;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      var motionEvents = accessibilityGestureEvent.getMotionEvents();
+      if (!motionEvents.isEmpty()) {
+        motionEnd = motionEvents.get(motionEvents.size() - 1).getEventTime();
+      }
+    }
+    if (handleOnGestureById(accessibilityGestureEvent.getDisplayId(), gestureId, motionEnd,
+        callbackUptimeMs)) {
       pipeline
           .getFeedbackReturner()
           .returnFeedback(
@@ -2160,11 +2176,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     return false;
   }
 
-  private boolean handleOnGestureById(int displayId, int gestureId) {
-    return handleOnGestureById(displayId, gestureId, -1);
-  }
-
-  private boolean handleOnGestureById(int displayId, int gestureId, long motionEnd) {
+  private boolean handleOnGestureById(
+      int displayId, int gestureId, long motionEnd, long callbackUptimeMs) {
     if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return false;
     LatencyExperiments.onInput();
     if (backgroundEventGate != null) {
@@ -2182,7 +2195,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       accessibilityFocusInterpreter.finishWebScrollFocus();
     }
     Performance perf = Performance.getInstance();
-    EventId eventId = perf.onGestureEventReceived(gestureId);
+    EventId eventId = perf.onGestureEventReceived(gestureId, callbackUptimeMs);
     perf.onNavigationMotionEnd(eventId, motionEnd);
     primesController.startTimer(TimerAction.GESTURE_EVENT);
 
@@ -2234,6 +2247,12 @@ public class TalkBackService extends AccessibilityServiceCompat
         && !PauseController.isPaused()
         && !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) {
       accessibilityFocusInterpreter.onContinuedGestureTouchDown(eventTime);
+    }
+  }
+
+  public void onGestureFingerReleased() {
+    if (eventFilter != null) {
+      eventFilter.onTouchInteractionEnded();
     }
   }
 
@@ -3445,7 +3464,7 @@ public class TalkBackService extends AccessibilityServiceCompat
             info.flags,
             ExperimentalUtils.getAdditionalTalkBackServiceFlags(),
             FeatureSupport.isMultiFingerGestureSupported(),
-            GestureReporter.ENABLED,
+            shouldSendGestureMotionEvents(),
             supportsTouchScreen,
             getBooleanPref(
                 R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default),
@@ -3461,6 +3480,27 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     LogUtils.v(TAG, "Accessibility Service flag set: 0x%X", info.flags);
     setServiceInfo(info);
+  }
+
+  private static boolean shouldSendGestureMotionEvents() {
+    return GestureReporter.ENABLED
+        || (BuildVersionUtils.isAtLeastS() && Performance.getInstance().isMeasuringNavigation());
+  }
+
+  public void updateNavigationMotionReporting() {
+    if (!BuildVersionUtils.isAtLeastS() || !isServiceActive()) {
+      return;
+    }
+    AccessibilityServiceInfo info = getServiceInfo();
+    if (info == null) {
+      return;
+    }
+    int motionFlag = AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
+    int updatedFlags = shouldSendGestureMotionEvents() ? info.flags | motionFlag : info.flags & ~motionFlag;
+    if (updatedFlags != info.flags) {
+      info.flags = updatedFlags;
+      setServiceInfo(info);
+    }
   }
 
   @VisibleForTesting

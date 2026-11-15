@@ -54,6 +54,8 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
   private static final String LOG_TAG = "GestureManifold";
 
   private final List<GestureMatcher> gestures = new ArrayList<>();
+  private final List<GestureMatcher> singlePointerMoveMatchers = new ArrayList<>();
+  private boolean singlePointerMoveMatchersReady;
   private final int displayId;
 
   private final Listener listener;
@@ -159,6 +161,7 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
 
   @CanIgnoreReturnValue
   public boolean onMotionEvent(EventId eventId, MotionEvent event) {
+    singlePointerMoveMatchersReady = false;
     for (GestureMatcher matcher : gestures) {
       if (matcher.getState() != GestureMatcher.STATE_GESTURE_CANCELED) {
         if (logMotionEvent) {
@@ -176,6 +179,34 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
       }
     }
     return false;
+  }
+
+  public void onSinglePointerMove(EventId eventId, MotionEvent event) {
+    if (!singlePointerMoveMatchersReady) {
+      singlePointerMoveMatchers.clear();
+      for (GestureMatcher matcher : gestures) {
+        if (matcher.getState() != GestureMatcher.STATE_GESTURE_CANCELED
+            && !(matcher instanceof TwoFingerDirectionalGesture)) {
+          singlePointerMoveMatchers.add(matcher);
+        }
+      }
+      singlePointerMoveMatchersReady = true;
+    }
+    int index = 0;
+    while (index < singlePointerMoveMatchers.size()) {
+      GestureMatcher matcher = singlePointerMoveMatchers.get(index);
+      if (processSingleFingerMatcher(matcher, eventId, event)) {
+        return;
+      }
+      if (!singlePointerMoveMatchersReady) {
+        return;
+      }
+      if (matcher.getState() == GestureMatcher.STATE_GESTURE_CANCELED) {
+        singlePointerMoveMatchers.remove(index);
+      } else {
+        index++;
+      }
+    }
   }
 
   public boolean onSingleFingerMotionEvent(EventId eventId, MotionEvent event) {
@@ -227,10 +258,12 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
   }
 
   public void addGestureMatcher(GestureMatcher matcher) {
+    singlePointerMoveMatchersReady = false;
     gestures.add(0, matcher);
   }
 
   public void clear() {
+    singlePointerMoveMatchersReady = false;
     for (GestureMatcher matcher : gestures) {
       matcher.clear();
     }
@@ -293,6 +326,7 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
 
   public void setMultiFingerGesturesEnabled(boolean mode) {
     if (multiFingerGesturesEnabled != mode) {
+      singlePointerMoveMatchersReady = false;
       multiFingerGesturesEnabled = mode;
       if (mode) {
         gestures.addAll(multiFingerGestures);
@@ -308,6 +342,7 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
 
   public void setTwoFingerPassthroughEnabled(boolean mode) {
     if (twoFingerPassthroughEnabled != mode) {
+      singlePointerMoveMatchersReady = false;
       twoFingerPassthroughEnabled = mode;
       if (!mode) {
         multiFingerGestures.addAll(twoFingerSwipes);

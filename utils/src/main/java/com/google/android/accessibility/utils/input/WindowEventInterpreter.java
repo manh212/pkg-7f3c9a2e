@@ -124,6 +124,10 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
           | AccessibilityEvent.WINDOWS_CHANGE_REMOVED
           | AccessibilityEvent.WINDOWS_CHANGE_PIP;
 
+  @RequiresApi(api = VERSION_CODES.P)
+  private static final int WINDOW_ACTIVATION_CHANGES =
+      AccessibilityEvent.WINDOWS_CHANGE_ACTIVE | AccessibilityEvent.WINDOWS_CHANGE_FOCUSED;
+
   private static final int PANE_CONTENT_CHANGE_TYPES =
       CONTENT_CHANGE_TYPE_PANE_TITLE
           | CONTENT_CHANGE_TYPE_PANE_APPEARED
@@ -597,7 +601,8 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
       }
     }
 
-    if (!isSupportedWindowsChange(event) && !isSupportedWindowStateChange(event)) {
+    if (!isSupportedWindowsChange(event) && !isSupportedWindowStateChange(event)
+        && !isNewApplicationActivation(event, allowEvent)) {
       return;
     }
 
@@ -803,7 +808,8 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
       return null;
     }
     AccessibilityWindowInfo window = findWindow(windowId);
-    if (window == null || !window.isActive() || !window.isFocused()) {
+    if (window == null || window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION
+        || !window.isActive() || !window.isFocused()) {
       return null;
     }
     AccessibilityNodeInfo root = AccessibilityWindowInfoUtils.getRoot(window);
@@ -819,6 +825,24 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
     }
   }
 
+  private boolean isNewApplicationActivation(AccessibilityEvent event, boolean allowEvent) {
+    if (!allowEvent || !LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS.enabled()
+        || !BuildVersionUtils.isAtLeastP()
+        || event.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        || AccessibilityEventUtils.getDisplayId(event) != Display.DEFAULT_DISPLAY
+        || (event.getWindowChanges() & WINDOW_ACTIVATION_CHANGES) == 0) {
+      return false;
+    }
+    int windowId = AccessibilityEventUtils.getWindowId(event);
+    if (windowId == WINDOW_ID_NONE || windowId == windowRoles.windowIdA) {
+      return false;
+    }
+    AccessibilityWindowInfo window = findWindow(windowId);
+    return window != null && window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION
+        && window.isActive() && window.isFocused()
+        && !TextUtils.isEmpty(AccessibilityWindowInfoUtils.getTitle(window));
+  }
+
   private static boolean isApplicationWindowTransitionEvent(
       EventInterpretation interpretation, WindowInterpretation application) {
     int eventWindowId = interpretation.getWindowIdFromEvent();
@@ -832,7 +856,8 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
     }
     int changes = interpretation.getWindowChangeTypes();
     return (eventWindowId == application.getId()
-            && (changes & AccessibilityEvent.WINDOWS_CHANGE_ADDED) != 0)
+            && (changes & (AccessibilityEvent.WINDOWS_CHANGE_ADDED | WINDOW_ACTIVATION_CHANGES))
+                != 0)
         || (eventWindowId == application.getOldId()
             && (changes & AccessibilityEvent.WINDOWS_CHANGE_REMOVED) != 0);
   }

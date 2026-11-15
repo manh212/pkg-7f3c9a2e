@@ -7,24 +7,25 @@ keep their stored values. Changing one experiment never enables another.
 
 | Preference suffix (`pref_latency_…`) | Enabled behavior |
 | --- | --- |
-| `trace` | Retain the latest 1,024 gesture records, individual stages, work spans, outcomes and counts exceeding 20 ms and 50 ms. Turning this switch on or off starts a new statistics session. |
+| `trace` | Retain the latest 1,024 gesture records, individual stages, work spans, outcomes and counts exceeding 20 ms and 50 ms. Request Android motion timestamps when supported. Turning this switch on or off starts a new statistics session. |
 | `reset_session` | Reset performance, traversal, event and audio-gap counters when clearing diagnostic logs. |
 | `stall_capture` | Capture main-thread stalls from 50 ms, retaining stacks in the diagnostic export even without the verbose log file. |
 | `light_logging` | Suppress most verbose/debug formatting during touch and for 250 ms after input; retain warnings, errors and latency markers. Disable the legacy debug watchdog unless explicit stall capture is enabled. |
 | `nonblocking_prefetch` | Skip the synchronous window-node prefetch wait on navigation. Existing background prefetch remains governed by the extras master switch. |
 | `async_order` | Build a missing logical reading order on a single background worker, then resume the original gesture. Queue subsequent navigation actions in arrival order. Requires the existing reading-order cache switch. |
-| `scoped_cache` | Preserve reading order and prepared speech when a known foreign window changes. Preserve the order for same-window metadata-only changes. Active-window transitions still invalidate the root. |
+| `scoped_cache` | Preserve reading order and prepared speech when a known foreign window changes. Preserve the order for same-window metadata-only changes and prepared speech whose node is outside a known change region. Active-window transitions invalidate prepared text. |
 | `input_priority` | Defer text/state-only updates during touch and the input grace interval, invalidate prepared text immediately, prioritize focus events, coalesce more aggressively and yield the compositor queue after a 2 ms slice. |
 | `toast_filter` | Avoid heads-up window-tree scans for toast events without an Android notification payload. Real notification processing remains available. |
 | `early_controls` | Allow early complete speech for sliders, progress controls and page indicators already exposing text, description or range information. Web, keyboard and known focus-dependent content retain their event path. |
 | `cached_text` | Prepare announcements only from a current saved tree, without an extra refresh. Prediction itself can still query nodes. |
 | `fresh_prepared` | Allow prepared speech younger than 100 ms when its content generation is still current. Expiry, target type and invalidation remain enforced. |
-| `pcm_adjacent` | Prepare PCM for the predicted adjacent target in both directions. |
-| `pcm_second` | Prepare PCM for targets two steps away, independently of adjacent PCM. |
+| `pcm_adjacent` | Prepare the first audio segment of the predicted adjacent target in both directions. |
+| `pcm_second` | Prepare the first audio segment for targets two steps away, independently of adjacent PCM. |
 | `immediate_speech` | Prioritize speech from navigation actions and linked responses over older noncritical speech. Preserve globally uninterruptible and wait-cap-exempt messages under their existing policies. |
-| `touch_speech_with_rotation` | Apply the existing stop-speech-on-touch setting when a new finger-down follows a completed gesture in the same Android touch interaction. Requires two-finger rotation and stop-speech-on-touch to be enabled. |
-| `fast_window_transitions` | Use a ready, named application window on the default display as soon as the transition event identifies it. Reuse the target window's root during one window-navigation action. |
-| `fast_scroll` | Resume from ready scroll data with a shorter settling delay and faster early checks. Preserve target/readiness checks and the existing bounded fallback. |
+| `fast_single_finger_swipe` | With two-finger rotation enabled, skip rotation checks on one-finger moves and reuse the active gesture matchers until another pointer joins. Use the normal confirmation event and gesture order. |
+| `touch_speech_with_rotation` | Apply the existing stop-speech-on-touch setting when a new finger-down follows a completed gesture in the same Android touch interaction. Hold local speech before clearing the feedback queue. Requires two-finger rotation and stop-speech-on-touch to be enabled. |
+| `fast_window_transitions` | Use a ready, named application window on the default display when an existing transition or a new active/focused window signal identifies it. Reuse the target window's root during one window-navigation action. |
+| `fast_scroll` | Resume from confirmed scroll data without a settling delay when a matching event reports a valid visible item range. Reuse local traversal where adaptive traversal is already active and shorten settling for manual native scrolling after touch ends. |
 | `live_edge_reuse` | Allow same-window edge checks to reuse a live traversal strategy. |
 | `audio_resample` | Resample each new speech stream outside the shared audio-output lock, under a per-stream lock. Takes effect for newly opened streams. |
 | `audio_keep_warm` | Extend idle audio-track retention from 2 seconds to 10 seconds. The shorter microphone-in-use policy remains. |
@@ -40,19 +41,27 @@ navigation action is foreground work dispatched to a worker, so it does not
 require idle preparation to be allowed. Idle async warmup does require it.
 
 Text lookahead and PCM are distinct. The existing adjacent/second text switches
-prepare feedback; the PCM switches additionally request audio. PCM misses
-immediately use normal synthesis. There is no wait for preparation.
+prepare feedback; the PCM switches additionally request audio. Lookahead resumes
+after touch, retries a missing saved order once and prepares adjacent targets
+before second-ahead targets, starting in the most recent navigation direction.
+The touch controller can resume lookahead at finger-up within a grouped Android
+touch interaction. Speculative targets do not replace the navigation pivot or
+increase the foreground order's cache hit totals.
+PCM misses immediately use normal synthesis. There is no wait for preparation.
 
 PCM preparation uses a separate TTS connection to the current engine and voice,
-only while input and foreground synthesis are quiet. New input cancels pending
-preparation without a synchronous engine call on the input thread. A shared
+only while input and foreground synthesis are quiet. New input cancels active
+preparation asynchronously. Pending preparations can resume until they expire
+or a newer focus supplies a replacement set. A shared
 engine process can still contend internally; this is an experiment to measure
 on the actual engine. Voice profiles and semantic TTS spans fall back to normal
 synthesis. Engine, voice, locale, pitch, rate, output sample rate and configuration
 isolate cache entries. Voice/settings changes invalidate prepared audio. Local
 audio playback is required. The cache has an 8 MiB/eight-entry bound, a four-item
 pending queue, six-second clip limit and a 2.5-second synthesis timeout. Temporary
-files are private and deleted on completion, cancellation or shutdown.
+files are private and deleted on completion, cancellation or shutdown. The
+diagnostic output distinguishes missing order, touch/engine deferrals,
+invalidations and lookup failures without including prepared text.
 
 Async order construction publishes complete trees only after a revision check.
 A cooperative 200 ms budget rejects partial results; a single blocked Android
@@ -98,8 +107,10 @@ events admitted to feedback.
 
 Stage times are cumulative from the original recognized gesture callback, even
 through async order, scroll and focus responses. `input_to_callback_ms` separately
-measures the last supplied motion timestamp to that callback; older APIs may not
-supply it. `ACTION_RESULT` and the legacy action stage are not action durations;
+measures the last supplied motion timestamp to callback entry. The timed result
+dialog includes that interval when Android supplies it. When the rotation touch
+experiment holds local speech, tracing also records finger-down to local hold.
+`ACTION_RESULT` and the legacy action stage are not action durations;
 `action_<id>_ms` is the measured duration of that action. Work spans report wall
 milliseconds and CPU microseconds measured on the same thread. Aggregate stage
 percentiles cannot be subtracted to infer per-gesture work.

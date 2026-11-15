@@ -5,6 +5,7 @@
   <string name="message_latency_session_running" translatable="false">Đang đo trong 10 giây. Hãy vuốt như bình thường.</string>
   <string name="title_latency_session_results" translatable="false">Kết quả đo độ trễ</string>
   <string name="message_latency_report_count" translatable="false">Đã ghi nhận %1$d lượt vuốt điều hướng trong 10 giây.</string>
+  <string name="message_latency_report_input_summary" translatable="false">Từ sự kiện chạm cuối đến nhận cử chỉ, %1$d trên %2$d lượt. Trung bình %3$d ms, chậm nhất %4$d ms.</string>
   <string name="message_latency_report_no_gestures" translatable="false">Không ghi nhận lượt vuốt điều hướng nào trong 10 giây.</string>
   <string name="message_latency_report_no_sound_pcm" translatable="false">Chưa ghi nhận PCM có tiếng.</string>
   <string name="message_latency_report_first_sound_summary" translatable="false">Vuốt đến PCM có tiếng: %1$d/%2$d lượt; trung bình %3$d ms; chậm nhất %4$d ms.</string>
@@ -15,6 +16,7 @@
   <string name="message_latency_report_action_summary" translatable="false">Vuốt đến kết quả điều hướng: %1$d/%2$d lượt; trung bình %3$d ms; chậm nhất %4$d ms; ≤50 ms: %5$d/%1$d.</string>
   <string name="message_latency_report_row" translatable="false">%1$d. %2$s — %3$s</string>
   <string name="message_latency_report_row_action" translatable="false">kết quả điều hướng %1$d ms</string>
+  <string name="message_latency_report_row_input" translatable="false">nhận cử chỉ %1$d ms</string>
   <string name="message_latency_report_row_submitted" translatable="false">gửi PCM tiếng tới bộ phát %1$d ms</string>
   <string name="message_latency_report_row_pcm_ready" translatable="false">PCM có tiếng %1$d ms</string>
   <string name="message_latency_report_row_audio_submitted" translatable="false">gửi âm thanh tới bộ phát %1$d ms; chưa xác nhận mẫu có tiếng</string>
@@ -38,6 +40,7 @@
   <string name="title_latency_pcm_adjacent" translatable="false">Chuẩn bị âm thanh cho mục liền trước và sau</string>
   <string name="title_latency_pcm_second" translatable="false">Chuẩn bị âm thanh cho mục cách hai bước</string>
   <string name="title_latency_immediate_speech" translatable="false">Ưu tiên phát lời điều hướng ngay</string>
+  <string name="title_latency_fast_single_finger_swipe" translatable="false">Vuốt một ngón nhanh khi bật xoay hai ngón</string>
   <string name="title_latency_touch_speech_with_rotation" translatable="false">Ngắt lời sớm khi bật xoay hai ngón</string>
   <string name="title_latency_fast_window_transitions" translatable="false">Chuyển cửa sổ nhanh</string>
   <string name="title_latency_fast_scroll" translatable="false">Tiếp tục điều hướng ngay khi có dữ liệu sau cuộn</string>

@@ -29,6 +29,16 @@ public class NavigationLatencyTest {
   }
 
   @Test
+  public void timedMeasurementKeepsTheFinalMotionToCallbackInterval() {
+    latency.setMeasurementActive(true);
+    latency.start(gesture);
+    latency.motionEnd(gesture, 988);
+    latency.navigationAction(gesture);
+
+    assertEquals(12L, latency.finishMeasurement(10).get(0).inputToCallbackMs);
+  }
+
+  @Test
   public void asynchronousScrollAndFocus_keepTheOriginalGestureStart() {
     latency.start(gesture);
     EventId scroll = new EventId(1700, Performance.EVENT_TYPE_ACCESSIBILITY,

@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.focusmanagement;
 
 import static android.view.accessibility.AccessibilityEvent.TYPE_TOUCH_INTERACTION_START;
 import static androidx.core.view.accessibility.AccessibilityWindowInfoCompat.TYPE_INPUT_METHOD;
+import static com.google.android.accessibility.talkback.Interpretation.Touch.Action.CONTINUED_GESTURE_TOUCH_START;
 import static com.google.android.accessibility.talkback.Interpretation.Touch.Action.LIFT;
 import static com.google.android.accessibility.talkback.Interpretation.Touch.Action.LONG_PRESS;
 import static com.google.android.accessibility.talkback.Interpretation.Touch.Action.TAP;
@@ -280,17 +281,19 @@ public class FocusProcessorForTapAndTouchExploration {
     touchInteractionStartTime = SystemClock.uptimeMillis();
 
     interpretationReceiver.input(eventId, null, Interpretation.TouchInteraction.create(true));
-    requestSpeechInterruptAtTouchStart(eventId);
+    requestSpeechInterruptAtTouchStart(eventId, TOUCH_START);
     return false;
   }
 
   public void onContinuedGestureTouchDown(long eventTime) {
     cancelPendingKeyboardSpeechInterrupt();
     requestSpeechInterruptAtTouchStart(
-        new EventId(eventTime, EVENT_TYPE_ACCESSIBILITY, TYPE_TOUCH_INTERACTION_START));
+        new EventId(eventTime, EVENT_TYPE_ACCESSIBILITY, TYPE_TOUCH_INTERACTION_START),
+        CONTINUED_GESTURE_TOUCH_START);
   }
 
-  private void requestSpeechInterruptAtTouchStart(EventId eventId) {
+  private void requestSpeechInterruptAtTouchStart(
+      EventId eventId, Interpretation.Touch.Action action) {
     if (actorState.getSpeechState().isSpeaking()) {
       // We refocus and re-announce a node if TalkBack is currently speaking.
       mayBeRefocusAction = true;
@@ -301,7 +304,7 @@ public class FocusProcessorForTapAndTouchExploration {
               interruptPendingKeyboardSpeech, DIRECT_KEYBOARD_TOUCH_DELIVERY_MS);
         }
       } else {
-        interruptSpeechAtTouchStart(eventId);
+        interruptSpeechAtTouchStart(eventId, action);
       }
     }
   }
@@ -322,13 +325,13 @@ public class FocusProcessorForTapAndTouchExploration {
     EventId eventId = pendingKeyboardSpeechInterrupt;
     cancelPendingKeyboardSpeechInterrupt();
     if (eventId != null && isSpeakingKeyboard()) {
-      interruptSpeechAtTouchStart(eventId);
+      interruptSpeechAtTouchStart(eventId, TOUCH_START);
     }
   }
 
-  private void interruptSpeechAtTouchStart(EventId eventId) {
+  private void interruptSpeechAtTouchStart(EventId eventId, Interpretation.Touch.Action action) {
     interpretationReceiver.input(
-        eventId, /* event= */ null, Interpretation.Touch.create(TOUCH_START));
+        eventId, /* event= */ null, Interpretation.Touch.create(action));
   }
 
   /** Resets the cached information of the current touch interaction. */

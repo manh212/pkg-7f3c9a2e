@@ -20,6 +20,7 @@ import static android.view.accessibility.AccessibilityEvent.CONTENT_CHANGE_TYPE_
 import static android.view.accessibility.AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_DISAPPEARED;
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOWS_CHANGED;
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_ACTIVE;
 import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_ADDED;
 import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_PIP;
 import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_REMOVED;
@@ -184,6 +185,15 @@ public class WindowEventInterpreterTest {
 
   @Test
   public void fastTransitionPublishesReadyApplicationBeforeItsStateChangedEvent() {
+    verifyFastTransition(WINDOWS_CHANGE_ADDED);
+  }
+
+  @Test
+  public void fastTransitionCanUseOnlyTheNewApplicationActivation() {
+    verifyFastTransition(WINDOWS_CHANGE_ACTIVE);
+  }
+
+  private void verifyFastTransition(int windowChanges) {
     openSettings();
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS, true);
     List<EventInterpretation> events = new ArrayList<>();
@@ -195,7 +205,7 @@ public class WindowEventInterpreterTest {
     shadowOf(wifi).setRoot(root);
     setWindows(statusBar(), navigationBar(), wifi);
 
-    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ADDED));
+    interpret(windowsChanged(WIFI, windowChanges));
 
     EventInterpretation ready = events.get(0);
     assertTrue(ready.areWindowsStable());
@@ -205,6 +215,19 @@ public class WindowEventInterpreterTest {
     interpret(windowsChanged(SETTINGS, WINDOWS_CHANGE_REMOVED));
     waitMs(600);
     assertEquals(1, events.stream().filter(EventInterpretation::getMainWindowsChanged).count());
+  }
+
+  @Test
+  public void activationWithoutStructuralChangesIsIgnoredWithTheExperimentOff() {
+    openSettings();
+    List<EventInterpretation> events = new ArrayList<>();
+    interpreter.addListener((interpretation, eventId) -> events.add(interpretation));
+    setWindows(statusBar(), navigationBar(), app(WIFI, "Wi-Fi").active().build());
+
+    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ACTIVE));
+    waitMs(600);
+
+    assertTrue(events.isEmpty());
   }
 
   @Test

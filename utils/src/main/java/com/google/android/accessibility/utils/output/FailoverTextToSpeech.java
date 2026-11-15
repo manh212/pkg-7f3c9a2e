@@ -1944,16 +1944,7 @@ public class FailoverTextToSpeech {
     List<Integer> starts =
         utteranceId == null
             ? Collections.singletonList(0)
-            : firstChunkEnd > 0
-                ? SpeechChunker.chunkStartsFromFirstCut(
-                    text,
-                    locale == null ? Locale.getDefault() : locale,
-                    firstChunkEnd,
-                    speaksInPhrases())
-                : !speaksInPhrases()
-                    ? Collections.singletonList(0)
-                    : SpeechChunker.chunkStarts(
-                        text, locale == null ? Locale.getDefault() : locale);
+            : speechChunkStarts(text, locale, firstChunkEnd);
     if (starts.size() <= 1) {
       if (utteranceId != null) {
         progressEstimator.onQueued(utteranceId, text, requestRate, ttsEngine);
@@ -2011,29 +2002,49 @@ public class FailoverTextToSpeech {
   }
 
   void prepareNavigationPcm(CharSequence text, @Nullable Locale locale, float pitch,
-      float rate, boolean absoluteRate) {
+      float rate, boolean absoluteRate, long preparationGeneration) {
     if (!LatencyExperiments.preparePcm() || !isReady() || VoiceProfiles.isProfileActive() || hasSelectedEngineVoice()
         || TextUtils.isEmpty(text) || ttsEngine == null) return;
     if (text instanceof android.text.Spanned spanned
         && spanned.getSpans(0, text.length(), TtsSpan.class).length > 0) return;
     LowLatencyAudio player = lowLatencyPlayer();
     if (player == null) return;
+    Locale spokenLocale = getUsedLocale();
+    Locale requestedLocale = LanguageSwitch.localeToSpeak(locale);
+    if (spokenLocale == null
+        || (requestedLocale != null && !requestedLocale.equals(spokenLocale))) return;
     if (navigationPcmCache == null) {
       navigationPcmCache = new NavigationPcmCache(context);
-      LatencyExperiments.setInputListener(navigationPcmCache::cancelPreparation);
+      LatencyExperiments.setInputListener(navigationPcmCache::onInput);
     }
-    Locale spokenLocale = locale == null ? getUsedLocale() : locale;
-    if (spokenLocale == null) return;
     Bundle params = new Bundle();
     params.putInt(SpeechParam.PITCH, (int) (pitch * defaultPitch * 100));
     params.putInt(SpeechParam.RATE, (int) ((absoluteRate ? rate : rate * defaultRate) * 100));
-    List<Integer> starts = speaksInPhrases()
-        ? SpeechChunker.chunkStarts(text, spokenLocale) : Collections.singletonList(0);
-    for (int i = 0; i < Math.min(starts.size(), 4); i++) {
-      int end = i + 1 < starts.size() ? starts.get(i + 1) : text.length();
-      navigationPcmCache.prepare(tts, ttsEngine, text.subSequence(starts.get(i), end),
-          spokenLocale, params, player.getSampleRate());
+    params.putString(SpeechParam.FALLBACK_LOCALE, "true");
+    int firstSeparatorEnd = 0;
+    if (splitAtFirstSeparatorEnabled && text instanceof android.text.Spanned spanned) {
+      int firstEnd = text.length();
+      for (IdentifierSpan separator : spanned.getSpans(0, text.length(), IdentifierSpan.class)) {
+        firstEnd = Math.min(firstEnd, spanned.getSpanEnd(separator));
+      }
+      if (firstEnd < text.length()) {
+        firstSeparatorEnd = firstEnd;
+      }
     }
+    List<Integer> starts = speechChunkStarts(text, spokenLocale, firstSeparatorEnd);
+    CharSequence first = starts.size() > 1 ? text.subSequence(0, starts.get(1)) : text;
+    navigationPcmCache.prepare(
+        tts, ttsEngine, first, spokenLocale, params, player.getSampleRate(), preparationGeneration);
+  }
+
+  private List<Integer> speechChunkStarts(
+      CharSequence text, @Nullable Locale locale, int firstChunkEnd) {
+    Locale chunkLocale = locale == null ? Locale.getDefault() : locale;
+    boolean phrases = speaksInPhrases();
+    if (firstChunkEnd > 0) {
+      return SpeechChunker.chunkStartsFromFirstCut(text, chunkLocale, firstChunkEnd, phrases);
+    }
+    return phrases ? SpeechChunker.chunkStarts(text, chunkLocale) : Collections.singletonList(0);
   }
 
   /**
@@ -2043,6 +2054,10 @@ public class FailoverTextToSpeech {
    */
   private int ttsSpeak(
       CharSequence text, int queueMode, Bundle bundle, @Nullable String utteranceId) {
+    NavigationPcmCache cache = navigationPcmCache;
+    if (cache != null) {
+      cache.onForegroundSpeech();
+    }
     int requestedStream = bundle.getInt(Engine.KEY_PARAM_STREAM, getSpeechAudioStream(context));
     @Nullable LowLatencyAudio player =
         lowLatencyPlayer(
@@ -2057,7 +2072,6 @@ public class FailoverTextToSpeech {
           Math.max(0f, Math.min(1f, floatParam(bundle, SpeechParam.VOLUME, 1f))));
       return speakOnRequestedStream(text, queueMode, nativeParams, utteranceId);
     }
-    NavigationPcmCache cache = navigationPcmCache;
     if (requestedStream == getSpeechAudioStream(context)
         && equalizerGains == null
         && compressorSettings == null
@@ -2070,7 +2084,6 @@ public class FailoverTextToSpeech {
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
       float[] prepared = cache.find(text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate());
       Performance.getInstance().onNavigationPcmCacheResult(utteranceId, prepared != null);
-      cache.cancelPreparation();
       if (prepared != null) {
         if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();
         LowLatencyAudio.SpeechStream stream = player.openStream(utteranceId,
@@ -2256,6 +2269,10 @@ public class FailoverTextToSpeech {
     mHandler.postDelayed(dropHeldSpeech, HELD_SPEECH_TIMEOUT_MS);
     LogUtils.d(TAG, "Holding speech of %s", heldUtteranceId);
     return true;
+  }
+
+  boolean holdLocalSpeechForTouch() {
+    return heldUtteranceId == null && holdLowLatencySpeech();
   }
 
   /**

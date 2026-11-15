@@ -22,6 +22,7 @@ public final class LatencyExperiments {
     PCM_ADJACENT("pcm_adjacent"),
     PCM_SECOND("pcm_second"),
     IMMEDIATE_SPEECH("immediate_speech"),
+    FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe"),
     TOUCH_SPEECH_WITH_ROTATION("touch_speech_with_rotation"),
     FAST_WINDOW_TRANSITIONS("fast_window_transitions"),
     FAST_SCROLL("fast_scroll"),
@@ -43,6 +44,7 @@ public final class LatencyExperiments {
 
   private static volatile long lastInput;
   private static volatile boolean touching;
+  private static volatile boolean touchControllerReleased;
   private static volatile boolean preparationAllowed;
   private static volatile Runnable inputListener;
 
@@ -85,8 +87,29 @@ public final class LatencyExperiments {
     onInput();
   }
 
+  public static void onTouchControllerContact(boolean active) {
+    touchControllerReleased = !active;
+    onInput();
+  }
+
+  public static void resetTouchControllerContact() {
+    touchControllerReleased = false;
+  }
+
+  public static boolean preparationTouchActive(boolean touchInteractionActive) {
+    return touchInteractionActive && !touchControllerReleased;
+  }
+
+  public static boolean preparationInputIsActive(long quietMillis) {
+    return preparationTouchActive(touching) || inputQuietDelay(quietMillis) > 0;
+  }
+
   public static boolean inputIsActive(long quietMillis) {
-    return touching || SystemClock.uptimeMillis() - lastInput < quietMillis;
+    return touching || inputQuietDelay(quietMillis) > 0;
+  }
+
+  public static long inputQuietDelay(long quietMillis) {
+    return Math.max(0, quietMillis - (SystemClock.uptimeMillis() - lastInput));
   }
 
   public static Map<String, Boolean> snapshot() {

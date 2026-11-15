@@ -903,6 +903,8 @@ public abstract class Feedback {
 
     public abstract boolean interruptGentle();
 
+    public abstract boolean holdSpeechFirst();
+
     public abstract boolean stopTts();
 
     public abstract @Nullable Label label();
@@ -985,6 +987,7 @@ public abstract class Feedback {
           .setInterruptSoundAndVibration(false)
           .setInterruptAllFeedback(false)
           .setInterruptGentle(false)
+          .setHoldSpeechFirst(false)
           .setStopTts(false);
     }
 
@@ -1033,6 +1036,8 @@ public abstract class Feedback {
       public abstract Builder setInterruptAllFeedback(boolean interruptAllFeedback);
 
       public abstract Builder setInterruptGentle(boolean interruptGentle);
+
+      public abstract Builder setHoldSpeechFirst(boolean holdSpeechFirst);
 
       // Requires interruptAllFeedback.
       public abstract Builder setStopTts(boolean stopTts);

@@ -30,6 +30,7 @@ final class NavigationLatency {
   static final class GestureSample {
     final String gesture;
     final String outcome;
+    final long inputToCallbackMs;
     final long actionResultMs;
     final long firstPcmMs;
     final long firstSoundPcmMs;
@@ -39,6 +40,7 @@ final class NavigationLatency {
     GestureSample(
         String gesture,
         String outcome,
+        long inputToCallbackMs,
         long actionResultMs,
         long firstPcmMs,
         long firstSoundPcmMs,
@@ -46,6 +48,7 @@ final class NavigationLatency {
         long soundSubmittedMs) {
       this.gesture = gesture;
       this.outcome = outcome;
+      this.inputToCallbackMs = inputToCallbackMs;
       this.actionResultMs = actionResultMs;
       this.firstPcmMs = firstPcmMs;
       this.firstSoundPcmMs = firstSoundPcmMs;
@@ -292,6 +295,7 @@ final class NavigationLatency {
           new GestureSample(
               AccessibilityServiceCompatUtils.gestureIdToString(trace.origin.getEventSubtype()),
               trace.outcome,
+              trace.motionEnd < 0 ? -1 : trace.origin.getEventTimeMs() - trace.motionEnd,
               trace.elapsed[Stage.ACTION_RESULT.ordinal()],
               trace.elapsed[Stage.FIRST_PCM.ordinal()],
               trace.elapsed[Stage.FIRST_SOUND_PCM.ordinal()],

@@ -24,6 +24,7 @@ public class LatencyExperimentsTest {
     }
     LatencyExperiments.setInputListener(null);
     LatencyExperiments.onTouch(false);
+    LatencyExperiments.resetTouchControllerContact();
     LatencyExperiments.setPreparationAllowed(false);
   }
 
@@ -61,5 +62,15 @@ public class LatencyExperimentsTest {
     LatencyExperiments.onTouch(false);
     assertEquals(2, cancellations.get());
     assertFalse(LatencyExperiments.inputIsActive(0));
+  }
+
+  @Test
+  public void physicalReleaseLetsPreparationResumeWithinAFrameworkTouchInteraction() {
+    LatencyExperiments.onTouch(true);
+    LatencyExperiments.onTouchControllerContact(false);
+    assertTrue(LatencyExperiments.inputIsActive(0));
+    assertFalse(LatencyExperiments.preparationInputIsActive(0));
+    LatencyExperiments.onTouchControllerContact(true);
+    assertTrue(LatencyExperiments.preparationInputIsActive(0));
   }
 }

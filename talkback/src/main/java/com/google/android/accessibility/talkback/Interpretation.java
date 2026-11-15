@@ -521,6 +521,7 @@ public abstract class Interpretation {
       LIFT,
       LONG_PRESS,
       TOUCH_START,
+      CONTINUED_GESTURE_TOUCH_START,
       TOUCH_NOTHING,
       TOUCH_FOCUSED_NODE,
       TOUCH_UNFOCUSED_NODE,

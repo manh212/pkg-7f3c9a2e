@@ -435,7 +435,7 @@ public class Pipeline implements AccessibilityEventListener, AccessibilityEventI
         actors.interruptSoundAndVibration();
       }
       if (part.interruptGentle()) {
-        actors.interruptGentle(feedback.eventId());
+        actors.interruptGentle(feedback.eventId(), part.holdSpeechFirst());
       }
 
       if (diagnosticOverlayController.isHighlightOverlayEnabled()) {

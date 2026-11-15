@@ -107,15 +107,25 @@ public class AutoScrollInterpreter implements ScrollEventHandler {
             AccessibilityEventUtils.getScrollDeltaX(event),
             AccessibilityEventUtils.getScrollDeltaY(event));
       } else {
+        boolean fastFocusScroll =
+            LatencyExperiments.Feature.FAST_SCROLL.enabled()
+                && ScrollActionRecord.FOCUS.equals(record.scrollSource);
         autoScrollHandler.delayHandleAutoScrollSuccess(
             eventId,
             AccessibilityEventUtils.getScrollDeltaX(event),
             AccessibilityEventUtils.getScrollDeltaY(event),
-            LatencyExperiments.Feature.FAST_SCROLL.enabled()
-                && ScrollActionRecord.FOCUS.equals(record.scrollSource)
-                ? (checker == null ? 0 : 16) : TIMEOUT_MS_HANDLE_SCROLL_BY_GESTURE);
+            fastFocusScroll
+                ? (checker == null || hasVisibleItemRange(event) ? 0 : 16)
+                : TIMEOUT_MS_HANDLE_SCROLL_BY_GESTURE);
       }
     }
+  }
+
+  @VisibleForTesting
+  static boolean hasVisibleItemRange(AccessibilityEvent event) {
+    int first = event.getFromIndex();
+    int last = event.getToIndex();
+    return first >= 0 && last >= first && last < event.getItemCount();
   }
 
   public void handleAutoScrollFailed() {

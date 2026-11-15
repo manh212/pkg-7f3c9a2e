@@ -198,6 +198,7 @@ public class FocusProcessorForLogicalNavigation {
   // Checks once a frame for about 100 ms, when Android would send the scroll event anyway.
   private static final long EARLY_SCROLL_RETRY_MS = 16;
   private static final int EARLY_SCROLL_RETRIES = 6;
+  private static final int FAST_SCROLL_RETRIES = 8;
 
   /** Most items that previous container steps back over to reach the start of a container. */
   private static final int MAX_CONTAINER_START_STEPS = 500;
@@ -1336,14 +1337,7 @@ public class FocusProcessorForLogicalNavigation {
     // few hundred, on the main thread, where a swipe that starts meanwhile would wait for it. A
     // swipe saves the order it builds, so the next prediction has one. The root comes from the
     // saved order too, as asking the window for it would wait for the app.
-    AccessibilityNodeInfoCompat rootNode = TraversalTreeCache.rootFor(pivot);
-    if (rootNode == null) {
-      // Remember where the next swipe starts all the same, as a search of the saved order does, so
-      // that a swipe after the focused node is removed carries on from here.
-      TraversalTreeCache.rememberPivot(pivot);
-      return null;
-    }
-    TraversalStrategy traversalStrategy = TraversalTreeCache.get(rootNode, pivot);
+    TraversalStrategy traversalStrategy = TraversalTreeCache.orderForPrediction(pivot);
     if (traversalStrategy == null) {
       return null;
     }
@@ -3179,7 +3173,9 @@ public class FocusProcessorForLogicalNavigation {
       earlyScrollCheckHandler.post(
           () ->
               checkScrollEarly(
-                  callback, scrollable, pivotBefore, eventId, EARLY_SCROLL_RETRIES));
+                  callback, scrollable, pivotBefore, eventId,
+                  LatencyExperiments.Feature.FAST_SCROLL.enabled()
+                      ? FAST_SCROLL_RETRIES : EARLY_SCROLL_RETRIES));
     }
     return scrolled;
   }
@@ -3213,7 +3209,8 @@ public class FocusProcessorForLogicalNavigation {
       if (retries > 0) {
         earlyScrollCheckHandler.postDelayed(
             () -> checkScrollEarly(callback, scrollable, pivotBefore, eventId, retries - 1),
-            LatencyExperiments.Feature.FAST_SCROLL.enabled() ? 8 : EARLY_SCROLL_RETRY_MS);
+            LatencyExperiments.Feature.FAST_SCROLL.enabled() && retries > EARLY_SCROLL_RETRIES
+                ? 8 : EARLY_SCROLL_RETRY_MS);
       }
       return;
     }
@@ -3670,12 +3667,6 @@ public class FocusProcessorForLogicalNavigation {
       }
     }
 
-    // Local TraversalStrategy generated in sub-tree of scrolledNode.
-    TraversalStrategy localTraversalStrategy =
-        TraversalStrategyUtils.getTraversalStrategy(
-            scrolledNode, focusFinder, sourceAction.searchDirection);
-    Filter<AccessibilityNodeInfoCompat> nodeFilter =
-        composeNodeFilter(sourceAction.targetType, localTraversalStrategy.getSpeakingNodesCache());
     Rect previousRect = new Rect();
     focusBeforeScroll.getBoundsInScreen(previousRect);
     boolean validAccessibilityFocus =
@@ -3686,12 +3677,41 @@ public class FocusProcessorForLogicalNavigation {
             .setAutoScrollAttempt(sourceAction.autoScrollAttempt + 1)
             .build();
 
-    AccessibilityNodeInfoCompat nodeToFocus;
+    boolean fastScroll = LatencyExperiments.Feature.FAST_SCROLL.enabled();
+    AccessibilityNodeInfoCompat nodeToFocus = null;
+    if (fastScroll && validAccessibilityFocus
+        && TraversalTreeCache.shouldUseLiveTraversal(scrolledNode.getWindowId())
+        && isMoveToNextOrPreviousItem(sourceAction)
+        && TraversalStrategyUtils.isLogicalDirection(sourceAction.searchDirection)
+        && !NodeOverrides.hasSource()) {
+      SimpleTraversalStrategy live = new SimpleTraversalStrategy();
+      AccessibilityNodeInfoCompat adjacent = live.findFocus(focusBeforeScroll, sourceAction.searchDirection);
+      Filter<AccessibilityNodeInfoCompat> filter =
+          composeNodeFilter(sourceAction.targetType, live.getSpeakingNodesCache());
+      if (adjacent != null && adjacent.isVisibleToUser()
+          && AccessibilityNodeInfoUtils.hasAncestor(adjacent, scrolledNode)
+          && filter.accept(adjacent)) {
+        nodeToFocus = adjacent;
+        TraversalTreeCache.noteLiveAnswer();
+        Performance.getInstance().onNavigationDetail(eventId, "scroll_live_target", 1);
+      }
+    }
+    if (nodeToFocus == null) {
+      long[] orderWork = Performance.getInstance().beginNavigationWork();
+      TraversalStrategy localTraversalStrategy =
+          TraversalStrategyUtils.getTraversalStrategy(
+              scrolledNode, focusFinder, sourceAction.searchDirection);
+      Performance.getInstance().endNavigationWork(eventId, "scroll_order", orderWork);
+      Filter<AccessibilityNodeInfoCompat> nodeFilter =
+          composeNodeFilter(sourceAction.targetType, localTraversalStrategy.getSpeakingNodesCache());
+      nodeToFocus = TraversalStrategyUtils.searchFocus(
+          localTraversalStrategy, focusBeforeScroll, sourceAction.searchDirection, nodeFilter);
+      if (nodeToFocus == null && !validAccessibilityFocus) {
+        nodeToFocus = TraversalStrategyUtils.findFirstFocusInNodeTree(
+            localTraversalStrategy, scrolledNode, sourceAction.searchDirection, nodeFilter);
+      }
+    }
     if (validAccessibilityFocus) {
-      // Try to find the next focusable node based on current focus.
-      nodeToFocus =
-          TraversalStrategyUtils.searchFocus(
-              localTraversalStrategy, focusBeforeScroll, sourceAction.searchDirection, nodeFilter);
       if (nodeToFocus == null) {
         Rect newRect = getBoundsAfterScroll(focusBeforeScroll);
         if ((!previousRect.equals(newRect) || fillsList(newRect, scrolledNode))
@@ -3722,23 +3742,8 @@ public class FocusProcessorForLogicalNavigation {
             eventId);
         return;
       }
-    } else {
-      // Try to find the next focusable node based on current focus.
-      nodeToFocus =
-          TraversalStrategyUtils.searchFocus(
-              localTraversalStrategy, focusBeforeScroll, sourceAction.searchDirection, nodeFilter);
-      // Fallback solution: Use the first/last item under scrollable node as the target.
-      if (nodeToFocus == null) {
-        nodeToFocus =
-            TraversalStrategyUtils.findFirstFocusInNodeTree(
-                localTraversalStrategy, scrolledNode, sourceAction.searchDirection, nodeFilter);
-      }
-
-      if (nodeToFocus == null) {
-        // Since there is no visible/valid accessibility focus on screen, we play safe and don't
-        // repeat navigation action without a valid pivot node.
-        return;
-      }
+    } else if (nodeToFocus == null) {
+      return;
     }
 
     // If we're moving backward with default target from native views to WebView container node,

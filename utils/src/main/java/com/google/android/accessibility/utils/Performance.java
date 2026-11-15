@@ -199,6 +199,7 @@ public class Performance {
   public static final class NavigationGestureSample {
     public final String gesture;
     public final String outcome;
+    public final long inputToCallbackMs;
     public final long actionResultMs;
     public final long firstPcmMs;
     public final long firstSoundPcmMs;
@@ -208,6 +209,7 @@ public class Performance {
     private NavigationGestureSample(NavigationLatency.GestureSample sample) {
       gesture = sample.gesture;
       outcome = sample.outcome;
+      inputToCallbackMs = sample.inputToCallbackMs;
       actionResultMs = sample.actionResultMs;
       firstPcmMs = sample.firstPcmMs;
       firstSoundPcmMs = sample.firstSoundPcmMs;
@@ -262,6 +264,10 @@ public class Performance {
 
   private boolean navigationTraceEnabled() {
     return LatencyExperiments.Feature.TRACE.enabled() || navigationMeasurementActive;
+  }
+
+  public boolean isMeasuringNavigation() {
+    return navigationTraceEnabled();
   }
 
   public boolean isNavigationEvent(EventId eventId) {
@@ -377,6 +383,23 @@ public class Performance {
   private long preparedSpeechHits;
 
   private long preparedSpeechMisses;
+
+  public enum PreparedSpeechWork {
+    WAITING_FOR_TOUCH,
+    WAITING_FOR_IDLE,
+    MISSING_ORDER,
+    SUPPRESSED_WINDOW,
+    NO_TARGET,
+    STALE_NODE,
+    INELIGIBLE_NODE,
+    EMPTY_SPEECH,
+    PREPARED,
+    INVALIDATED,
+    MISSING_ENTRY,
+    TOO_NEW
+  }
+
+  private final long[] preparedSpeechWork = new long[PreparedSpeechWork.values().length];
 
   private final List<LatencyTracker> latencyTrackers = new ArrayList<>();
 
@@ -565,7 +588,11 @@ public class Performance {
    * @return An event id that can be used to track performance through later stages.
    */
   public EventId onGestureEventReceived(int gestureId) {
-    EventId eventId = new EventId(getUptime(), EVENT_TYPE_GESTURE, gestureId);
+    return onGestureEventReceived(gestureId, getUptime());
+  }
+
+  public EventId onGestureEventReceived(int gestureId, long callbackUptimeMs) {
+    EventId eventId = new EventId(callbackUptimeMs, EVENT_TYPE_GESTURE, gestureId);
     if (!trackEvents()) {
       return eventId;
     }
@@ -1327,12 +1354,26 @@ public class Performance {
     }
   }
 
+  public void onPreparedSpeechWork(PreparedSpeechWork work) {
+    if (computeStatsEnabled || navigationTraceEnabled()) {
+      synchronized (lockLabelToStats) {
+        preparedSpeechWork[work.ordinal()]++;
+      }
+    }
+  }
+
   /** Displays how often focus was spoken from a prepared announcement, and how often not. */
   public void displayPreparedSpeechStats(Logger logger) {
     synchronized (lockLabelToStats) {
       if (preparedSpeechHits + preparedSpeechMisses > 0) {
         logger.log(
             "Prepared speech: %d hits, %d misses", preparedSpeechHits, preparedSpeechMisses);
+      }
+      for (PreparedSpeechWork work : PreparedSpeechWork.values()) {
+        long count = preparedSpeechWork[work.ordinal()];
+        if (count > 0) {
+          logger.log("Prepared speech work %s: %d", work, count);
+        }
       }
     }
   }
@@ -1350,6 +1391,7 @@ public class Performance {
       speechWaitCapHeld = 0;
       preparedSpeechHits = 0;
       preparedSpeechMisses = 0;
+      Arrays.fill(preparedSpeechWork, 0);
     }
     allEventStats.clear();
 
