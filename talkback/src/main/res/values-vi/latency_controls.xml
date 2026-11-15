@@ -17,25 +17,6 @@
     tài nguyên xử lý.
   </string>
 
-  <string name="title_pref_keep_preparation_on_focus_change">Giữ lại phần chuẩn bị khi tiêu điểm đổi</string>
-  <string name="summary_pref_keep_preparation_on_focus_change">
-    Để lượt chuẩn bị hoàn thành các mục của nó khi tiêu điểm chuyển sang một trong các mục đó
-    trong lúc vuốt nhanh, và giữ cho lượt chuẩn bị tiếp tục chạy khi đổi mức điều hướng, thay vì
-    bỏ đi. Chỉ hoạt động khi tắt “Tắt việc phụ gây trễ”.
-  </string>
-
-  <string name="title_latency_touch_explore">Khám phá ngay khi chạm xuống</string>
-  <string name="summary_latency_touch_explore">
-    Xin khám phá chạm ngay khi ngón tay chạm xuống, sau khoảng trễ ở dưới, thay vì chờ hệ thống tự
-    quyết. Khi bật, thao tác chạm đi qua bộ nhận diện cử chỉ trong ứng dụng, nên mỗi lần vuốt sẽ
-    đọc thoáng qua mục dưới ngón tay trước.
-  </string>
-  <string name="title_latency_touch_explore_delay">Độ trễ xin khám phá chạm</string>
-  <string name="summary_latency_touch_explore_delay">
-    Số mili giây chờ sau khi chạm xuống rồi mới xin khám phá. 0 là xin ngay; 250 chờ lâu tương
-    đương hệ thống hiện nay.
-  </string>
-
   <string name="title_pref_event_processing_level">Mức xử lý sự kiện</string>
   <string name="title_pref_order_cache">Dùng lại bộ đệm thứ tự điều hướng</string>
   <string name="title_pref_split_control_speech">Tách lời đọc điều khiển và nội dung</string>
