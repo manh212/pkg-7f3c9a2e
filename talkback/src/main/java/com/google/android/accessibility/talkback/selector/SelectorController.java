@@ -44,9 +44,12 @@ import static com.google.android.accessibility.talkback.selector.SelectorControl
 import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.FORMATTING;
 import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_CHARACTERS;
 import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_CONTAINERS;
+import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_LINES;
+import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_PARAGRAPHS;
 import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_SEARCH;
 import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_TYPO;
 import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_WINDOWS;
+import static com.google.android.accessibility.talkback.selector.SelectorController.Setting.GRANULARITY_WORDS;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 import static com.google.android.accessibility.utils.monitor.InputModeTracker.INPUT_MODE_TOUCH;
 import static com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_BACKWARD;
