@@ -21,6 +21,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget
+import com.google.android.accessibility.utils.LatencyExperiments
 import java.time.Duration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -196,9 +197,19 @@ class PreparedFocusSpeechSuppressionTest {
     event.recycle()
   }
 
+  /** Prepares for [windowId], then has a scroll in that window throw the preparation away. */
+  private fun wasteByScroll(windowId: Int) {
+    PreparedFocusSpeech.put(node(windowId), feedback(), "")
+    val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_SCROLLED)
+    shadowOf(event).setWindowId(windowId)
+    PreparedFocusSpeech.onAccessibilityEvent(event)
+    event.recycle()
+  }
+
   @Before
   fun setUp() {
     PreparedFocusSpeech.clear()
+    LatencyExperiments.setKeepPreparationOnFocusChange(true)
   }
 
   @Test
@@ -251,5 +262,29 @@ class PreparedFocusSpeechSuppressionTest {
 
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(105)))
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(106)))
+  }
+
+  @Test
+  fun fixOn_threeScrollWastes_doNotPausePreparation() {
+    LatencyExperiments.setKeepPreparationOnFocusChange(true)
+    repeat(3) { wasteByScroll(111) }
+
+    assertTrue(PreparedFocusSpeech.shouldPrepare(node(111)))
+  }
+
+  @Test
+  fun fixOff_threeScrollWastes_pausePreparation() {
+    LatencyExperiments.setKeepPreparationOnFocusChange(false)
+    repeat(3) { wasteByScroll(112) }
+
+    assertFalse(PreparedFocusSpeech.shouldPrepare(node(112)))
+  }
+
+  @Test
+  fun fixOn_threeContentChangeWastes_stillPausePreparation() {
+    LatencyExperiments.setKeepPreparationOnFocusChange(true)
+    repeat(3) { waste(113) }
+
+    assertFalse(PreparedFocusSpeech.shouldPrepare(node(113)))
   }
 }
