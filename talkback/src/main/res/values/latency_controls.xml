@@ -17,6 +17,13 @@
     use more processing.
   </string>
 
+  <string name="title_pref_keep_preparation_on_focus_change" translatable="false">Keep preparation when focus moves</string>
+  <string name="summary_pref_keep_preparation_on_focus_change" translatable="false">
+    Let a preparation pass finish its targets when focus moves onto one of them during rapid
+    swiping, and keep it running when the reading control changes, instead of dropping it.
+    Available only while Turn off latency extras is off.
+  </string>
+
   <string name="title_pref_order_cache" translatable="false">Dùng lại bộ đệm thứ tự điều hướng</string>
   <string name="title_pref_split_control_speech" translatable="false">Tách lời đọc điều khiển và nội dung</string>
   <string name="title_pref_event_processing_level" translatable="false">Mức xử lý sự kiện</string>
