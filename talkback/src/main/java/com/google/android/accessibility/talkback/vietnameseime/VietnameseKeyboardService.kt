@@ -66,6 +66,8 @@ class VietnameseKeyboardService : InputMethodService() {
   private var wordLost = false
   private var shifted = false
   private var symbols = false
+  // True while the T9 pad is the shown page for a numeric field; ABC clears it.
+  private var t9 = false
   private var vietnamese = true
   private var telexAllowed = false
   private var quickTelex = false
@@ -243,6 +245,7 @@ class VietnameseKeyboardService : InputMethodService() {
     val inputClass = inputType and InputType.TYPE_MASK_CLASS
     symbols = inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE ||
       inputClass == InputType.TYPE_CLASS_DATETIME
+    t9 = symbols
     editorActionId = editorAction(attribute)
     editorActionLabel = attribute?.actionLabel?.toString()?.takeIf {
       editorActionId != null && it.isNotBlank()
@@ -544,6 +547,7 @@ class VietnameseKeyboardService : InputMethodService() {
       vietnamese && telexAllowed,
       editorActionLabel.ifEmpty { getString(R.string.vietnamese_ime_enter) },
       telexAllowed,
+      t9 = t9,
     )
   }
 
@@ -562,8 +566,14 @@ class VietnameseKeyboardService : InputMethodService() {
     val speakAt = if (releasedAt > 0) releasedAt + timing.releaseSpeechMs else 0L
     when (id) {
       VietnameseKeyboardView.SHIFT -> shifted = !shifted
-      VietnameseKeyboardView.SYMBOLS -> symbols = true
-      VietnameseKeyboardView.LETTERS -> symbols = false
+      VietnameseKeyboardView.SYMBOLS -> {
+        symbols = true
+        t9 = false
+      }
+      VietnameseKeyboardView.LETTERS -> {
+        symbols = false
+        t9 = false
+      }
       VietnameseKeyboardView.LANGUAGE -> {
         finishWord(connection)
         if (telexAllowed) vietnamese = !vietnamese

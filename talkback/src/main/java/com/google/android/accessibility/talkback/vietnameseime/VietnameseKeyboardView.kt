@@ -61,6 +61,7 @@ internal class VietnameseKeyboardView(
   private var rows = emptyList<List<Cell>>()
   private var shifted = false
   private var symbolPage = false
+  private var t9Page = false
   private var telexEnabled = true
   private var telexAvailable = true
   private var actionLabel = context.getString(R.string.vietnamese_ime_enter)
@@ -218,19 +219,22 @@ internal class VietnameseKeyboardView(
     telex: Boolean,
     actionLabel: String,
     telexAvailable: Boolean = true,
+    t9: Boolean = false,
   ) {
     val pageChanged = symbolPage != symbols
+    val t9Changed = t9Page != t9
     val layoutChanged = isPcLayout() != rowsArePc || isLandscape() != rowsAreLandscape
-    val rebuild = rows.isEmpty() || pageChanged || layoutChanged || telexEnabled != telex ||
-      this.telexAvailable != telexAvailable || this.actionLabel != actionLabel
+    val rebuild = rows.isEmpty() || pageChanged || t9Changed || layoutChanged ||
+      telexEnabled != telex || this.telexAvailable != telexAvailable || this.actionLabel != actionLabel
     val shiftChanged = this.shifted != shifted
     if (layoutChanged) cancelInput()
-    if (pageChanged) {
+    if (pageChanged || t9Changed) {
       firstTaps.clear()
       lastDeleteTapMs = -1
     }
     this.shifted = shifted
     symbolPage = symbols
+    t9Page = t9
     telexEnabled = telex
     this.telexAvailable = telexAvailable
     this.actionLabel = actionLabel
@@ -833,6 +837,7 @@ internal class VietnameseKeyboardView(
   }
 
   private fun buildRows(): List<List<Cell>> {
+    if (t9Page) return buildT9Rows()
     val digits = characters("1234567890")
     val first = characters(if (symbolPage) "@#%&*+-=()" else "qwertyuiop")
     val second = characters(if (symbolPage) "!?:;/'\"_\$\\" else "asdfghjkl")
@@ -865,6 +870,27 @@ internal class VietnameseKeyboardView(
       listOfNotNull(symbolsRow, digitsRow, first, second, thirdRow, bottom)
     }
   }
+
+  private fun buildT9Rows(): List<List<Cell>> {
+    val first = t9Digits("123")
+    val second = t9Digits("456")
+    val third = t9Digits("789")
+    val fourth = characters("*") + t9Digits("0") + characters("#")
+    val bottom = listOf(
+      function(LETTERS, "ABC", 1.3f),
+      function(DELETE, "⌫", 1.6f),
+      characters("+").single(),
+      Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
+    )
+    return if (rowsArePc) listOf(bottom, fourth, third, second, first)
+    else listOf(first, second, third, fourth, bottom)
+  }
+
+  private fun t9Digits(text: String): List<Cell> =
+    text.map { letter ->
+      val key = letter.toString()
+      Cell(VietnameseKeyTouch.Key(key, textEntry = true), key)
+    }
 
   private fun characters(text: String): List<Cell> =
     text.map { letter ->
