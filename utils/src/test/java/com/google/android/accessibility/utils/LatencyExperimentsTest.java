@@ -28,17 +28,25 @@ public class LatencyExperimentsTest {
   }
 
   @Test
-  public void persistedSwitchesAreIndependentAndMissingSwitchesAreOff() {
+  public void persistedSwitchesAreIndependentAndMissingSwitchesUseTheirDefaults() {
     SharedPreferences preferences = RuntimeEnvironment.getApplication()
         .getSharedPreferences("latency-test", Context.MODE_PRIVATE);
     preferences.edit().clear().putBoolean(LatencyExperiments.Feature.ASYNC_ORDER.key, true).commit();
     LatencyExperiments.load(preferences);
     for (LatencyExperiments.Feature feature : LatencyExperiments.Feature.values()) {
-      assertEquals(feature == LatencyExperiments.Feature.ASYNC_ORDER, feature.enabled());
+      assertEquals(
+          feature == LatencyExperiments.Feature.ASYNC_ORDER
+              || feature == LatencyExperiments.Feature.WINDOW_SETTLE,
+          feature.enabled());
     }
     preferences.edit().clear().commit();
     LatencyExperiments.load(preferences);
     assertFalse(LatencyExperiments.Feature.ASYNC_ORDER.enabled());
+    // The window-settle fix ships enabled: an untouched switch still loads as on.
+    assertTrue(LatencyExperiments.Feature.WINDOW_SETTLE.enabled());
+    preferences.edit().putBoolean(LatencyExperiments.Feature.WINDOW_SETTLE.key, false).commit();
+    LatencyExperiments.load(preferences);
+    assertFalse(LatencyExperiments.Feature.WINDOW_SETTLE.enabled());
   }
 
   @Test
