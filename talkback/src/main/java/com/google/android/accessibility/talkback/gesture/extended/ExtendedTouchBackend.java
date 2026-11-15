@@ -59,6 +59,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       requestExploration();
     }
   };
+  private volatile long exploreDelayMs =
+      Math.max(150, ViewConfiguration.getDoubleTapTimeout() - 50);
 
   ExtendedTouchBackend(TalkBackService service, Runnable failure) {
     this(service, failure, false, true);
@@ -110,6 +112,10 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
   }
 
+  void setExploreDelayMs(long exploreDelayMs) {
+    this.exploreDelayMs = exploreDelayMs;
+  }
+
   boolean performClick() {
     if (!active || transitionPending
         || controllerState() == TouchInteractionController.STATE_DELEGATING
@@ -154,7 +160,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         downX[event.getPointerId(0)] = event.getX();
         if (!gestureStarted) {
           handler.removeCallbacks(explore);
-          handler.postDelayed(explore, Math.max(150, ViewConfiguration.getDoubleTapTimeout() - 50));
+          handler.postDelayed(explore, exploreDelayMs);
         }
       } else if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN) {
         int index = event.getActionIndex();
@@ -217,7 +223,10 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         handler.removeCallbacks(armExtendedAfterHold);
         twoFingerTracking = false;
       }
-      if (event.getActionMasked() == MotionEvent.ACTION_UP) resetTwoFingerTracking();
+      if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+        handler.removeCallbacks(explore);
+        resetTwoFingerTracking();
+      }
       if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
         resetTwoFingerTracking();
         detector.clear();
