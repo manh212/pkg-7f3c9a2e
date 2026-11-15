@@ -29,9 +29,9 @@ import java.util.concurrent.ExecutorService
  * The sound each timer plays when its own sound switch is on, chosen by the user apart from
  * the sound themes: one of the bundled library sounds, or an audio file of their own. The
  * chosen sound is copied into device-protected storage, like the sound themes' files, so
- * it still plays before the first unlock; the choice itself is per-device and stays out of
- * the settings backup, like the Braille keyboard's custom sounds. Until a sound is chosen
- * — or if the copied file is gone — the timer keeps the sound it has always played.
+ * it still plays before the first unlock; the choice and its file ride the settings backup.
+ * Until a sound is chosen — or if the copied file is gone — the timer keeps the sound it
+ * has always played.
  */
 object TimerSounds : SoundChoiceStore {
 
@@ -58,6 +58,17 @@ object TimerSounds : SoundChoiceStore {
 
   override fun soundFile(context: Context, slot: SoundSlot): File? =
     SoundFileStore.soundFile(SoundFileStore.directory(context, "timer_sounds"), slot.fileName)
+
+  /** The timer sounds as the settings backup carries them. */
+  fun backupJson(context: Context): String =
+    SoundFileStore.backupSoundsJson(context, "timer_sounds", Slot.entries.toTypedArray())
+
+  /**
+   * Replaces the timer sounds with the ones in a settings backup. Returns false if the
+   * backup's sounds cannot be read, and then changes nothing.
+   */
+  fun restoreBackup(context: Context, json: String): Boolean =
+    SoundFileStore.restoreSounds(context, "timer_sounds", Slot.entries.toTypedArray(), json)
 
   override fun label(context: Context, prefs: SharedPreferences, slot: SoundSlot): String? =
     prefs.getString(slot.key, null)?.takeIf { it.isNotEmpty() && soundFile(context, slot) != null }
