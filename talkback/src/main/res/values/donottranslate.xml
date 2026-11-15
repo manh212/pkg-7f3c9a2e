@@ -301,6 +301,7 @@
     <string name="pref_fix_stuck_touch_exploration_key" translatable="false">pref_fix_stuck_touch_exploration</string>
     <string name="pref_touch_stops_speech_key" translatable="false">pref_touch_stops_speech_key</string>
     <string name="pref_focus_new_windows_key" translatable="false">pref_focus_new_windows_key</string>
+    <string name="pref_volume_keys_adjust_speech_while_speaking_key" translatable="false">pref_volume_keys_adjust_speech_while_speaking</string>
     <string name="pref_volume_keys_adjust_sliders_key" translatable="false">pref_volume_keys_adjust_sliders_key</string>
     <string name="pref_volume_keys_move_cursor_key" translatable="false">pref_volume_keys_move_cursor</string>
     <string name="pref_speak_items_before_scroll_key" translatable="false">pref_speak_items_before_scroll_key</string>
@@ -1046,6 +1047,7 @@
         <item>@string/shortcut_scroll_forward</item>
         <item>@string/shortcut_scroll_to_top</item>
         <item>@string/shortcut_scroll_to_bottom</item>
+        <item>@string/shortcut_auto_scroll</item>
         <item>@string/shortcut_refresh</item>
     </string-array>
 
@@ -1065,6 +1067,7 @@
         <item>@string/shortcut_value_scroll_forward</item>
         <item>@string/shortcut_value_scroll_to_top</item>
         <item>@string/shortcut_value_scroll_to_bottom</item>
+        <item>@string/shortcut_value_auto_scroll</item>
         <item>@string/shortcut_value_refresh</item>
     </string-array>
 
@@ -1196,6 +1199,7 @@
   <string name="shortcut_value_scroll_forward">SCROLL_FORWARD</string>
   <string name="shortcut_value_scroll_to_top">SCROLL_TO_TOP</string>
   <string name="shortcut_value_scroll_to_bottom">SCROLL_TO_BOTTOM</string>
+  <string name="shortcut_value_auto_scroll" translatable="false">AUTO_SCROLL</string>
   <string name="shortcut_value_refresh" translatable="false">REFRESH</string>
   <string name="shortcut_value_toggle_browse_mode" translatable="false">TOGGLE_BROWSE_MODE</string>
   <string name="keycombo_shortcut_other_toggle_browse_mode_extra" translatable="false">keycombo_shortcut_other_toggle_browse_mode_extra</string>
@@ -1484,6 +1488,7 @@
     <bool name="pref_fix_stuck_touch_exploration_default">true</bool>
     <bool name="pref_touch_stops_speech_default">true</bool>
     <bool name="pref_focus_new_windows_default">true</bool>
+    <bool name="pref_volume_keys_adjust_speech_while_speaking_default">false</bool>
     <bool name="pref_volume_keys_adjust_sliders_default">false</bool>
     <bool name="pref_volume_keys_move_cursor_default">false</bool>
     <bool name="pref_speak_items_before_scroll_default">false</bool>

@@ -50,6 +50,10 @@
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:title="@string/volume_key_change_category">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
+        android:defaultValue="@bool/pref_volume_keys_adjust_speech_while_speaking_default"
+        android:key="@string/pref_volume_keys_adjust_speech_while_speaking_key"
+        android:title="@string/title_pref_volume_keys_adjust_speech_while_speaking" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_volume_keys_adjust_sliders_default"
         android:key="@string/pref_volume_keys_adjust_sliders_key"

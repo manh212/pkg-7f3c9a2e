@@ -6,6 +6,7 @@ package com.google.android.accessibility.talkback.monitor
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -15,9 +16,12 @@ import com.google.android.accessibility.talkback.Feedback
 import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
+import com.google.android.accessibility.utils.output.SpeechControllerImpl
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.ArrayDeque
 
 class FullScreenMonitor(
@@ -28,12 +32,24 @@ class FullScreenMonitor(
   companion object {
     const val KEY_APPS = "pref_full_screen_monitor_apps"
     const val KEY_MANUAL = "pref_full_screen_monitor_manual"
+    const val KEY_VOICE_PROFILE = "pref_full_screen_monitor_voice_profile"
+    const val KEY_AUDIO_STREAM = "pref_full_screen_monitor_audio_stream"
+
     private const val BATCH_DELAY_MS = 180L
     private const val SCAN_BUDGET_MS = 25L
     private const val MAX_NODES = 240
     private const val MAX_RECENT = 400
     private const val MAX_EVENTS = 16
     private var manualRevision = 0
+
+    fun voiceProfile(prefs: SharedPreferences): String =
+      prefs.getString(KEY_VOICE_PROFILE, "").orEmpty().takeIf { it in VoiceProfiles.ids(prefs) }.orEmpty()
+
+    fun audioStream(prefs: SharedPreferences): String =
+      prefs.getString(KEY_AUDIO_STREAM, "").orEmpty().takeIf {
+        it == FailoverTextToSpeech.STREAM_VALUE_ACCESSIBILITY ||
+          it == FailoverTextToSpeech.STREAM_VALUE_MEDIA || it == FailoverTextToSpeech.STREAM_VALUE_RING
+      }.orEmpty()
 
     @JvmStatic
     fun enabled(prefs: SharedPreferences, packageName: String): Boolean =
@@ -231,6 +247,11 @@ class FullScreenMonitor(
   }
 
   private fun speak(pipeline: Pipeline.FeedbackReturner, lines: List<String>) {
+    if (lines.isEmpty()) return
+    val speechParams = Bundle().apply {
+      putString(SpeechControllerImpl.SPEECH_PARAM_VOICE_PROFILE, voiceProfile(prefs))
+      putString(SpeechControllerImpl.SPEECH_PARAM_AUDIO_STREAM, audioStream(prefs))
+    }
     for (line in lines) {
       pipeline.returnFeedback(
         EVENT_ID_UNTRACKED,
@@ -238,6 +259,7 @@ class FullScreenMonitor(
           line,
           SpeakOptions.create()
             .setQueueMode(SpeechController.QUEUE_MODE_QUEUE)
+            .setSpeechParams(speechParams)
             .setFlags(FeedbackItem.FLAG_NO_HISTORY or
               FeedbackItem.FLAG_FORCE_FEEDBACK_EVEN_IF_AUDIO_PLAYBACK_ACTIVE),
         ),

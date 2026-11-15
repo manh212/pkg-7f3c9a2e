@@ -55,4 +55,6 @@
   <string name="shortcut_next_heading_5">Tiêu đề 5 tiếp theo</string>
   <string name="shortcut_previous_heading_6">Tiêu đề 6 trước</string>
   <string name="shortcut_next_heading_6">Tiêu đề 6 tiếp theo</string>
+    <string name="shortcut_auto_scroll">Cuộn tự động</string>
+    <string name="auto_scroll_direction">Chọn hướng cuộn tự động</string>
 </resources>

@@ -23,6 +23,18 @@ class TelexTest {
   }
 
   @Test
+  fun completesBothHornsWhenTypedSeparatelyOrBeforeTheEnding() {
+    assertEquals("người", type("nguwowif"))
+    assertEquals("người", type("nguwoif"))
+    assertEquals("NGƯỜI", type("NGUWOWIF"))
+    assertEquals("trường", type("truwowngf"))
+    assertEquals("giường", type("giuwowngf"))
+    assertEquals("hươu", type("huwou"))
+    assertEquals("huơ", type("huow"))
+    assertEquals("quờ", type("quowf"))
+  }
+
+  @Test
   fun canReplaceRemoveAndEscapeToneOrShape() {
     assertEquals("tì", type("tisf"))
     assertEquals("ti", type("tisz"))

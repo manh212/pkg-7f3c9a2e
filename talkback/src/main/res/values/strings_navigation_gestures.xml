@@ -113,4 +113,6 @@
     <string name="shortcut_previous_heading_6">Previous heading 6</string>
     <!-- Gesture action: move to the next level 6 heading on a web page. [CHAR LIMIT=40] -->
     <string name="shortcut_next_heading_6">Next heading 6</string>
+    <string name="shortcut_auto_scroll">Cuộn tự động</string>
+    <string name="auto_scroll_direction">Chọn hướng cuộn tự động</string>
 </resources>

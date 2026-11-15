@@ -278,6 +278,7 @@ public class GestureController {
 
   /** Stops what gestures started that is still going on. */
   public void shutdown() {
+    listEdgeScroller.closeDirectionDialog();
     listEdgeScroller.cancel();
     pullToRefresh.cancel();
     dictation.shutdown();
@@ -290,6 +291,8 @@ public class GestureController {
   }
 
   public boolean stopScreenRecognitionForPause() {
+    listEdgeScroller.closeDirectionDialog();
+    listEdgeScroller.cancel();
     subtitleController.stop(false);
     return screenRecognitionController.stopSilently();
   }
@@ -301,8 +304,9 @@ public class GestureController {
     pullToRefresh.cancel();
   }
 
-  public void onSubtitleAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
+  public void onRawAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
     subtitleController.onAccessibilityEvent(event);
+    listEdgeScroller.onAccessibilityEvent(event);
   }
 
   public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
@@ -462,6 +466,8 @@ public class GestureController {
       result = pipeline.returnFeedback(eventId, Feedback.focusTop(INPUT_MODE_TOUCH));
     } else if (action.equals(service.getString(R.string.shortcut_value_last_in_screen))) {
       result = pipeline.returnFeedback(eventId, Feedback.focusBottom(INPUT_MODE_TOUCH));
+    } else if (action.equals(service.getString(R.string.shortcut_value_auto_scroll))) {
+      result = listEdgeScroller.chooseAutomaticDirection(eventId);
     } else if (action.equals(service.getString(R.string.shortcut_value_scroll_to_top))) {
       result = listEdgeScroller.scroll(/* toStart= */ true, eventId);
     } else if (action.equals(service.getString(R.string.shortcut_value_scroll_to_bottom))) {

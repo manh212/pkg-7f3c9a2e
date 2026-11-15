@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
   <string name="selector_speech_volume_value">Âm lượng giọng nói: %1$d%%</string>
+  <string name="title_pref_volume_keys_adjust_speech_while_speaking">Phím âm lượng chỉnh âm lượng trợ năng khi đang đọc</string>
 </resources>

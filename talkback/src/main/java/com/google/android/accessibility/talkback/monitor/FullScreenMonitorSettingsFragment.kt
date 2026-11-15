@@ -6,11 +6,13 @@ package com.google.android.accessibility.talkback.monitor
 
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
 import androidx.preference.PreferenceGroup
+import com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.notifications.NotificationReader
+import com.google.android.accessibility.talkback.speech.VoiceProfileNames
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import java.util.concurrent.Executors
 
 /** Settings > Notifications > Full-screen monitoring. Every chosen app is on by default. */
@@ -32,6 +34,35 @@ class FullScreenMonitorSettingsFragment :
       FullScreenMonitor.toggle(context)
       rebuild()
     }
+    val profiles = VoiceProfileNames.names(context, prefs)
+    val voicePreference = AccessibilitySuiteListPreference(context).apply {
+      key = FullScreenMonitor.KEY_VOICE_PROFILE
+      setTitle(R.string.full_screen_monitor_voice_profile)
+      entries = (listOf(getString(R.string.voice_profile_default)) + profiles.values).toTypedArray()
+      entryValues = (listOf("") + profiles.keys).toTypedArray()
+      summary = "%s"
+      isIconSpaceReserved = false
+    }
+    screen.addPreference(voicePreference)
+    voicePreference.value = FullScreenMonitor.voiceProfile(prefs)
+    val streamPreference = AccessibilitySuiteListPreference(context).apply {
+      key = FullScreenMonitor.KEY_AUDIO_STREAM
+      setTitle(R.string.full_screen_monitor_audio_stream)
+      entries = arrayOf(
+        getString(R.string.translation_bilingual_stream_default),
+        *resources.getStringArray(R.array.timer_stream_entries),
+      )
+      entryValues = arrayOf(
+        "",
+        FailoverTextToSpeech.STREAM_VALUE_ACCESSIBILITY,
+        FailoverTextToSpeech.STREAM_VALUE_MEDIA,
+        FailoverTextToSpeech.STREAM_VALUE_RING,
+      )
+      summary = "%s"
+      isIconSpaceReserved = false
+    }
+    screen.addPreference(streamPreference)
+    streamPreference.value = FullScreenMonitor.audioStream(prefs)
     screen.information(getString(R.string.full_screen_monitor_note))
     val category = screen.category(R.string.full_screen_monitor_apps)
     val apps = installed

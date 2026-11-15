@@ -1017,9 +1017,25 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun landscapeSpaceColumnCanHideTheKeyboardAndOmitInputMethodPicker() {
+    preparePcKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 80f, 290f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 290f, 170)
+    assertEquals(listOf(VietnameseKeyboardView.HIDE), typed)
+    assertTrue(keyLabels().contains(context.getString(R.string.vietnamese_ime_picker_key)))
+
+    keyboard.showKeyboardPicker = false
+    assertFalse(keyLabels().contains(context.getString(R.string.vietnamese_ime_picker_key)))
+    assertTrue(keyLabels().contains(context.getString(R.string.vietnamese_ime_hide)))
+  }
+
+  @Test
   @Config(qualifiers = "w400dp-h800dp-port")
   fun pcLayoutPortraitColumnsAreVertical() {
     preparePcKeyboardPortrait()
+    assertFalse(keyLabels().contains(context.getString(R.string.vietnamese_ime_hide)))
 
     touch(MotionEvent.ACTION_DOWN, 120f, 14f, 100)
     touch(MotionEvent.ACTION_UP, 120f, 14f, 170)
@@ -1687,6 +1703,14 @@ class VietnameseKeyboardViewTest {
     slot: KeyboardKeySounds.Slot,
     vibratePercent: Int = 100,
   ) = FeedbackCall(vibrate, sound, soundFor(slot), vibratePercent)
+
+  private fun keyLabels(): List<String> {
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    return (0 until host.childCount).mapNotNull {
+      provider.createAccessibilityNodeInfo(it)?.text?.toString()
+    }
+  }
 
   private fun prepareKeyboard() {
     keyboard.typingMethod = DIRECT_SILENT_TYPING

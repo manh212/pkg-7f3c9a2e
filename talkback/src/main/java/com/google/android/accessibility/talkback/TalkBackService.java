@@ -1206,7 +1206,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       fullScreenMonitor.onEvent(event, pipeline.getFeedbackReturner());
     }
     if (gestureController != null) {
-      gestureController.onSubtitleAccessibilityEvent(event);
+      gestureController.onRawAccessibilityEvent(event);
     }
     boolean strict = backgroundEventGate != null && backgroundEventGate.isStrict();
     if (strict && !backgroundEventGate.onAccessibilityEvent(event, receivedAt)) {
@@ -2049,6 +2049,23 @@ public class TalkBackService extends AccessibilityServiceCompat
     adjustContextualVolume(increase, isTouchInteracting());
   }
 
+  public boolean shouldAdjustSpeechVolumeWhileSpeaking() {
+    return speechController != null
+        && pipeline != null
+        && speechController.isSpeaking()
+        && pipeline.getActorState().getSpeechState()
+            .isSpeakingOrQueuedAndNotSourceIsVolumeAnnouncement()
+        && getBooleanPref(
+            R.string.pref_volume_keys_adjust_speech_while_speaking_key,
+            R.bool.pref_volume_keys_adjust_speech_while_speaking_default);
+  }
+
+  public void adjustSpeechVolumeWhileSpeaking(boolean increase) {
+    AudioManager audioManager = getSystemService(AudioManager.class);
+    if (audioManager == null) return;
+    changeContextualVolume(audioManager, AudioManager.STREAM_ACCESSIBILITY, increase);
+  }
+
   public void adjustUnmanagedVolumeKey(boolean increase, boolean touching) {
     if (touching) {
       adjustContextualVolume(increase, true);
@@ -2070,13 +2087,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       return;
     }
     int stream = touching ? AudioManager.STREAM_ACCESSIBILITY : AudioManager.STREAM_MUSIC;
-    ignoreSelfVolumeChange(stream);
-    AudioManagerCompatUtils.adjustStreamVolume(
-        audioManager,
-        stream,
-        increase ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER,
-        /* flags= */ 0,
-        getClass().getName());
+    changeContextualVolume(audioManager, stream, increase);
     if (!getBooleanPref(
         R.string.pref_speak_volume_changes_key, R.bool.pref_speak_volume_changes_default)) {
       return;
@@ -2101,7 +2112,18 @@ public class TalkBackService extends AccessibilityServiceCompat
                     .setFlags(
                         FeedbackItem.FLAG_NO_HISTORY
                             | FeedbackItem.FLAG_FORCE_FEEDBACK_ALL
-                            | FeedbackItem.FLAG_SKIP_DUPLICATE)));
+                            | FeedbackItem.FLAG_SKIP_DUPLICATE
+                            | FeedbackItem.FLAG_SOURCE_IS_VOLUME_CONTROL)));
+  }
+
+  private void changeContextualVolume(AudioManager audioManager, int stream, boolean increase) {
+    ignoreSelfVolumeChange(stream);
+    AudioManagerCompatUtils.adjustStreamVolume(
+        audioManager,
+        stream,
+        increase ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER,
+        0,
+        getClass().getName());
   }
 
   @Override

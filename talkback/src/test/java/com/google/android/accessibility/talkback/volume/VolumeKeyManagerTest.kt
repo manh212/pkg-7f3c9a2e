@@ -24,16 +24,23 @@ class VolumeKeyManagerTest {
   class RecordingService : TalkBackService() {
     val actions = mutableListOf<String>()
     var callActive = false
+    var reading = false
+    var touchingScreen = false
     override fun onCreate() {}
     override fun isPhoneCallActive() = callActive
-    override fun isTouchInteracting() = false
+    override fun isTouchInteracting() = touchingScreen
+    override fun shouldAdjustSpeechVolumeWhileSpeaking() = reading
+    override fun adjustSpeechVolumeWhileSpeaking(increase: Boolean) {
+      actions += if (increase) "speechUp" else "speechDown"
+    }
     override fun resolveVolumeKeyUse(triggerModifierPressed: Boolean) = TalkBackService.VOLUME_KEY_CHANGES_VOLUME
     override fun performCatalogAction(action: String) { actions += action }
     override fun adjustContextualVolume(increase: Boolean, touching: Boolean) {
       actions += if (increase) "up" else "down"
     }
     override fun adjustUnmanagedVolumeKey(increase: Boolean, touching: Boolean) {
-      actions += if (increase) "systemUp" else "systemDown"
+      if (touching) adjustContextualVolume(increase, true)
+      else actions += if (increase) "systemUp" else "systemDown"
     }
   }
 
@@ -67,6 +74,21 @@ class VolumeKeyManagerTest {
       key(second, KeyEvent.ACTION_UP)
     }
     assertEquals(listOf("TOGGLE_TOUCH_EXPLORATION", "TOGGLE_TOUCH_EXPLORATION"), service.actions)
+  }
+
+  @Test fun adjustsSpeechDuringReadingAndRetainsTouchAndIdleVolumeRoutes() {
+    service.reading = true
+    tap(up)
+    tap(down)
+
+    service.reading = false
+    service.touchingScreen = true
+    tap(up)
+
+    service.touchingScreen = false
+    tap(down)
+
+    assertEquals(listOf("speechUp", "speechDown", "up", "systemDown"), service.actions)
   }
 
   @Test fun disabledMultiPressKeepsSinglePresses() {

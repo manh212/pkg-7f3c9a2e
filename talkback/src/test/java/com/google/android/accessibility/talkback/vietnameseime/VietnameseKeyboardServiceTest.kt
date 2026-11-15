@@ -7,6 +7,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.Selection
 import android.text.SpannableStringBuilder
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -20,7 +21,9 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
+import com.google.android.accessibility.talkback.selector.SelectorController
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.input.CursorGranularity
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_CHARACTERS
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_CHARACTERS_AND_WORDS
 import com.google.android.accessibility.utils.input.TextEventFilter.PREF_ECHO_NONE
@@ -283,6 +286,64 @@ class VietnameseKeyboardServiceTest {
     press("gi")
 
     assertEquals("Mạ", text.toString())
+  }
+
+  @Test
+  fun typesNguoiAfterAnEarlierSelectionUpdateWithNoComposingSpan() {
+    setAutoCapitalize(false)
+    startEditor()
+    listOf("nờ", "gờ", "u", "vê kép", "o", "vê kép", "i").forEach(::press)
+    service.onUpdateSelection(2, 2, 3, 3, -1, -1)
+    press("ép")
+
+    assertEquals("người", text.toString())
+  }
+
+  @Test
+  fun physicalKeyboardComposesEvenWhenTheInputViewIsHidden() {
+    service.onStartInput(EditorInfo().apply {
+      inputType = InputType.TYPE_CLASS_TEXT
+      initialSelStart = 0
+      initialSelEnd = 0
+    }, false)
+    ReflectionHelpers.setField(service, "mIsInputViewShown", false)
+    for (letter in "nguwowif dduowngf") {
+      val keyCode = if (letter == ' ') KeyEvent.KEYCODE_SPACE else KeyEvent.KEYCODE_A + (letter - 'a')
+      assertTrue(service.onKeyDown(keyCode, physicalKey(KeyEvent.ACTION_DOWN, keyCode)))
+      assertTrue(service.onKeyUp(keyCode, physicalKey(KeyEvent.ACTION_UP, keyCode)))
+    }
+
+    assertEquals("người đường", text.toString())
+  }
+
+  @Test
+  fun physicalKeyboardLeavesShortcutAndPasswordKeysToTheEditor() {
+    val code = KeyEvent.KEYCODE_A
+    startEditor()
+    assertFalse(service.onKeyDown(code, physicalKey(KeyEvent.ACTION_DOWN, code, KeyEvent.META_CTRL_ON)))
+    assertFalse(service.onKeyUp(code, physicalKey(KeyEvent.ACTION_UP, code, KeyEvent.META_CTRL_ON)))
+    startEditor { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
+    assertFalse(service.onKeyDown(code, physicalKey(KeyEvent.ACTION_DOWN, code)))
+    assertTrue(text.isEmpty())
+  }
+
+  @Test
+  fun wordNavigationDeletesTheWholeWordAtTheCursor() {
+    text.append("xin người")
+    val insideWord = 6
+    Selection.setSelection(text, insideWord)
+    startEditor { initialSelStart = insideWord; initialSelEnd = insideWord }
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.WORD)
+
+    press("Xóa")
+
+    assertEquals("xin ", text.toString())
+    assertEquals(removed("người"), spoken.last())
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.CHARACTER)
+
+    press("Xóa")
+
+    assertEquals("xin", text.toString())
   }
 
   @Test
@@ -943,6 +1004,9 @@ class VietnameseKeyboardServiceTest {
       provider.createAccessibilityNodeInfo(it)?.text?.toString() == micLabel()
     }
   }
+
+  private fun physicalKey(action: Int, code: Int, modifiers: Int = 0): KeyEvent =
+    KeyEvent(0L, 0L, action, code, 0, modifiers, -1, 0, 0, InputDevice.SOURCE_KEYBOARD)
 
   private fun startEditor(configure: EditorInfo.() -> Unit = {}) {
     val info = EditorInfo().apply {

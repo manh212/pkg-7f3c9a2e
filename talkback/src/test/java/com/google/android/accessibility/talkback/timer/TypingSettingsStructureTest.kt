@@ -142,17 +142,18 @@ class TypingSettingsStructureTest {
   }
 
   @Test
-  fun vietnameseKeyboardRowsScreen_holdsRowTogglesAndSymbolsCustomization() {
+  fun vietnameseKeyboardRowsScreen_holdsRowTogglesKeyboardPickerAndSymbolsCustomization() {
     val rows = rowsOf(R.xml.vietnamese_keyboard_rows_preferences)
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_show_number_row",
         "pref_vietnamese_keyboard_show_symbols_row",
+        "pref_vietnamese_keyboard_show_picker",
         "pref_vietnamese_keyboard_symbols_screen",
       ),
       rows.map { it.first },
     )
-    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardSymbolsFragment") == true)
+    assertTrue(rows[3].second?.endsWith("VietnameseKeyboardSymbolsFragment") == true)
   }
 
   @Test

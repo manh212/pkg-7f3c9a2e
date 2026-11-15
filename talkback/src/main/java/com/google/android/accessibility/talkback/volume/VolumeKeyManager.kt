@@ -61,6 +61,7 @@ object VolumeKeyManager {
     var singleFired = false
     var locked = false
     var touching = false
+    var speechVolume = false
     var managed = false
     var multi = false
     var pressUse = TalkBackService.VOLUME_KEY_CHANGES_VOLUME
@@ -114,6 +115,7 @@ object VolumeKeyManager {
     press.singleFired = false
     press.locked = isKeyguardLocked(service)
     press.touching = service.isTouchInteracting()
+    press.speechVolume = service.shouldAdjustSpeechVolumeWhileSpeaking()
     press.managed = prefs.getBoolean(KEY_MANAGED, false)
     press.multi = prefs.getBoolean(KEY_MULTI_ENABLED, false)
     if (other.active) {
@@ -135,7 +137,7 @@ object VolumeKeyManager {
       prefs.getString(pressKey(press.isUp), defaultPressAction(press.isUp))
         ?: defaultPressAction(press.isUp)
     } else contextualAction(press.isUp)
-    press.pressUse = if (press.locked) TalkBackService.VOLUME_KEY_CHANGES_VOLUME
+    press.pressUse = if (press.locked || press.speechVolume) TalkBackService.VOLUME_KEY_CHANGES_VOLUME
       else service.resolveVolumeKeyUse(false)
     val runnable = Runnable {
       if (contextChanged(service, press)) abort(press)
@@ -159,9 +161,9 @@ object VolumeKeyManager {
     if (contextChanged(service, press)) abort(press)
     if (!press.aborted) {
       if (press.holdFired && press.holdAction == contextualAction(press.isUp)) {
-        service.adjustContextualVolume(press.isUp, press.touching)
+        runAction(service, press.holdAction, press.touching, press.speechVolume)
       } else if ((press.singleFired || press.holdFired) && press.holdAction == ACTION_UNASSIGNED) {
-        repeatPressAction(press)
+        runPressAction(press, repeating = true)
       }
     }
     return true
@@ -194,7 +196,7 @@ object VolumeKeyManager {
     clearTaps(press)
     press.holdFired = true
     if (press.holdAction == ACTION_UNASSIGNED) runPressAction(press)
-    else runAction(service, press.holdAction, press.touching)
+    else runAction(service, press.holdAction, press.touching, press.speechVolume)
   }
 
   private fun finishTaps(press: Press) {
@@ -206,36 +208,32 @@ object VolumeKeyManager {
     else {
       val prefs = SharedPreferencesUtils.getSharedPreferences(service)
       val action = prefs.getString(multiKey(press.isUp, count), ACTION_UNASSIGNED) ?: ACTION_UNASSIGNED
-      runAction(service, action, press.touching)
+      runAction(service, action, press.touching, press.speechVolume)
     }
   }
 
-  private fun runPressAction(press: Press) {
+  private fun runPressAction(press: Press, repeating: Boolean = false) {
     val service = press.service ?: return
     if (press.pressUse != TalkBackService.VOLUME_KEY_CHANGES_VOLUME) {
       service.performVolumeKeyUse(press.pressUse, press.isUp)
-    } else if (!press.managed) {
+    } else if (!press.managed && !press.speechVolume) {
       service.adjustUnmanagedVolumeKey(press.isUp, press.touching)
-    } else runAction(service, press.pressAction, press.touching)
-  }
-
-  private fun repeatPressAction(press: Press) {
-    val service = press.service ?: return
-    if (press.pressUse != TalkBackService.VOLUME_KEY_CHANGES_VOLUME) {
-      service.performVolumeKeyUse(press.pressUse, press.isUp)
-    } else if (!press.managed) {
-      service.adjustUnmanagedVolumeKey(press.isUp, press.touching)
-    } else if (press.pressAction == ACTION_INCREASE_CONTEXTUAL_VOLUME ||
+    } else if (!repeating || press.pressAction == ACTION_INCREASE_CONTEXTUAL_VOLUME ||
       press.pressAction == ACTION_DECREASE_CONTEXTUAL_VOLUME) {
-      service.adjustContextualVolume(press.pressAction == ACTION_INCREASE_CONTEXTUAL_VOLUME, press.touching)
+      runAction(service, press.pressAction, press.touching, press.speechVolume)
     }
   }
 
-  private fun runAction(service: TalkBackService, action: String, touching: Boolean) {
+  private fun runAction(
+    service: TalkBackService, action: String, touching: Boolean, speechVolume: Boolean = false,
+  ) {
     when (action) {
       ACTION_UNASSIGNED -> Unit
-      ACTION_INCREASE_CONTEXTUAL_VOLUME -> service.adjustContextualVolume(true, touching)
-      ACTION_DECREASE_CONTEXTUAL_VOLUME -> service.adjustContextualVolume(false, touching)
+      ACTION_INCREASE_CONTEXTUAL_VOLUME, ACTION_DECREASE_CONTEXTUAL_VOLUME -> {
+        val increase = action == ACTION_INCREASE_CONTEXTUAL_VOLUME
+        if (speechVolume) service.adjustSpeechVolumeWhileSpeaking(increase)
+        else service.adjustContextualVolume(increase, touching)
+      }
       else -> service.performCatalogAction(action)
     }
   }

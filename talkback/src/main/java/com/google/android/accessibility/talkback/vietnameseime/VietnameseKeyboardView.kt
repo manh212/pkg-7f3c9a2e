@@ -83,6 +83,7 @@ internal class VietnameseKeyboardView(
     true
   }
   private var rowsArePc = false
+  private var rowsAreLandscape = false
   private val shiftHolders = LinkedHashSet<Int>()
   private var shiftSticky = false
   private var shiftUsed = false
@@ -157,6 +158,13 @@ internal class VietnameseKeyboardView(
       field = value
       rebuildRows()
     }
+  var showKeyboardPicker = true
+    set(value) {
+      if (field == value) return
+      cancelInput()
+      field = value
+      rebuildRows()
+    }
   var showNumberRow = true
     set(value) {
       if (field == value) return
@@ -205,7 +213,7 @@ internal class VietnameseKeyboardView(
     telexAvailable: Boolean = true,
   ) {
     val pageChanged = symbolPage != symbols
-    val layoutChanged = isPcLayout() != rowsArePc
+    val layoutChanged = isPcLayout() != rowsArePc || isLandscape() != rowsAreLandscape
     val rebuild = rows.isEmpty() || pageChanged || layoutChanged || telexEnabled != telex ||
       this.telexAvailable != telexAvailable || this.actionLabel != actionLabel
     val shiftChanged = this.shifted != shifted
@@ -264,7 +272,7 @@ internal class VietnameseKeyboardView(
 
   override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
     if (oldWidth > 0 && oldHeight > 0) cancelInput()
-    if (isPcLayout() != rowsArePc) {
+    if (isPcLayout() != rowsArePc || isLandscape() != rowsAreLandscape) {
       rebuildRows()
     } else {
       placeKeys()
@@ -437,10 +445,11 @@ internal class VietnameseKeyboardView(
     return true
   }
 
+  private fun isLandscape(): Boolean =
+    resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
   private fun isPcLayout(): Boolean =
-    layoutSetting == LAYOUT_PC ||
-      (layoutSetting == LAYOUT_AUTO &&
-        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+    layoutSetting == LAYOUT_PC || (layoutSetting == LAYOUT_AUTO && isLandscape())
 
   private fun activeSizePercent(): Int =
     if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
@@ -504,8 +513,10 @@ internal class VietnameseKeyboardView(
 
   private fun rebuildRows() {
     val pc = isPcLayout()
-    val layoutChanged = pc != rowsArePc
+    val landscape = isLandscape()
+    val layoutChanged = pc != rowsArePc || landscape != rowsAreLandscape
     rowsArePc = pc
+    rowsAreLandscape = landscape
     val newRows = buildRows()
     var previous: Cell? = null
     val newCells = newRows.flatten().associateBy { cell ->
@@ -668,6 +679,7 @@ internal class VietnameseKeyboardView(
       if (telexEnabled) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off,
     )
     DELETE -> context.getString(R.string.vietnamese_ime_delete)
+    HIDE -> context.getString(R.string.vietnamese_ime_hide)
     MIC -> context.getString(R.string.vietnamese_ime_voice_input)
     else -> cell.title
   }
@@ -827,10 +839,12 @@ internal class VietnameseKeyboardView(
       characters(",").single(),
       Cell(VietnameseKeyTouch.Key(" "),
         context.getString(R.string.vietnamese_ime_space), if (pc) 6.5f else 3.2f),
+      function(HIDE, "⌄", 1.1f).takeIf { rowsAreLandscape },
       characters(".").single(),
       function(MIC, context.getString(R.string.vietnamese_ime_voice_input), 1.1f)
         .takeIf { micEnabled },
-      function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f),
+      function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f)
+        .takeIf { showKeyboardPicker },
       Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
     val symbolsRow = if (showSymbolsRow && !symbolPage) characters(symbolsRowString) else null
@@ -862,6 +876,7 @@ internal class VietnameseKeyboardView(
     const val LETTERS = "letters"
     const val LANGUAGE = "language"
     const val PICKER = "picker"
+    const val HIDE = "hide"
     const val MIC = "mic"
     const val LAYOUT_PHONE = "phone"
     const val LAYOUT_PC = "pc"

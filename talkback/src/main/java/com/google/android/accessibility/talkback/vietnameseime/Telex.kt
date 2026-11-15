@@ -22,7 +22,7 @@ internal object Telex {
 
     val shaped = changeShape(plain, key)
     if (shaped != null) return withTone(shaped, tone)
-    val continued = if (key.lowercaseChar() in "iuycgmnpt") upgradeOpenUo(plain) else plain
+    val continued = if (letter in "iuycgmnpt") completeHornPair(plain) else plain
     return withTone(continued + key, tone)
   }
 
@@ -106,6 +106,8 @@ internal object Telex {
       else word
       return replace(horned, pair + 1, 'ơ')
     }
+    val firstHorned = lower.lastIndexOf("ưo")
+    if (firstHorned >= 0) return replace(word, firstHorned + 1, 'ơ')
     val hornedPair = lower.lastIndexOf("ươ")
     if (hornedPair >= 0) {
       return replace(replace(word, hornedPair, 'u'), hornedPair + 1, 'o') + key
@@ -156,12 +158,14 @@ internal object Telex {
       else -> false
     }
 
-  private fun upgradeOpenUo(word: String): String {
-    val lower = word.lowercase()
-    val index = lower.lastIndexOf("uơ")
-    if (index < 0 || index + 2 != word.length) return word
-    if (index == 1 && lower.startsWith("qu")) return word
-    return replace(word, index, 'ư')
+  private fun completeHornPair(word: String): String {
+    val index = word.length - 2
+    return when {
+      word.endsWith("ưo", ignoreCase = true) -> replace(word, index + 1, 'ơ')
+      word.endsWith("uơ", ignoreCase = true) &&
+        !(index == 1 && word.startsWith("qu", ignoreCase = true)) -> replace(word, index, 'ư')
+      else -> word
+    }
   }
 
   private fun replace(word: String, index: Int, letter: Char): String =

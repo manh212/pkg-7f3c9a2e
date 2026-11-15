@@ -6,7 +6,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.eventprocessor.BackgroundEventGate
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.SpeechController
+import com.google.android.accessibility.utils.output.SpeechControllerImpl
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -74,6 +77,40 @@ class FullScreenMonitorTest {
           "Tin nhắn năm", "Tin nhắn năm"),
         spoken,
       )
+    } finally {
+      monitor.stop()
+    }
+  }
+
+  @Test
+  fun attachesTheSelectedProfileAndStreamToMonitorSpeech() {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    val profile = VoiceProfiles.create(prefs, "Giọng giám sát", "", "100", "1", "1", false)
+    val stream = FailoverTextToSpeech.STREAM_VALUE_MEDIA
+    prefs.edit()
+      .putBoolean(FullScreenMonitor.KEY_MANUAL, true)
+      .putString(FullScreenMonitor.KEY_VOICE_PROFILE, profile)
+      .putString(FullScreenMonitor.KEY_AUDIO_STREAM, stream)
+      .commit()
+    val messages = mutableListOf("Nội dung có sẵn")
+    val monitor = FullScreenMonitor(context, { root(messages) }) { true }
+    val settings = mutableListOf<Pair<String?, String?>>()
+    val pipeline = Pipeline.FeedbackReturner { feedback ->
+      val params = checkNotNull(feedback.failovers().first().speech()!!.options()!!.mSpeechParams)
+      settings.add(
+        params.getString(SpeechControllerImpl.SPEECH_PARAM_VOICE_PROFILE) to
+          params.getString(SpeechControllerImpl.SPEECH_PARAM_AUDIO_STREAM),
+      )
+      true
+    }
+    val gate = BackgroundEventGate(BackgroundEventGate.Receiver { _, _ -> })
+    gate.setProcessingLevel("very_low")
+    try {
+      send(monitor, pipeline, gate)
+      messages.add("Tin mới")
+      send(monitor, pipeline, gate)
+
+      assertEquals(listOf(profile to stream), settings)
     } finally {
       monitor.stop()
     }

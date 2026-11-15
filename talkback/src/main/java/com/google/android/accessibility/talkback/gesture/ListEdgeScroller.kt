@@ -17,14 +17,25 @@
 package com.google.android.accessibility.talkback.gesture
 
 import android.accessibilityservice.AccessibilityService
+import android.app.AlertDialog
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.os.SystemClock
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
 import com.google.android.accessibility.talkback.Feedback
 import com.google.android.accessibility.talkback.Pipeline
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo
+import com.google.android.accessibility.talkback.selector.VerticalNavigation
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
 import com.google.android.accessibility.utils.Filter
 import com.google.android.accessibility.utils.FocusFinder
@@ -52,6 +63,9 @@ class ListEdgeScroller(
   private var toStart = true
   private var scrolls = 0
   private var eventId: EventId? = null
+  private var automatic = false
+  private var lastScrollProgress = 0L
+  private var directionDialog: AlertDialog? = null
 
   private val step = Runnable { scrollOnce() }
 
@@ -74,15 +88,78 @@ class ListEdgeScroller(
     return true
   }
 
+  fun chooseAutomaticDirection(eventId: EventId?): Boolean {
+    if (directionDialog != null) return true
+    cancel()
+    val root = service.rootInActiveWindow?.let(AccessibilityNodeInfoCompat::wrap) ?: return false
+    val focus = focusMonitor.getAccessibilityFocus(false)
+    val choices = arrayOf(
+      service.getText(R.string.shortcut_scroll_up),
+      service.getText(R.string.shortcut_scroll_down),
+    )
+    val dialog = AlertDialog.Builder(service)
+      .setTitle(R.string.auto_scroll_direction)
+      .setItems(choices) { _, which ->
+        val target = automaticTarget(root, focus)
+        if (target != null) startAutomaticScroll(target, which == 0, eventId)
+        else pipeline.returnFeedback(eventId, Feedback.sound(R.raw.complete))
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .create()
+    dialog.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+    dialog.setOnDismissListener { if (directionDialog === dialog) directionDialog = null }
+    directionDialog = dialog
+    try {
+      dialog.show()
+    } catch (e: WindowManager.BadTokenException) {
+      directionDialog = null
+      return false
+    }
+    return true
+  }
+
+  internal fun startAutomaticScroll(
+    target: AccessibilityNodeInfoCompat, toStart: Boolean, eventId: EventId?,
+  ) {
+    cancel()
+    list = target
+    this.toStart = toStart
+    this.eventId = eventId
+    automatic = true
+    isActive = true
+    lastScrollProgress = SystemClock.uptimeMillis()
+    handler.postDelayed(step, AUTOMATIC_SCROLL_INTERVAL_MS)
+  }
+
+  fun onAccessibilityEvent(event: AccessibilityEvent) {
+    if (!automatic) return
+    if (event.eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START) {
+      cancel()
+    } else if (event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED &&
+      event.windowId == list?.windowId) {
+      lastScrollProgress = SystemClock.uptimeMillis()
+    }
+  }
+
+  fun closeDirectionDialog() {
+    directionDialog?.dismiss()
+    directionDialog = null
+  }
+
   /** Stops scrolling and focusing, such as when the user touches the screen or presses a key. */
   fun cancel() {
     handler.removeCallbacksAndMessages(null)
     list = null
+    automatic = false
     isActive = false
   }
 
   private fun scrollOnce() {
     val current = list ?: return
+    if (automatic) {
+      automaticScrollOnce(current)
+      return
+    }
     val action = scrollAction()
     val scrolled =
       scrolls < MAX_SCROLLS &&
@@ -115,6 +192,69 @@ class ListEdgeScroller(
       },
       SCROLL_INTERVAL_MS,
     )
+  }
+
+  private fun automaticScrollOnce(current: AccessibilityNodeInfoCompat) {
+    if (SystemClock.uptimeMillis() - lastScrollProgress >= AUTOMATIC_SCROLL_TIMEOUT_MS ||
+      service.getSystemService(PowerManager::class.java)?.isInteractive == false) {
+      cancel()
+      return
+    }
+    val root = service.rootInActiveWindow?.let(AccessibilityNodeInfoCompat::wrap)
+    if (root == null || root.windowId != current.windowId) {
+      cancel()
+      return
+    }
+    val target = if (current.refresh() && current.isVisibleToUser) current
+      else automaticTarget(root, null)
+    if (target != null) {
+      list = target
+      automaticAction(target)?.let { action ->
+        val args = Bundle()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM &&
+          (action == AccessibilityActionCompat.ACTION_SCROLL_UP.id ||
+            action == AccessibilityActionCompat.ACTION_SCROLL_DOWN.id)) {
+          args.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_SCROLL_AMOUNT_FLOAT, AUTOMATIC_SCROLL_AMOUNT)
+        }
+        pipeline.returnFeedback(
+          eventId,
+          Feedback.scrollToPosition(
+            target, ScrollActionRecord.ACTION_AUTO_SCROLL, action, args,
+            SCROLL_SOURCE, ScrollTimeout.SCROLL_TIMEOUT_SHORT, 0,
+          ),
+        )
+      }
+    }
+    handler.postDelayed(step, AUTOMATIC_SCROLL_INTERVAL_MS)
+  }
+
+  private fun automaticTarget(
+    root: AccessibilityNodeInfoCompat, focus: AccessibilityNodeInfoCompat?,
+  ): AccessibilityNodeInfoCompat? {
+    val vertical = filter { node ->
+      node != null && node.isVisibleToUser &&
+        (VerticalNavigation.scrollsVertically(node) ||
+          node.actionList.contains(AccessibilityActionCompat.ACTION_PAGE_UP) ||
+          node.actionList.contains(AccessibilityActionCompat.ACTION_PAGE_DOWN))
+    }
+    val sameWindowFocus = focus?.takeIf { it.windowId == root.windowId }
+    return AccessibilityNodeInfoUtils.getSelfOrMatchingAncestor(sameWindowFocus, vertical)
+      ?: AccessibilityNodeInfoUtils.searchFromBfs(root, vertical)
+  }
+
+  private fun automaticAction(node: AccessibilityNodeInfoCompat): Int? {
+    val actions = node.actionList
+    val directional = if (toStart) AccessibilityActionCompat.ACTION_SCROLL_UP
+      else AccessibilityActionCompat.ACTION_SCROLL_DOWN
+    val page = if (toStart) AccessibilityActionCompat.ACTION_PAGE_UP
+      else AccessibilityActionCompat.ACTION_PAGE_DOWN
+    if (directional in actions) return directional.id
+    if (page in actions) return page.id
+    if (AccessibilityActionCompat.ACTION_SCROLL_LEFT in actions ||
+      AccessibilityActionCompat.ACTION_SCROLL_RIGHT in actions ||
+      AccessibilityActionCompat.ACTION_PAGE_LEFT in actions ||
+      AccessibilityActionCompat.ACTION_PAGE_RIGHT in actions) return null
+    return scrollAction().takeIf { AccessibilityNodeInfoUtils.supportsAction(node, it) }
   }
 
   private fun scrollAction(): Int =
@@ -203,6 +343,9 @@ class ListEdgeScroller(
 
   companion object {
     private const val SCROLL_SOURCE = "LIST_EDGE"
+    private const val AUTOMATIC_SCROLL_INTERVAL_MS = 250L
+    private const val AUTOMATIC_SCROLL_TIMEOUT_MS = 1500L
+    private const val AUTOMATIC_SCROLL_AMOUNT = 0.65f
 
     /** The time an app takes to move its list a page, before the next scroll. */
     private const val SCROLL_INTERVAL_MS = 150L

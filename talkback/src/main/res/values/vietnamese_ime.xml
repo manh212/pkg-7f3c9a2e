@@ -9,6 +9,7 @@
     <integer name="pref_vietnamese_keyboard_bottom_spacing_default">32</integer>
     <integer name="pref_vietnamese_keyboard_bottom_spacing_max">80</integer>
     <string name="pref_vietnamese_keyboard_mic_enabled_key" translatable="false">pref_vietnamese_keyboard_mic_enabled</string>
+    <string name="pref_vietnamese_keyboard_show_picker_key" translatable="false">pref_vietnamese_keyboard_show_picker</string>
     <string name="pref_vietnamese_keyboard_show_number_row_key" translatable="false">pref_vietnamese_keyboard_show_number_row</string>
     <string name="pref_vietnamese_keyboard_show_symbols_row_key" translatable="false">pref_vietnamese_keyboard_show_symbols_row</string>
     <string name="pref_vietnamese_keyboard_symbols_row_key" translatable="false">pref_vietnamese_keyboard_symbols_row</string>
@@ -35,6 +36,8 @@
     <string name="vietnamese_ime_delete" tools:ignore="MissingTranslation">Xóa</string>
     <string name="vietnamese_ime_selected_text" tools:ignore="MissingTranslation">phần văn bản đã chọn</string>
     <string name="vietnamese_ime_space" tools:ignore="MissingTranslation">Dấu cách</string>
+    <string name="vietnamese_ime_hide">Ẩn bàn phím</string>
+    <string name="vietnamese_ime_show_picker">Hiển thị nút đổi bàn phím</string>
     <string name="vietnamese_ime_picker_key" tools:ignore="MissingTranslation">Đổi bàn phím</string>
     <string name="vietnamese_ime_enter" tools:ignore="MissingTranslation">Xuống dòng</string>
     <string name="vietnamese_ime_done" tools:ignore="MissingTranslation">Xong</string>

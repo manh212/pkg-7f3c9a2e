@@ -426,6 +426,7 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     LAST_IN_SCREEN(R.string.shortcut_value_last_in_screen, R.string.shortcut_last_in_screen),
     SCROLL_TO_TOP(R.string.shortcut_value_scroll_to_top, R.string.shortcut_scroll_to_top),
     SCROLL_TO_BOTTOM(R.string.shortcut_value_scroll_to_bottom, R.string.shortcut_scroll_to_bottom),
+    AUTO_SCROLL(R.string.shortcut_value_auto_scroll, R.string.shortcut_auto_scroll),
     REFRESH(R.string.shortcut_value_refresh, R.string.shortcut_refresh),
     TOGGLE_BROWSE_MODE(
         R.string.shortcut_value_toggle_browse_mode, R.string.keycombo_menu_other_toggle_browse_mode),
