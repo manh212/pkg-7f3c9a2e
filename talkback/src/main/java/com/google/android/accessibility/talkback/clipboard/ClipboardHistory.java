@@ -226,6 +226,64 @@ public final class ClipboardHistory {
     }
   }
 
+  /** The recorded texts as the settings backup carries them, or null before first unlock. */
+  public static String backupJson(Context context) {
+    synchronized (entries) {
+      if (storeFile == null) {
+        init(context.getFilesDir());
+        if (storeFile == null) {
+          return null;
+        }
+      }
+      JSONArray stored = new JSONArray();
+      for (String entry : entries) {
+        stored.put(entry);
+      }
+      return stored.toString();
+    }
+  }
+
+  /**
+   * Replaces the recorded texts with the ones in a settings backup. Returns false if the
+   * backup's texts cannot be read, and then changes nothing.
+   */
+  public static boolean restoreBackup(Context context, String json) {
+    List<String> restored = new ArrayList<>();
+    try {
+      JSONArray stored = new JSONArray(json);
+      for (int i = 0; i < stored.length(); i++) {
+        String value = stored.optString(i, null);
+        if (value != null) {
+          restored.add(value);
+        }
+      }
+    } catch (JSONException | RuntimeException e) {
+      return false;
+    }
+    boolean changed;
+    synchronized (entries) {
+      if (storeFile == null) {
+        init(context.getFilesDir());
+        if (storeFile == null) {
+          return false;
+        }
+      }
+      List<String> previous = new ArrayList<>(entries);
+      changed = !previous.equals(restored);
+      entries.clear();
+      entries.addAll(restored);
+      if (!saveLocked()) {
+        entries.clear();
+        entries.addAll(previous);
+        return false;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+    return true;
+  }
+
   public static void addListener(Runnable listener) {
     synchronized (listeners) {
       if (!listeners.contains(listener)) {

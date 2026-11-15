@@ -1,5 +1,6 @@
 package com.google.android.accessibility.talkback.clipboard;
 
+import android.content.Context;
 import android.util.AtomicFile;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -85,6 +86,49 @@ public final class FavoriteTexts {
 
   public static synchronized boolean clear() {
     return save(new ArrayList<>());
+  }
+
+  /** The favorite texts as the settings backup carries them, or null before first unlock. */
+  public static synchronized String backupJson(Context context) {
+    if (store == null) {
+      init(context.getFilesDir());
+      if (store == null) {
+        return null;
+      }
+    }
+    JSONArray values = new JSONArray();
+    for (String entry : entries) {
+      values.put(entry);
+    }
+    return values.toString();
+  }
+
+  /**
+   * Replaces the favorite texts with the ones in a settings backup. Returns false if the
+   * backup's texts cannot be read, and then changes nothing.
+   */
+  public static synchronized boolean restoreBackup(Context context, String json) {
+    List<String> restored = new ArrayList<>();
+    try {
+      JSONArray stored = new JSONArray(json);
+      for (int i = 0; i < stored.length(); i++) {
+        String value = stored.optString(i, "");
+        if (!value.trim().isEmpty() && !restored.contains(value)) {
+          restored.add(value);
+        }
+      }
+    } catch (JSONException | RuntimeException e) {
+      return false;
+    }
+    if (store == null) {
+      init(context.getFilesDir());
+      if (store == null) {
+        return false;
+      }
+    }
+    // A backup overwrites the store even when its file could not be read.
+    readable = true;
+    return save(restored);
   }
 
   private static boolean save(List<String> updated) {
