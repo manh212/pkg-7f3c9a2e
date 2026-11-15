@@ -26,7 +26,7 @@ public final class LatencyExperiments {
     LIVE_EDGE_REUSE("live_edge_reuse"),
     AUDIO_RESAMPLE("audio_resample"),
     AUDIO_KEEP_WARM("audio_keep_warm"),
-    WINDOW_SETTLE("window_settle", true);
+    WINDOW_IMMEDIATE("window_immediate");
 
     public final String key;
     public final boolean defaultEnabled;
