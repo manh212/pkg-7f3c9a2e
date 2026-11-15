@@ -63,11 +63,7 @@ class CommandBindingsTest {
     // The old filter only hid the swipes while multi-finger gestures work; without
     // this the test would pass vacuously.
     assertTrue(FeatureSupport.isMultiFingerGestureSupported())
-    val fragment = object : PreferenceFragmentCompat() {
-      override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        addPreferencesFromResource(R.xml.gesture_preferences)
-      }
-    }
+    val fragment = GesturePreferencesFragment()
     activity.supportFragmentManager.beginTransaction()
       .replace(android.R.id.content, fragment).commitNow()
 
@@ -110,5 +106,15 @@ class CommandBindingsTest {
     } finally {
       mapping.onUnbind()
     }
+  }
+}
+
+/**
+ * Host for inflating the real gesture preferences in tests. Must be a named public
+ * class: FragmentManager refuses anonymous fragments ("must be a public static class").
+ */
+class GesturePreferencesFragment : PreferenceFragmentCompat() {
+  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    addPreferencesFromResource(R.xml.gesture_preferences)
   }
 }
