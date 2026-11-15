@@ -54,6 +54,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private data class SelectionUpdate(val end: Int, val composingStart: Int)
   private val pendingSelections = ArrayDeque<SelectionUpdate>()
   private var composingUnavailable = false
+  private var wordLost = false
   private var shifted = false
   private var symbols = false
   private var vietnamese = true
@@ -196,7 +197,10 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
     super.onStartInput(attribute, restarting)
     endTouchSession()
-    if (restarting && composing) finishWord(currentInputConnection)
+    if (restarting && composing) {
+      finishWord(currentInputConnection)
+      wordLost = true
+    }
     editor = attribute
     resetWord()
     pendingSelections.clear()
@@ -315,6 +319,7 @@ class VietnameseKeyboardService : InputMethodService() {
       keyboard?.cancelInput(cancelPendingEdits = false)
       keySpeech.clearPreview()
       finishWord(currentInputConnection)
+      wordLost = true
     } else if (!composing && !sameSelection &&
       (cursor >= 0 || selectionStart >= 0 || newSelStart != newSelEnd)) {
       keyboard?.cancelInput(cancelPendingEdits = false)
@@ -584,7 +589,7 @@ class VietnameseKeyboardService : InputMethodService() {
       shouldCapitalize(connection)) letter.uppercaseChar() else letter
     val wordCharacter = letter.isLetterOrDigit()
     if (letter.isLetter() && vietnamese && telexAllowed && !composingUnavailable) {
-      if (!composing) recoverWord(connection)
+      if (!composing && wordLost) recoverWord(connection)
       val updated = Telex.apply(word, capitalized)
       markEdit()
       if (updated.length <= MAX_WORD_LENGTH && updateComposition(connection, updated)) {
@@ -595,6 +600,7 @@ class VietnameseKeyboardService : InputMethodService() {
       }
       composingUnavailable = true
     }
+    wordLost = false
     val finished = if (wordCharacter) "" else completedWord()
     if (!commitText(connection, capitalized.toString())) return false
     if (wordCharacter) {
@@ -644,6 +650,7 @@ class VietnameseKeyboardService : InputMethodService() {
       composing = false
       composingStart = -1
       composingUnavailable = true
+      wordLost = true
     }
     if (editor?.inputType == InputType.TYPE_NULL) {
       if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) return false
@@ -707,6 +714,7 @@ class VietnameseKeyboardService : InputMethodService() {
       composing = false
       composingStart = -1
       composingUnavailable = true
+      wordLost = true
     }
     if (editor?.inputType == InputType.TYPE_NULL) {
       if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) return false
@@ -744,6 +752,7 @@ class VietnameseKeyboardService : InputMethodService() {
   // composition. The next Telex key then shapes the word on screen instead
   // of starting a new word after it.
   private fun recoverWord(connection: InputConnection) {
+    wordLost = false
     if (selectionStart != cursor || cursor < 0) return
     val current = wordBeforeCursor(connection)
     if (current.isEmpty()) return
@@ -851,6 +860,7 @@ class VietnameseKeyboardService : InputMethodService() {
     composing = false
     composingStart = -1
     composingUnavailable = false
+    wordLost = false
   }
 
   private fun enter(connection: InputConnection, speakAt: Long): Boolean {
