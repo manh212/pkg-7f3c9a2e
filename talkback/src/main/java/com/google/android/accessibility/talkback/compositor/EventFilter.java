@@ -131,14 +131,15 @@ public class EventFilter {
   };
 
   /** Incremental, main-thread cursor for a cooperative speech-preparation pass. */
-  private static final class PreparationPass {
-    final AccessibilityNodeInfoCompat focusedNode;
+  static final class PreparationPass {
+    AccessibilityNodeInfoCompat focusedNode;
     final int maximumDistance;
-    final int controlTargetType;
+    int controlTargetType;
     int targetTypeIndex;
     int directionIndex;
     int distance = 1;
     @Nullable AccessibilityNodeInfoCompat pivot;
+    int fingerDownDeferrals;
 
     PreparationPass(
         AccessibilityNodeInfoCompat focusedNode, int maximumDistance, int controlTargetType) {
@@ -147,9 +148,26 @@ public class EventFilter {
       this.controlTargetType = controlTargetType;
     }
 
+    void reanchor(int newControlTargetType) {
+      controlTargetType = newControlTargetType;
+      targetTypeIndex = 0;
+      directionIndex = 0;
+      distance = 1;
+      pivot = null;
+      fingerDownDeferrals = 0;
+    }
+
     @TargetType int targetType() {
       return targetTypeIndex == 0 ? NavigationTarget.TARGET_DEFAULT : controlTargetType;
     }
+  }
+
+  static boolean shouldKeepPassOnFocusChange(
+      @Nullable AccessibilityNodeInfoCompat anchor,
+      @Nullable AccessibilityNodeInfoCompat pivot,
+      AccessibilityNodeInfoCompat newFocus) {
+    return LatencyExperiments.keepPreparationOnFocusChange()
+        && (Objects.equals(newFocus, pivot) || Objects.equals(newFocus, anchor));
   }
 
   // /////////////////////////////////////////////////////////////////////////////////
@@ -562,10 +580,14 @@ public class EventFilter {
   /** Prepares the announcements of the nodes next to {@code node}, which focus just moved to. */
   private void onFocusMoved(AccessibilityNodeInfoCompat node) {
     lastFocusedNode = node;
-    preparationPass = null;
-    handler.removeCallbacks(prepareSwipeTargets);
-    handler.removeCallbacks(prepareNextSwipeTarget);
-    if (latencyExtrasEnabled
+    PreparationPass pass = preparationPass;
+    if (pass == null || !shouldKeepPassOnFocusChange(pass.focusedNode, pass.pivot, node)) {
+      preparationPass = null;
+      handler.removeCallbacks(prepareSwipeTargets);
+      handler.removeCallbacks(prepareNextSwipeTarget);
+    }
+    if (preparationPass == null
+        && latencyExtrasEnabled
         && (prepareAdjacentSpeechEnabled || prepareSecondAheadSpeechEnabled || LatencyExperiments.preparePcm())
         && targetPredictor != null) {
       handler.postDelayed(prepareSwipeTargets, PREPARE_DELAY_MS);
@@ -592,11 +614,21 @@ public class EventFilter {
       // This window keeps throwing preparations away unused, so preparation is paused for it.
       return;
     }
-    int maximumDistance = prepareSecondAheadSpeechEnabled
-        || LatencyExperiments.Feature.PCM_SECOND.enabled() ? 2 : 1;
     preparationPass =
-        new PreparationPass(pivot, maximumDistance, targetPredictor.currentTargetType());
+        new PreparationPass(pivot, maximumDistance(), targetPredictor.currentTargetType());
     prepareNextSwipeTarget.run();
+  }
+
+  private static int maximumDistance() {
+    return prepareSecondAheadSpeechEnabled
+        || LatencyExperiments.Feature.PCM_SECOND.enabled() ? 2 : 1;
+  }
+
+  static boolean shouldKeepPassOnGranularityChange(
+      boolean latencyExtrasEnabled, boolean anyPreparationEnabled) {
+    return latencyExtrasEnabled
+        && LatencyExperiments.keepPreparationOnFocusChange()
+        && anyPreparationEnabled;
   }
 
   /** Prepares one predicted node at a time, yielding to input between synchronous app queries. */
@@ -607,9 +639,25 @@ public class EventFilter {
         || !latencyExtrasEnabled
         || (!prepareAdjacentSpeechEnabled && !prepareSecondAheadSpeechEnabled && !LatencyExperiments.preparePcm())
         || predictor == null
-        || fingerDown.getAsBoolean()
-        || !Objects.equals(pass.focusedNode, lastFocusedNode)
         || !PreparedFocusSpeech.shouldPrepare(pass.focusedNode)) {
+      preparationPass = null;
+      return;
+    }
+    if (!Objects.equals(pass.focusedNode, lastFocusedNode)) {
+      if (shouldKeepPassOnFocusChange(pass.focusedNode, pass.pivot, lastFocusedNode)) {
+        pass.focusedNode = lastFocusedNode;
+        pass.distance = 1;
+      } else {
+        preparationPass = null;
+        return;
+      }
+    }
+    if (fingerDown.getAsBoolean()) {
+      if (LatencyExperiments.keepPreparationOnFocusChange() && pass.fingerDownDeferrals < 3) {
+        pass.fingerDownDeferrals++;
+        handler.postDelayed(prepareNextSwipeTarget, PREPARE_DELAY_MS);
+        return;
+      }
       preparationPass = null;
       return;
     }
@@ -633,6 +681,8 @@ public class EventFilter {
       preparationPass = null;
       return;
     }
+
+    pass.fingerDownDeferrals = 0;
 
     if (target != null) {
       boolean shouldPrepareSpeech =
@@ -678,13 +728,34 @@ public class EventFilter {
    * swipe would reach changed with it: prepare them around the focused node again.
    */
   public void onGranularityChanged() {
+    AccessibilityNodeInfoCompat anchor = lastFocusedNode;
+    TargetPredictor predictor = targetPredictor;
+    if (anchor != null
+        && predictor != null
+        && shouldKeepPassOnGranularityChange(
+            latencyExtrasEnabled,
+            prepareAdjacentSpeechEnabled
+                || prepareSecondAheadSpeechEnabled
+                || LatencyExperiments.preparePcm())) {
+      PreparationPass pass = preparationPass;
+      if (pass == null) {
+        preparationPass =
+            new PreparationPass(anchor, maximumDistance(), predictor.currentTargetType());
+      } else {
+        pass.reanchor(predictor.currentTargetType());
+      }
+      handler.removeCallbacks(prepareSwipeTargets);
+      handler.removeCallbacks(prepareNextSwipeTarget);
+      handler.postDelayed(prepareNextSwipeTarget, PREPARE_STEP_DELAY_MS);
+      return;
+    }
     preparationPass = null;
     handler.removeCallbacks(prepareSwipeTargets);
     handler.removeCallbacks(prepareNextSwipeTarget);
     if (latencyExtrasEnabled
         && (prepareAdjacentSpeechEnabled || prepareSecondAheadSpeechEnabled || LatencyExperiments.preparePcm())
-        && lastFocusedNode != null
-        && targetPredictor != null) {
+        && anchor != null
+        && predictor != null) {
       handler.postDelayed(prepareSwipeTargets, PREPARE_DELAY_MS);
     }
   }

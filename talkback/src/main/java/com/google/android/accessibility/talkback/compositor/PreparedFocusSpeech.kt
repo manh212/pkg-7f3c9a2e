@@ -160,7 +160,10 @@ object PreparedFocusSpeech {
   @JvmStatic
   fun onAccessibilityEvent(event: AccessibilityEvent) {
     if (prepared.isNotEmpty() && canChange(event.eventType, event.windowId, windowId)) {
-      noteWasted()
+      if (!LatencyExperiments.keepPreparationOnFocusChange()
+          || event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+        noteWasted()
+      }
       clear()
     }
   }
