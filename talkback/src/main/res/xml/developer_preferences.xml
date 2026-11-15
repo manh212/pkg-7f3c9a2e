@@ -28,6 +28,11 @@
       android:summary="@string/summary_pref_prepare_second_ahead_speech" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="true"
+      android:key="pref_keep_preparation_on_focus_change"
+      android:title="@string/title_pref_keep_preparation_on_focus_change"
+      android:summary="@string/summary_pref_keep_preparation_on_focus_change" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
       android:key="pref_order_cache"
       android:title="@string/title_pref_order_cache" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
@@ -124,6 +129,10 @@
         android:defaultValue="false"
         android:key="pref_latency_audio_keep_warm"
         android:title="@string/title_latency_audio_keep_warm" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="true"
+        android:key="pref_latency_window_settle"
+        android:title="@string/title_latency_window_settle" />
   </PreferenceCategory>
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_tts_overlay_default"
