@@ -148,7 +148,11 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     final Runnable updatePreparationEnabled =
         () -> {
           boolean enabled = !disableLatencyExtras.isChecked();
-          for (String key : new String[] {"pref_latency_pcm_adjacent", "pref_latency_pcm_second"}) {
+          for (String key :
+              new String[] {
+                "pref_latency_pcm_adjacent", "pref_latency_pcm_second",
+                "pref_keep_preparation_on_focus_change"
+              }) {
             Preference option = findPreference(key);
             if (option != null) option.setEnabled(enabled);
           }
@@ -163,7 +167,11 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     disableLatencyExtras.setOnPreferenceChangeListener(
         (preference, newValue) -> {
           boolean enabled = !((Boolean) newValue);
-          for (String key : new String[] {"pref_latency_pcm_adjacent", "pref_latency_pcm_second"}) {
+          for (String key :
+              new String[] {
+                "pref_latency_pcm_adjacent", "pref_latency_pcm_second",
+                "pref_keep_preparation_on_focus_change"
+              }) {
             Preference option = findPreference(key);
             if (option != null) option.setEnabled(enabled);
           }
