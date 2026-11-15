@@ -16,20 +16,34 @@
 
 package com.google.android.accessibility.talkback.backup
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import android.net.Uri
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.clipboard.ClipboardHistory
+import com.google.android.accessibility.talkback.clipboard.FavoriteTexts
 import com.google.android.accessibility.talkback.gesture.GestureProfiles
+import com.google.android.accessibility.talkback.labeling.LabelProvider
 import com.google.android.accessibility.talkback.migration.MigrationFiles
+import com.google.android.accessibility.talkback.soundthemes.SoundThemeManifest
+import com.google.android.accessibility.talkback.soundthemes.SoundThemes
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
+import com.google.android.accessibility.talkback.timer.SoundFileStore
+import com.google.android.accessibility.talkback.timer.TimerSounds
+import com.google.android.accessibility.talkback.vietnameseime.KeyboardKeySounds
+import com.google.android.accessibility.utils.labeling.LabelsTable
 import com.google.android.accessibility.talkback.preference.ItemOrder
 import com.google.android.accessibility.talkback.update.Updater
 import com.google.android.accessibility.talkback.utils.VerbosityPreferences
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import java.io.File
 import org.json.JSONObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,18 +74,18 @@ class SettingsBackupTest {
   }
 
   @Test
-  fun gestureProfilesRoundTripWithoutRestoringTheActiveSelection() {
+  fun gestureProfilesRoundTripIncludingTheActiveSelection() {
     prefs.edit().clear().commit()
     val profiles = listOf(GestureProfiles.Profile("a", "Đọc sách", mapOf("pref_shortcut_up" to "NEXT")))
     GestureProfiles.write(prefs, profiles)
     GestureProfiles.select(context, prefs, "a")
     val backup = SettingsBackup.export(context)
     assertTrue(backup.contains(GestureProfiles.KEY))
-    assertFalse(backup.contains("\"" + GestureProfiles.ACTIVE_KEY + "\""))
+    assertTrue(backup.contains("\"" + GestureProfiles.ACTIVE_KEY + "\""))
     prefs.edit().clear().commit()
     assertTrue(SettingsBackup.import(context, backup))
     assertEquals(profiles, GestureProfiles.read(prefs))
-    assertEquals("", GestureProfiles.activeId(prefs))
+    assertEquals("a", GestureProfiles.activeId(prefs))
     prefs.edit().clear().commit()
     GestureProfiles.load(prefs)
   }
@@ -480,6 +494,196 @@ class SettingsBackupTest {
 
     assertEquals(listOf("Kept"), EditorDocuments.documents().map { it.name })
     EditorDocuments.clear()
+  }
+
+  @Test
+  fun customLabelsRideTheSettingsBackup() {
+    val uri =
+      Uri.Builder().scheme("content").authority(LabelProvider.AUTHORITY).path("labels").build()
+    val resolver = context.contentResolver
+    resolver.delete(uri, null, null)
+    val label =
+      ContentValues().apply {
+        put(LabelsTable.KEY_PACKAGE_NAME, "com.example.app")
+        put(LabelsTable.KEY_PACKAGE_SIGNATURE, "sig")
+        put(LabelsTable.KEY_VIEW_NAME, "OK")
+        put(LabelsTable.KEY_TEXT, "Đồng ý")
+        put(LabelsTable.KEY_LOCALE, "vi")
+        put(LabelsTable.KEY_PACKAGE_VERSION, 3L)
+        put(LabelsTable.KEY_TIMESTAMP, 123L)
+        put(LabelsTable.KEY_SOURCE_TYPE, 0)
+        put(LabelsTable.KEY_SCREENSHOT_PATH, "")
+      }
+    assertNotNull(resolver.insert(uri, label))
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("Đồng ý"))
+
+    resolver.delete(uri, null, null)
+    assertTrue(SettingsBackup.import(context, exported))
+    val cursor = resolver.query(uri, null, null, null, null)!!
+    cursor.use {
+      assertEquals(1, it.count)
+      assertTrue(it.moveToFirst())
+      assertEquals("Đồng ý", it.getString(it.getColumnIndexOrThrow(LabelsTable.KEY_TEXT)))
+      assertEquals("com.example.app", it.getString(it.getColumnIndexOrThrow(LabelsTable.KEY_PACKAGE_NAME)))
+      assertEquals(3L, it.getLong(it.getColumnIndexOrThrow(LabelsTable.KEY_PACKAGE_VERSION)))
+      assertEquals(123L, it.getLong(it.getColumnIndexOrThrow(LabelsTable.KEY_TIMESTAMP)))
+    }
+    resolver.delete(uri, null, null)
+  }
+
+  @Test
+  fun clipboardHistoryAndFavoritesRideTheSettingsBackup() {
+    ClipboardHistory.init(context.filesDir)
+    FavoriteTexts.init(context.filesDir)
+    ClipboardHistory.clear()
+    FavoriteTexts.clear()
+    ClipboardHistory.record("first clip")
+    ClipboardHistory.record("second clip")
+    assertTrue(FavoriteTexts.add("a favorite"))
+
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("second clip"))
+    assertTrue(exported.contains("a favorite"))
+
+    ClipboardHistory.clear()
+    FavoriteTexts.clear()
+    assertTrue(SettingsBackup.import(context, exported))
+    assertEquals(listOf("second clip", "first clip"), ClipboardHistory.getEntries())
+    assertEquals(listOf("a favorite"), FavoriteTexts.getEntries())
+    ClipboardHistory.clear()
+    FavoriteTexts.clear()
+  }
+
+  @Test
+  fun timerAndKeySoundsRideTheSettingsBackup() {
+    val timerDir = SoundFileStore.directory(context, "timer_sounds")
+    val keyDir = SoundFileStore.directory(context, "key_sounds")
+    timerDir.mkdirs()
+    keyDir.mkdirs()
+    File(timerDir, "clock.mp3").writeBytes(byteArrayOf(1, 2, 3))
+    File(keyDir, "space.mp3").writeBytes(byteArrayOf(4, 5))
+    prefs
+      .edit()
+      .putString(TimerSounds.Slot.CLOCK.key, "My clock")
+      .putString(KeyboardKeySounds.Slot.SPACE.key, "My space")
+      .commit()
+
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("My clock"))
+    assertTrue(exported.contains("My space"))
+
+    File(timerDir, "clock.mp3").delete()
+    File(keyDir, "space.mp3").delete()
+    prefs.edit().remove(TimerSounds.Slot.CLOCK.key).remove(KeyboardKeySounds.Slot.SPACE.key).commit()
+    assertTrue(SettingsBackup.import(context, exported))
+
+    assertArrayEquals(byteArrayOf(1, 2, 3), File(timerDir, "clock.mp3").readBytes())
+    assertArrayEquals(byteArrayOf(4, 5), File(keyDir, "space.mp3").readBytes())
+    assertEquals("My clock", prefs.getString(TimerSounds.Slot.CLOCK.key, null))
+    assertEquals("My space", prefs.getString(KeyboardKeySounds.Slot.SPACE.key, null))
+    File(timerDir, "clock.mp3").delete()
+    File(keyDir, "space.mp3").delete()
+    prefs.edit().remove(TimerSounds.Slot.CLOCK.key).remove(KeyboardKeySounds.Slot.SPACE.key).commit()
+  }
+
+  @Test
+  fun soundThemesRideTheSettingsBackup() {
+    val draft = SoundThemes.createDraft(context, SoundThemeManifest(name = "Test theme"))
+    val installed = SoundThemes.saveDraft(context, draft.id)
+    assertEquals("test-theme", installed.id)
+
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("test-theme"))
+
+    SoundThemes.delete(context, prefs, installed.id)
+    assertTrue(SoundThemes.installed(context).none { it.id == "test-theme" })
+    assertTrue(SettingsBackup.import(context, exported))
+    val restored = SoundThemes.installed(context).firstOrNull { it.id == "test-theme" }
+    assertNotNull(restored)
+    assertEquals("Test theme", restored!!.manifest.name)
+    SoundThemes.delete(context, prefs, "test-theme")
+  }
+
+  @Test
+  fun scriptsRideTheSettingsBackup() {
+    val scriptsDir = File(File(context.filesDir, MigrationFiles.SCRIPTS_DIR), "test-script")
+    scriptsDir.mkdirs()
+    File(scriptsDir, "main.lua").writeText(
+      "local manifest = { id = \"test-script\", name = \"Test script\", version = \"1\", " +
+        "author = \"Test\", minApiVersion = 1, testedApiVersion = 1 }\n"
+    )
+    File(scriptsDir, "helper.lua").writeText("return {}")
+
+    val exported = SettingsBackup.export(context)
+    assertTrue(exported.contains("test-script"))
+
+    scriptsDir.deleteRecursively()
+    assertTrue(SettingsBackup.import(context, exported))
+    assertTrue(File(scriptsDir, "main.lua").isFile)
+    assertTrue(File(scriptsDir, "main.lua").readText().contains("Test script"))
+    assertEquals("return {}", File(scriptsDir, "helper.lua").readText())
+    scriptsDir.deleteRecursively()
+  }
+
+  @Test
+  fun aBackupWithoutTheNewSectionsLeavesThemAlone() {
+    val labelsUri =
+      Uri.Builder().scheme("content").authority(LabelProvider.AUTHORITY).path("labels").build()
+    val resolver = context.contentResolver
+    resolver.delete(labelsUri, null, null)
+    resolver.insert(
+      labelsUri,
+      ContentValues().apply {
+        put(LabelsTable.KEY_PACKAGE_NAME, "com.example.app")
+        put(LabelsTable.KEY_VIEW_NAME, "OK")
+        put(LabelsTable.KEY_TEXT, "Kept label")
+        put(LabelsTable.KEY_LOCALE, "vi")
+        put(LabelsTable.KEY_PACKAGE_VERSION, 1L)
+        put(LabelsTable.KEY_TIMESTAMP, 1L)
+        put(LabelsTable.KEY_SOURCE_TYPE, 0)
+        put(LabelsTable.KEY_SCREENSHOT_PATH, "")
+      },
+    )
+    ClipboardHistory.init(context.filesDir)
+    FavoriteTexts.init(context.filesDir)
+    ClipboardHistory.clear()
+    FavoriteTexts.clear()
+    ClipboardHistory.record("kept clip")
+    assertTrue(FavoriteTexts.add("kept favorite"))
+    val timerDir = SoundFileStore.directory(context, "timer_sounds")
+    timerDir.mkdirs()
+    File(timerDir, "clock.mp3").writeBytes(byteArrayOf(1, 2, 3))
+    prefs.edit().putString(TimerSounds.Slot.CLOCK.key, "Kept clock").commit()
+    val draft = SoundThemes.createDraft(context, SoundThemeManifest(name = "Kept theme"))
+    val theme = SoundThemes.saveDraft(context, draft.id)
+    val scriptDir = File(File(context.filesDir, MigrationFiles.SCRIPTS_DIR), "kept-script")
+    scriptDir.mkdirs()
+    File(scriptDir, "main.lua").writeText("local manifest = { id = \"kept-script\" }")
+
+    val foreign =
+      JSONObject().put("format", "sandfly-settings").put("version", 1).put("files", JSONObject())
+    assertTrue(SettingsBackup.import(context, foreign.toString()))
+
+    val cursor = resolver.query(labelsUri, null, null, null, null)!!
+    cursor.use {
+      assertEquals(1, it.count)
+      assertTrue(it.moveToFirst())
+      assertEquals("Kept label", it.getString(it.getColumnIndexOrThrow(LabelsTable.KEY_TEXT)))
+    }
+    assertEquals(listOf("kept clip"), ClipboardHistory.getEntries())
+    assertEquals(listOf("kept favorite"), FavoriteTexts.getEntries())
+    assertTrue(File(timerDir, "clock.mp3").isFile)
+    assertEquals("Kept clock", prefs.getString(TimerSounds.Slot.CLOCK.key, null))
+    assertTrue(SoundThemes.installed(context).any { it.id == theme.id })
+    assertTrue(File(scriptDir, "main.lua").isFile)
+    resolver.delete(labelsUri, null, null)
+    ClipboardHistory.clear()
+    FavoriteTexts.clear()
+    File(timerDir, "clock.mp3").delete()
+    prefs.edit().remove(TimerSounds.Slot.CLOCK.key).commit()
+    SoundThemes.delete(context, prefs, theme.id)
+    scriptDir.deleteRecursively()
   }
 
   @Test
