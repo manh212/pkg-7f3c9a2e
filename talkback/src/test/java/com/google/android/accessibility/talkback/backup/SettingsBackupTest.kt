@@ -45,8 +45,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -58,6 +60,18 @@ class SettingsBackupTest {
   private val prefs = SharedPreferencesUtils.getSharedPreferences(context)
   private val extra = SharedPreferencesUtils.getSharedPreferences(context, "extra_settings")
   private val braille = SharedPreferencesUtils.getSharedPreferences(context, "braille_keyboard")
+
+  // The labels provider is declared in the manifest with the ${applicationId}
+  // authority. In this library's own unit-test build that placeholder resolves
+  // to the library namespace, not to BuildConfig.APPLICATION_ID, so the
+  // ContentResolver never finds the provider from the manifest: Robolectric's
+  // insert then fakes success and query returns null. Register the real
+  // provider under the authority the code uses, once per test, so the labels
+  // round-trips exercise the real database.
+  @Before
+  fun setUp() {
+    Robolectric.setupContentProvider(LabelProvider::class.java, LabelProvider.AUTHORITY)
+  }
 
   @Test
   fun supportIdentityAndQueuedLogsStayPrivateDuringSettingsExportAndImport() {
