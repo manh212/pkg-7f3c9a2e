@@ -41,6 +41,7 @@ import com.google.android.accessibility.talkback.Feedback.PassThroughMode.Action
 import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.LiftToActivateMode
 import com.google.android.accessibility.talkback.monitor.RingerModeAndScreenMonitor
 import com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardService
@@ -95,6 +96,7 @@ class DirectTouchController(
   private var evaluating = false
   private var silentKeyboardIds = emptySet<Int>()
   private var silentDirectTyping = readSilentDirectTyping()
+  private var singleTapToType = readSingleTapToType()
   private var vietnameseKeyboardBounds: Rect? = null
   private var vietnameseKeyboardClosing = false
   private var keyboard = readSelectedKeyboard()
@@ -125,7 +127,10 @@ class DirectTouchController(
         key == liftToActivateKey ||
         key == typingMethodKey
       ) {
-        if (key == null || key == typingMethodKey) silentDirectTyping = readSilentDirectTyping()
+        if (key == null || key == typingMethodKey) {
+          silentDirectTyping = readSilentDirectTyping()
+          singleTapToType = readSingleTapToType()
+        }
         evaluate()
       }
     }
@@ -449,8 +454,10 @@ class DirectTouchController(
     component?.packageName == service.packageName &&
       component.className == VietnameseKeyboardService::class.java.name
 
+  // Single-tap typing uses TalkBack's own touch exploration, so the keyboard stays out of the
+  // passthrough: touches must reach exploration to focus and speak the key, and the lift clicks it.
   private fun usesVietnameseKeyboardDirectTouch(): Boolean =
-    isVietnameseKeyboard(keyboard)
+    isVietnameseKeyboard(keyboard) && !singleTapToType
 
   private fun directKeyboards(
     imeWindows: List<AccessibilityWindowInfo>, component: ComponentName?,
@@ -529,6 +536,12 @@ class DirectTouchController(
         prefs, service.resources, R.string.pref_typing_confirmation_key,
         R.string.pref_typing_confirmation_default,
       ) == DIRECT_SILENT_TYPING
+
+  private fun readSingleTapToType(): Boolean =
+    SharedPreferencesUtils.getIntFromStringPref(
+      prefs, service.resources, R.string.pref_typing_confirmation_key,
+      R.string.pref_typing_confirmation_default,
+    ) == SINGLE_TAP_TO_TYPE
 
   fun shouldSilenceKeyboardEvent(event: AccessibilityEvent): Boolean =
     !paused && event.windowId in silentKeyboardIds &&
