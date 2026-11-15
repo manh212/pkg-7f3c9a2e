@@ -642,6 +642,8 @@ public class WindowEventInterpreterTest {
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
         "0ms windows from=10 changes=0x2 original start=0 delay=10/50 main | src 10 feedback"
             + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
+        "10ms windows from=10 changes=0x2 stable start=0 delay=10/50 main | src 10 feedback"
+            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
         "100ms windows from=11 changes=0x4 original start=100 delay=10/50 main | src"
             + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11",
         "110ms windows from=11 changes=0x4 stable start=100 delay=10/50 main | src"
