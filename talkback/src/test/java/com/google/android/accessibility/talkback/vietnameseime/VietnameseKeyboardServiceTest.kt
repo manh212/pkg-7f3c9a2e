@@ -1270,10 +1270,20 @@ class VietnameseKeyboardServiceTest {
 
   private fun hasMicLabel(): Boolean = hasKey(micLabel())
 
+  companion object {
+    // Virtual view ids are assigned once, in first-seen order, and never
+    // cleared across pages, so a key on a page built after another page can
+    // hold an id above that page's child count. hasKey and activate must scan
+    // the whole id space instead of treating the child index as the id:
+    // after the T9 pad is built first, the space key's id (45) sits above
+    // the letters page's child count (45).
+    private const val VIRTUAL_ID_SCAN_LIMIT = 256
+  }
+
   private fun hasKey(label: String): Boolean {
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
-    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
-    return (0 until host.childCount).any {
+    checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    return (0 until VIRTUAL_ID_SCAN_LIMIT).any {
       provider.createAccessibilityNodeInfo(it)?.text?.toString() == label
     }
   }
@@ -1299,8 +1309,8 @@ class VietnameseKeyboardServiceTest {
 
   private fun activate(label: String): Boolean {
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
-    val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
-    val id = (0 until host.childCount).first {
+    checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
+    val id = (0 until VIRTUAL_ID_SCAN_LIMIT).first {
       provider.createAccessibilityNodeInfo(it)?.text?.toString() == label
     }
     return provider.performAction(id, AccessibilityNodeInfo.ACTION_CLICK, null)
