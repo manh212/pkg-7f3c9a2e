@@ -29,8 +29,12 @@ import androidx.core.os.UserManagerCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.clipboard.ClipboardHistory
+import com.google.android.accessibility.talkback.clipboard.FavoriteTexts
 import com.google.android.accessibility.talkback.compositor.UsageHintMode
+import com.google.android.accessibility.talkback.labeling.CustomLabelsBackup
 import com.google.android.accessibility.talkback.migration.MigrationFiles
+import com.google.android.accessibility.talkback.soundthemes.SoundThemes
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
 import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
@@ -56,7 +60,9 @@ import org.json.JSONObject
  * credential-protected storage, except the updater's state, the state of the move from Backtalk
  * Aaron, and API keys.
  *
- * Custom labels, installed scripts and sound themes are files of their own, and are not in it.
+ * Custom labels, the clipboard history and favorites, the timer and key sounds with their
+ * files, the installed sound themes and the installed scripts are in it too, each as a
+ * section of their own.
  *
  * The Braille keyboard's settings are in it too, except its custom sound choices and its
  * touch calibration, which belong to the phone they were set on.
@@ -71,13 +77,32 @@ object SettingsBackup {
   private const val LEGACY_FORMAT = "sandfly-settings"
   private const val VERSION = 1
   private const val DOCUMENTS_KEY = "editorDocuments"
+  private const val LABELS_KEY = "customLabels"
+  private const val CLIPBOARD_HISTORY_KEY = "clipboardHistory"
+  private const val FAVORITES_KEY = "favoriteTexts"
+  private const val TIMER_SOUNDS_KEY = "timerSounds"
+  private const val KEY_SOUNDS_KEY = "keySounds"
+  private const val SOUND_THEMES_KEY = "soundThemes"
+  private const val SCRIPTS_KEY = "scripts"
   private const val FILE_NAME = "meridian-settings.json"
   private const val INITIAL_SETTINGS_FILE = "initial-settings.json"
   private const val BUNDLED_DEFAULTS_APPLIED = "bundled_defaults_applied"
   private const val EVENT_PROCESSING_LEVEL_RESET = "event_processing_level_reset"
   private const val USAGE_HINTS_RESET = "usage_hints_reset_2"
   private const val KEY_EVENT_PROCESSING_LEVEL = "pref_event_processing_level"
-  private const val MAX_BYTES = 5 * 1024 * 1024
+  /**
+   * The most a settings file can be, for export and for import. Sounds and themes ride
+   * the file as base64, so a backup with every timer sound chosen at its largest is
+   * about 20 MB on its own; 32 MB covers the sounds, themes and scripts a phone
+   * realistically holds, with room. Larger would need the file streamed instead of held
+   * whole in memory: this design holds the JSON tree, its text and its bytes at once,
+   * about five times the file, and the app has no large heap. A backup past the limit
+   * fails loudly on export and on import, instead of dropping files to fit it.
+   */
+  private const val MAX_BYTES = 32 * 1024 * 1024
+  /** A script's files, as a backup may hold them: the same limits as a script package. */
+  private const val SCRIPTS_MAX_BYTES = 5L * 1024 * 1024
+  private const val SCRIPTS_MAX_FILES = 200
   private const val PREFS_SUFFIX = ".xml"
 
   /** The default preference file, whose name holds the app ID, so a file from another ID fits. */
@@ -173,9 +198,13 @@ object SettingsBackup {
     ioExecutor.execute {
       val written =
         try {
-          appContext.contentResolver.openOutputStream(uri, "wt")?.use {
-            it.write(export(appContext).toByteArray())
-          } != null
+          val bytes = export(appContext).toByteArray()
+          // A file past the import limit would import as "too large", so refuse to
+          // write one rather than hand over a backup that cannot be used.
+          bytes.size <= MAX_BYTES &&
+            appContext.contentResolver.openOutputStream(uri, "wt")?.use {
+              it.write(bytes)
+            } != null
         } catch (e: IOException) {
           false
         } catch (e: SecurityException) {
@@ -236,7 +265,30 @@ object SettingsBackup {
     val root =
       JSONObject().put("format", FORMAT).put("version", VERSION).put("files", files)
     EditorDocuments.backupJson(context)?.let { root.put(DOCUMENTS_KEY, JSONArray(it)) }
+    CustomLabelsBackup.backupJson(context)?.let { root.put(LABELS_KEY, JSONArray(it)) }
+    ClipboardHistory.backupJson(context)?.let { root.put(CLIPBOARD_HISTORY_KEY, JSONArray(it)) }
+    FavoriteTexts.backupJson(context)?.let { root.put(FAVORITES_KEY, JSONArray(it)) }
+    root.put(TIMER_SOUNDS_KEY, JSONArray(TimerSounds.backupJson(context)))
+    root.put(KEY_SOUNDS_KEY, JSONArray(KeyboardKeySounds.backupJson(context)))
+    root.put(SOUND_THEMES_KEY, JSONArray(SoundThemes.backupJson(context)))
+    root.put(SCRIPTS_KEY, JSONArray(backupScriptsJson(context)))
     return root.toString(2)
+  }
+
+  /** The installed scripts as the settings backup carries them: each script's files. */
+  private fun backupScriptsJson(context: Context): String {
+    val scriptsDir = File(context.filesDir, MigrationFiles.SCRIPTS_DIR)
+    val scripts = JSONArray()
+    for (dir in scriptsDir
+      .listFiles()
+      .orEmpty()
+      .filter { it.isDirectory && MigrationFiles.isSafeScriptId(it.name) }
+      .sortedBy { it.name }) {
+      FileTreeBackup.toJson(dir, SCRIPTS_MAX_BYTES, SCRIPTS_MAX_FILES)?.let { files ->
+        scripts.put(JSONObject().put("id", dir.name).put("files", files))
+      }
+    }
+    return scripts.toString()
   }
 
   /**
@@ -249,6 +301,13 @@ object SettingsBackup {
 
   private fun importSettings(context: Context, json: String, replaceMissing: Boolean): Boolean {
     var documents: JSONArray? = null
+    var labels: JSONArray? = null
+    var clipboardHistory: JSONArray? = null
+    var favorites: JSONArray? = null
+    var timerSounds: JSONArray? = null
+    var keySounds: JSONArray? = null
+    var soundThemes: JSONArray? = null
+    var scripts: JSONArray? = null
     val files =
       try {
         val root = JSONObject(json)
@@ -258,6 +317,13 @@ object SettingsBackup {
         val format = root.optString("format")
         if ((format != FORMAT && format != LEGACY_FORMAT) || root.optInt("version") > VERSION) return false
         documents = root.optJSONArray(DOCUMENTS_KEY)
+        labels = root.optJSONArray(LABELS_KEY)
+        clipboardHistory = root.optJSONArray(CLIPBOARD_HISTORY_KEY)
+        favorites = root.optJSONArray(FAVORITES_KEY)
+        timerSounds = root.optJSONArray(TIMER_SOUNDS_KEY)
+        keySounds = root.optJSONArray(KEY_SOUNDS_KEY)
+        soundThemes = root.optJSONArray(SOUND_THEMES_KEY)
+        scripts = root.optJSONArray(SCRIPTS_KEY)
         root.getJSONObject("files")
       } catch (e: JSONException) {
         return false
@@ -288,6 +354,27 @@ object SettingsBackup {
     if (documents != null && !EditorDocuments.restoreBackup(context, documents.toString())) {
       return false
     }
+    if (labels != null && !CustomLabelsBackup.restoreBackup(context, labels.toString())) {
+      return false
+    }
+    if (clipboardHistory != null && !ClipboardHistory.restoreBackup(context, clipboardHistory.toString())) {
+      return false
+    }
+    if (favorites != null && !FavoriteTexts.restoreBackup(context, favorites.toString())) {
+      return false
+    }
+    if (timerSounds != null && !TimerSounds.restoreBackup(context, timerSounds.toString())) {
+      return false
+    }
+    if (keySounds != null && !KeyboardKeySounds.restoreBackup(context, keySounds.toString())) {
+      return false
+    }
+    if (soundThemes != null && !SoundThemes.restoreBackup(context, soundThemes.toString())) {
+      return false
+    }
+    if (scripts != null && !restoreScriptsBackup(context, scripts)) {
+      return false
+    }
     for ((prefs, values) in edits) {
       val editor = prefs.edit()
       for (key in prefs.all.keys) {
@@ -307,6 +394,38 @@ object SettingsBackup {
         }
       }
       if (!editor.commit()) return false
+    }
+    return true
+  }
+
+  /**
+   * Replaces the installed scripts with the ones in a settings backup. Every script is
+   * read first, so a bad backup changes nothing. A script's manifest is not checked
+   * here: reading it lives in the phone flavor, and a script whose manifest cannot be
+   * read is skipped when the scripts load. The scripts list in memory stays as it was
+   * until the app restarts, like the script index the preferences already restore.
+   */
+  private fun restoreScriptsBackup(context: Context, scripts: JSONArray): Boolean {
+    val wanted = LinkedHashMap<String, List<Pair<String, ByteArray>>>()
+    for (i in 0 until scripts.length()) {
+      val entry = scripts.optJSONObject(i) ?: return false
+      val id = entry.optString("id", "")
+      if (!MigrationFiles.isSafeScriptId(id) || wanted.containsKey(id)) return false
+      val files =
+        FileTreeBackup.parse(entry.optJSONArray("files"), SCRIPTS_MAX_BYTES, SCRIPTS_MAX_FILES)
+          ?: return false
+      if (files.none { it.first == "main.lua" }) return false
+      wanted[id] = files
+    }
+    val scriptsDir = File(context.filesDir, MigrationFiles.SCRIPTS_DIR)
+    for (dir in scriptsDir
+      .listFiles()
+      .orEmpty()
+      .filter { it.isDirectory && MigrationFiles.isSafeScriptId(it.name) }) {
+      if (dir.name !in wanted) dir.deleteRecursively()
+    }
+    for ((id, files) in wanted) {
+      if (!FileTreeBackup.write(File(scriptsDir, id), files)) return false
     }
     return true
   }
@@ -573,11 +692,8 @@ object SettingsBackup {
   private fun isSkipped(context: Context, name: String?, key: String) =
     (name == null || name == defaultName(context)) &&
       (key in MigrationFiles.SKIPPED_PREF_KEYS ||
-        key == "pref_gesture_profile" ||
         key == CountdownAlarm.KEY_ALARMS ||
-        key == TimerKeepAliveService.PREF_ALLOWED ||
-        key in TimerSounds.Slot.entries.map { it.key } ||
-        key in KeyboardKeySounds.Slot.entries.map { it.key })
+        key == TimerKeepAliveService.PREF_ALLOWED)
 
   private fun isBraillePhoneKey(name: String?, key: String) =
     name == BRAILLE_PREFS && key in BRAILLE_PHONE_KEYS
