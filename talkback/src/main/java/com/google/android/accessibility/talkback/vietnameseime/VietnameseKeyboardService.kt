@@ -205,6 +205,16 @@ class VietnameseKeyboardService : InputMethodService() {
     if (container.paddingBottom != spacing) container.setPadding(0, 0, 0, spacing)
   }
 
+  private fun hideInputViewImmediately() {
+    endTouchSession()
+    (keyboard?.parent as? FrameLayout)?.visibility = View.GONE
+    reportKeyboardBounds()
+  }
+
+  private fun showInputView() {
+    (keyboard?.parent as? FrameLayout)?.visibility = View.VISIBLE
+  }
+
   override fun onEvaluateFullscreenMode(): Boolean = false
 
   override fun onConfigurationChanged(newConfig: Configuration) {
@@ -278,6 +288,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
     super.onStartInputView(info, restarting)
+    showInputView()
     configureView()
     updateLayout()
   }
@@ -285,6 +296,7 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onWindowShown() {
     super.onWindowShown()
     windowShown = true
+    showInputView()
     reportKeyboardBounds()
     if (ownVoice) {
       observeReaderSpeech(speechController())
@@ -560,6 +572,7 @@ class VietnameseKeyboardService : InputMethodService() {
       }
       VietnameseKeyboardView.HIDE -> {
         finishWord(connection)
+        hideInputViewImmediately()
         requestHideSelf(0)
         return true
       }
