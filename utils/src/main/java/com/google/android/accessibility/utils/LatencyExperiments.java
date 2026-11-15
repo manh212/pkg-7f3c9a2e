@@ -25,13 +25,20 @@ public final class LatencyExperiments {
     FAST_SCROLL("fast_scroll"),
     LIVE_EDGE_REUSE("live_edge_reuse"),
     AUDIO_RESAMPLE("audio_resample"),
-    AUDIO_KEEP_WARM("audio_keep_warm");
+    AUDIO_KEEP_WARM("audio_keep_warm"),
+    WINDOW_SETTLE("window_settle", true);
 
     public final String key;
+    public final boolean defaultEnabled;
     private volatile boolean enabled;
 
     Feature(String suffix) {
+      this(suffix, false);
+    }
+
+    Feature(String suffix, boolean defaultEnabled) {
       key = "pref_latency_" + suffix;
+      this.defaultEnabled = defaultEnabled;
     }
 
     public boolean enabled() {
@@ -42,13 +49,14 @@ public final class LatencyExperiments {
   private static volatile long lastInput;
   private static volatile boolean touching;
   private static volatile boolean preparationAllowed;
+  private static volatile boolean keepPreparationOnFocusChange = true;
   private static volatile Runnable inputListener;
 
   private LatencyExperiments() {}
 
   public static void load(SharedPreferences preferences) {
     for (Feature feature : Feature.values()) {
-      feature.enabled = preferences.getBoolean(feature.key, false);
+      feature.enabled = preferences.getBoolean(feature.key, feature.defaultEnabled);
     }
   }
 
@@ -62,6 +70,14 @@ public final class LatencyExperiments {
 
   public static boolean preparationAllowed() {
     return preparationAllowed;
+  }
+
+  public static void setKeepPreparationOnFocusChange(boolean keep) {
+    keepPreparationOnFocusChange = keep;
+  }
+
+  public static boolean keepPreparationOnFocusChange() {
+    return keepPreparationOnFocusChange;
   }
 
   public static boolean preparePcm() {
