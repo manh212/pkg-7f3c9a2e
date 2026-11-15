@@ -79,6 +79,8 @@ public class ExtendedTouchBackendTest {
     }
     @Implementation protected int getState() { return state; }
     @Implementation protected void requestDragging(int pointerId) { draggedPointers.add(pointerId); }
+    int exploreRequests;
+    @Implementation protected void requestTouchExploration() { exploreRequests++; }
   }
 
   private TestService service;
@@ -172,6 +174,57 @@ public class ExtendedTouchBackendTest {
         com.google.android.accessibility.talkback.gesture.GestureShortcutMapping.ROTATE_CLOCKWISE),
         service.gestures);
     assertTrue(service.actions.isEmpty());
+  }
+
+  @Test public void exploreDelayZeroRequestsExplorationAtOnce() {
+    startPlainBackend();
+    backend.setExploreDelayMs(0);
+    motion(MotionEvent.ACTION_DOWN, 700);
+    Shadows.shadowOf(Looper.getMainLooper()).idle();
+    assertEquals(1, touch.exploreRequests);
+  }
+
+  @Test public void exploreDelayWaitsForTheSliderValue() {
+    startPlainBackend();
+    backend.setExploreDelayMs(200);
+    motion(MotionEvent.ACTION_DOWN, 700);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(199, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.exploreRequests);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.exploreRequests);
+  }
+
+  @Test public void swipeStartCancelsPendingExploration() {
+    startPlainBackend();
+    backend.setExploreDelayMs(200);
+    motion(MotionEvent.ACTION_DOWN, 700);
+    for (int step = 1; step <= 6; step++) motion(MotionEvent.ACTION_MOVE, 700 - step * 30);
+    motion(MotionEvent.ACTION_UP, 520);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(300, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.exploreRequests);
+    assertEquals(List.of(AccessibilityService.GESTURE_SWIPE_UP), service.gestures);
+  }
+
+  @Test public void fingerLiftCancelsPendingExploration() {
+    startPlainBackend();
+    backend.setExploreDelayMs(200);
+    motionAt(MotionEvent.ACTION_DOWN, 400, 700);
+    // A 50 px move cancels the tap matcher (touch slop is 8 px at mdpi) without starting a
+    // swipe (the confirm distance is about 1 cm, 63 px at mdpi), so no manifold gesture
+    // requests exploration and only the timer is left to cancel.
+    motionAt(MotionEvent.ACTION_MOVE, 450, 700);
+    motionAt(MotionEvent.ACTION_UP, 450, 700);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_CLEAR);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(300, TimeUnit.MILLISECONDS);
+    assertEquals(0, touch.exploreRequests);
+    assertTrue(service.gestures.isEmpty());
+  }
+
+  private void startPlainBackend() {
+    backend.stop();
+    backend = new ExtendedTouchBackend(
+        service, () -> { throw new AssertionError("Gesture backend failed"); }, false, false);
+    backend.start();
   }
 
   private void multiMotion(int action, double degrees, int count) {

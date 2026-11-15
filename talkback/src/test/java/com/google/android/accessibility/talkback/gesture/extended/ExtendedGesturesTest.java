@@ -44,6 +44,33 @@ public class ExtendedGesturesTest {
     assertFalse(TwoFingerRotationSettings.isEnabled(prefs));
   }
 
+  @Test public void touchExploreIsOffByDefaultAndDelayDefaultsToZero() {
+    assertFalse(TouchExploreSettings.isEnabled(prefs));
+    assertEquals(0, TouchExploreSettings.delayMs(prefs));
+    prefs.edit().putBoolean(TouchExploreSettings.ENABLED, true).commit();
+    assertTrue(TouchExploreSettings.isEnabled(prefs));
+    prefs.edit().putInt(TouchExploreSettings.DELAY_MS, 120).commit();
+    assertEquals(120, TouchExploreSettings.delayMs(prefs));
+  }
+
+  @Test public void touchExploreDelayIsClampedToTheSliderRange() {
+    prefs.edit().putInt(TouchExploreSettings.DELAY_MS, -10).commit();
+    assertEquals(0, TouchExploreSettings.delayMs(prefs));
+    prefs.edit().putInt(TouchExploreSettings.DELAY_MS, 9999).commit();
+    assertEquals(TouchExploreSettings.MAX_DELAY_MS, TouchExploreSettings.delayMs(prefs));
+  }
+
+  @Test @Config(sdk = 32) public void touchExploreDoesNotEnableOnUnsupportedAndroid() {
+    prefs.edit().putBoolean(TouchExploreSettings.ENABLED, true).commit();
+    assertFalse(TouchExploreSettings.isEnabled(prefs));
+  }
+
+  @Test public void touchExploreSwitchAndSliderBelongToDeveloperSettings() throws Exception {
+    assertTrue(keys(R.xml.developer_preferences).contains(TouchExploreSettings.ENABLED));
+    assertTrue(keys(R.xml.developer_preferences).contains(TouchExploreSettings.DELAY_MS));
+    assertFalse(keys(R.xml.gesture_preferences).contains(TouchExploreSettings.ENABLED));
+  }
+
   @Test public void rotationSwitchBelongsToGestureSettings() throws Exception {
     assertTrue(keys(R.xml.gesture_preferences).contains(TwoFingerRotationSettings.ENABLED));
     assertFalse(keys(R.xml.navigation_preferences).contains(TwoFingerRotationSettings.ENABLED));
