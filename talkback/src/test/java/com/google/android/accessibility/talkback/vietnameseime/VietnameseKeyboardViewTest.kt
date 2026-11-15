@@ -235,8 +235,8 @@ class VietnameseKeyboardViewTest {
   fun virtualShiftAndSymbolKeysRetainTheirActionsAcrossPageChanges() {
     preparePcKeyboard()
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
-    assertTrue(provider.performAction(14, AccessibilityNodeInfo.ACTION_CLICK, null))
-    assertTrue(provider.performAction(34, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertTrue(provider.performAction(15, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertTrue(provider.performAction(35, AccessibilityNodeInfo.ACTION_CLICK, null))
     assertEquals(listOf("!"), typed)
 
     keyboard.showKeys(false, true, true, "Gửi")
