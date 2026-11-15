@@ -40,6 +40,7 @@ import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardService
 import com.google.android.accessibility.utils.input.WindowEventInterpreter
 import com.google.android.accessibility.utils.monitor.DisplayMonitor
@@ -369,6 +370,23 @@ class DirectTouchControllerTest {
     controller.setVietnameseKeyboardBounds(null)
     controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
     assertEquals("region none", transcript.last())
+  }
+
+  @Test
+  fun vietnameseSingleTapToTypeLeavesTouchExplorationInCharge() {
+    val typingKey = service.getString(R.string.pref_typing_confirmation_key)
+    prefs.edit().putString(typingKey, LIFT_TO_TYPE.toString()).commit()
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
+    val keyboardBounds = Rect(50, 1100, 1030, 2200)
+    serviceWindows.onScreen = listOf(game(), window(20, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Keyboard", keyboardBounds, service.packageName, layer = 4))
+    controller.setVietnameseKeyboardBounds(keyboardBounds)
+    assertEquals("region [50,1100][1030,2200] complex=false", transcript.last())
+
+    prefs.edit().putString(typingKey, SINGLE_TAP_TO_TYPE.toString()).commit()
+    assertEquals("region none", transcript.last())
+    assertFalse(controller.shouldSilenceKeyboardEvent(keyboardEvent(20)))
   }
 
   @Test
