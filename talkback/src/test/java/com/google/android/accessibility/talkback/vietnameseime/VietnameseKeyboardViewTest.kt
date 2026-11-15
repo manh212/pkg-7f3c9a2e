@@ -1221,6 +1221,105 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  fun t9PadShowsFiveRowsForNumericFields() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    keyboard.typingMethod = DIRECT_SILENT_TYPING
+    keyboard.showKeys(false, true, true, "Gửi", t9 = true)
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 25f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 25f, 170)
+    touch(MotionEvent.ACTION_DOWN, 200f, 75f, 200)
+    touch(MotionEvent.ACTION_UP, 200f, 75f, 270)
+    touch(MotionEvent.ACTION_DOWN, 380f, 125f, 300)
+    touch(MotionEvent.ACTION_UP, 380f, 125f, 370)
+    touch(MotionEvent.ACTION_DOWN, 20f, 175f, 400)
+    touch(MotionEvent.ACTION_UP, 20f, 175f, 470)
+    touch(MotionEvent.ACTION_DOWN, 200f, 175f, 500)
+    touch(MotionEvent.ACTION_UP, 200f, 175f, 570)
+    touch(MotionEvent.ACTION_DOWN, 380f, 175f, 600)
+    touch(MotionEvent.ACTION_UP, 380f, 175f, 670)
+    touch(MotionEvent.ACTION_DOWN, 50f, 225f, 700)
+    touch(MotionEvent.ACTION_UP, 50f, 225f, 770)
+    touch(MotionEvent.ACTION_DOWN, 160f, 225f, 800)
+    touch(MotionEvent.ACTION_UP, 160f, 225f, 870)
+    touch(MotionEvent.ACTION_DOWN, 260f, 225f, 900)
+    touch(MotionEvent.ACTION_UP, 260f, 225f, 970)
+    touch(MotionEvent.ACTION_DOWN, 350f, 225f, 1000)
+    touch(MotionEvent.ACTION_UP, 350f, 225f, 1070)
+
+    assertEquals(
+      listOf(
+        "1", "5", "9", "*", "0", "#",
+        context.getString(R.string.vietnamese_ime_letters),
+        context.getString(R.string.vietnamese_ime_delete),
+        "+", "Gửi",
+      ),
+      spoken,
+    )
+    assertEquals(
+      listOf("1", "5", "9", "*", "0", "#", "letters", "delete", "+", "enter"),
+      typed,
+    )
+    assertEquals(10, released)
+  }
+
+  @Test
+  @Config(qualifiers = "w800dp-h400dp-land")
+  fun t9PadShowsFiveColumnsInLandscape() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+    keyboard.typingMethod = DIRECT_SILENT_TYPING
+    keyboard.showKeys(false, true, true, "Gửi", t9 = true)
+    keyboard.layout(0, 0, 800, 400)
+
+    touch(MotionEvent.ACTION_DOWN, 80f, 50f, 100)
+    touch(MotionEvent.ACTION_UP, 80f, 50f, 170)
+    touch(MotionEvent.ACTION_DOWN, 80f, 161f, 200)
+    touch(MotionEvent.ACTION_UP, 80f, 161f, 270)
+    touch(MotionEvent.ACTION_DOWN, 80f, 261f, 300)
+    touch(MotionEvent.ACTION_UP, 80f, 261f, 370)
+    touch(MotionEvent.ACTION_DOWN, 80f, 350f, 400)
+    touch(MotionEvent.ACTION_UP, 80f, 350f, 470)
+    touch(MotionEvent.ACTION_DOWN, 240f, 67f, 500)
+    touch(MotionEvent.ACTION_UP, 240f, 67f, 570)
+    touch(MotionEvent.ACTION_DOWN, 240f, 200f, 600)
+    touch(MotionEvent.ACTION_UP, 240f, 200f, 670)
+    touch(MotionEvent.ACTION_DOWN, 240f, 333f, 700)
+    touch(MotionEvent.ACTION_UP, 240f, 333f, 770)
+    touch(MotionEvent.ACTION_DOWN, 400f, 67f, 800)
+    touch(MotionEvent.ACTION_UP, 400f, 67f, 870)
+    touch(MotionEvent.ACTION_DOWN, 560f, 200f, 900)
+    touch(MotionEvent.ACTION_UP, 560f, 200f, 970)
+    touch(MotionEvent.ACTION_DOWN, 720f, 333f, 1000)
+    touch(MotionEvent.ACTION_UP, 720f, 333f, 1070)
+
+    assertEquals(
+      listOf("letters", "delete", "+", "enter", "*", "0", "#", "7", "5", "3"),
+      typed,
+    )
+    assertEquals(10, released)
+  }
+
+  @Test
+  fun t9DigitsTypeOnLiftLikeLetters() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    keyboard.typingMethod = LIFT_TO_TYPE
+    keyboard.showKeys(false, true, true, "Gửi", t9 = true)
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 200f, 75f, 100)
+    touch(MotionEvent.ACTION_UP, 200f, 75f, 170)
+    assertEquals(listOf("5"), typed)
+
+    // Star is not a text-entry key, so one tap only records the first tap.
+    touch(MotionEvent.ACTION_DOWN, 20f, 175f, 200)
+    touch(MotionEvent.ACTION_UP, 20f, 175f, 270)
+    assertEquals(listOf("5"), typed)
+    assertEquals(listOf("5", "*"), spoken)
+    assertEquals(2, released)
+  }
+
+  @Test
   fun phoneShiftDoesNotChangeSymbolsRow() {
     keyboard.showNumberRow = true
     keyboard.showSymbolsRow = true

@@ -236,6 +236,77 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun numberFieldShowsT9Pad() {
+    startEditor { inputType = InputType.TYPE_CLASS_NUMBER }
+
+    assertTrue(hasKey("năm"))
+    assertTrue(hasKey(service.getString(R.string.vietnamese_ime_letters)))
+    assertTrue(hasKey(service.getString(R.string.vietnamese_ime_delete)))
+    assertFalse(hasKey("quy"))
+    assertFalse(hasKey(service.getString(R.string.vietnamese_ime_space)))
+    press("năm")
+
+    assertEquals("5", text.toString())
+  }
+
+  @Test
+  fun phoneFieldShowsT9Pad() {
+    startEditor { inputType = InputType.TYPE_CLASS_PHONE }
+
+    assertTrue(hasKey("năm"))
+    assertFalse(hasKey("quy"))
+    assertFalse(hasKey(service.getString(R.string.vietnamese_ime_space)))
+  }
+
+  @Test
+  fun dateTimeFieldShowsT9Pad() {
+    startEditor { inputType = InputType.TYPE_CLASS_DATETIME }
+
+    assertTrue(hasKey("năm"))
+    assertFalse(hasKey("quy"))
+    assertFalse(hasKey(service.getString(R.string.vietnamese_ime_space)))
+  }
+
+  @Test
+  fun numericPinFieldShowsT9Pad() {
+    startEditor {
+      inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+    }
+
+    assertTrue(hasKey("năm"))
+    assertFalse(hasKey("quy"))
+    assertFalse(hasKey(service.getString(R.string.vietnamese_ime_space)))
+  }
+
+  @Test
+  fun abcKeyOnT9PadOpensLettersPage() {
+    startEditor { inputType = InputType.TYPE_CLASS_NUMBER }
+    assertFalse(hasKey("quy"))
+
+    press(service.getString(R.string.vietnamese_ime_letters))
+
+    assertTrue(hasKey("quy"))
+    assertTrue(hasKey(service.getString(R.string.vietnamese_ime_space)))
+
+    press(service.getString(R.string.vietnamese_ime_symbols))
+
+    assertFalse(hasKey("quy"))
+    assertTrue(hasKey(service.getString(R.string.vietnamese_ime_space)))
+  }
+
+  @Test
+  fun reenteringNumberFieldRestoresT9Pad() {
+    startEditor { inputType = InputType.TYPE_CLASS_NUMBER }
+    press(service.getString(R.string.vietnamese_ime_letters))
+    assertTrue(hasKey("quy"))
+
+    startEditor { inputType = InputType.TYPE_CLASS_NUMBER }
+
+    assertTrue(hasKey("năm"))
+    assertFalse(hasKey("quy"))
+  }
+
+  @Test
   fun doubleSpacePeriodFinishesComposingWordFirst() {
     startEditor()
     press("ích")
