@@ -27,7 +27,6 @@ import com.google.android.accessibility.talkback.keyboard.KeyComboManager
 import com.google.android.accessibility.talkback.keyboard.KeyComboModel
 import com.google.android.accessibility.talkback.preference.TalkBackPreferenceFilter
 import com.google.android.accessibility.talkback.preference.base.GestureListPreference
-import com.google.android.accessibility.utils.FeatureSupport
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 /** Which gestures and keyboard shortcuts run each command, for the settings screens. */
@@ -91,15 +90,9 @@ object CommandBindings {
       } else {
         0
       }
-    // Two-finger swipes scroll on their own while multi-finger gestures work.
-    val reserved =
-      if (FeatureSupport.isMultiFingerGestureSupported()) {
-        context.resources.getStringArray(R.array.pref_2finger_pass_through_shortcut_keys).toSet()
-      } else {
-        emptySet()
-      }
+    // Two-finger swipes are assignable like any other gesture: they scroll by default,
+    // but a profile or an app may override them.
     return preferences
-      .filter { it.key !in reserved }
       .map {
         GestureSlot(
           GestureShortcutMapping.getPrefKeyWithGestureSet(it.key, gestureSet),
