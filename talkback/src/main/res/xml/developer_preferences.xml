@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:key="@string/pref_category_developer_key">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="@string/pref_developer_version_code_key"
@@ -27,11 +26,6 @@
       android:key="pref_prepare_second_ahead_speech"
       android:title="@string/title_pref_prepare_second_ahead_speech"
       android:summary="@string/summary_pref_prepare_second_ahead_speech" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="true"
-      android:key="pref_keep_preparation_on_focus_change"
-      android:title="@string/title_pref_keep_preparation_on_focus_change"
-      android:summary="@string/summary_pref_keep_preparation_on_focus_change" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="true"
       android:key="pref_order_cache"
@@ -130,25 +124,6 @@
         android:defaultValue="false"
         android:key="pref_latency_audio_keep_warm"
         android:title="@string/title_latency_audio_keep_warm" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="false"
-        android:key="pref_latency_window_immediate"
-        android:title="@string/title_latency_window_immediate" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="false"
-        android:key="pref_latency_touch_explore"
-        android:title="@string/title_latency_touch_explore"
-        android:summary="@string/summary_latency_touch_explore" />
-    <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="0"
-        android:dependency="pref_latency_touch_explore"
-        android:key="pref_latency_touch_explore_delay"
-        android:max="250"
-        android:title="@string/title_latency_touch_explore_delay"
-        android:summary="@string/summary_latency_touch_explore_delay"
-        app:min="0"
-        app:seekBarIncrement="10"
-        app:showSeekBarValue="true" />
   </PreferenceCategory>
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_tts_overlay_default"
