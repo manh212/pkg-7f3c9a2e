@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class EventFilterPreparationSurvivalTest {
   private fun node(): AccessibilityNodeInfoCompat {
-    val info = AccessibilityNodeInfo()
+    val info = AccessibilityNodeInfo.obtain()
     info.packageName = "com.example"
     return AccessibilityNodeInfoCompat.wrap(info)
   }
