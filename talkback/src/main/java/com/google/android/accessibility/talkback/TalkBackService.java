@@ -4721,7 +4721,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (prefs == null || gestureController == null) return;
     if (extendedGesturesController == null) {
       if (!com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.isEnabled(prefs)
-          && !TwoFingerRotationSettings.isEnabled(prefs)) return;
+          && !TwoFingerRotationSettings.isEnabled(prefs)
+          && !com.google.android.accessibility.talkback.gesture.extended.TouchExploreSettings.isEnabled(prefs)) return;
       extendedGesturesController =
           new com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController(this);
     }
