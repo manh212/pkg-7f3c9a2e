@@ -23,7 +23,6 @@ import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CH
 import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_ADDED;
 import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_PIP;
 import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_REMOVED;
-import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_TITLE;
 import static com.google.android.accessibility.utils.AccessibilityWindowInfoUtils.WINDOW_ID_NONE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -43,7 +42,6 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.annotation.Nullable;
-import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.Announcement;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.EventInterpretation;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.WindowInterpretation;
@@ -180,7 +178,6 @@ public class WindowEventInterpreterTest {
   @After
   public void tearDown() {
     WindowEventInterpreter.setReduceWindowDelay(false);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, false);
   }
 
   @Test
@@ -566,100 +563,6 @@ public class WindowEventInterpreterTest {
         app(DOWNLOADS, "Downloads").layer(2).active().build());
 
     assertEquals("Downloads", interpreter.getWindowTitle(DOWNLOADS).toString());
-  }
-
-  @Test
-  public void slowTitleIsAnnouncedUntitledAtOnceWhenWindowImmediateIsOn() {
-    WindowEventInterpreter.setReduceWindowDelay(true);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, true);
-    openSettings();
-
-    // The new window has no title yet, and none arrives by state-change either.
-    setWindows(statusBar(), navigationBar(), app(WIFI, null).active().build());
-    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ADDED));
-    interpret(windowsChanged(SETTINGS, WINDOWS_CHANGE_REMOVED));
-    waitMs(100);
-    // The title only appears in the window list, with no new event.
-    setWindows(statusBar(), navigationBar(), app(WIFI, "Wi-Fi").active().build());
-    waitMs(600);
-
-    // Immediate mode announces at the first check, before the title exists.
-    assertTranscript(
-        "0ms windows from=11 changes=0x1 original start=0 delay=10/50 main | src 11 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "0ms windows from=10 changes=0x2 original start=0 delay=10/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "10ms windows from=10 changes=0x2 stable start=0 delay=10/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"");
-  }
-
-  @Test
-  public void slowTitleIsAnnouncedTwiceWhenWindowImmediateIsOff() {
-    WindowEventInterpreter.setReduceWindowDelay(true);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, false);
-    openSettings();
-
-    setWindows(statusBar(), navigationBar(), app(WIFI, null).active().build());
-    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ADDED));
-    interpret(windowsChanged(SETTINGS, WINDOWS_CHANGE_REMOVED));
-    waitMs(100);
-    setWindows(statusBar(), navigationBar(), app(WIFI, "Wi-Fi").active().build());
-    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_TITLE));
-    waitMs(600);
-
-    // Old behaviour: assumed stable at 50 ms without the title, then announced again
-    // once the title arrived.
-    assertTranscript(
-        "0ms windows from=11 changes=0x1 original start=0 delay=10/50 main | src 11 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "0ms windows from=10 changes=0x2 original start=0 delay=10/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "50ms windows from=10 changes=0x2 stable start=0 delay=50/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "100ms windows from=11 changes=0x4 original start=100 delay=10/50 main | src"
-            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11",
-        "120ms windows from=11 changes=0x4 stable start=100 delay=20/50 main | src"
-            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11");
-  }
-
-  @Test
-  public void slowTitleIsAnnouncedAtOnceThenAgainWhenTitleArrivesWithWindowImmediateOn() {
-    WindowEventInterpreter.setReduceWindowDelay(true);
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.WINDOW_IMMEDIATE, true);
-    openSettings();
-
-    setWindows(statusBar(), navigationBar(), app(WIFI, null).active().build());
-    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_ADDED));
-    interpret(windowsChanged(SETTINGS, WINDOWS_CHANGE_REMOVED));
-    waitMs(100);
-    setWindows(statusBar(), navigationBar(), app(WIFI, "Wi-Fi").active().build());
-    interpret(windowsChanged(WIFI, WINDOWS_CHANGE_TITLE));
-    waitMs(600);
-
-    // Immediate mode announces at the first check of each cycle, then again with the title.
-    assertTranscript(
-        "0ms windows from=11 changes=0x1 original start=0 delay=10/50 main | src 11 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "0ms windows from=10 changes=0x2 original start=0 delay=10/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "10ms windows from=10 changes=0x2 stable start=0 delay=10/50 main | src 10 feedback"
-            + " \"untitled\" was 10\"Settings\" | A 11 feedback \"untitled\" was 10\"Settings\"",
-        "100ms windows from=11 changes=0x4 original start=100 delay=10/50 main | src"
-            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11",
-        "110ms windows from=11 changes=0x4 stable start=100 delay=10/50 main | src"
-            + " 11\"Wi-Fi\" was 10 | A 11\"Wi-Fi\" was 11");
-  }
-
-  @Test
-  public void reduceWindowDelayRefreshesTheSharedDelayAtOnce() {
-    WindowEventInterpreter.setReduceWindowDelay(true);
-    assertEquals(
-        WindowEventInterpreter.WINDOW_CHANGE_DELAY_NO_ANIMATION_MS,
-        WindowEventInterpreter.getWindowChangeDelayMs());
-    WindowEventInterpreter.setReduceWindowDelay(false);
-    assertEquals(
-        WindowEventInterpreter.WINDOW_CHANGE_DELAY_MS,
-        WindowEventInterpreter.getWindowChangeDelayMs());
   }
 
   // Screens
