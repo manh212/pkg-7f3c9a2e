@@ -1989,8 +1989,14 @@ public class FailoverTextToSpeech {
 
   public void refreshNavigationCache() {
     if (navigationPcmCache == null) return;
-    if (LatencyExperiments.preparePcm()) navigationPcmCache.invalidate();
-    else {
+    if (LatencyExperiments.preparePcm()) {
+      navigationPcmCache.invalidate();
+      if (LatencyExperiments.keepPreparationOnFocusChange()) {
+        LatencyExperiments.setInputListener(null);
+      } else {
+        LatencyExperiments.setInputListener(navigationPcmCache::cancelPreparation);
+      }
+    } else {
       navigationPcmCache.shutdown();
       navigationPcmCache = null;
       LatencyExperiments.setInputListener(null);
@@ -2020,7 +2026,9 @@ public class FailoverTextToSpeech {
     if (player == null) return;
     if (navigationPcmCache == null) {
       navigationPcmCache = new NavigationPcmCache(context);
-      LatencyExperiments.setInputListener(navigationPcmCache::cancelPreparation);
+      if (!LatencyExperiments.keepPreparationOnFocusChange()) {
+        LatencyExperiments.setInputListener(navigationPcmCache::cancelPreparation);
+      }
     }
     Locale spokenLocale = locale == null ? getUsedLocale() : locale;
     if (spokenLocale == null) return;
@@ -2070,7 +2078,9 @@ public class FailoverTextToSpeech {
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
       float[] prepared = cache.find(text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate());
       Performance.getInstance().onNavigationPcmCacheResult(utteranceId, prepared != null);
-      cache.cancelPreparation();
+      if (!LatencyExperiments.keepPreparationOnFocusChange()) {
+        cache.cancelPreparation();
+      }
       if (prepared != null) {
         if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();
         LowLatencyAudio.SpeechStream stream = player.openStream(utteranceId,
