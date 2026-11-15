@@ -28,7 +28,7 @@ public class LatencyExperimentsTest {
   }
 
   @Test
-  public void persistedSwitchesAreIndependentAndMissingSwitchesUseTheirDefaults() {
+  public void persistedSwitchesAreIndependentAndMissingSwitchesAreOff() {
     SharedPreferences preferences = RuntimeEnvironment.getApplication()
         .getSharedPreferences("latency-test", Context.MODE_PRIVATE);
     preferences.edit().clear().putBoolean(LatencyExperiments.Feature.ASYNC_ORDER.key, true).commit();
