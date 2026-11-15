@@ -5,8 +5,6 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import com.google.android.accessibility.talkback.R;
-import com.google.android.accessibility.utils.FormFactorUtils;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -16,11 +14,6 @@ import org.robolectric.annotation.Config;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
 public class ReadingGroupShortcutTest {
-  @Before
-  public void setUp() {
-    FormFactorUtils.initialize(RuntimeEnvironment.getApplication());
-  }
-
   @Test
   public void groupShortcutsCanBeAssignedButHaveNoDefaultKeys() {
     Context context = RuntimeEnvironment.getApplication();
