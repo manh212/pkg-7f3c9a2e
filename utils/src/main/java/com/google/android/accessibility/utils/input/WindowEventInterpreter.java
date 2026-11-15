@@ -51,6 +51,7 @@ import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.Filter;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.LogDepth;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -783,6 +784,8 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
 
   public static void setReduceWindowDelay(boolean reduce) {
     reduceWindowDelay = reduce;
+    windowChangeDelayMs =
+        reduce ? WINDOW_CHANGE_DELAY_NO_ANIMATION_MS : WINDOW_CHANGE_DELAY_MS;
   }
 
   /**
@@ -916,10 +919,14 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
 
     // Assume windows are stable if they all have titles from state-change-events, if the window
     // picture stopped changing while every changed window already has a title from the window
-    // list, or if maximum delay is reached.
+    // list, or if the settle cap is reached.
+    long settleCapMs =
+        LatencyExperiments.Feature.WINDOW_SETTLE.enabled()
+            ? WINDOW_CHANGE_DELAY_MS
+            : interpretation.getMaxDelayMs();
     if (interpretation.hasTitlesFromStateChange()
         || windowPictureSettled(interpretation, newWindowRoles)
-        || (interpretation.getMaxDelayMs() <= interpretation.getTotalDelayMs())) {
+        || (settleCapMs <= interpretation.getTotalDelayMs())) {
       LogDepth.log(
           TAG, depth, "Assumes windows are stable, delay=%d", interpretation.getTotalDelayMs());
       interpretation.setWindowsStable(true);
