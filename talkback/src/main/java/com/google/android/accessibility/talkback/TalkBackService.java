@@ -4010,8 +4010,6 @@ public class TalkBackService extends AccessibilityServiceCompat
             R.bool.pref_disable_latency_extras_default);
     EventFilter.setLatencyExtrasEnabled(latencyExtrasEnabled);
     LatencyExperiments.setPreparationAllowed(latencyExtrasEnabled);
-    LatencyExperiments.setKeepPreparationOnFocusChange(
-        prefs.getBoolean("pref_keep_preparation_on_focus_change", /* defValue= */ true));
     WindowNodePrefetcher.setEnabled(latencyExtrasEnabled);
     if (speechController != null) speechController.getFailoverTts().refreshNavigationCache();
     EventFilter.setPreparedSpeechOptions(
@@ -4721,8 +4719,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (prefs == null || gestureController == null) return;
     if (extendedGesturesController == null) {
       if (!com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.isEnabled(prefs)
-          && !TwoFingerRotationSettings.isEnabled(prefs)
-          && !com.google.android.accessibility.talkback.gesture.extended.TouchExploreSettings.isEnabled(prefs)) return;
+          && !TwoFingerRotationSettings.isEnabled(prefs)) return;
       extendedGesturesController =
           new com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController(this);
     }
