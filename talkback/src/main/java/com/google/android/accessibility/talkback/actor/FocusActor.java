@@ -28,6 +28,7 @@ import android.accessibilityservice.GestureDescription.StrokeDescription;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.text.style.URLSpan;
+import android.view.Display;
 import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -51,6 +52,7 @@ import com.google.android.accessibility.talkback.contextmenu.ListMenuManager;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
+import com.google.android.accessibility.talkback.gesture.EditBoxDoubleTap;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.talkback.scripting.Scripts;
@@ -180,6 +182,7 @@ public class FocusActor implements UserInputEventListener {
           eventId, Feedback.nodeAction(grabBookingButton, ACTION_CLICK.getId()));
     }
 
+    AccessibilityNodeInfoCompat focusedNode = node;
     node = Scripts.actionTarget(node, false);
     AccessibilityNodeInfoCompat collapseTarget = CollapseEngine.activationTarget(service, node);
     if (collapseTarget != null) {
@@ -194,12 +197,64 @@ public class FocusActor implements UserInputEventListener {
       return true;
     }
 
+    if (LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.enabled()
+        && fromDoubleTap(eventId) && node.equals(focusedNode)
+        && !EditBoxDoubleTap.handles(node)
+        && service instanceof TalkBackService meridian
+        && scheduleSimulatedTap(meridian, node, eventId)) {
+      return true;
+    }
+
     if (PerformActionUtils.isNodeSupportAction(node, AccessibilityNodeInfoCompat.ACTION_CLICK)
         && pipeline.returnFeedback(eventId, Feedback.nodeAction(node, ACTION_CLICK.getId()))) {
       return true;
     }
     // When none of the preceding conditions are met, the last resort is simulating click event.
     return simulateClickOnNode(service, node, eventId);
+  }
+
+  private boolean scheduleSimulatedTap(
+      TalkBackService meridian, AccessibilityNodeInfoCompat node, EventId eventId) {
+    Rect bounds = tapBounds(node);
+    if (bounds == null) return false;
+    int windowId = node.getWindowId();
+    int nodeHash = node.hashCode();
+    return meridian.scheduleSimulatedTap(
+        bounds.centerX(),
+        bounds.centerY(),
+        windowId,
+        nodeHash,
+        eventId.getEventTimeMs(),
+        () -> {
+          AccessibilityNodeInfoCompat focus = accessibilityFocusMonitor.getAccessibilityFocus(false);
+          if (focus == null) return false;
+          try {
+            return focus.getWindowId() == windowId && focus.hashCode() == nodeHash
+                && bounds.equals(tapBounds(focus));
+          } finally {
+            focus.recycle();
+          }
+        });
+  }
+
+  private static @Nullable Rect tapBounds(AccessibilityNodeInfoCompat node) {
+    if (!node.isEnabled() || !node.isVisibleToUser() || !node.isAccessibilityFocused()) return null;
+    AccessibilityWindowInfoCompat window = node.getWindow();
+    if (window == null) return null;
+    try {
+      if (AccessibilityWindowInfoUtils.getDisplayId(window) != Display.DEFAULT_DISPLAY
+          || AccessibilityWindowInfoUtils.isImeWindow(window)) {
+        return null;
+      }
+      Rect bounds = new Rect();
+      Rect windowBounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      window.getBoundsInScreen(windowBounds);
+      return bounds.intersect(windowBounds) && bounds.centerX() >= 0 && bounds.centerY() >= 0
+          ? bounds : null;
+    } finally {
+      window.recycle();
+    }
   }
 
   public boolean doubleClickCurrentFocus(EventId eventId) {
@@ -462,12 +517,9 @@ public class FocusActor implements UserInputEventListener {
   static GestureDescription buildFallbackClickGesture(Rect rect, @Nullable EventId eventId) {
     Path path = new Path();
     path.moveTo(rect.centerX(), rect.centerY());
-    boolean followsDoubleTap = eventId != null
-        && eventId.getEventType() == Performance.EVENT_TYPE_GESTURE
-        && eventId.getEventSubtype() == AccessibilityService.GESTURE_DOUBLE_TAP;
     int durationMs = ViewConfiguration.getTapTimeout();
     int startMs = 0;
-    if (followsDoubleTap) {
+    if (fromDoubleTap(eventId)) {
       int contactBudgetMs = LatencyExperiments.doubleTapClickDurationMs() - STROKE_TIME_GAP_MS;
       durationMs = Math.min(durationMs, contactBudgetMs / 2);
       startMs = contactBudgetMs - 2 * durationMs;
@@ -476,6 +528,11 @@ public class FocusActor implements UserInputEventListener {
         .addStroke(new StrokeDescription(path, startMs, durationMs))
         .addStroke(new StrokeDescription(path, startMs + durationMs + STROKE_TIME_GAP_MS, durationMs))
         .build();
+  }
+
+  private static boolean fromDoubleTap(@Nullable EventId eventId) {
+    return eventId != null && eventId.getEventType() == Performance.EVENT_TYPE_GESTURE
+        && eventId.getEventSubtype() == AccessibilityService.GESTURE_DOUBLE_TAP;
   }
 
   /** Simulates a double-click on the center of a view. */

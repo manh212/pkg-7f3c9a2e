@@ -321,6 +321,7 @@ pref_latency_pcm_adjacent
 pref_latency_pcm_second
 pref_latency_reset_session
 pref_latency_scoped_cache
+pref_latency_simulated_double_tap
 pref_latency_stall_capture
 pref_latency_start_session
 pref_latency_stationary_touch_delay_ms

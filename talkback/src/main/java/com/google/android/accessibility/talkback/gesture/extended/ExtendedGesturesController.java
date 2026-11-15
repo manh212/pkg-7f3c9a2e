@@ -7,13 +7,16 @@ import android.widget.Toast;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.gesture.TwoFingerRotationSettings;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 public final class ExtendedGesturesController {
   private final TalkBackService service;
   private ExtendedTouchBackend backend;
   private boolean activeExtendedGestures;
   private boolean activeRotation;
+  private boolean activeSimulatedDoubleTap;
 
   public ExtendedGesturesController(TalkBackService service) { this.service = service; }
 
@@ -26,15 +29,19 @@ public final class ExtendedGesturesController {
         ExtendedGestures.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
     boolean rotation = available &&
         TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
-    if (!extended && !rotation) { stop(); return; }
-    if (backend != null && extended == activeExtendedGestures && rotation == activeRotation) return;
+    boolean simulatedDoubleTap = available && LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.enabled();
+    if (!extended && !rotation && !simulatedDoubleTap) { stop(); return; }
+    if (backend != null && extended == activeExtendedGestures && rotation == activeRotation
+        && simulatedDoubleTap == activeSimulatedDoubleTap) return;
     stop();
     try {
-      backend = new ExtendedTouchBackend(service, this::failed, rotation, extended);
       activeExtendedGestures = extended;
       activeRotation = rotation;
+      activeSimulatedDoubleTap = simulatedDoubleTap;
+      backend = new ExtendedTouchBackend(service, this::failed, rotation, extended, simulatedDoubleTap);
       backend.start();
     } catch (RuntimeException error) {
+      LogUtils.w("ExtendedTouchBackend", "Could not start touch controller: %s", error);
       failed();
     }
   }
@@ -44,6 +51,10 @@ public final class ExtendedGesturesController {
         && backend != null && backend.performClick();
   }
 
+  public boolean scheduleSimulatedTap(Runnable tap, int delayMs) {
+    return Build.VERSION.SDK_INT >= 33 && backend != null && backend.scheduleSimulatedTap(tap, delayMs);
+  }
+
   public void stop() {
     if (Build.VERSION.SDK_INT >= 33 && backend != null) {
       backend.stop();
@@ -51,6 +62,7 @@ public final class ExtendedGesturesController {
     }
     activeExtendedGestures = false;
     activeRotation = false;
+    activeSimulatedDoubleTap = false;
   }
 
   public void configurationChanged(Configuration configuration) {
@@ -58,9 +70,17 @@ public final class ExtendedGesturesController {
   }
 
   private void failed() {
+    boolean simulating = activeSimulatedDoubleTap;
+    boolean rotationFailed = activeRotation
+        || TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
     stop();
-    boolean rotationFailed = activeRotation ||
-        TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
+    if (simulating) {
+      SharedPreferencesUtils.getSharedPreferences(service).edit()
+          .putBoolean(LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.key, false)
+          .apply();
+      Toast.makeText(service, R.string.simulated_double_tap_failed, Toast.LENGTH_LONG).show();
+      return;
+    }
     SharedPreferencesUtils.getSharedPreferences(service).edit()
         .putBoolean(ExtendedGestures.ENABLED, false)
         .putBoolean(TwoFingerRotationSettings.ENABLED, false)

@@ -94,6 +94,8 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     initLatencyPreparationPreferences();
     if (!BuildVersionUtils.isAtLeastT()) {
       getPreferenceScreen().removePreferenceRecursively(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY);
+      getPreferenceScreen()
+          .removePreferenceRecursively(LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.key);
     }
     Preference session = findPreference("pref_latency_start_session");
     if (session != null) {

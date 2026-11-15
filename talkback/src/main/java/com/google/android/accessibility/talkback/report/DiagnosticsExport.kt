@@ -158,7 +158,7 @@ object DiagnosticsExport {
     out.append(failoverTts()?.navigationCacheSummary() ?: "Navigation PCM cache: unavailable")
     out.append("\n")
     out.append("== Latency controls ==\n")
-    out.append("Double-tap simulated stroke duration: ${LatencyExperiments.doubleTapClickDurationMs(prefs)} ms\n")
+    out.append("Double-tap simulated activation time: ${LatencyExperiments.doubleTapClickDurationMs(prefs)} ms\n")
     out.append("Stationary touch exploration wait: ${LatencyExperiments.stationaryTouchDelayMs(prefs)} ms\n")
     out.append("Latency extras disabled: $extrasDisabled\n")
     out.append("Pinned latency optimizations: $pinnedLatencyEnabled\n")

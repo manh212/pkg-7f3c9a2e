@@ -19,13 +19,18 @@ package com.google.android.accessibility.talkback.actor;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.GestureDescription;
 import android.content.Context;
+import android.graphics.Path;
 import android.graphics.Region;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.view.Display;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.Nullable;
 import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.Pipeline;
@@ -43,6 +48,8 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
  */
 public class PassThroughModeActor {
   private static final String TAG = "PassThroughModeActor";
+  private static final String SIMULATED_TAP_TAG = "SimulatedDoubleTap";
+  private static final long TAP_RESULT_TIMEOUT_MS = 1000;
 
   // The maximum time of Pass-Through mode held from pass-through gesture detected till the next
   // touch interaction start event.
@@ -56,6 +63,9 @@ public class PassThroughModeActor {
   private PassThroughModeDialog passThroughDialog;
   // The exit runs on the main thread, like everything else here, not on a thread of its own.
   private final Handler handler = new Handler(Looper.getMainLooper());
+  private @Nullable SimulatedTap activeSimulatedTap;
+  private @Nullable SimulatedTap lastSimulatedTap;
+  private final Runnable simulatedTapTimeout = () -> finishSimulatedTap(activeSimulatedTap, "timeout");
   private final Runnable passThroughExit =
       () -> {
         // While in locked mode, we can ignore the time out event
@@ -83,6 +93,7 @@ public class PassThroughModeActor {
 
   public void onDestroy() {
     cancelPassThroughGuardTimer();
+    cancelSimulatedTap();
   }
 
   public void setPipeline(Pipeline.FeedbackReturner pipeline) {
@@ -110,7 +121,7 @@ public class PassThroughModeActor {
         // An exit left pending would set the region again later, over whichever holds it by then,
         // such as the circle menu's.
         cancelPassThroughGuardTimer();
-        service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, directTouchRegion);
+        applyDirectTouchRegion();
         if (touchExplorePassThroughActive) {
           LogUtils.v(TAG, "Leave touch explore pass-through mode.");
           pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_down));
@@ -127,7 +138,7 @@ public class PassThroughModeActor {
   public void setDirectTouchRegion(@Nullable Region region) {
     directTouchRegion = region == null ? new Region() : new Region(region);
     if (FeatureSupport.supportPassthrough() && !locked && !touchExplorePassThroughActive) {
-      service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, directTouchRegion);
+      applyDirectTouchRegion();
     }
   }
 
@@ -153,13 +164,120 @@ public class PassThroughModeActor {
         service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, region);
         LogUtils.v(TAG, "Enter touch explore pass-through lock mode.");
       } else {
-        service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, directTouchRegion);
         locked = false;
+        applyDirectTouchRegion();
         if (touchExplorePassThroughActive) {
           touchExplorePassThroughActive = false;
           LogUtils.v(TAG, "Leave touch explore pass-through lock mode.");
         }
       }
+    }
+  }
+
+  public boolean canSimulateTap() {
+    return FeatureSupport.supportPassthrough()
+        && !locked && !touchExplorePassThroughActive && activeSimulatedTap == null;
+  }
+
+  public void dispatchSimulatedTap(
+      int x, int y, int windowId, int nodeHash, long recognizedAt, int totalMs, int holdMs) {
+    if (!canSimulateTap()) return;
+    SimulatedTap tap = new SimulatedTap(x, y, windowId, nodeHash, recognizedAt);
+    activeSimulatedTap = tap;
+    try {
+      applyDirectTouchRegion();
+      Path path = new Path();
+      path.moveTo(x, y);
+      GestureDescription gesture = new GestureDescription.Builder()
+          .addStroke(new GestureDescription.StrokeDescription(path, 0, holdMs))
+          .build();
+      if (!service.dispatchGesture(gesture, tap, handler)) {
+        finishSimulatedTap(tap, "rejected");
+        return;
+      }
+      lastSimulatedTap = tap;
+      handler.postDelayed(simulatedTapTimeout, TAP_RESULT_TIMEOUT_MS);
+      LogUtils.i(SIMULATED_TAP_TAG, "sent chosen=%dms hold=%dms recognitionToDispatch=%dms",
+          totalMs, holdMs, tap.dispatchedAt - recognizedAt);
+    } catch (RuntimeException error) {
+      finishSimulatedTap(tap, "dispatch failed");
+    }
+  }
+
+  public void onSimulatedTapClick(AccessibilityEvent event) {
+    SimulatedTap tap = lastSimulatedTap;
+    if (tap == null) return;
+    long afterDispatch = event.getEventTime() - tap.dispatchedAt;
+    if (afterDispatch > TAP_RESULT_TIMEOUT_MS) {
+      lastSimulatedTap = null;
+      return;
+    }
+    if (afterDispatch < 0 || tap.windowId != event.getWindowId()) return;
+    AccessibilityNodeInfo source = event.getSource();
+    if (source == null) return;
+    try {
+      if (source.hashCode() == tap.nodeHash) {
+        LogUtils.i(SIMULATED_TAP_TAG, "viewClicked recognitionToClick=%dms dispatchToClick=%dms",
+            event.getEventTime() - tap.recognizedAt, afterDispatch);
+        lastSimulatedTap = null;
+      }
+    } finally {
+      source.recycle();
+    }
+  }
+
+  public void cancelSimulatedTap() {
+    finishSimulatedTap(activeSimulatedTap, "stopped");
+    lastSimulatedTap = null;
+  }
+
+  private void applyDirectTouchRegion() {
+    Region region = directTouchRegion;
+    if (activeSimulatedTap != null) {
+      int x = activeSimulatedTap.x;
+      int y = activeSimulatedTap.y;
+      region = new Region(directTouchRegion);
+      region.op(x, y, x + 1, y + 1, Region.Op.UNION);
+    }
+    service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, region);
+  }
+
+  private void finishSimulatedTap(@Nullable SimulatedTap tap, String status) {
+    if (tap == null || tap != activeSimulatedTap) return;
+    activeSimulatedTap = null;
+    if (lastSimulatedTap == tap && !"completed".equals(status)) {
+      lastSimulatedTap = null;
+    }
+    handler.removeCallbacks(simulatedTapTimeout);
+    if (!locked && !touchExplorePassThroughActive) {
+      applyDirectTouchRegion();
+    }
+    LogUtils.i(SIMULATED_TAP_TAG, "%s recognitionToResult=%dms",
+        status, SystemClock.uptimeMillis() - tap.recognizedAt);
+  }
+
+  private final class SimulatedTap extends AccessibilityService.GestureResultCallback {
+    final int x;
+    final int y;
+    final int windowId;
+    final int nodeHash;
+    final long recognizedAt;
+    final long dispatchedAt = SystemClock.uptimeMillis();
+
+    SimulatedTap(int x, int y, int windowId, int nodeHash, long recognizedAt) {
+      this.x = x;
+      this.y = y;
+      this.windowId = windowId;
+      this.nodeHash = nodeHash;
+      this.recognizedAt = recognizedAt;
+    }
+
+    @Override public void onCompleted(GestureDescription description) {
+      finishSimulatedTap(this, "completed");
+    }
+
+    @Override public void onCancelled(GestureDescription description) {
+      finishSimulatedTap(this, "cancelled");
     }
   }
 
