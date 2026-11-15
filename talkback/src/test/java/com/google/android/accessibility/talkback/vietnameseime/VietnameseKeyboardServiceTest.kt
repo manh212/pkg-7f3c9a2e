@@ -368,6 +368,16 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun hideKeyHidesTheKeyboardViewImmediatelyAndShowsItAgain() {
+    startEditor()
+    (keyboard as VietnameseKeyboardView).layoutSetting = VietnameseKeyboardView.LAYOUT_PC
+    press(service.getString(R.string.vietnamese_ime_hide))
+    assertEquals(View.GONE, (keyboard.parent as View).visibility)
+    service.onStartInputView(EditorInfo(), false)
+    assertEquals(View.VISIBLE, (keyboard.parent as View).visibility)
+  }
+
+  @Test
   fun threeLetterInitialExpandsInTheEditorWhenAVowelFollows() {
     setAutoCapitalize(false)
     setKeyboardSwitch(R.string.pref_vietnamese_keyboard_quick_telex_key, true)
