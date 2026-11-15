@@ -70,6 +70,27 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  fun singleTapToTypeHoverStaysSilentSoTalkBackSpeaksTheKeyOnce() {
+    prepareKeyboard()
+    keyboard.typingMethod = SINGLE_TAP_TO_TYPE
+    val hover = MotionEvent.obtain(100, 100, MotionEvent.ACTION_HOVER_ENTER, 20f, 60f, 0)
+    hover.source = InputDevice.SOURCE_TOUCHSCREEN
+    try {
+      keyboard.dispatchHoverEvent(hover)
+      hover.action = MotionEvent.ACTION_HOVER_MOVE
+      keyboard.dispatchHoverEvent(hover)
+      hover.action = MotionEvent.ACTION_HOVER_EXIT
+      keyboard.dispatchHoverEvent(hover)
+
+      assertTrue(spoken.isEmpty())
+      assertEquals(0, released)
+      assertTrue(typed.isEmpty())
+    } finally {
+      hover.recycle()
+    }
+  }
+
+  @Test
   fun micKeyAppearsOnlyWhenEnabled() {
     prepareKeyboard()
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)

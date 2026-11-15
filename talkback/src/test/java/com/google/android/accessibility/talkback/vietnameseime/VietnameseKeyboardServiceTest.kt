@@ -691,6 +691,24 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun singleTapToTypeKeepsHoveredKeysSilentEvenWithOwnVoiceOn() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    setOwnVoice(true)
+    startEditor()
+
+    assertFalse(view().speakHoveredKeys)
+  }
+
+  @Test
+  fun liftToTypeSpeaksHoveredKeysWithOwnVoiceOn() {
+    setTypingMethod(LIFT_TO_TYPE)
+    setOwnVoice(true)
+    startEditor()
+
+    assertTrue(view().speakHoveredKeys)
+  }
+
+  @Test
   fun directInputWaitsForTheEditAndTheReleaseSpeechDelay() {
     setEcho(PREF_ECHO_CHARACTERS)
     setTypingMethod(SINGLE_TAP_TO_TYPE)
