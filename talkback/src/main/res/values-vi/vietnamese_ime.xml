@@ -7,7 +7,7 @@
     <string name="vietnamese_ime_symbols">Số và ký hiệu</string>
     <string name="vietnamese_ime_letters">Chữ cái</string>
     <string name="vietnamese_ime_telex_on">Đang gõ tiếng Việt Telex</string>
-    <string name="vietnamese_ime_telex_off">Đang gõ không dùng Telex</string>
+    <string name="vietnamese_ime_telex_off">Đang gõ tiếng Anh</string>
     <string name="vietnamese_ime_delete">Xóa</string>
     <string name="vietnamese_ime_selected_text">phần văn bản đã chọn</string>
     <string name="vietnamese_ime_space">Dấu cách</string>
@@ -63,4 +63,24 @@
     <string name="vietnamese_ime_mic_enabled">Hiện nút nhập bằng giọng nói</string>
     <string name="vietnamese_ime_voice_input">Nhập bằng giọng nói</string>
     <string name="vietnamese_ime_voice_input_stopped">Đã dừng nhập bằng giọng nói</string>
+    <string name="vietnamese_ime_quick_telex">Gõ Telex cải tiến</string>
+    <string name="vietnamese_ime_show_language">Hiển thị nút chuyển Việt/Anh</string>
+    <string name="vietnamese_ime_switch_to_english">Chuyển sang gõ tiếng Anh</string>
+    <string name="vietnamese_ime_switch_to_vietnamese">Chuyển sang gõ tiếng Việt</string>
+    <string name="vietnamese_ime_shortcuts">Bảng gõ tắt</string>
+    <string name="vietnamese_ime_shortcuts_enabled">Mở rộng mã gõ tắt khi nhấn dấu cách</string>
+    <string name="vietnamese_ime_shortcut_add">Thêm mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_search">Tìm mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_list">Mã đã lưu</string>
+    <string name="vietnamese_ime_shortcut_empty">Chưa có mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_no_results">Không tìm thấy mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_edit">Sửa mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_code">Mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_replacement">Nội dung thay thế</string>
+    <string name="vietnamese_ime_shortcut_save">Lưu mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_delete">Xóa mã gõ tắt</string>
+    <string name="vietnamese_ime_shortcut_confirm_delete">Xóa mã gõ tắt %1$s?</string>
+    <string name="vietnamese_ime_shortcut_invalid">Mã chỉ được chứa chữ cái và chữ số.</string>
+    <string name="vietnamese_ime_shortcut_duplicate">Mã gõ tắt này đã có.</string>
+    <string name="vietnamese_ime_shortcut_required_text">Hãy nhập nội dung thay thế.</string>
 </resources>

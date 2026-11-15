@@ -165,6 +165,13 @@ internal class VietnameseKeyboardView(
       field = value
       rebuildRows()
     }
+  var showLanguageKey = true
+    set(value) {
+      if (field == value) return
+      cancelInput()
+      field = value
+      rebuildRows()
+    }
   var showNumberRow = true
     set(value) {
       if (field == value) return
@@ -676,7 +683,8 @@ internal class VietnameseKeyboardView(
     SYMBOLS -> context.getString(R.string.vietnamese_ime_symbols)
     LETTERS -> context.getString(R.string.vietnamese_ime_letters)
     LANGUAGE -> context.getString(
-      if (telexEnabled) R.string.vietnamese_ime_telex_on else R.string.vietnamese_ime_telex_off,
+      if (telexEnabled) R.string.vietnamese_ime_switch_to_english
+      else R.string.vietnamese_ime_switch_to_vietnamese,
     )
     DELETE -> context.getString(R.string.vietnamese_ime_delete)
     HIDE -> context.getString(R.string.vietnamese_ime_hide)
@@ -712,9 +720,9 @@ internal class VietnameseKeyboardView(
       node.setScreenReaderFocusable(true)
       node.isClickable = node.isEnabled
       if (node.isEnabled) node.addAction(AccessibilityNodeInfo.ACTION_CLICK)
-      if (key.id == SHIFT || key.id == LANGUAGE) {
+      if (key.id == SHIFT) {
         node.isCheckable = true
-        node.isChecked = if (key.id == SHIFT) isShiftActive() else telexEnabled
+        node.isChecked = isShiftActive()
       }
       val bounds = Rect()
       cell.bounds.round(bounds)
@@ -835,7 +843,7 @@ internal class VietnameseKeyboardView(
     val thirdRow = listOf(shift) + third + delete
     val bottom = listOfNotNull(
       if (symbolPage) function(LETTERS, "ABC", 1.3f) else function(SYMBOLS, "123", 1.3f),
-      function(LANGUAGE, if (telexEnabled) "VI" else "EN", 1.1f),
+      function(LANGUAGE, if (telexEnabled) "VI" else "EN", 1.1f).takeIf { showLanguageKey },
       characters(",").single(),
       Cell(VietnameseKeyTouch.Key(" "),
         context.getString(R.string.vietnamese_ime_space), if (pc) 6.5f else 3.2f),

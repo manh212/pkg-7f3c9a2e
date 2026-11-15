@@ -157,14 +157,28 @@ class TypingSettingsStructureTest {
   }
 
   @Test
-  fun vietnameseKeyboardTypingScreen_holdsAutoCapitalizeDoubleSpaceAndMic() {
+  fun vietnameseKeyboardTypingScreen_holdsTypingModesAndLinksToShortcuts() {
+    val rows = rowsOf(R.xml.vietnamese_keyboard_typing_preferences)
     assertEquals(
       listOf(
+        "pref_vietnamese_keyboard_quick_telex",
+        "pref_vietnamese_keyboard_show_language",
+        "pref_vietnamese_keyboard_shortcuts_screen",
         "pref_vietnamese_keyboard_auto_capitalize",
         "pref_vietnamese_keyboard_double_space_period",
         "pref_vietnamese_keyboard_mic_enabled",
       ),
-      rowsOf(R.xml.vietnamese_keyboard_typing_preferences).map { it.first },
+      rows.map { it.first },
+    )
+    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardShortcutsFragment") == true)
+    assertEquals(
+      listOf(
+        "pref_vietnamese_keyboard_shortcuts_enabled",
+        "pref_vietnamese_keyboard_shortcut_add",
+        "pref_vietnamese_keyboard_shortcut_search",
+        "pref_vietnamese_keyboard_shortcut_list",
+      ),
+      rowsOf(R.xml.vietnamese_keyboard_shortcuts_preferences).map { it.first },
     )
   }
 

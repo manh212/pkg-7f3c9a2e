@@ -23,6 +23,21 @@ class TelexTest {
   }
 
   @Test
+  fun quickTelexExpandsTheSevenInitialsWhenAVowelFollows() {
+    assertEquals("chào", type("ccaof", quickTelex = true))
+    assertEquals("trời", type("ttowif", quickTelex = true))
+    assertEquals("gia", type("gga", quickTelex = true))
+    assertEquals("không", type("kkoong", quickTelex = true))
+    assertEquals("nga", type("nna", quickTelex = true))
+    assertEquals("pha", type("ppa", quickTelex = true))
+    assertEquals("qua", type("qqa", quickTelex = true))
+    assertEquals("CHÀO", type("CCAOF", quickTelex = true))
+    assertEquals("TT", type("TT", quickTelex = true))
+    assertEquals("lcca", type("lcca", quickTelex = true))
+    assertEquals("ccào", type("ccaof"))
+  }
+
+  @Test
   fun completesBothHornsWhenTypedSeparatelyOrBeforeTheEnding() {
     assertEquals("người", type("nguwowif"))
     assertEquals("người", type("nguwoif"))
@@ -72,5 +87,6 @@ class TelexTest {
     assertEquals("", Telex.deleteLast("ả"))
   }
 
-  private fun type(keys: String): String = keys.fold("", Telex::apply)
+  private fun type(keys: String, quickTelex: Boolean = false): String =
+    keys.fold("") { word, key -> Telex.apply(word, key, quickTelex) }
 }

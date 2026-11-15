@@ -15,6 +15,8 @@ import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedText
+import android.view.inputmethod.ExtractedTextRequest
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
@@ -75,6 +77,14 @@ class VietnameseKeyboardServiceTest {
     Selection.setSelection(text, 0)
     val connection = object : BaseInputConnection(View(service), true) {
       override fun getEditable(): Editable = text
+
+      override fun getExtractedText(request: ExtractedTextRequest?, flags: Int): ExtractedText =
+        ExtractedText().apply {
+          val current = this@VietnameseKeyboardServiceTest.text
+          text = current.toString()
+          selectionStart = Selection.getSelectionStart(current)
+          selectionEnd = Selection.getSelectionEnd(current)
+        }
 
       override fun getTextBeforeCursor(length: Int, flags: Int): CharSequence? {
         editorReads++
@@ -314,6 +324,108 @@ class VietnameseKeyboardServiceTest {
     }
 
     assertEquals("người đường", text.toString())
+  }
+
+  @Test
+  fun quickTelexRequiresTheBeginningOfTheWordAndCanBeDisabledLive() {
+    setAutoCapitalize(false)
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_quick_telex_key, true)
+    text.append("x")
+    Selection.setSelection(text, 1)
+    startEditor { initialSelStart = 1; initialSelEnd = 1 }
+    repeat(2) { press("xê") }
+    press("a")
+    press("Dấu cách")
+    repeat(2) { press("xê") }
+    press("a")
+    press("Dấu cách")
+
+    assertEquals("xcca cha ", text.toString())
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_quick_telex_key, false)
+    repeat(2) { press("xê") }
+    press("a")
+
+    assertEquals("xcca cha cca", text.toString())
+  }
+
+  @Test
+  fun languageKeySwitchesTypingModeAndCanBeHiddenLive() {
+    setAutoCapitalize(false)
+    startEditor()
+    press("Chuyển sang gõ tiếng Anh")
+    press("a")
+    press("a")
+    press("Dấu cách")
+    press("Chuyển sang gõ tiếng Việt")
+    press("a")
+    press("a")
+
+    assertEquals("aa â", text.toString())
+    assertTrue(hasKey("Chuyển sang gõ tiếng Anh"))
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_show_language_key, false)
+    assertFalse(hasKey("Chuyển sang gõ tiếng Anh"))
+    assertTrue(hasKey("Đổi bàn phím"))
+  }
+
+  @Test
+  fun shortcutMatchesTypedKeysBeforeTelexAndInsertsMultilineTextOnce() {
+    saveShortcuts(mapOf("as" to "Một dòng\nHai dòng"))
+    startEditor()
+    press("a")
+    press("sờ")
+    assertEquals("Á", text.toString())
+    press("Dấu cách")
+
+    assertEquals("Một dòng\nHai dòng ", text.toString())
+    assertEquals(1, commits)
+  }
+
+  @Test
+  fun hardwareSpaceExpandsACommittedCaseSensitiveShortcutInEnglish() {
+    saveShortcuts(mapOf("VN" to "Việt Nam", "vn" to "văn nghệ"))
+    startEditor()
+    press("Chuyển sang gõ tiếng Anh")
+    text.append("Xin VN")
+    Selection.setSelection(text, text.length)
+    val space = KeyEvent.KEYCODE_SPACE
+
+    assertTrue(service.onKeyDown(space, physicalKey(KeyEvent.ACTION_DOWN, space)))
+    assertTrue(service.onKeyUp(space, physicalKey(KeyEvent.ACTION_UP, space)))
+    assertEquals("Xin Việt Nam ", text.toString())
+    assertEquals(text.length, Selection.getSelectionEnd(text))
+  }
+
+  @Test
+  fun shortcutRequiresAWholeCodeAndKeepsEntriesWhenDisabled() {
+    saveShortcuts(mapOf("VN" to "Việt Nam"))
+    text.append("VNextra")
+    Selection.setSelection(text, 2)
+    startEditor { initialSelStart = 2; initialSelEnd = 2 }
+    press("Dấu cách")
+    assertEquals("VN extra", text.toString())
+
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_shortcuts_enabled_key, false)
+    text.replace(0, text.length, "VN")
+    Selection.setSelection(text, 2)
+    startEditor { initialSelStart = 2; initialSelEnd = 2 }
+    press("Dấu cách")
+
+    assertEquals("VN ", text.toString())
+    assertEquals(mapOf("VN" to "Việt Nam"), VietnameseKeyboardShortcuts.read(keyboardPrefs()))
+  }
+
+  @Test
+  fun theShortcutCodeFieldAcceptsLiteralTelexKeys() {
+    saveShortcuts(mapOf("as" to "Một câu"))
+    startEditor {
+      packageName = service.packageName
+      privateImeOptions = VietnameseKeyboardShortcuts.LITERAL_CODE_FIELD
+    }
+    press("a")
+    press("sờ")
+    press("Dấu cách")
+
+    assertEquals("as ", text.toString())
   }
 
   @Test
@@ -997,11 +1109,13 @@ class VietnameseKeyboardServiceTest {
 
   private fun micLabel() = service.getString(R.string.vietnamese_ime_voice_input)
 
-  private fun hasMicLabel(): Boolean {
+  private fun hasMicLabel(): Boolean = hasKey(micLabel())
+
+  private fun hasKey(label: String): Boolean {
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
     val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
     return (0 until host.childCount).any {
-      provider.createAccessibilityNodeInfo(it)?.text?.toString() == micLabel()
+      provider.createAccessibilityNodeInfo(it)?.text?.toString() == label
     }
   }
 
@@ -1041,6 +1155,17 @@ class VietnameseKeyboardServiceTest {
     SharedPreferencesUtils.getSharedPreferences(service).edit()
       .putString(service.getString(R.string.pref_typing_confirmation_key), method.toString())
       .apply()
+  }
+
+  private fun keyboardPrefs() = SharedPreferencesUtils.getSharedPreferences(service)
+
+  private fun setKeyboardSwitch(key: Int, enabled: Boolean) {
+    keyboardPrefs().edit().putBoolean(service.getString(key), enabled).apply()
+  }
+
+  private fun saveShortcuts(entries: Map<String, String>) {
+    VietnameseKeyboardShortcuts.write(keyboardPrefs(), entries)
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_shortcuts_enabled_key, true)
   }
 
   private fun tapDelete() {
