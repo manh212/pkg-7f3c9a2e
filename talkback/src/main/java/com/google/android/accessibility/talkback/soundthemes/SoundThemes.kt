@@ -22,6 +22,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.backup.FileTreeBackup
 import com.google.android.accessibility.talkback.controlsounds.ControlSounds
 import com.google.android.accessibility.talkback.controlsounds.ControlSoundsSettings
 import com.google.android.accessibility.talkback.individualfeedback.FeedbackItem
@@ -38,7 +39,9 @@ import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import org.json.JSONArray
 import org.json.JSONException
+import org.json.JSONObject
 
 /** An installed sound theme. */
 data class SoundTheme(val id: String, val manifest: SoundThemeManifest, val directory: File) {
@@ -178,6 +181,50 @@ object SoundThemes {
   }
 
   @JvmStatic fun activeId(prefs: SharedPreferences): String = prefs.getString(PREF_ACTIVE, BACKTALK)!!
+
+  /**
+   * The installed themes as the settings backup carries them: each theme's files, with
+   * its id. Backtalk's own theme rides along only when the user changed it — its
+   * directory only exists then. The theme in use rides the settings file's preferences.
+   */
+  fun backupJson(context: Context): String {
+    val themes = JSONArray()
+    for (theme in installed(context)) {
+      val files = FileTreeBackup.toJson(theme.directory, MAX_THEME_BYTES, MAX_ENTRIES) ?: continue
+      themes.put(JSONObject().put("id", theme.id).put("files", files))
+    }
+    return themes.toString()
+  }
+
+  /**
+   * Replaces the installed themes with the ones in a settings backup. Every theme is
+   * read first, so a bad backup changes nothing.
+   */
+  fun restoreBackup(context: Context, json: String): Boolean {
+    val wanted = LinkedHashMap<String, List<Pair<String, ByteArray>>>()
+    try {
+      val themes = JSONArray(json)
+      for (i in 0 until themes.length()) {
+        val entry = themes.optJSONObject(i) ?: return false
+        val id = entry.optString("id", "")
+        if (id.isEmpty() || id.startsWith(".") || wanted.containsKey(id)) return false
+        val files =
+          FileTreeBackup.parse(entry.optJSONArray("files"), MAX_THEME_BYTES, MAX_ENTRIES)
+            ?: return false
+        wanted[id] = files
+      }
+    } catch (e: JSONException) {
+      return false
+    }
+    val directory = themesDirectory(context)
+    for (dir in directory.listFiles().orEmpty().filter { it.isDirectory && !isDraft(it.name) }) {
+      if (dir.name !in wanted) dir.deleteRecursively()
+    }
+    for ((id, files) in wanted) {
+      if (!FileTreeBackup.write(File(directory, id), files)) return false
+    }
+    return true
+  }
 
   /** The theme in use, or Backtalk's if the one in use is gone. */
   @JvmStatic
