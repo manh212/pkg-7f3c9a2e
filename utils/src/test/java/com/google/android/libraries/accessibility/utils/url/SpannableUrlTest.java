@@ -14,12 +14,12 @@ public class SpannableUrlTest {
   @Test
   public void onClick_nullUrlDoesNotThrow() {
     Context context = RuntimeEnvironment.getApplication();
-    SpannableUrl.create("text", new URLSpan(null)).onClick(context);
+    SpannableUrl.create("text", new URLSpan((String) null)).onClick(context);
   }
 
   @Test
   public void path_nullUrlReturnsNull() {
-    SpannableUrl url = SpannableUrl.create("text", new URLSpan(null));
+    SpannableUrl url = SpannableUrl.create("text", new URLSpan((String) null));
     org.junit.Assert.assertNull(url.path());
   }
 }
