@@ -30,13 +30,14 @@ public class ExtendedGesturesTest {
     prefs.edit().clear().commit();
   }
 
-  @Test public void rotationIsOnByDefaultAndIndependentOfExtendedGestures() {
+  @Test public void rotationAndExtendedGesturesAreOnByDefaultAndIndependent() {
     assertTrue(TwoFingerRotationSettings.isEnabled(prefs));
     prefs.edit().putBoolean(TwoFingerRotationSettings.ENABLED, true).commit();
     assertTrue(TwoFingerRotationSettings.isEnabled(prefs));
-    assertFalse(ExtendedGestures.isEnabled(prefs));
+    assertTrue(ExtendedGestures.isEnabled(prefs));
     prefs.edit().putBoolean(TwoFingerRotationSettings.ENABLED, false).commit();
     assertFalse(TwoFingerRotationSettings.isEnabled(prefs));
+    assertTrue(ExtendedGestures.isEnabled(prefs));
   }
 
   @Test @Config(sdk = 32) public void rotationDoesNotEnableOnUnsupportedAndroid() {
@@ -51,8 +52,8 @@ public class ExtendedGesturesTest {
     assertFalse(keys(R.xml.touch_activation_preferences).contains(TwoFingerRotationSettings.ENABLED));
   }
 
-  @Test public void isOffByDefaultAndDoesNotEraseAssignmentsWhenDisabled() {
-    assertFalse(ExtendedGestures.isEnabled(prefs));
+  @Test public void isOnByDefaultAndDoesNotEraseAssignmentsWhenDisabled() {
+    assertTrue(ExtendedGestures.isEnabled(prefs));
     String key = context.getString(ExtendedGestures.key(ExtendedGestures.FIRST_ID));
     prefs.edit().putString(key, "CLIPBOARD_HISTORY").putBoolean(ExtendedGestures.ENABLED, true).commit();
     assertTrue(ExtendedGestures.isEnabled(prefs));

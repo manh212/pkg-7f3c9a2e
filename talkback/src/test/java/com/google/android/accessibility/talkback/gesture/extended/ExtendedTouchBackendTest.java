@@ -170,10 +170,10 @@ public class ExtendedTouchBackendTest {
   }
 
   @Test public void liftingBeforeTheStationaryDelayKeepsDoubleTapAvailable() {
-    setStationaryTouchDelay(100);
+    setStationaryTouchDelay(200);
     motion(MotionEvent.ACTION_DOWN, 700);
     motion(MotionEvent.ACTION_UP, 700);
-    Shadows.shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(99, TimeUnit.MILLISECONDS);
     assertEquals(0, touch.explorationRequests);
     time += 100;
     motion(MotionEvent.ACTION_DOWN, 700);
@@ -204,14 +204,14 @@ public class ExtendedTouchBackendTest {
   }
 
   @Test public void movingFartherThanTouchSlopCancelsOnlyTheEarlyExplorationRequest() {
-    setStationaryTouchDelay(100);
+    setStationaryTouchDelay(200);
     int slop = ViewConfiguration.get(service).getScaledTouchSlop();
     motion(MotionEvent.ACTION_DOWN, 700);
     motion(MotionEvent.ACTION_MOVE, 700 - slop - 1);
 
-    Shadows.shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(99, TimeUnit.MILLISECONDS);
     assertEquals(0, touch.explorationRequests);
-    Shadows.shadowOf(Looper.getMainLooper()).idleFor(200, TimeUnit.MILLISECONDS);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
     assertEquals(1, touch.explorationRequests);
   }
 
