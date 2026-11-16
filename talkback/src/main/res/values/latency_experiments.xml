@@ -46,7 +46,7 @@
   <string name="title_latency_pcm_second" translatable="false">Chuẩn bị âm thanh cho mục cách hai bước</string>
   <string name="title_latency_immediate_speech" translatable="false">Ưu tiên phát lời điều hướng ngay</string>
   <string name="title_latency_fast_single_finger_swipe" translatable="false">Vuốt một ngón nhanh khi bật xoay hai ngón</string>
-  <string name="title_latency_touch_speech_with_rotation" translatable="false">Ngắt lời sớm khi bật xoay hai ngón</string>
+  <string name="title_latency_touch_speech_with_rotation" translatable="false">Ngắt lời sớm khi chạm sau cử chỉ</string>
   <string name="title_latency_fast_window_transitions" translatable="false">Chuyển cửa sổ nhanh</string>
   <string name="title_latency_fast_scroll" translatable="false">Tiếp tục điều hướng ngay khi có dữ liệu sau cuộn</string>
   <string name="title_latency_live_edge_reuse" translatable="false">Dùng lại cây live khi kiểm tra mép cuộn</string>

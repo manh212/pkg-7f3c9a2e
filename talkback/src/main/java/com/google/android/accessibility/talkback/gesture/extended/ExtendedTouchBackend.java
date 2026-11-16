@@ -206,10 +206,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       if (action == MotionEvent.ACTION_DOWN) {
         firstPointerOnly = true;
         cancelStationaryTouchExploration();
-        if (rotationEnabled
-            && completedInteraction
+        if (completedInteraction
             && state == TouchInteractionController.STATE_TOUCH_INTERACTING
-            && LatencyExperiments.Feature.TOUCH_SPEECH_WITH_ROTATION.enabled()
+            && LatencyExperiments.Feature.EARLY_TOUCH_SPEECH.enabled()
             && FocusFeedbackMapper.isTouchStopsSpeechEnabled()) {
           service.onContinuedGestureTouchDown(event.getEventTime());
         }

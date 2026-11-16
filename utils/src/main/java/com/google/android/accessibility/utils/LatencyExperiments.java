@@ -30,7 +30,7 @@ public final class LatencyExperiments {
     IMMEDIATE_SPEECH("immediate_speech"),
     FAST_DOUBLE_TAP("simulated_double_tap"),
     FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe"),
-    TOUCH_SPEECH_WITH_ROTATION("touch_speech_with_rotation"),
+    EARLY_TOUCH_SPEECH("touch_speech_with_rotation"),
     FAST_WINDOW_TRANSITIONS("fast_window_transitions"),
     FAST_SCROLL("fast_scroll"),
     LIVE_EDGE_REUSE("live_edge_reuse"),
