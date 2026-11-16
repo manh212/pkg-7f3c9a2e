@@ -7,10 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class LatencyExperiments {
-  public static final String DOUBLE_TAP_CLICK_DURATION_KEY =
-      "pref_latency_double_tap_click_duration_ms";
   public static final String STATIONARY_TOUCH_DELAY_KEY = "pref_latency_stationary_touch_delay_ms";
-  public static final int SIMULATED_CLICK_GAP_MS = 40;
 
   public enum Feature {
     TRACE("trace"),
@@ -54,7 +51,6 @@ public final class LatencyExperiments {
   private static volatile boolean touchControllerReleased;
   private static volatile boolean preparationAllowed;
   private static volatile Runnable inputListener;
-  private static volatile int doubleTapClickDurationMs;
   private static volatile int stationaryTouchDelayMs;
 
   private LatencyExperiments() {}
@@ -63,43 +59,11 @@ public final class LatencyExperiments {
     for (Feature feature : Feature.values()) {
       feature.enabled = preferences.getBoolean(feature.key, false);
     }
-    loadTouchTiming(preferences);
+    loadStationaryTouchDelay(preferences);
   }
 
-  public static void loadTouchTiming(SharedPreferences preferences) {
-    doubleTapClickDurationMs = doubleTapClickDurationMs(preferences);
+  public static void loadStationaryTouchDelay(SharedPreferences preferences) {
     stationaryTouchDelayMs = stationaryTouchDelayMs(preferences);
-  }
-
-  private static int readTouchTiming(
-      SharedPreferences preferences, String key, int defaultMs, int minMs, int maxMs) {
-    try {
-      return Math.max(minMs, Math.min(preferences.getInt(key, defaultMs), maxMs));
-    } catch (ClassCastException error) {
-      return defaultMs;
-    }
-  }
-
-  public static int defaultDoubleTapClickDurationMs() {
-    return 2 * ViewConfiguration.getTapTimeout() + SIMULATED_CLICK_GAP_MS;
-  }
-
-  public static int minimumDoubleTapClickDurationMs() {
-    return 2 * Math.min(ViewConfiguration.getTapTimeout(), 40) + SIMULATED_CLICK_GAP_MS;
-  }
-
-  public static int maximumDoubleTapClickDurationMs() {
-    return Math.max(defaultDoubleTapClickDurationMs(), 500);
-  }
-
-  public static int doubleTapClickDurationMs() {
-    int durationMs = doubleTapClickDurationMs;
-    return durationMs == 0 ? defaultDoubleTapClickDurationMs() : durationMs;
-  }
-
-  public static int doubleTapClickDurationMs(SharedPreferences preferences) {
-    return readTouchTiming(preferences, DOUBLE_TAP_CLICK_DURATION_KEY, defaultDoubleTapClickDurationMs(),
-        minimumDoubleTapClickDurationMs(), maximumDoubleTapClickDurationMs());
   }
 
   public static int defaultStationaryTouchDelayMs() {
@@ -120,8 +84,13 @@ public final class LatencyExperiments {
   }
 
   public static int stationaryTouchDelayMs(SharedPreferences preferences) {
-    return readTouchTiming(preferences, STATIONARY_TOUCH_DELAY_KEY, defaultStationaryTouchDelayMs(),
-        minimumStationaryTouchDelayMs(), maximumStationaryTouchDelayMs());
+    int defaultMs = defaultStationaryTouchDelayMs();
+    try {
+      int selectedMs = preferences.getInt(STATIONARY_TOUCH_DELAY_KEY, defaultMs);
+      return Math.max(minimumStationaryTouchDelayMs(), Math.min(selectedMs, maximumStationaryTouchDelayMs()));
+    } catch (ClassCastException error) {
+      return defaultMs;
+    }
   }
 
   public static void setEnabled(Feature feature, boolean enabled) {

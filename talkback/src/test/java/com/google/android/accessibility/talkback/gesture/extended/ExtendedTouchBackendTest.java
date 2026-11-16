@@ -16,6 +16,7 @@ import android.view.MotionEvent;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.utils.LatencyExperiments;
+import com.google.android.accessibility.utils.gestures.GestureManifold;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -109,7 +110,7 @@ public class ExtendedTouchBackendTest {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.EARLY_TOUCH_SPEECH, false);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, false);
     service.getSharedPreferences("touch-timing-test", 0).edit().clear().commit();
-    LatencyExperiments.loadTouchTiming(service.getSharedPreferences("touch-timing-test", 0));
+    LatencyExperiments.loadStationaryTouchDelay(service.getSharedPreferences("touch-timing-test", 0));
   }
 
   @Test public void stationaryFingerRequestsExplorationAfterTheReducedDelay() {
@@ -122,6 +123,50 @@ public class ExtendedTouchBackendTest {
     assertEquals(1, touch.explorationRequests);
     Shadows.shadowOf(Looper.getMainLooper()).idleFor(300, TimeUnit.MILLISECONDS);
     assertEquals(1, touch.explorationRequests);
+  }
+
+  @Test public void touchExplorationCannotStartWhenAndroidIsClear() {
+    touch.state = TouchInteractionController.STATE_CLEAR;
+    touch.callback.onStateChanged(touch.state);
+    backend.onGestureCompleted(new AccessibilityGestureEvent(
+        GestureManifold.GESTURE_TOUCH_EXPLORE, Display.DEFAULT_DISPLAY, List.of()));
+
+    assertEquals(0, touch.explorationRequests);
+    touch.state = TouchInteractionController.STATE_TOUCH_INTERACTING;
+    touch.callback.onStateChanged(touch.state);
+    swipeUp();
+    assertEquals(List.of(AccessibilityService.GESTURE_SWIPE_UP), service.gestures);
+  }
+
+  @Test public void aFullMotionQueueDoesNotStopGestureHandling() {
+    requestExplorationWithoutStateCallback();
+    for (int i = 0; i <= 128; i++) {
+      motion(MotionEvent.ACTION_MOVE, 700);
+    }
+    motion(MotionEvent.ACTION_UP, 700);
+    assertNextSwipeWorks();
+  }
+
+  @Test public void aMissingStateCallbackTimesOutWithoutDisablingGestures() {
+    requestExplorationWithoutStateCallback();
+    motion(MotionEvent.ACTION_MOVE, 700);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(
+        ViewConfiguration.getDoubleTapTimeout(), TimeUnit.MILLISECONDS);
+    motion(MotionEvent.ACTION_UP, 700);
+    assertNextSwipeWorks();
+  }
+
+  private void requestExplorationWithoutStateCallback() {
+    setStationaryTouchDelay(100);
+    motion(MotionEvent.ACTION_DOWN, 700);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.explorationRequests);
+  }
+
+  private void assertNextSwipeWorks() {
+    assertNotNull(touch.callback);
+    swipeUp();
+    assertEquals(List.of(AccessibilityService.GESTURE_SWIPE_UP), service.gestures);
   }
 
   @Test public void liftingBeforeTheStationaryDelayKeepsDoubleTapAvailable() {
@@ -200,7 +245,7 @@ public class ExtendedTouchBackendTest {
   private void setStationaryTouchDelay(int delayMs) {
     var preferences = service.getSharedPreferences("touch-timing-test", 0);
     preferences.edit().putInt(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY, delayMs).commit();
-    LatencyExperiments.loadTouchTiming(preferences);
+    LatencyExperiments.loadStationaryTouchDelay(preferences);
     touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
   }
 

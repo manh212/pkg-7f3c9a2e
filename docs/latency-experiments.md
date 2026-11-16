@@ -30,18 +30,13 @@ keep their stored values. Changing one experiment never enables another.
 | `audio_resample` | Resample each new speech stream outside the shared audio-output lock, under a per-stream lock. Takes effect for newly opened streams. |
 | `audio_keep_warm` | Extend idle audio-track retention from 2 seconds to 10 seconds. The shorter microphone-in-use policy remains. |
 
-The two touch timing sliders show absolute milliseconds and use the current
-device timings by default. **Thời gian chạm mô phỏng dự phòng sau nhấn đúp** starts
-at two system tap durations plus the existing 40 ms gap when Meridian simulates
-activation. A shorter setting shortens both strokes. A longer setting holds
-the gesture before the first stroke to keep the strokes valid. The gap and
-the physical double-tap recognition thresholds stay the same.
 On Android 13 and later, **Phản hồi nhanh khi nhấn đúp** sends an ordinary
 double-tap to Meridian as soon as the second finger-up is recognized, with or
 without rotation. Meridian uses the existing accessibility click and click
 feedback. If that click is unavailable, it asks Android's touch controller
-to click before using its own simulated fallback. The slider controls only
-that last fallback. The switch retains the value stored by the former
+to click before using its own simulated fallback. The simulated fallback
+begins immediately and limits each stroke to 40 ms in the fast mode.
+The switch retains the value stored by the former
 simulated activation experiment. Latency tracing records which click path ran.
 
 **Thời gian chờ đọc khi giữ yên một ngón** starts at the existing exploration

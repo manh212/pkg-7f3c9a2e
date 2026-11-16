@@ -159,7 +159,6 @@ object DiagnosticsExport {
     out.append("\n")
     out.append("== Latency controls ==\n")
     out.append("Fast double-tap feedback selected: ${prefs.getBoolean(LatencyExperiments.Feature.FAST_DOUBLE_TAP.key, false)}\n")
-    out.append("Double-tap simulated fallback duration: ${LatencyExperiments.doubleTapClickDurationMs(prefs)} ms\n")
     out.append("Stationary touch exploration wait: ${LatencyExperiments.stationaryTouchDelayMs(prefs)} ms\n")
     out.append("Latency extras disabled: $extrasDisabled\n")
     out.append("Pinned latency optimizations: $pinnedLatencyEnabled\n")

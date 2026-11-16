@@ -4960,9 +4960,8 @@ public class TalkBackService extends AccessibilityServiceCompat
           progressBarAnnouncer.onModeChanged();
           return;
         }
-        if (LatencyExperiments.DOUBLE_TAP_CLICK_DURATION_KEY.equals(key)
-            || LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY.equals(key)) {
-          LatencyExperiments.loadTouchTiming(prefs);
+        if (LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY.equals(key)) {
+          LatencyExperiments.loadStationaryTouchDelay(prefs);
           return;
         }
         if (LatencyExperiments.Feature.FAST_DOUBLE_TAP.key.equals(key)) {

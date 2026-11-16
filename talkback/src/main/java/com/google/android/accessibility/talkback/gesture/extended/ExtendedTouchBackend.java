@@ -28,6 +28,7 @@ import java.util.ArrayDeque;
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 final class ExtendedTouchBackend implements TouchInteractionController.Callback, GestureManifold.Listener {
   private static final String TAG = "ExtendedTouchBackend";
+  private static final int MAX_PENDING_MOTION_EVENTS = 128;
   private final TalkBackService service;
   private final TouchInteractionController controller;
   private final GestureManifold detector;
@@ -53,12 +54,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean completedInteraction;
   private boolean active;
   private boolean transitionPending;
+  private boolean waitForTouchDown;
   private boolean gestureStarted;
   private boolean firstPointerOnly;
   private boolean stationaryExplorationPending;
   private long defaultExplorationAt;
   private int minimumTouchExplorationMoveTimeMs;
   private int state = TouchInteractionController.STATE_CLEAR;
+  private final Runnable transitionTimeout = () -> recoverTransition("no state callback");
   private final Runnable armExtendedAfterHold = () -> {
     if (active && twoFingerTracking && !twoFingerMoved && !completedInteraction
         && controllerState() == TouchInteractionController.STATE_TOUCH_INTERACTING) {
@@ -154,8 +157,16 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   void stop() {
     active = false;
     handler.removeCallbacks(failure);
+    finishTransition();
+    resetTouchInteraction();
+    try { controller.unregisterCallback(this); } catch (RuntimeException ignored) {}
+  }
+
+  private void resetTouchInteraction() {
     LatencyExperiments.resetTouchControllerContact();
     firstPointerOnly = false;
+    completedInteraction = false;
+    gestureStarted = false;
     handler.removeCallbacks(explore);
     defaultExplorationAt = 0;
     cancelStationaryTouchExploration();
@@ -163,7 +174,6 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     detector.clear();
     rotationTracker.clear();
     clearQueue();
-    try { controller.unregisterCallback(this); } catch (RuntimeException ignored) {}
   }
 
   void configurationChanged(Configuration configuration) {
@@ -173,12 +183,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   @Override public void onMotionEvent(MotionEvent event) {
     if (!active) return;
     int action = event.getActionMasked();
+    if (waitForTouchDown && action != MotionEvent.ACTION_DOWN) return;
     if (action == MotionEvent.ACTION_DOWN) {
+      waitForTouchDown = false;
       LatencyExperiments.onTouchControllerContact(true);
     }
     if (transitionPending) {
-      if (queued.size() >= 128) {
-        fail("waiting for Android to change touch state with a full motion queue", null);
+      if (queued.size() >= MAX_PENDING_MOTION_EVENTS) {
+        recoverTransition("motion queue full");
         return;
       }
       queued.add(MotionEvent.obtain(event));
@@ -351,10 +363,10 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       gestureStarted = completedInteraction = false;
     }
     state = next;
-    transitionPending = false;
+    finishTransition();
     if (next == TouchInteractionController.STATE_CLEAR) {
-      firstPointerOnly = false;
-      resetTwoFingerTracking();
+      resetTouchInteraction();
+      return;
     }
     handler.removeCallbacks(explore);
     cancelStationaryTouchExploration();
@@ -464,7 +476,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private void requestDrag(int pointerId) {
     if (!active || transitionPending
         || controllerState() != TouchInteractionController.STATE_TOUCH_INTERACTING) return;
-    transitionPending = true;
+    beginTransition();
     resetTwoFingerTracking();
     detector.clear();
     try { controller.requestDragging(pointerId); }
@@ -483,21 +495,41 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private int controllerState() { return controller.getState(); }
 
   private void requestExploration() {
-    if (!active || transitionPending) return;
-    int current = controllerState();
-    if (current == TouchInteractionController.STATE_DELEGATING || current == TouchInteractionController.STATE_TOUCH_EXPLORING) return;
+    if (!active || transitionPending
+        || controllerState() != TouchInteractionController.STATE_TOUCH_INTERACTING) return;
     handler.removeCallbacks(explore);
-    transitionPending = true;
+    beginTransition();
     try { controller.requestTouchExploration(); }
     catch (RuntimeException error) { fail("requesting touch exploration", error); }
   }
 
   private void delegate() {
     if (!active || transitionPending || controllerState() != TouchInteractionController.STATE_TOUCH_INTERACTING) return;
-    transitionPending = true;
+    beginTransition();
     resetTwoFingerTracking();
     try { controller.requestDelegating(); }
     catch (RuntimeException error) { fail("requesting delegation", error); }
+  }
+
+  private void beginTransition() {
+    transitionPending = true;
+    handler.postDelayed(transitionTimeout, ViewConfiguration.getDoubleTapTimeout());
+  }
+
+  private void finishTransition() {
+    transitionPending = false;
+    handler.removeCallbacks(transitionTimeout);
+  }
+
+  private void recoverTransition(String reason) {
+    if (!active || !transitionPending) return;
+    int reportedState = controllerState();
+    LogUtils.w(TAG, "Reset touch after %s, state=%d, controllerState=%d, queued=%d",
+        reason, state, reportedState, queued.size());
+    finishTransition();
+    state = reportedState;
+    waitForTouchDown = true;
+    resetTouchInteraction();
   }
 
   private boolean distorted(MotionEvent event) {

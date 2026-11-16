@@ -74,7 +74,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class FocusActor implements UserInputEventListener {
 
   private static final String TAG = "FocusActor";
-  private static final int STROKE_TIME_GAP_MS = LatencyExperiments.SIMULATED_CLICK_GAP_MS;
+  private static final int STROKE_TIME_GAP_MS = 40;
+  private static final int FAST_TAP_STROKE_MS = 40;
 
   /** The only class in TalkBack which has direct access to accessibility focus from framework. */
   private final FocusManagerInternal focusManagerInternal;
@@ -480,15 +481,12 @@ public class FocusActor implements UserInputEventListener {
     Path path = new Path();
     path.moveTo(rect.centerX(), rect.centerY());
     int durationMs = ViewConfiguration.getTapTimeout();
-    int startMs = 0;
-    if (fromDoubleTap(eventId)) {
-      int contactBudgetMs = LatencyExperiments.doubleTapClickDurationMs() - STROKE_TIME_GAP_MS;
-      durationMs = Math.min(durationMs, contactBudgetMs / 2);
-      startMs = contactBudgetMs - 2 * durationMs;
+    if (LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled() && fromDoubleTap(eventId)) {
+      durationMs = Math.min(durationMs, FAST_TAP_STROKE_MS);
     }
     return new GestureDescription.Builder()
-        .addStroke(new StrokeDescription(path, startMs, durationMs))
-        .addStroke(new StrokeDescription(path, startMs + durationMs + STROKE_TIME_GAP_MS, durationMs))
+        .addStroke(new StrokeDescription(path, 0, durationMs))
+        .addStroke(new StrokeDescription(path, durationMs + STROKE_TIME_GAP_MS, durationMs))
         .build();
   }
 
