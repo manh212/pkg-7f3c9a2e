@@ -25,7 +25,7 @@ public final class ExtendedGestures {
   };
   private ExtendedGestures() {}
   public static boolean isEnabled(SharedPreferences prefs) {
-    return Build.VERSION.SDK_INT >= 33 && prefs.getBoolean(ENABLED, false);
+    return Build.VERSION.SDK_INT >= 33 && prefs.getBoolean(ENABLED, true);
   }
   public static boolean contains(int id) { return id >= FIRST_ID && id <= LAST_ID; }
   public static int first(int id) { return ITEMS[id - FIRST_ID][1]; }
