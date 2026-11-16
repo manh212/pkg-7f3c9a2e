@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:key="@string/pref_category_manage_gestures_key">
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:key="pref_extended_two_finger_gestures" android:defaultValue="false"
+      android:key="pref_extended_two_finger_gestures" android:defaultValue="true"
       android:title="@string/extended_gestures_title" android:summary="@string/extended_gestures_summary" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="true"
