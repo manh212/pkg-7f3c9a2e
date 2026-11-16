@@ -124,6 +124,16 @@ public class AnchoredGestureTest {
     assertEquals(GestureMatcher.STATE_GESTURE_CANCELED, matcher.getState());
   }
 
+  @Test public void pairsFromPointerDownAfterClear() {
+    create(AnchoredGesture.RIGHT);
+    event(MotionEvent.ACTION_DOWN, new int[] {7}, new float[] {400}, new float[] {400});
+    matcher.clear();
+    pointerDown();
+    hold();
+    swipe(AnchoredGesture.RIGHT);
+    assertEquals(List.of(11008), completed);
+  }
+
   @Test public void secondFingerAddedLateStillArms() {
     create(AnchoredGesture.RIGHT);
     event(MotionEvent.ACTION_DOWN, new int[] {7}, new float[] {400}, new float[] {400});
