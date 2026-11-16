@@ -158,7 +158,7 @@ class DiagnosticsExportTest {
   }
 
   @Test
-  fun snapshot_defaultsToExtrasOffAndPinnedOptimizationsOn() {
+  fun snapshot_defaultsToExtrasOnAndPinnedOptimizationsOn() {
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     prefs
       .edit()
@@ -168,7 +168,7 @@ class DiagnosticsExportTest {
 
     val snapshot = DiagnosticsExport.buildSnapshotSections(context)
 
-    assertTrue(snapshot.contains("Latency extras disabled: true\n"))
+    assertTrue(snapshot.contains("Latency extras disabled: false\n"))
     assertTrue(snapshot.contains("Pinned latency optimizations: true\n"))
     assertTrue(snapshot.contains("Order cache selected: true\n"))
     assertTrue(snapshot.contains("Split control speech selected: false\n"))
