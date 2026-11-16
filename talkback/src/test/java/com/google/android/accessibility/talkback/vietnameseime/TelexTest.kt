@@ -120,6 +120,20 @@ class TelexTest {
   }
 
   @Test
+  fun dKeyAfterVowelAppendsInsteadOfToggling() {
+    assertEquals("dad", type("dad"))
+    assertEquals("dada", type("dada"))
+    assertEquals("did", type("did"))
+    assertEquals("dud", type("dud"))
+    assertEquals("dead", type("dead"))
+    assertEquals("đ", type("dd"))
+    assertEquals("dd", type("ddd"))
+    assertEquals("đi", type("ddi"))
+    assertEquals("DAD", type("DAD"))
+    assertEquals("Đ", type("DD"))
+  }
+
+  @Test
   fun backspaceKeepsTheToneOnTheRemainingSyllable() {
     assertEquals("hòa", Telex.deleteLast("hoàn"))
     assertEquals("hò", Telex.deleteLast("hòa"))
