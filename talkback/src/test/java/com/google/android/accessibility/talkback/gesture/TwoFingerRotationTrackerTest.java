@@ -26,7 +26,21 @@ public class TwoFingerRotationTrackerTest {
     assertEquals(List.of(true), turns);
     time += 250;
     assertTrue(rotate(65));
-    assertTrue(turns.size() >= 2);
+    assertEquals(4, turns.size());
+    end();
+    assertFalse(tracker.isRotating());
+  }
+
+  @Test public void rotationStepsEveryFifteenDegreesWithoutDelay() {
+    begin();
+    assertTrue(rotate(25));
+    assertEquals(List.of(true), turns);
+    assertTrue(rotate(40));
+    assertEquals(List.of(true, true), turns);
+    assertTrue(rotate(55));
+    assertEquals(List.of(true, true, true), turns);
+    assertTrue(rotate(70));
+    assertEquals(List.of(true, true, true, true), turns);
     end();
     assertFalse(tracker.isRotating());
   }
