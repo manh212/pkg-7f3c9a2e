@@ -2495,7 +2495,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     primesController.startTimer(TimerAction.START_UP);
 
     prefs = SharedPreferencesUtils.getSharedPreferences(this);
-    GestureProfiles.reset(prefs);
+    GestureProfiles.load(prefs);
     VolumeKeyManager.migrate(this);
 
     if (FeatureFlagReader.usePeriodAsSeparator(getBaseContext())) {
@@ -4062,8 +4062,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     WindowNodePrefetcher.setEnabled(latencyExtrasEnabled);
     if (speechController != null) speechController.getFailoverTts().refreshNavigationCache();
     EventFilter.setPreparedSpeechOptions(
-        prefs.getBoolean("pref_prepare_adjacent_speech", /* defValue= */ false),
-        prefs.getBoolean("pref_prepare_second_ahead_speech", /* defValue= */ false));
+        prefs.getBoolean("pref_prepare_adjacent_speech", /* defValue= */ true),
+        prefs.getBoolean("pref_prepare_second_ahead_speech", /* defValue= */ true));
     boolean pinnedLatencyEnabled =
         !getBooleanPref(
             R.string.pref_disable_latency_pinned_key,
@@ -4077,7 +4077,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     RoleDescriptionExtractor.setSplitControlSpeechEnabled(splitControlSpeech);
     ProcessorEventQueue.setFocusPriorityEnabled(pinnedLatencyEnabled);
     ProcessorEventQueue.setProcessingLevel(
-        prefs.getString("pref_event_processing_level", "medium"));
+        prefs.getString("pref_event_processing_level", "low"));
     if (backgroundEventGate != null) {
       backgroundEventGate.setProcessingLevel(ProcessorEventQueue.getProcessingLevel());
       backgroundEventGate.setInteractionPriorityEnabled(pinnedLatencyEnabled);
@@ -4108,7 +4108,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     accessibilityEventProcessor.setSpeakWhenScreenOff(NotificationSettings.readsWhenScreenOff(prefs));
     if (speechController != null) {
       speechController.setKeepScreenOnWhileSpeaking(
-          prefs.getBoolean(getString(R.string.pref_keep_screen_on_while_speaking_key), false));
+          prefs.getBoolean(getString(R.string.pref_keep_screen_on_while_speaking_key), true));
     }
 
     accessibilityEventProcessor.setDumpEventMask(
