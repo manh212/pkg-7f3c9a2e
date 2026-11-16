@@ -25,6 +25,17 @@ class TaskApiProtocolTest {
     assertTrue(schema.getJSONObject("properties").getJSONObject("action").getJSONArray("enum").toString().contains("open_app"))
   }
 
+  @Test fun geminiRequestDeclaresStepsForSequenceReplies() {
+    val schema = TaskApiProtocol.geminiRequest("request").getJSONObject("generationConfig").getJSONObject("responseSchema")
+    val steps = schema.getJSONObject("properties").getJSONObject("steps")
+    assertEquals("ARRAY", steps.getString("type"))
+    val step = steps.getJSONObject("items")
+    assertEquals("OBJECT", step.getString("type"))
+    assertTrue(step.getJSONObject("properties").getJSONObject("action").getJSONArray("enum").toString().contains("open_app"))
+    assertEquals("STRING", step.getJSONObject("properties").getJSONObject("label").getString("type"))
+    assertEquals("snapshot", schema.getJSONArray("required").getString(0))
+  }
+
   @Test fun nonGeminiModelsDoNotReceiveGeminiOnlyOutputOptions() {
     val config = TaskApiProtocol.geminiRequest("request", "gemma-model").getJSONObject("generationConfig")
     assertFalse(config.has("responseSchema"))
