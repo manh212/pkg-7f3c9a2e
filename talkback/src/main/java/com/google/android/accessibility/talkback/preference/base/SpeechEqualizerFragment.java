@@ -75,7 +75,7 @@ public class SpeechEqualizerFragment extends TalkbackBaseFragment {
 
     onPref = new AccessibilitySuiteSwitchPreference(context);
     onPref.setKey(SpeechEqualizer.onKey(id));
-    onPref.setDefaultValue(true);
+    onPref.setDefaultValue(false);
     onPref.setTitle(R.string.title_pref_speech_equalizer_on);
     onPref.setIconSpaceReserved(false);
     screen.addPreference(onPref);

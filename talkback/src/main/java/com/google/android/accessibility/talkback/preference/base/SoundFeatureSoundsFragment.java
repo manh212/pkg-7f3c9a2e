@@ -101,7 +101,7 @@ public class SoundFeatureSoundsFragment extends TalkBackPreferenceFragment {
     setSummary(
         R.string.pref_sound_feature_notification_key,
         getString(
-            prefs.getBoolean(NOTIFICATION_SOUND_BEFORE_KEY, false)
+            prefs.getBoolean(NOTIFICATION_SOUND_BEFORE_KEY, true)
                 ? R.string.sound_feature_on
                 : R.string.sound_feature_off));
     String bilingualStream = TranslationSettings.INSTANCE.bilingualStream(prefs);

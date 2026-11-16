@@ -60,7 +60,7 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
     for (String builtin : SmartContextGestures.BUILTINS) {
       String key = "smart_context_builtin_" + builtin;
       if (original.contains(key) && !target.contains(key)) {
-        editor.putBoolean(key, original.getBoolean(key, false));
+        editor.putBoolean(key, original.getBoolean(key, SmartContextGestures.builtinDefault(builtin)));
       }
     }
     String selector = context.getString(R.string.pref_selector_smart_context_key);
@@ -121,7 +121,7 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
       SwitchPreferenceCompat toggle = new SwitchPreferenceCompat(context);
       toggle.setKey("smart_context_builtin_" + name);
       toggle.setTitle(SmartContextGestures.builtinTitle(name));
-      toggle.setDefaultValue(false);
+      toggle.setDefaultValue(SmartContextGestures.builtinDefault(name));
       builtins.addPreference(toggle);
     }
     SwitchPreferenceCompat nearestSlider = new SwitchPreferenceCompat(context);
