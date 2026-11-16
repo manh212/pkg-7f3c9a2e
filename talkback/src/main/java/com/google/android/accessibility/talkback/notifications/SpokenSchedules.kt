@@ -281,7 +281,7 @@ class SpokenSchedules(
      * every existing setting had, and any older value outside the choices means that too.
      */
     fun clockIntervalMinutes(prefs: SharedPreferences): Int {
-      val saved = NotificationSettings.int(prefs, KEY_CLOCK_INTERVAL, 60)
+      val saved = NotificationSettings.int(prefs, KEY_CLOCK_INTERVAL, 0)
       return if (saved in CLOCK_INTERVAL_MINUTES) saved else 60
     }
     const val KEY_SUMMARY_DAILY = "pref_notification_summary_daily"
@@ -369,7 +369,7 @@ class SpokenSchedules(
         runCatching { listener.activeNotifications }.getOrNull().orEmpty()
           .filter { it.packageName != context.packageName || it.notification.channelId != null }
           .sortedBy { it.postTime }
-          .let { if (prefs.getBoolean(KEY_SUMMARY_NEWEST_FIRST, false)) it.reversed() else it }
+          .let { if (prefs.getBoolean(KEY_SUMMARY_NEWEST_FIRST, true)) it.reversed() else it }
       val format = context.getString(R.string.notification_summary_item_format)
       val state = DeviceStateReader(context).read(settings)
       val lines =
@@ -400,7 +400,7 @@ class SpokenSchedules(
           .joinToString(" ")
       LogUtils.d(TAG, "Reading a summary of %d notifications", lines.size)
       say(intro, interrupt = true)
-      val gap = NotificationSettings.int(prefs, KEY_SUMMARY_GAP, 0).coerceIn(0, 10)
+      val gap = NotificationSettings.int(prefs, KEY_SUMMARY_GAP, 2).coerceIn(0, 10)
       if (gap == 0) {
         lines.forEach { say(it) }
         return

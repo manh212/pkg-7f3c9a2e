@@ -57,7 +57,7 @@ enum class BusyBehavior {
   SKIP;
 
   companion object {
-    fun of(name: String?): BusyBehavior = entries.firstOrNull { it.name == name } ?: NOW
+    fun of(name: String?): BusyBehavior = entries.firstOrNull { it.name == name } ?: AFTER
   }
 }
 
@@ -69,7 +69,7 @@ enum class UrlHandling {
   OMIT;
 
   companion object {
-    fun of(name: String?): UrlHandling = entries.firstOrNull { it.name == name } ?: FULL
+    fun of(name: String?): UrlHandling = entries.firstOrNull { it.name == name } ?: DOMAIN
   }
 }
 
@@ -80,7 +80,7 @@ enum class HeadphoneMode {
   ONLY_WITHOUT;
 
   companion object {
-    fun of(name: String?): HeadphoneMode = entries.firstOrNull { it.name == name } ?: ALWAYS
+    fun of(name: String?): HeadphoneMode = entries.firstOrNull { it.name == name } ?: ONLY_WITHOUT
   }
 }
 
@@ -256,7 +256,7 @@ data class NotificationSettings(
   val detectLanguage: Boolean = false,
   /** The voice profile notifications are read with, or empty for SandFly's own voice. */
   val voiceProfile: String = "",
-  val soundBefore: Boolean = false,
+  val soundBefore: Boolean = true,
   val delaySeconds: Int = 0,
   val queueBehavior: QueueBehavior = QueueBehavior.QUEUE,
   val busyBehavior: BusyBehavior = BusyBehavior.NOW,
@@ -272,10 +272,10 @@ data class NotificationSettings(
   // Text.
   val removeEmoji: Boolean = false,
   val lowercase: Boolean = false,
-  val separateDigits: Boolean = false,
-  val minDigits: Int = 5,
+  val separateDigits: Boolean = true,
+  val minDigits: Int = 3,
   val digitSeparator: String = " ",
-  val urls: UrlHandling = UrlHandling.FULL,
+  val urls: UrlHandling = UrlHandling.DOMAIN,
   val urlText: String = "",
   val maxWords: Int = 0,
   val maxSentences: Int = 0,
@@ -300,7 +300,7 @@ data class NotificationSettings(
   val whenScreenOn: Boolean = true,
   val whenScreenOff: Boolean = false,
   val whenLocked: Boolean = true,
-  val headphones: HeadphoneMode = HeadphoneMode.ALWAYS,
+  val headphones: HeadphoneMode = HeadphoneMode.ONLY_WITHOUT,
   val honourSilent: Boolean = false,
   val honourVibrate: Boolean = false,
   val media: MediaBehavior = MediaBehavior.READ,
