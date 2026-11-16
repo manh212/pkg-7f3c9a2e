@@ -121,7 +121,14 @@ internal class LocalGemmaRunner(
         callback.onCancelled()
       }
     } catch (e: Exception) {
-      LogUtils.w(TAG, "On-device AI failed: %s", e)
+      // Logging must never swallow the failure report: since audit bug 484, LogUtils.w()
+      // logs WARN even with debug logging off, and in plain JVM unit tests android.util.Log
+      // is a stub that throws, so an unguarded log call here would drop the callback.
+      try {
+        LogUtils.w(TAG, "On-device AI failed: %s", e)
+      } catch (_: RuntimeException) {
+        // The failure is still reported below.
+      }
       report(job) { callback.onFailure(GeminiFailure.other(e.toString())) }
     } finally {
       // Already cleared when a result was reported, unless something unexpected was thrown.
