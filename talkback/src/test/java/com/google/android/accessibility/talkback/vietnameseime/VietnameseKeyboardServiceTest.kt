@@ -221,12 +221,13 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun doubleSpacePeriodDoesNotFireInPasswordField() {
+    setTypingMethod(LIFT_TO_TYPE)
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
     press("một")
-    // In the default lift-to-type-letters mode the space key confirms with a
-    // double-tap, so each space needs two taps.
+    // In lift-to-type mode the space key confirms with a double-tap,
+    // so each space needs two taps.
     tap(200f, 225f)
     tap(200f, 225f)
     tap(200f, 225f)
@@ -421,6 +422,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun languageKeySwitchesTypingModeAndCanBeHiddenLive() {
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_show_language_key, true)
     setAutoCapitalize(false)
     startEditor()
     press("Chuyển sang gõ tiếng Anh")
@@ -476,6 +478,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun hardwareSpaceExpandsACommittedCaseSensitiveShortcutInEnglish() {
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_show_language_key, true)
     saveShortcuts(mapOf("VN" to "Việt Nam", "vn" to "văn nghệ"))
     startEditor()
     press("Chuyển sang gõ tiếng Anh")
@@ -812,7 +815,7 @@ class VietnameseKeyboardServiceTest {
       View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.AT_MOST),
     )
     inputView.layout(0, 0, 400, inputView.measuredHeight)
-    val spacing = (32 * service.resources.displayMetrics.density).roundToInt()
+    val spacing = (56 * service.resources.displayMetrics.density).roundToInt()
     assertEquals(spacing, inputView.height - keyboard.bottom)
 
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
@@ -886,6 +889,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun typingWithOwnVoiceOffStillSubmitsTheVietnameseName() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     setOwnVoice(false)
     setAutoCapitalize(false)
     startEditor()
@@ -897,6 +901,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun deleteEchoWithOwnVoiceOffStillSubmitsTheVietnameseName() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     setOwnVoice(false)
     setAutoCapitalize(false)
     startEditor()
@@ -930,6 +935,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun backspaceReadsTheActualTelexCharacter() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     startEditor()
     press("a")
     press("a")
@@ -1133,6 +1139,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun doubleTapDeleteInPasswordFieldReadsLikeNormalField() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
@@ -1152,6 +1159,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun passwordSpeechReadsInsertionAndDeletionLikeNormalField() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
@@ -1166,6 +1174,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun passwordFieldReadsTypedLetterLikeNormalField() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
@@ -1177,6 +1186,7 @@ class VietnameseKeyboardServiceTest {
 
   @Test
   fun passwordFieldReadsWordOnSpace() {
+    setEcho(PREF_ECHO_CHARACTERS_AND_WORDS)
     startEditor {
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
     }
