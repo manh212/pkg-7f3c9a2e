@@ -106,6 +106,12 @@ public class VerbosityPreferences {
     } else {
       // If verbosity is custom... retrieve preference value.
       String keyForVerbosity = toVerbosityPrefKey(verbosityValue, key);
+      if (key.equals(resources.getString(R.string.pref_a11y_hints_key))
+          && verbosityValue.equals(
+              resources.getString(R.string.pref_verbosity_preset_value_custom))) {
+        return preferences.getString(
+            keyForVerbosity, resources.getString(R.string.value_a11y_hints_off));
+      }
       return preferences.getString(keyForVerbosity, defaultValue);
     }
   }
