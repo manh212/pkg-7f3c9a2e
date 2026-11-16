@@ -330,5 +330,6 @@ object IndividualFeedbackSettings {
 
   // Copied, because the set the preferences return must not be changed.
   private fun stringSet(prefs: SharedPreferences, pref: String): Set<String> =
-    prefs.getStringSet(pref, null)?.toSet() ?: emptySet()
+    prefs.getStringSet(pref, null)?.toSet()
+      ?: if (pref == PREF_MUTED_SOUNDS) setOf("screen_on", "screen_off") else emptySet()
 }
