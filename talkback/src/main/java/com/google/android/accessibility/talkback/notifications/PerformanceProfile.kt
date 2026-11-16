@@ -29,6 +29,9 @@ object PerformanceProfile {
   const val SPEED = "speed"
   const val ENERGY = "energy"
 
+  private const val CHOICE_VERSION_KEY = "pref_performance_profile_version"
+  private const val CHOICE_VERSION = 1
+
   private const val DISABLE_LATENCY_EXTRAS_KEY = "pref_disable_latency_extras"
   private const val DISABLE_LATENCY_PINNED_KEY = "pref_disable_latency_pinned"
   private const val PREPARE_ADJACENT_KEY = "pref_prepare_adjacent_speech"
@@ -38,9 +41,10 @@ object PerformanceProfile {
   private const val EVENT_PROCESSING_LEVEL_KEY = "pref_event_processing_level"
   private const val EVENT_PROCESSING_LEVEL_LOW = "low"
 
-  /** The stored profile, or null when none was ever picked or the stored value is unknown. */
+  /** The stored profile, or null when none was ever picked, the stored value is unknown, or it was recorded before explicit choice was required. */
   fun storedProfile(preferences: SharedPreferences): String? =
     preferences.getString(KEY, null)?.takeIf { it == SPEED || it == ENERGY }
+      ?.takeIf { preferences.getInt(CHOICE_VERSION_KEY, 0) == CHOICE_VERSION }
 
   /** Writes the profile's values in one edit. Anything other than [ENERGY] applies speed. */
   fun apply(preferences: SharedPreferences, profile: String) {
@@ -61,6 +65,7 @@ object PerformanceProfile {
         LatencyExperiments.defaultStationaryTouchDelayMs(),
       )
       putString(KEY, if (energy) ENERGY else SPEED)
+      putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
     }.apply()
   }
 }

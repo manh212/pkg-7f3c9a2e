@@ -289,9 +289,9 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   }
 
   private fun onPerformanceProfileSelected(stepCount: Int, index: Int) {
+    if (index == currentPerformanceProfileIndex()) return
     val profile = PerformanceChoice.entries[index].profile
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
-    if (PerformanceProfile.storedProfile(prefs) == profile) return
     PerformanceProfile.apply(prefs, profile)
     flow.chooseProfile(stepCount)
     rebuild()
