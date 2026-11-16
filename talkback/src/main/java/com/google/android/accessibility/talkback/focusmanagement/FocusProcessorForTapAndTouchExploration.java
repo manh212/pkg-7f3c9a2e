@@ -120,14 +120,6 @@ public class FocusProcessorForTapAndTouchExploration {
   /** The timeout after which an event is no longer considered a tap. */
   private static final long TAP_TIMEOUT_MS = ViewConfiguration.getJumpTapTimeout();
 
-  /**
-   * In {@link #SINGLE_TAP_TO_TYPE} the framework sends the touch interaction end only after its
-   * double-tap timeout, but the hover exit arrives as the finger lifts. The interaction is ended
-   * this long after the finger leaves the key: sliding onto the next key sends its hover enter
-   * right away, which cancels the early end, so only a real lift lets it fire.
-   */
-  private static final long SINGLE_TAP_EARLY_END_DELAY_MS = 100;
-
   /** The longest early-end delay the Direct key input tap-delay setting can ask for. */
   private static final long DIRECT_INPUT_TAP_DELAY_MAX_MS = 300;
   private static final long DIRECT_KEYBOARD_TOUCH_DELIVERY_MS = 32;
@@ -508,9 +500,7 @@ public class FocusProcessorForTapAndTouchExploration {
   private long directInputTapDelayMs() {
     int delayMs =
         SharedPreferencesUtils.getSharedPreferences(context)
-            .getInt(
-                context.getString(R.string.pref_direct_input_tap_delay_key),
-                (int) SINGLE_TAP_EARLY_END_DELAY_MS);
+            .getInt(context.getString(R.string.pref_direct_input_tap_delay_key), 0);
     return Math.max(0, Math.min(delayMs, DIRECT_INPUT_TAP_DELAY_MAX_MS));
   }
 
