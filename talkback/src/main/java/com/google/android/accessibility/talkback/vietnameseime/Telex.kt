@@ -98,7 +98,7 @@ internal object Telex {
     return when (key.lowercaseChar()) {
       'd' -> {
         if (lower.startsWith('đ')) replace(word, 0, 'd') + key
-        else if (lower.startsWith('d')) replace(word, 0, 'đ')
+        else if (lower == "d") replace(word, 0, 'đ')
         else null
       }
       'a' -> replaceShape(word, lower, key, 'a', 'â', tone)
