@@ -30,6 +30,7 @@ internal object Telex {
     val (plain, tone) = splitTone(word)
     val newTone = TONE_KEYS.indexOf(letter)
     if (newTone >= 0) {
+      if (plain.lastOrNull()?.lowercaseChar() == letter) return plain + key
       val target = tonePosition(plain)
       if (target >= 0) {
         return if (newTone == tone) plain + key else withToneAt(plain, newTone, target)
