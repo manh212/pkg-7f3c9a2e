@@ -305,8 +305,8 @@
   <string name="pref_shortcut_2finger_1tap_hold_default" translatable="false">@string/shortcut_long_press_talkback_exit</string>
   <string name="pref_shortcut_2finger_rotate_clockwise_default" translatable="false">@string/shortcut_value_select_next_setting</string>
   <string name="pref_shortcut_2finger_scrub_default" translatable="false">@string/shortcut_value_back</string>
-  <string name="pref_shortcut_2finger_pinch_default" translatable="false">@string/shortcut_value_speech_rate_decrease</string>
-  <string name="pref_shortcut_2finger_spread_default" translatable="false">@string/shortcut_value_speech_rate_increase</string>
+  <string name="pref_shortcut_2finger_pinch_default" translatable="false">@string/shortcut_value_unassigned</string>
+  <string name="pref_shortcut_2finger_spread_default" translatable="false">@string/shortcut_value_unassigned</string>
   <string name="pref_shortcut_3finger_pinch_default" translatable="false">@string/shortcut_value_unassigned</string>
   <string name="pref_shortcut_3finger_spread_default" translatable="false">@string/shortcut_value_unassigned</string>
   <string name="pref_shortcut_4finger_pinch_default" translatable="false">@string/shortcut_value_unassigned</string>
