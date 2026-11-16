@@ -24,17 +24,23 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
-class TwoFingerRotationTracker(
+class TwoFingerRotationTracker @JvmOverloads constructor(
 
   private val decisionDistancePx: Float,
 
   private val minArcPx: Float,
   private val listener: Listener,
+  private val onPinch: PinchListener? = null,
 ) {
 
   fun interface Listener {
 
     fun onRotationStep(clockwise: Boolean)
+  }
+
+  fun interface PinchListener {
+
+    fun onPinch(inward: Boolean)
   }
 
   private enum class State {
@@ -84,9 +90,13 @@ class TwoFingerRotationTracker(
   var isScroll = false
     private set
 
+  var isPinch = false
+    private set
+
   fun clear() {
     state = State.IDLE
     isScroll = false
+    isPinch = false
     firstId = INVALID_ID
     secondId = INVALID_ID
     rotatingFingersDown = false
@@ -210,6 +220,8 @@ class TwoFingerRotationTracker(
 
       debugLog("rejected as pinch", arc, translation, radial)
       state = State.REJECTED
+      isPinch = true
+      onPinch?.onPinch(distance < startDistance)
     } else if (
       !looksLikeRotation &&
         max(arc, max(translation, radial)) > decisionDistancePx * GIVE_UP_DISTANCE_FACTOR

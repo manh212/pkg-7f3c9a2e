@@ -81,6 +81,13 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
   private static final int NUMBER_OF_GESTURE_SET = 2;
   public static final int ROTATE_CLOCKWISE = 11001;
   public static final int ROTATE_COUNTERCLOCKWISE = 11002;
+  public static final int PINCH_IN = 11003;
+  public static final int PINCH_OUT = 11004;
+  public static final int ANCHORED_SWIPE_UP = 11005;
+  public static final int ANCHORED_SWIPE_DOWN = 11006;
+  public static final int ANCHORED_SWIPE_LEFT = 11007;
+  public static final int ANCHORED_SWIPE_RIGHT = 11008;
+  public static final int ANCHORED_TAP = 11009;
 
   /** List all of supported gestures. */
   private enum TalkBackGesture {
@@ -217,6 +224,13 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     EXTENDED_RIGHT_DOWN(10012, MULTI_FINGER, R.string.pref_extended_gesture_right_down_key, R.string.shortcut_value_unassigned),
     ROTATION_CLOCKWISE(ROTATE_CLOCKWISE, MULTI_FINGER, R.string.pref_shortcut_2finger_rotate_clockwise_key, R.string.shortcut_value_select_next_setting),
     ROTATION_COUNTERCLOCKWISE(ROTATE_COUNTERCLOCKWISE, MULTI_FINGER, R.string.pref_shortcut_2finger_rotate_counterclockwise_key, R.string.shortcut_value_select_previous_setting),
+    PINCH_IN(PINCH_IN, MULTI_FINGER, R.string.pref_shortcut_2finger_pinch_key, R.string.shortcut_value_speech_rate_decrease),
+    PINCH_OUT(PINCH_OUT, MULTI_FINGER, R.string.pref_shortcut_2finger_spread_key, R.string.shortcut_value_speech_rate_increase),
+    ANCHORED_SWIPE_UP(ANCHORED_SWIPE_UP, MULTI_FINGER, R.string.pref_shortcut_2finger_anchored_swipe_up_key, R.string.shortcut_value_unassigned),
+    ANCHORED_SWIPE_DOWN(ANCHORED_SWIPE_DOWN, MULTI_FINGER, R.string.pref_shortcut_2finger_anchored_swipe_down_key, R.string.shortcut_value_unassigned),
+    ANCHORED_SWIPE_LEFT(ANCHORED_SWIPE_LEFT, MULTI_FINGER, R.string.pref_shortcut_2finger_anchored_swipe_left_key, R.string.shortcut_value_unassigned),
+    ANCHORED_SWIPE_RIGHT(ANCHORED_SWIPE_RIGHT, MULTI_FINGER, R.string.pref_shortcut_2finger_anchored_swipe_right_key, R.string.shortcut_value_unassigned),
+    ANCHORED_TAP(ANCHORED_TAP, MULTI_FINGER, R.string.pref_shortcut_2finger_anchored_tap_key, R.string.shortcut_value_unassigned),
     // Multi-finger Gestures
     TWO_FINGER_SINGLE_TAP(
         AccessibilityService.GESTURE_2_FINGER_SINGLE_TAP,
@@ -1269,6 +1283,13 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
   public static String getGestureString(Context context, int gestureId) {
     if (gestureId == ROTATE_CLOCKWISE) return context.getString(R.string.title_pref_shortcut_2finger_rotate_clockwise);
     if (gestureId == ROTATE_COUNTERCLOCKWISE) return context.getString(R.string.title_pref_shortcut_2finger_rotate_counterclockwise);
+    if (gestureId == PINCH_IN) return context.getString(R.string.title_pref_shortcut_2finger_pinch);
+    if (gestureId == PINCH_OUT) return context.getString(R.string.title_pref_shortcut_2finger_spread);
+    if (gestureId == ANCHORED_SWIPE_UP) return context.getString(R.string.title_pref_shortcut_2finger_anchored_swipe_up);
+    if (gestureId == ANCHORED_SWIPE_DOWN) return context.getString(R.string.title_pref_shortcut_2finger_anchored_swipe_down);
+    if (gestureId == ANCHORED_SWIPE_LEFT) return context.getString(R.string.title_pref_shortcut_2finger_anchored_swipe_left);
+    if (gestureId == ANCHORED_SWIPE_RIGHT) return context.getString(R.string.title_pref_shortcut_2finger_anchored_swipe_right);
+    if (gestureId == ANCHORED_TAP) return context.getString(R.string.title_pref_shortcut_2finger_anchored_tap);
     if (com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.contains(gestureId)) {
       return com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.name(context, gestureId);
     }
