@@ -405,7 +405,15 @@ public class Text extends PageContentConfig {
       abstract Paragraph autoBuild();
 
       public Paragraph build() {
-        return autoBuild();
+        Paragraph paragraph = autoBuild();
+        int clickableTextSize = paragraph.clickableTextResIds().size();
+        if (paragraph.linkInfos().size() != clickableTextSize
+            || paragraph.clickableTextTtsResIds().size() != clickableTextSize) {
+          throw new IllegalArgumentException(
+              "clickableTextResIds, linkInfos and clickableTextTtsResIds must have the same"
+                  + " size.");
+        }
+        return paragraph;
       }
     }
   }

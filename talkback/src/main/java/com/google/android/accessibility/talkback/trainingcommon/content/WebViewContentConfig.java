@@ -40,6 +40,20 @@ public class WebViewContentConfig extends PageContentConfig {
     View view = inflater.inflate(R.layout.tutorial_content_webview, container, false);
     WebView webView = view.findViewById(R.id.tutorial_web_view);
     webView.getSettings().setJavaScriptEnabled(true);
+    webView.addOnAttachStateChangeListener(
+        new View.OnAttachStateChangeListener() {
+          @Override
+          public void onViewAttachedToWindow(View v) {}
+
+          @Override
+          public void onViewDetachedFromWindow(View v) {
+            v.removeOnAttachStateChangeListener(this);
+            if (v.getParent() instanceof ViewGroup parent) {
+              parent.removeView(v);
+            }
+            ((WebView) v).destroy();
+          }
+        });
 
     String htmlContent =
         String.format(
@@ -142,14 +156,14 @@ public class WebViewContentConfig extends PageContentConfig {
                 }
                 @media (prefers-color-scheme: dark) {
                   body {
-                    background-color: #202124;
-                    color: #e8eaed;
+                    background-color: #202124 !important;
+                    color: #e8eaed !important;
                   }
                   h1, h2, h3, h4, h5, h6 {
-                    color: #e8eaed;
+                    color: #e8eaed !important;
                   }
                   a {
-                    color: #8ab4f8;
+                    color: #8ab4f8 !important;
                   }
                   table, th, td {
                     border: 1px solid white;

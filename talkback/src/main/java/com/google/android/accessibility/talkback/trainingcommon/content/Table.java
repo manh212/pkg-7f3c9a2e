@@ -40,6 +40,9 @@ public class Table extends PageContentConfig {
   private final ImmutableList<Integer> textResIds;
 
   public Table(int numColumns, ImmutableList<Integer> textResIds) {
+    if (numColumns <= 0) {
+      throw new IllegalArgumentException("numColumns must be positive.");
+    }
     this.numColumns = numColumns;
     this.textResIds = textResIds;
   }
@@ -53,7 +56,7 @@ public class Table extends PageContentConfig {
         new AbsListView.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             context.getResources().getDimensionPixelSize(R.dimen.training_table_cell_height)
-                * (textResIds.size() / numColumns)));
+                * ((textResIds.size() + numColumns - 1) / numColumns)));
     table.setAdapter(new GridViewAdapter(context, textResIds));
     table.setNumColumns(numColumns);
     return view;

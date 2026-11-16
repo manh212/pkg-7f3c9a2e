@@ -70,7 +70,15 @@ public class ExitBanner extends PageContentConfig {
       (View v, MotionEvent event) -> {
         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE
             && event.getAction() == MotionEvent.ACTION_UP) {
-          performExit();
+          if (firstTapPerformed) {
+            performExit();
+            firstTapPerformed = false;
+          } else {
+            firstTapPerformed = true;
+            if (v instanceof TextView textView) {
+              textView.setText(R.string.tap_again_to_turn_off);
+            }
+          }
           return true;
         }
         return false;
