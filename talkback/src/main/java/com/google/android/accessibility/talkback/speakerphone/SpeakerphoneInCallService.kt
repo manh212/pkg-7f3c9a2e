@@ -84,7 +84,7 @@ class SpeakerphoneInCallService : InCallService() {
       override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
     }
 
-  private val applyReading = Runnable {
+  private val applyReading: Runnable = Runnable {
     val nearEar = pendingNearEar ?: return@Runnable
     if (!TalkBackService.isServiceActive() || PauseController.isPaused()) {
       // Hold the reading and retry, so it still switches once Backtalk is back. The sensor
