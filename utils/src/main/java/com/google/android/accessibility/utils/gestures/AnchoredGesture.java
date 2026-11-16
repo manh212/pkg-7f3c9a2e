@@ -69,13 +69,23 @@ public final class AnchoredGesture extends GestureMatcher {
   }
 
   @Override protected void onPointerDown(EventId eventId, MotionEvent event) {
-    if (paired || event.getPointerCount() != 2 || ids[0] < 0) { cancelGesture(event); return; }
-    int firstIndex = event.findPointerIndex(ids[0]);
+    if (paired || event.getPointerCount() != 2) { cancelGesture(event); return; }
     int added = event.getActionIndex();
-    if (firstIndex < 0 || added == firstIndex) { cancelGesture(event); return; }
-    ids[1] = event.getPointerId(added);
+    int firstIndex;
+    if (ids[0] < 0) {
+      // The anchor finger went down before this matcher started tracking it: the
+      // backend clears the manifold when the second finger lands during touch
+      // exploration, which drops the earlier down event. Take the pre-existing
+      // pointer as the anchor.
+      firstIndex = added == 0 ? 1 : 0;
+      ids[0] = event.getPointerId(firstIndex);
+    } else {
+      firstIndex = event.findPointerIndex(ids[0]);
+      if (firstIndex < 0 || added == firstIndex) { cancelGesture(event); return; }
+    }
     anchorX = event.getX(firstIndex);
     anchorY = event.getY(firstIndex);
+    ids[1] = event.getPointerId(added);
     secondX = event.getX(added);
     secondY = event.getY(added);
     pairedAt = event.getEventTime();
