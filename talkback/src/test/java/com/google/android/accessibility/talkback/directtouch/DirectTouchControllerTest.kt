@@ -171,8 +171,24 @@ class DirectTouchControllerTest {
     controller.shutdown()
   }
 
+  // Direct touch on with announcements, as these tests were written. Lift to type keeps the
+  // debounced look the transcripts expect: silent typing looks at once, and the extra looks
+  // would send the region again.
+  private fun enableDirectTouch() {
+    DirectTouchSettings.setMasterEnabled(prefs, true)
+    prefs.edit()
+      .putBoolean(DirectTouchSettings.PREF_SPEECH, true)
+      .putString(
+        service.getString(R.string.pref_typing_confirmation_key),
+        LIFT_TO_TYPE.toString(),
+      )
+      .apply()
+  }
+
   @Test
   fun gameNotTurnedOnStaysOff() {
+    enableDirectTouch()
+
     windowsChange(GAME, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), game())
     // A toast comes and goes over the game.
     windowsChange(TOAST, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), game(), toast())
@@ -187,6 +203,7 @@ class DirectTouchControllerTest {
 
   @Test
   fun gameTurnedOnHandsTouchBackWhileTheShadeIsOpen() {
+    enableDirectTouch()
     DirectTouchSettings.setAppEnabled(prefs, GAME_PACKAGE, true)
 
     windowsChange(GAME, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), game())
@@ -214,6 +231,8 @@ class DirectTouchControllerTest {
 
   @Test
   fun gameThatAsksForDirectTouchGetsItTheFirstTimeItIsSeen() {
+    enableDirectTouch()
+
     windowsChange(GAME2, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), game2())
     windowsChange(TOAST, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), game2(), toast())
     windowsChange(TOAST, WINDOWS_CHANGE_REMOVED, statusBar(), navigationBar(), game2())
