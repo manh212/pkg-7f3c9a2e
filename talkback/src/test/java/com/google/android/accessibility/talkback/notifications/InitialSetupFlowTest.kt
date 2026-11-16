@@ -272,6 +272,41 @@ class InitialSetupFlowTest {
   }
 
   @Test
+  fun profileChoice_advancesAtOnce() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.chooseProfile(3)
+
+    assertEquals(1, flow.step)
+    assertFalse(flow.atSummary(3))
+  }
+
+  @Test
+  fun profileChoiceFromSummary_returnsToSummary() {
+    val flow = SetupFlow()
+    flow.review(1)
+
+    flow.chooseProfile(3)
+
+    assertFalse(flow.reviewing)
+    assertTrue(flow.atSummary(3))
+  }
+
+  @Test
+  fun profileChoice_dropsAPendingOpen() {
+    val flow = SetupFlow()
+    flow.settle(threeMissing)
+
+    flow.tapOpen()
+    flow.chooseProfile(3)
+
+    flow.leaveScreen()
+    flow.returnToScreen(3, granted = true)
+    assertEquals(1, flow.step)
+  }
+
+  @Test
   fun unverifiableStep_advancesOnReturnWithoutAGrant() {
     val flow = SetupFlow()
     flow.settle(threeMissing)
