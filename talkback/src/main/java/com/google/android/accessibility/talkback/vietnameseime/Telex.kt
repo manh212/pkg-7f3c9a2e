@@ -37,7 +37,7 @@ internal object Telex {
     }
     if (letter == 'z' && tone >= 0) return plain
 
-    val shaped = changeShape(plain, key)
+    val shaped = changeShape(plain, key, tone)
     if (shaped != null) return withTone(shaped, tone)
     val continued = if (letter in "iuycgmnpt") completeHornPair(plain) else plain
     return withTone(continued + key, tone)
@@ -92,7 +92,7 @@ internal object Telex {
     }
   }
 
-  private fun changeShape(word: String, key: Char): String? {
+  private fun changeShape(word: String, key: Char, tone: Int): String? {
     val lower = word.lowercase()
     return when (key.lowercaseChar()) {
       'd' -> {
@@ -100,17 +100,18 @@ internal object Telex {
         else if (lower.startsWith('d')) replace(word, 0, 'đ')
         else null
       }
-      'a' -> replaceShape(word, lower, key, 'a', 'â')
-      'e' -> replaceShape(word, lower, key, 'e', 'ê')
-      'o' -> replaceShape(word, lower, key, 'o', 'ô')
+      'a' -> replaceShape(word, lower, key, 'a', 'â', tone)
+      'e' -> replaceShape(word, lower, key, 'e', 'ê', tone)
+      'o' -> replaceShape(word, lower, key, 'o', 'ô', tone)
       'w' -> addHornOrBreve(word, lower, key)
       else -> null
     }
   }
 
-  private fun replaceShape(word: String, lower: String, key: Char, plain: Char, shaped: Char): String? {
+  private fun replaceShape(word: String, lower: String, key: Char, plain: Char, shaped: Char, tone: Int): String? {
+    if (tone >= 0) return null
     val index = lower.indexOfLast { it == plain || it == shaped }
-    if (index < 0) return null
+    if (index < 0 || index != word.lastIndex) return null
     return if (lower[index] == shaped) replace(word, index, plain) + key
     else replace(word, index, shaped)
   }
