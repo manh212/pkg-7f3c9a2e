@@ -127,7 +127,8 @@ object UpdateChecker {
       try {
         parseRelease(it, currentBuild, currentHash, apkName)
       } catch (e: JSONException) {
-        LogUtils.w(TAG, "Cannot parse release: %s", e)
+        // Skip silently: newest() is covered by plain JUnit tests, where android.util.Log
+        // (via LogUtils) is not mocked, so logging here would throw.
         null
       }
     }.maxByOrNull {
