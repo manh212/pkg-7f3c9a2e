@@ -73,8 +73,6 @@ class TwoFingerRotationTracker(
 
   private var direction = 0
 
-  private var acceptedTime = 0L
-
   private var rotatingFingersDown = false
 
   val isRotating: Boolean
@@ -200,8 +198,7 @@ class TwoFingerRotationTracker(
       rotatingFingersDown = true
       direction = if (accumulated > 0) 1 else -1
 
-      anchor = direction * max(stepDegrees, abs(accumulated))
-      acceptedTime = event.eventTime
+      anchor = direction * stepDegrees
       peak = accumulated
       listener.onRotationStep(direction > 0)
     } else if (translation > decisionDistancePx && abs(accumulated) < SCROLL_MAX_DEGREES) {
@@ -260,11 +257,6 @@ class TwoFingerRotationTracker(
     if ((accumulated - peak) * direction > 0) {
       peak = accumulated
     }
-    if (event.eventTime - acceptedTime < FLICK_MILLIS) {
-
-      if ((accumulated - anchor) * direction > 0) anchor = accumulated
-      return
-    }
     while (true) {
       val step = stepDegrees
       if ((accumulated - anchor) * direction >= step) {
@@ -296,7 +288,7 @@ class TwoFingerRotationTracker(
   companion object {
     private const val INVALID_ID = -1
 
-    private const val DEFAULT_STEP_DEGREES = 30f
+    private const val DEFAULT_STEP_DEGREES = 15f
 
     @Volatile private var stepDegrees = DEFAULT_STEP_DEGREES
 
@@ -307,8 +299,6 @@ class TwoFingerRotationTracker(
     }
 
     private const val COMMIT_DEGREES = 15f
-
-    private const val FLICK_MILLIS = 200L
 
     private const val PIVOT_COMMIT_DEGREES = 30f
 
