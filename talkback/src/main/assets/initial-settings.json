@@ -218,7 +218,7 @@
         },
         "pref_show_context_menu_media_previous": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_navigate_next_heading|trigger_modifier_used": {
           "type": "boolean",
@@ -422,7 +422,7 @@
         },
         "pref_show_context_menu_take_screenshot": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_navigate_previous_paragraph|trigger_modifier_used": {
           "type": "boolean",
@@ -454,7 +454,7 @@
         },
         "pref_cache_keyboard_keys": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_notification_honour_silent": {
           "type": "boolean",
@@ -490,7 +490,7 @@
         },
         "pref_show_context_menu_task_assistant": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_labeling_menu_setting_key": {
           "type": "boolean",
@@ -530,7 +530,7 @@
         },
         "pref_event_processing_level": {
           "type": "string",
-          "value": "medium"
+          "value": "low"
         },
         "pref_selector_granularity_h2_key": {
           "type": "boolean",
@@ -598,7 +598,7 @@
         },
         "pref_show_context_menu_copy_more": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_fast_nav_skip_target_refresh_key": {
           "type": "boolean",
@@ -646,7 +646,7 @@
         },
         "pref_dictation_recognition": {
           "type": "string",
-          "value": "rambler"
+          "value": "zipformer"
         },
         "new_key_combo_model|keycombo_shortcut_global_adjust_reading_setting_next|key_combo_code": {
           "type": "long",
@@ -734,7 +734,7 @@
         },
         "pref_notification_summary_daily": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_global_speech_rate_increase|key_combo_code": {
           "type": "long",
@@ -754,7 +754,7 @@
         },
         "pref_show_context_menu_lock_screen": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_ai_label_suggestion_key": {
           "type": "boolean",
@@ -770,7 +770,7 @@
         },
         "pref_mute_speech_while_recording": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_notification_skip_media": {
           "type": "boolean",
@@ -786,7 +786,7 @@
         },
         "pref_speak_items_before_scroll_key": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_other_announce_row_header|key_combo_code": {
           "type": "long",
@@ -814,7 +814,7 @@
         },
         "pref_latency_early_controls": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_show_navigation_menu_granularity_default_setting_key": {
           "type": "boolean",
@@ -847,10 +847,6 @@
         "new_key_combo_model|keycombo_shortcut_other_show_table_list|key_combo_code": {
           "type": "long",
           "value": 17592186044464
-        },
-        "pref_notification_summary_name": {
-          "type": "string",
-          "value": "mạnh"
         },
         "pref_dev_builds": {
           "type": "boolean",
@@ -910,7 +906,7 @@
         },
         "pref_prepare_adjacent_speech": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "new_key_combo_model|keycombo_shortcut_global_hide_or_show_screen|trigger_modifier_used": {
           "type": "boolean",
@@ -930,7 +926,7 @@
         },
         "pref_direct_input_tap_delay": {
           "type": "int",
-          "value": 30
+          "value": 0
         },
         "pref_selector_granularity_lines_key": {
           "type": "boolean",
@@ -954,7 +950,7 @@
         },
         "pref_subtitle_bottom": {
           "type": "int",
-          "value": 100
+          "value": 20
         },
         "pref_vibration": {
           "type": "boolean",
@@ -1170,7 +1166,7 @@
         },
         "pref_show_context_menu_media_next": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_global_speech_pitch_increase|trigger_modifier_used": {
           "type": "boolean",
@@ -1198,7 +1194,7 @@
         },
         "pref_latency_fast_scroll": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_summarize_view_menu_setting_key": {
           "type": "boolean",
@@ -1285,7 +1281,7 @@
         },
         "pref_speech_rate_seekbar_key_int": {
           "type": "int",
-          "value": 232
+          "value": 211
         },
         "new_key_combo_model|keycombo_shortcut_global_refocus_current_node|trigger_modifier_used": {
           "type": "boolean",
@@ -1333,7 +1329,7 @@
         },
         "pref_latency_cached_text": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_wrap_around_key": {
           "type": "boolean",
@@ -1341,7 +1337,7 @@
         },
         "pref_show_context_menu_touch_exploration": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_fast_nav_cheap_pivot_key": {
           "type": "boolean",
@@ -1489,7 +1485,7 @@
         },
         "pref_show_context_menu_focus_screenshot": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_navigate_previous_combobox|key_combo_code": {
           "type": "long",
@@ -1501,7 +1497,7 @@
         },
         "pref_show_context_menu_subtitle_find_again": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_selector_keyboard_echo_braille_display_key": {
           "type": "boolean",
@@ -1509,7 +1505,7 @@
         },
         "pref_show_context_menu_clear_all_text": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_characters_navigation_menu_setting_key": {
           "type": "boolean",
@@ -1529,7 +1525,7 @@
         },
         "pref_rate_volume": {
           "type": "string",
-          "value": "2.32"
+          "value": "2.1090908"
         },
         "new_key_combo_model|keycombo_shortcut_navigate_next_edit_field|trigger_modifier_used": {
           "type": "boolean",
@@ -1657,7 +1653,7 @@
         },
         "pref_dim_when_talkback_enabled_key": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_notification_watch_dismiss_stops": {
           "type": "boolean",
@@ -1685,7 +1681,7 @@
         },
         "pref_latency_pcm_second": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_shortcut_two_finger_triple_tap_and_hold": {
           "type": "string",
@@ -1697,7 +1693,7 @@
         },
         "pref_latency_immediate_speech": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_selector_granularity_controls_key": {
           "type": "boolean",
@@ -1713,7 +1709,7 @@
         },
         "pref_show_context_menu_text_statistics": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_table_speak_row_column_numbers_key": {
           "type": "boolean",
@@ -1857,7 +1853,7 @@
         },
         "pref_two_finger_rotation": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "new_key_combo_model|keycombo_shortcut_navigate_next_heading_2|key_combo_code": {
           "type": "long",
@@ -1885,7 +1881,7 @@
         },
         "pref_typing_confirmation": {
           "type": "string",
-          "value": "5"
+          "value": "6"
         },
         "pref_selector_granularity_typo_key": {
           "type": "boolean",
@@ -1985,7 +1981,7 @@
         },
         "pref_a11y_volume": {
           "type": "int",
-          "value": 3
+          "value": 6
         },
         "pref_fast_navigator_key": {
           "type": "boolean",
@@ -2085,7 +2081,7 @@
         },
         "pref_latency_pcm_adjacent": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "new_key_combo_model|keycombo_shortcut_global_toggle_voice_feedback|key_combo_code": {
           "type": "long",
@@ -2121,7 +2117,7 @@
         },
         "pref_auto_update_check": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_notification_automation_allowed": {
           "type": "boolean",
@@ -2201,7 +2197,7 @@
         },
         "pref_verbosity_preset_value_custom_pref_a11y_hints": {
           "type": "string",
-          "value": "actions"
+          "value": "off"
         },
         "new_key_combo_model|keycombo_shortcut_navigate_next_radio|trigger_modifier_used": {
           "type": "boolean",
@@ -2325,7 +2321,7 @@
         },
         "pref_mute_screen_reader_sounds_in_silent": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_selector_granularity_row_key": {
           "type": "boolean",
@@ -2417,7 +2413,7 @@
         },
         "pref_show_context_menu_copy_full_screen": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_speech_volume": {
           "type": "string",
@@ -2445,7 +2441,7 @@
         },
         "pref_ai_provider": {
           "type": "string",
-          "value": "other"
+          "value": "gemini"
         },
         "pref_voice_commands_menu_setting_key": {
           "type": "boolean",
@@ -2493,7 +2489,7 @@
         },
         "pref_show_context_menu_copy_focused": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_opt_in_screen_overview_key": {
           "type": "boolean",
@@ -2537,7 +2533,7 @@
         },
         "pref_subtitle_top": {
           "type": "int",
-          "value": 60
+          "value": 0
         },
         "new_key_combo_model|keycombo_shortcut_other_toggle_search|trigger_modifier_used": {
           "type": "boolean",
@@ -2613,7 +2609,7 @@
         },
         "pref_show_context_menu_subtitles": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_punctuation": {
           "type": "boolean",
@@ -2641,7 +2637,7 @@
         },
         "pref_prepare_second_ahead_speech": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_h2_navigation_menu_setting_key": {
           "type": "boolean",
@@ -2689,11 +2685,11 @@
         },
         "pref_show_context_menu_screen_recognition": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_show_context_menu_direct_tap": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_navigate_next_button|key_combo_code": {
           "type": "long",
@@ -2761,7 +2757,7 @@
         },
         "pref_latency_fresh_prepared": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "pref_extended_two_finger_gestures": {
           "type": "boolean",
@@ -2797,7 +2793,7 @@
         },
         "pref_show_context_menu_auto_translate": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_notification_voice_profile": {
           "type": "string",
@@ -2885,7 +2881,7 @@
         },
         "pref_disable_latency_extras": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_row_column_navigation_menu_setting_key": {
           "type": "boolean",
@@ -2953,7 +2949,7 @@
         },
         "pref_show_context_menu_monitor_focus": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_selector_auto_translation_key": {
           "type": "boolean",
@@ -3045,11 +3041,383 @@
         },
         "pref_intonation": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_verbose_scroll_announcement_key": {
           "type": "boolean",
           "value": false
+        },
+        "pref_back_tap_sensitivity": {
+          "type": "string",
+          "value": "medium"
+        },
+        "pref_browse_mode_global_enabled": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_browse_mode_remember_mode": {
+          "type": "string",
+          "value": "always"
+        },
+        "pref_call_announce": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_call_duration": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_call_duration_interval": {
+          "type": "string",
+          "value": "0"
+        },
+        "pref_call_during_dnd": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_call_limit_enabled": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_call_limit_minutes": {
+          "type": "string",
+          "value": "10"
+        },
+        "pref_call_limit_scope": {
+          "type": "string",
+          "value": "OUTGOING"
+        },
+        "pref_call_quiet_hours": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_call_repeats": {
+          "type": "string",
+          "value": "3"
+        },
+        "pref_call_voice_profile": {
+          "type": "string",
+          "value": ""
+        },
+        "pref_countdown_alarm_audio_stream": {
+          "type": "string",
+          "value": "accessibility"
+        },
+        "pref_countdown_alarm_repeats": {
+          "type": "string",
+          "value": "3"
+        },
+        "pref_countdown_alarm_sound": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_countdown_alarm_vibration": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_countdown_alarm_voice_profile": {
+          "type": "string",
+          "value": ""
+        },
+        "pref_dictation_online_ai_emoji": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_dictation_online_route": {
+          "type": "string",
+          "value": "gemini"
+        },
+        "pref_dictation_speech_threshold": {
+          "type": "int",
+          "value": 12
+        },
+        "pref_dictation_translation_source": {
+          "type": "string",
+          "value": "vi"
+        },
+        "pref_dictation_translation_target": {
+          "type": "string",
+          "value": "en"
+        },
+        "pref_explore_by_touch": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_full_screen_monitor_manual": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_keep_screen_on_while_speaking": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_latency_fast_single_finger_swipe": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_latency_fast_window_transitions": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_latency_reset_session": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_latency_simulated_double_tap": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_latency_stationary_touch_delay_ms": {
+          "type": "int",
+          "value": 100
+        },
+        "pref_latency_touch_speech_with_rotation": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_navigation_mode": {
+          "type": "string",
+          "value": "1"
+        },
+        "pref_notification_while_reading": {
+          "type": "string",
+          "value": "AFTER"
+        },
+        "pref_pitch_volume": {
+          "type": "string",
+          "value": "1.0"
+        },
+        "pref_sandfly_menu_order": {
+          "type": "string",
+          "value": "pref_custom_action_menu_setting_key,pref_labeling_menu_setting_key,pref_image_caption_menu_setting_key,pref_summarize_view_menu_setting_key,pref_read_from_current_menu_setting_key,pref_copy_last_spoken_phrase_menu_setting_key,pref_show_context_menu_speech_history,pref_show_context_menu_favorites,pref_dim_or_brighten_menu_setting_key,pref_talkback_settings_menu_setting_key,pref_inspect_item_menu_setting_key,pref_copy_screen_tree_menu_setting_key,pref_show_context_menu_subtitle_find_again,pref_show_context_menu_subtitles,pref_show_context_menu_screen_recognition,pref_show_context_menu_task_assistant,pref_show_context_menu_focus_screenshot,pref_show_context_menu_copy_full_screen,pref_show_context_menu_copy_more,pref_show_context_menu_auto_translate,pref_show_context_menu_monitor_focus,pref_show_context_menu_touch_exploration,pref_show_context_menu_take_screenshot,pref_show_context_menu_direct_tap,pref_show_context_menu_clear_all_text,pref_show_context_menu_copy_focused,pref_show_context_menu_media_next,pref_show_context_menu_media_previous,pref_show_context_menu_lock_screen,pref_show_context_menu_text_statistics,pref_show_context_menu_typo_suggestions_setting_key,pref_page_navigation_menu_setting_key,pref_recognize_screen_menu_setting_key,pref_screen_recognition_app_menu_setting_key,pref_granularity_menu_setting_key,pref_read_from_top_menu_setting_key,pref_spell_last_spoken_phrase_menu_setting_key,pref_repeat_last_spoken_phrase_menu_setting_key,pref_translate_last_spoken_phrase_menu_setting_key,pref_text_formatting_menu_setting_key,pref_keyboard_echo_on_screen_menu_setting_key,pref_keyboard_echo_physical_menu_setting_key,pref_verbosity_menu_setting_key,pref_language_menu_setting_key,pref_emoji_menu_setting_key,pref_voice_profile_menu_setting_key,pref_audio_ducking_menu_setting_key,pref_sound_feedback_menu_setting_key,pref_vibration_feedback_menu_setting_key,pref_find_on_screen_menu_setting_key,pref_voice_commands_menu_setting_key,pref_pause_backtalk_menu_setting_key,pref_turn_off_menu_setting_key,pref_show_keyboard_shortcuts_menu_setting_key,pref_clipboard_history_menu_setting_key,pref_tts_settings_menu_setting_key,pref_system_action_menu_setting_key,pref_control_telling_time_menu_setting_key"
+        },
+        "pref_selector_navigation_groups": {
+          "type": "string",
+          "value": "[{\"id\":\"reading\",\"name\":\"Điều khiển đọc\",\"enabled\":true,\"items\":[\"pref_selector_granularity_typo_key\",\"pref_selector_granularity_row_column_key\",\"pref_selector_granularity_row_key\",\"pref_selector_granularity_column_key\",\"pref_selector_granularity_paragraphs_key\",\"pref_selector_granularity_windows_key\",\"pref_selector_granularity_containers_key\",\"pref_selector_granularity_search_key\",\"pref_selector_granularity_key\",\"pref_selector_speech_rate_key\",\"pref_selector_punctuation_key\",\"pref_selector_emoji_key\",\"pref_selector_keyboard_echo_on_screen_key\",\"pref_selector_keyboard_echo_physical_key\",\"pref_selector_text_formatting_inline_key\",\"pref_selector_language_key\",\"pref_selector_switch_tts_engine_key\",\"pref_selector_speech_stream_key\",\"pref_selector_voice_profile_key\",\"pref_selector_smart_context_key\"]},{\"id\":\"web\",\"name\":\"Điều hướng Web\",\"enabled\":true,\"items\":[\"pref_selector_granularity_landmarks_key\",\"pref_selector_granularity_buttons_key\",\"pref_selector_granularity_checkboxes_key\",\"pref_selector_granularity_editfields_key\",\"pref_selector_granularity_focusables_key\",\"pref_selector_granularity_h1_key\",\"pref_selector_granularity_h2_key\",\"pref_selector_granularity_h3_key\",\"pref_selector_granularity_h4_key\",\"pref_selector_granularity_h5_key\",\"pref_selector_granularity_h6_key\",\"pref_selector_granularity_graphics_key\",\"pref_selector_granularity_lists_key\",\"pref_selector_granularity_listitems_key\",\"pref_selector_granularity_tables_key\",\"pref_selector_granularity_comboboxes_key\",\"pref_selector_granularity_visited_links_key\",\"pref_selector_granularity_unvisited_links_key\",\"pref_selector_granularity_radios_key\"]},{\"id\":\"special\",\"name\":\"Tính năng đặc biệt\",\"enabled\":true,\"items\":[\"pref_selector_hide_screen_key\",\"pref_selector_audio_focus_key\",\"pref_selector_scroll_seq_key\",\"pref_selector_change_a11y_volume_key\",\"pref_selector_sound_mode_key\",\"pref_selector_auto_translation_key\",\"pref_selector_change_brightness_key\",\"pref_selector_change_lift_to_activate_key\",\"pref_selector_wrap_around_key\",\"pref_selector_control_telling_time\"]},{\"id\":\"user\",\"name\":\"Nhóm Người dùng\",\"enabled\":true,\"items\":[\"pref_selector_actions_key\",\"pref_selector_granularity_characters_key\",\"pref_selector_granularity_words_key\",\"pref_selector_granularity_lines_key\",\"pref_selector_granularity_headings_key\",\"pref_selector_granularity_controls_key\",\"pref_selector_granularity_links_key\",\"pref_selector_vertical_navigation_key\",\"pref_selector_copy_mode\",\"pref_selector_sound_mode_key\"]}]"
+        },
+        "pref_selector_smart_context_key": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_speech_compressor": {
+          "type": "string",
+          "value": "-15,-21,-27,-27,-21,15,20,25,30,30,5,150,3"
+        },
+        "pref_speech_compressor_on": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_speech_equalizer_on": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_stopwatch_interval_slider": {
+          "type": "int",
+          "value": 10
+        },
+        "pref_subtitle_gemini_channel": {
+          "type": "string",
+          "value": "media"
+        },
+        "pref_subtitle_gemini_voice": {
+          "type": "string",
+          "value": "gemini"
+        },
+        "pref_translation_auto": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_bilingual": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_bilingual_order": {
+          "type": "string",
+          "value": "original"
+        },
+        "pref_translation_bilingual_original_profile": {
+          "type": "string",
+          "value": ""
+        },
+        "pref_translation_bilingual_stream": {
+          "type": "string",
+          "value": ""
+        },
+        "pref_translation_bilingual_swap_profiles": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_bilingual_translated_profile": {
+          "type": "string",
+          "value": ""
+        },
+        "pref_translation_copy": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_notifications": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_say_source": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_service": {
+          "type": "string",
+          "value": "on_device"
+        },
+        "pref_translation_target_voice": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_translation_wifi_only": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_turn_off_menu_setting_key": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_verbosity_preset_value_custom_pref_speak_roles_key": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_auto_capitalize": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_bottom_spacing": {
+          "type": "int",
+          "value": 56
+        },
+        "pref_vietnamese_keyboard_double_space_period": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_double_tap": {
+          "type": "int",
+          "value": 150
+        },
+        "pref_vietnamese_keyboard_key_sound": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_key_sound_delete": {
+          "type": "string",
+          "value": "focus4"
+        },
+        "pref_vietnamese_keyboard_key_sound_enter": {
+          "type": "string",
+          "value": "r7"
+        },
+        "pref_vietnamese_keyboard_key_sound_normal": {
+          "type": "string",
+          "value": "focus2"
+        },
+        "pref_vietnamese_keyboard_key_sound_space": {
+          "type": "string",
+          "value": "focus3"
+        },
+        "pref_vietnamese_keyboard_layout": {
+          "type": "string",
+          "value": "phone"
+        },
+        "pref_vietnamese_keyboard_mic_enabled": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_own_voice": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_vietnamese_keyboard_quick_telex": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_show_language": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_vietnamese_keyboard_show_number_row": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_show_picker": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_show_symbols_row": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_vietnamese_keyboard_size_landscape": {
+          "type": "int",
+          "value": 100
+        },
+        "pref_vietnamese_keyboard_size_portrait": {
+          "type": "int",
+          "value": 65
+        },
+        "pref_vietnamese_keyboard_tap_hold": {
+          "type": "int",
+          "value": 290
+        },
+        "pref_vietnamese_keyboard_vibrate_on_key": {
+          "type": "boolean",
+          "value": false
+        },
+        "pref_vietnamese_keyboard_vibration_level": {
+          "type": "int",
+          "value": 100
+        },
+        "pref_volume_keys_adjust_speech_while_speaking": {
+          "type": "boolean",
+          "value": true
+        },
+        "pref_volume_keys_multi_enabled": {
+          "type": "boolean",
+          "value": false
+        },
+        "smart_context_auto_switch": {
+          "type": "boolean",
+          "value": false
+        },
+        "smart_context_builtin_call_active": {
+          "type": "boolean",
+          "value": true
+        },
+        "smart_context_builtin_call_incoming": {
+          "type": "boolean",
+          "value": true
+        },
+        "smart_context_builtin_call_speaker": {
+          "type": "boolean",
+          "value": false
+        },
+        "smart_context_builtin_dialog": {
+          "type": "boolean",
+          "value": true
+        },
+        "smart_context_builtin_media": {
+          "type": "boolean",
+          "value": true
+        },
+        "smart_context_builtin_short_video": {
+          "type": "boolean",
+          "value": true
+        },
+        "smart_context_max_scroll": {
+          "type": "string",
+          "value": "20"
+        },
+        "smart_context_nearest_visible_slider": {
+          "type": "boolean",
+          "value": false
+        },
+        "smart_context_text_rules_enabled": {
+          "type": "boolean",
+          "value": true
         }
       },
       "braille_keyboard": {
