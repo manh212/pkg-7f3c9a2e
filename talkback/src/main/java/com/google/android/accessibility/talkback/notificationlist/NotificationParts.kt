@@ -45,15 +45,15 @@ object NotificationParts {
   }
 
   fun enabledParts(prefs: SharedPreferences): List<NotificationPart> {
-    val disabled = parse(prefs.getString(PREF_DISABLED, null))
+    val disabled = parse(prefs.getString(PREF_DISABLED, "PLAYBACK"))
     return order(prefs).filterNot { it in disabled }
   }
 
   fun isEnabled(prefs: SharedPreferences, part: NotificationPart): Boolean =
-    part !in parse(prefs.getString(PREF_DISABLED, null))
+    part !in parse(prefs.getString(PREF_DISABLED, "PLAYBACK"))
 
   fun setEnabled(prefs: SharedPreferences, part: NotificationPart, enabled: Boolean) {
-    val disabled = parse(prefs.getString(PREF_DISABLED, null)).toMutableList()
+    val disabled = parse(prefs.getString(PREF_DISABLED, "PLAYBACK")).toMutableList()
     disabled.remove(part)
     if (!enabled) {
       disabled += part
