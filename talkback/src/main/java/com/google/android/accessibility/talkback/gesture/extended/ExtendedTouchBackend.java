@@ -35,6 +35,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private final TalkBackService service;
   private final TouchInteractionController controller;
   private final GestureManifold detector;
+  private @Nullable EdgeGestureInput edgeInput;
+  private final Runnable claimEdge = this::claimEdge;
   private final Handler handler;
   private final float dragSlop;
   private int dragPointerId = -1;
@@ -176,13 +178,44 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     movingTouchExplorationAt = 0;
     cancelStationaryTouchExploration();
     resetTwoFingerTracking();
+    resetEdge();
     detector.clear();
     rotationTracker.clear();
     clearQueue();
   }
 
   void configurationChanged(Configuration configuration) {
-    if (active) detector.onConfigurationChanged(service);
+    if (active) {
+      if (edgeInput != null) {
+        edgeInput.refreshArea();
+      }
+      detector.onConfigurationChanged(service);
+    }
+  }
+
+  void updateEdgeGestures(boolean enabled) {
+    if (!enabled) {
+      edgeInput = null;
+      return;
+    }
+    if (edgeInput == null) {
+      edgeInput = new EdgeGestureInput(service);
+    }
+    edgeInput.reload();
+  }
+
+  private void resetEdge() {
+    if (edgeInput != null) {
+      edgeInput.reset();
+    }
+  }
+
+  private void claimEdge() {
+    completedInteraction = true;
+    gestureStarted = false;
+    handler.removeCallbacks(explore);
+    cancelStationaryTouchExploration();
+    detector.clear();
   }
 
   @Override public void onMotionEvent(MotionEvent event) {
@@ -216,6 +249,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
           handler.postAtTime(explore, movingTouchExplorationAt);
         }
       }
+      if (edgeInput != null && firstPointerOnly && canDetectGesture()
+          && (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP)
+          && edgeInput.moveOrUp(event, claimEdge)) {
+        if (action == MotionEvent.ACTION_UP) {
+          firstPointerOnly = false;
+        }
+        return;
+      }
       if (action == MotionEvent.ACTION_MOVE && firstPointerOnly && event.getPointerCount() == 1
           && rotationEnabled && LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE.enabled()
           && canDetectGesture()) {
@@ -238,10 +279,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         }
         downY[event.getPointerId(0)] = event.getY();
         downX[event.getPointerId(0)] = event.getX();
+        if (edgeInput != null && canDetectGesture()) {
+          edgeInput.down(event);
+        }
         if (!gestureStarted) {
           scheduleExploration();
         }
       } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
+        resetEdge();
         firstPointerOnly = false;
         int index = event.getActionIndex();
         handler.removeCallbacks(explore);
@@ -312,6 +357,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         resetTwoFingerTracking();
       }
       if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        resetEdge();
         LatencyExperiments.resetTouchControllerContact();
         detector.clear();
         rotationTracker.clear();
@@ -376,8 +422,12 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
     handler.removeCallbacks(explore);
     cancelStationaryTouchExploration();
+    if (next == TouchInteractionController.STATE_TOUCH_EXPLORING) {
+      resetEdge();
+    }
     if (next == TouchInteractionController.STATE_DELEGATING
         || next == TouchInteractionController.STATE_DRAGGING) {
+      resetEdge();
       LatencyExperiments.resetTouchControllerContact();
       resetTwoFingerTracking();
       detector.clear();

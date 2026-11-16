@@ -42,7 +42,9 @@ import androidx.preference.PreferenceFragmentCompat;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity.TalkBackSubSettings;
 import static com.google.android.accessibility.utils.preference.PreferencesActivity.FRAGMENT_ARGS;
 import static com.google.android.accessibility.utils.preference.PreferencesActivity.FRAGMENT_NAME;
+import com.google.android.accessibility.talkback.gesture.EdgeGestureActions;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
+import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture;
 import com.google.android.accessibility.talkback.gesture.NavigationGestureActions;
 import com.google.android.accessibility.talkback.gesture.OpenAppActions;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
@@ -335,6 +337,15 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     if (openAppLabel != null) {
       return openAppLabel;
     }
+    if (EdgeGesture.fromKey(getKey()) != null) {
+      if (getContext().getString(R.string.shortcut_value_unassigned).equals(value)) {
+        return getContext().getString(R.string.edge_gesture_unassigned);
+      }
+      EdgeGestureActions.Action action = EdgeGestureActions.find(getContext(), value);
+      if (action != null) {
+        return getContext().getString(action.getTitle());
+      }
+    }
     Optional<ActionItem> item =
         items.stream().filter((s) -> TextUtils.equals(s.value, value)).findFirst();
     if (item.isPresent()) {
@@ -346,6 +357,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
 
   private void populateActionItems() {
     ImmutableList.Builder<ActionItem> builder = ImmutableList.builder();
+    boolean edgeGesture = EdgeGesture.fromKey(getKey()) != null;
     if (GestureProfiles.isRowKey(getKey())) {
       builder.add(
           new ActionItem(
@@ -355,10 +367,19 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     }
     builder.add(
         new ActionItem(
-            getContext().getResources().getString(R.string.shortcut_unassigned),
+            getContext().getString(edgeGesture ? R.string.edge_gesture_unassigned : R.string.shortcut_unassigned),
             getContext().getResources().getString(R.string.shortcut_value_unassigned),
             TYPE_ACTION_ITEM));
     addActionItemsToList(builder, createBasicNavigation());
+    if (edgeGesture) {
+      for (EdgeGestureActions.Action action : EdgeGestureActions.Action.values()) {
+        builder.add(
+            new ActionItem(
+                getContext().getString(action.getTitle()),
+                getContext().getString(action.getValue()),
+                TYPE_ACTION_ITEM));
+      }
+    }
     if (includeKeyboardOnlyActions) {
       for (com.google.android.accessibility.talkback.commands.Commands.Category category :
           Commands.categories(getContext())) {

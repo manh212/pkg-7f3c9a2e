@@ -30,6 +30,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture;
 import com.google.android.accessibility.talkback.compositor.GestureShortcutProvider;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.utils.FeatureSupport;
@@ -892,6 +893,10 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
    * @return action key string
    */
   public String getActionKeyFromGestureId(int gestureId) {
+    EdgeGesture edge = EdgeGesture.fromId(gestureId);
+    if (edge != null) {
+      return EdgeGesture.isEnabled(prefs) ? edge.action(prefs, actionUnassigned) : actionUnassigned;
+    }
     @Nullable String appAction = AppGestures.action(gestureIdToKey.get(getActionGestureId(gestureId)));
     if (appAction != null) {
       return appAction;
@@ -1271,6 +1276,10 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
   @Nullable
   @SuppressLint("NullTernary") // existing logic
   public static String getGestureString(Context context, int gestureId) {
+    EdgeGesture edge = EdgeGesture.fromId(gestureId);
+    if (edge != null) {
+      return context.getString(edge.edge.title) + ", " + edge.title(context);
+    }
     if (gestureId == ROTATE_CLOCKWISE) return context.getString(R.string.title_pref_shortcut_2finger_rotate_clockwise);
     if (gestureId == ROTATE_COUNTERCLOCKWISE) return context.getString(R.string.title_pref_shortcut_2finger_rotate_counterclockwise);
     if (gestureId == PINCH_IN) return context.getString(R.string.title_pref_shortcut_2finger_pinch);

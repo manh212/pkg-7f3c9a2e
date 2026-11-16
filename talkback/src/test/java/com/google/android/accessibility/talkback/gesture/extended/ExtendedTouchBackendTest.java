@@ -8,15 +8,22 @@ import static org.junit.Assert.assertTrue;
 import android.accessibilityservice.AccessibilityGestureEvent;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.TouchInteractionController;
+import android.graphics.Insets;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.os.Looper;
 import android.view.ViewConfiguration;
 import android.view.Display;
 import android.view.MotionEvent;
+import android.view.WindowInsets;
+import android.view.WindowManager;
+import android.view.WindowMetrics;
+import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.utils.LatencyExperiments;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.gestures.GestureConfiguration;
 import com.google.android.accessibility.utils.gestures.GestureManifold;
 import java.util.ArrayList;
@@ -57,6 +64,7 @@ public class ExtendedTouchBackendTest {
       return replayScrolls;
     }
     @Override public void performCatalogAction(String action) { actions.add(action); }
+    @Override public void onEdgeGesture(int gestureId, long motionEnd) { gestures.add(gestureId); }
     @Override public void onCreate() {}
     @Override public void onContinuedGestureTouchDown(long eventTime) {
       continuedTouches.add(eventTime);
@@ -108,6 +116,8 @@ public class ExtendedTouchBackendTest {
 
   @After public void tearDown() {
     backend.stop();
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+        .remove(EdgeGesture.LEFT_TOP_IN.key).apply();
     FocusFeedbackMapper.setTouchStopsSpeech(touchSpeechWasEnabled);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.EARLY_TOUCH_SPEECH, false);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, false);
@@ -389,6 +399,34 @@ public class ExtendedTouchBackendTest {
       assertEquals(ids[index], service.gestures.get(index).intValue());
     }
     assertEquals(4, service.gestures.size());
+  }
+
+  @Test public void assignedEdgeAndOrdinarySwipeEachDispatchOnce() {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+        .putString(EdgeGesture.LEFT_TOP_IN.key, service.getString(R.string.shortcut_value_overview))
+        .apply();
+    backend.updateEdgeGestures(true);
+    WindowMetrics metrics = service.getSystemService(WindowManager.class).getMaximumWindowMetrics();
+    Rect bounds = metrics.getBounds();
+    Insets safe = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+        WindowInsets.Type.navigationBars() | WindowInsets.Type.statusBars()
+            | WindowInsets.Type.displayCutout() | WindowInsets.Type.mandatorySystemGestures());
+    float edge = bounds.left + safe.left + 4;
+    float y = (bounds.top + safe.top) + (bounds.height() - safe.top - safe.bottom) / 6f;
+    swipeRight(edge, y);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_CLEAR);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
+    swipeRight(edge + 80, y);
+    assertEquals(List.of(EdgeGesture.LEFT_TOP_IN.id(), AccessibilityService.GESTURE_SWIPE_RIGHT),
+        service.gestures);
+  }
+
+  private void swipeRight(float x, float y) {
+    motionAt(MotionEvent.ACTION_DOWN, x, y);
+    for (int step = 1; step <= 6; step++) {
+      motionAt(MotionEvent.ACTION_MOVE, x + step * 25, y);
+    }
+    motionAt(MotionEvent.ACTION_UP, x + 150, y);
   }
 
   @Test public void oneFingerTwoSegmentGestureStillUsesFullRecognizer() {

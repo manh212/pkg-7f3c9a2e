@@ -191,6 +191,7 @@ public class GestureController {
   // Member variables
 
   private final TalkBackService service;
+  private final EdgeGestureActions edgeGestureActions;
   private final CaptchaReader captchaReader = new CaptchaReader();
   private final Pipeline.FeedbackReturner pipeline;
   private final ActorState actorState;
@@ -253,6 +254,7 @@ public class GestureController {
     this.actorState = actorState;
     this.menuManager = menuManager;
     this.service = service;
+    edgeGestureActions = new EdgeGestureActions(service);
     this.selectorController = selectorController;
     this.accessibilityFocusMonitor = accessibilityFocusMonitor;
     this.accessibilityFocusInterpreter = accessibilityFocusInterpreter;
@@ -403,7 +405,25 @@ public class GestureController {
     maybeInterruptAllFeedback(action);
     boolean result = true;
     int menuAction = MenuGestureActions.menuId(service, action);
-    if (menuAction != 0) {
+    EdgeGestureActions.Action edgeAction = EdgeGestureActions.find(service, action);
+    if (edgeAction != null) {
+      result = switch (edgeAction) {
+        case PREVIOUS_SENTENCE, NEXT_SENTENCE -> {
+          String sentence = edgeGestureActions.stepSentence(
+              edgeAction == EdgeGestureActions.Action.NEXT_SENTENCE);
+          if (sentence != null) {
+            pipeline.returnFeedback(
+                eventId,
+                Feedback.speech(
+                    sentence,
+                    SpeakOptions.create().setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT)));
+          }
+          yield sentence != null;
+        }
+        case PREVIOUS_RECENT, NEXT_RECENT ->
+            edgeGestureActions.stepRecent(edgeAction == EdgeGestureActions.Action.NEXT_RECENT);
+      };
+    } else if (menuAction != 0) {
       result = menuManager.showMenuAction(menuAction, eventId);
     } else if (CustomMenus.isMenuAction(action)) {
       CustomMenus.Menu menu = CustomMenus.find(

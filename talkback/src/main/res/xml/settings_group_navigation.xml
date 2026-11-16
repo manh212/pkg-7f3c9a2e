@@ -22,6 +22,10 @@
       android:key="@string/pref_category_manage_gestures_key"
       android:title="@string/title_pref_category_manage_gestures" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.preference.base.EdgeGestureSettingsFragment"
+      android:key="pref_edge_gestures_screen"
+      android:title="@string/edge_gestures_screen" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.TalkBackKeyboardShortcutPreferenceFragment"
       android:key="@string/pref_category_manage_keyboard_shortcut_key"
       android:title="@string/title_pref_manage_keyboard_shortcuts" />

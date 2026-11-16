@@ -189,6 +189,7 @@ import com.google.android.accessibility.talkback.gesture.GestureController;
 import com.google.android.accessibility.talkback.gesture.GestureHistory;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.TwoFingerRotationSettings;
+import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionStorage;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.CaptionType;
 import com.google.android.accessibility.talkback.imagecaption.ImageContents;
@@ -2174,6 +2175,10 @@ public class TalkBackService extends AccessibilityServiceCompat
       return true;
     }
     return false;
+  }
+
+  public void onEdgeGesture(int gestureId, long motionEnd) {
+    handleOnGestureById(Display.DEFAULT_DISPLAY, gestureId, motionEnd, SystemClock.uptimeMillis());
   }
 
   private boolean handleOnGestureById(
@@ -4769,7 +4774,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (extendedGesturesController == null) {
       if (!com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.isEnabled(prefs)
           && !TwoFingerRotationSettings.isEnabled(prefs)
-          && !LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled()) return;
+          && !LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled()
+          && !EdgeGesture.hasAssignments(this, prefs)) return;
       extendedGesturesController =
           new com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController(this);
     }
@@ -4968,6 +4974,14 @@ public class TalkBackService extends AccessibilityServiceCompat
           LatencyExperiments.setEnabled(
               LatencyExperiments.Feature.FAST_DOUBLE_TAP, prefs.getBoolean(key, false));
           updateExtendedGestures();
+          return;
+        }
+        if (EdgeGesture.isPreference(key)) {
+          if (extendedGesturesController == null) {
+            updateExtendedGestures();
+          } else {
+            extendedGesturesController.refreshEdges(isServiceActive() && !PauseController.isPaused());
+          }
           return;
         }
         // The prepared announcements may have been worked out with the setting as it was, such as

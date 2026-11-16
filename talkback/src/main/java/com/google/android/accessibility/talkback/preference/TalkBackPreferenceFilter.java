@@ -318,6 +318,10 @@ public class TalkBackPreferenceFilter {
 
   private boolean hideKey(String key) {
     if (android.os.Build.VERSION.SDK_INT < 33
+        && key != null && key.startsWith("pref_edge_gestures_")) {
+      return true;
+    }
+    if (android.os.Build.VERSION.SDK_INT < 33
         && (TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_rotate_clockwise_key))
             || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_rotate_counterclockwise_key))
             || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_pinch_key))

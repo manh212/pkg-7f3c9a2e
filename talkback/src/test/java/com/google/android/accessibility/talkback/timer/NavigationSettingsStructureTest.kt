@@ -22,7 +22,7 @@ class NavigationSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun navigationScreen_isSevenSubScreensInOrder() {
+  fun navigationScreen_listsSubScreensInOrder() {
     val rows = rowsOf(R.xml.settings_group_navigation)
     assertEquals(
       listOf(
@@ -31,6 +31,7 @@ class NavigationSettingsStructureTest {
         "pref_smart_context_settings",
         "pref_direct_touch",
         "pref_category_manage_gestures",
+        "pref_edge_gestures_screen",
         "pref_category_manage_keyboard_shortcut_key",
         "pref_volume_key_settings_screen",
       ),
@@ -43,6 +44,7 @@ class NavigationSettingsStructureTest {
         "SmartContextGestureSettingsFragment",
         "DirectTouchFragment",
         "TalkBackGestureShortcutPreferenceFragment",
+        "EdgeGestureSettingsFragment",
         "TalkBackKeyboardShortcutPreferenceFragment",
         "VolumeKeySettingsFragment",
       ),

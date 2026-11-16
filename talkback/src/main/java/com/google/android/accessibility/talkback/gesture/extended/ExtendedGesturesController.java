@@ -1,6 +1,7 @@
 package com.google.android.accessibility.talkback.gesture.extended;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.widget.Toast;
@@ -17,6 +18,8 @@ public final class ExtendedGesturesController {
   private boolean activeExtendedGestures;
   private boolean activeRotation;
   private boolean activeFastDoubleTap;
+  private boolean activeEdges;
+  private boolean edgesFailed;
 
   public ExtendedGesturesController(TalkBackService service) { this.service = service; }
 
@@ -25,24 +28,40 @@ public final class ExtendedGesturesController {
     AccessibilityServiceInfo info = service.getServiceInfo();
     boolean available = active && info != null &&
         (info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0;
-    boolean extended = available &&
-        ExtendedGestures.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
-    boolean rotation = available &&
-        TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
+    SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(service);
+    boolean extended = available && ExtendedGestures.isEnabled(prefs);
+    boolean rotation = available && TwoFingerRotationSettings.isEnabled(prefs);
     boolean fastDoubleTap = available && LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled();
-    if (!extended && !rotation && !fastDoubleTap) { stop(); return; }
+    boolean edges = available && !edgesFailed && EdgeGesture.hasAssignments(service, prefs);
+    if (!extended && !rotation && !fastDoubleTap && !edges) { stop(); return; }
     if (backend != null && extended == activeExtendedGestures && rotation == activeRotation
-        && fastDoubleTap == activeFastDoubleTap) return;
+        && fastDoubleTap == activeFastDoubleTap) {
+      if (activeEdges != edges) {
+        backend.updateEdgeGestures(edges);
+        activeEdges = edges;
+      }
+      return;
+    }
     stop();
     try {
       activeExtendedGestures = extended;
       activeRotation = rotation;
       activeFastDoubleTap = fastDoubleTap;
+      activeEdges = edges;
       backend = new ExtendedTouchBackend(service, this::failed, rotation, extended, fastDoubleTap);
+      backend.updateEdgeGestures(edges);
       backend.start();
     } catch (RuntimeException error) {
       LogUtils.w("ExtendedTouchBackend", "Could not start touch controller: %s", error);
       failed();
+    }
+  }
+
+  public void refreshEdges(boolean active) {
+    edgesFailed = false;
+    update(active);
+    if (backend != null && activeEdges) {
+      backend.updateEdgeGestures(true);
     }
   }
 
@@ -59,6 +78,7 @@ public final class ExtendedGesturesController {
     activeExtendedGestures = false;
     activeRotation = false;
     activeFastDoubleTap = false;
+    activeEdges = false;
   }
 
   public void configurationChanged(Configuration configuration) {
@@ -66,6 +86,13 @@ public final class ExtendedGesturesController {
   }
 
   private void failed() {
+    if (activeEdges) {
+      edgesFailed = true;
+      stop();
+      update(TalkBackService.isServiceActive()
+          && !com.google.android.accessibility.talkback.pause.PauseController.isPaused());
+      return;
+    }
     boolean fastDoubleTap = activeFastDoubleTap;
     boolean rotationFailed = activeRotation
         || TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));

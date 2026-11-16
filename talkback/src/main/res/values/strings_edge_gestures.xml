@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="edge_gestures_screen">Cử chỉ cạnh</string>
+  <string name="edge_gesture_unassigned">Chưa gán</string>
+  <string name="edge_gestures_enabled">Bật cử chỉ cạnh</string>
+  <string name="edge_gestures_width">Độ rộng vùng nhận cử chỉ (dp)</string>
+  <string name="edge_gestures_distance">Quãng vuốt tối thiểu (dp)</string>
+  <string name="edge_gestures_left">Cạnh trái</string>
+  <string name="edge_gestures_right">Cạnh phải</string>
+  <string name="edge_gestures_bottom">Cạnh dưới</string>
+  <string name="edge_gesture_zone_left">Bên trái</string>
+  <string name="edge_gesture_zone_middle">Ở giữa</string>
+  <string name="edge_gesture_zone_right">Bên phải</string>
+  <string name="edge_gesture_zone_top">Phần trên</string>
+  <string name="edge_gesture_zone_bottom">Phần dưới</string>
+  <string name="edge_gesture_zone_and_direction">%1$s, %2$s</string>
+  <string name="edge_gesture_in">vuốt vào trong</string>
+  <string name="edge_gesture_up">vuốt lên</string>
+  <string name="edge_gesture_down">vuốt xuống</string>
+  <string name="edge_gesture_swipe_right">Vuốt dài từ trái sang phải</string>
+  <string name="edge_gesture_swipe_left">Vuốt dài từ phải sang trái</string>
+  <string name="edge_gesture_previous_sentence">Đọc câu trước</string>
+  <string name="edge_gesture_next_sentence">Đọc câu sau</string>
+  <string name="edge_gesture_previous_recent">Mục trước trong Ứng dụng gần đây</string>
+  <string name="edge_gesture_next_recent">Mục sau trong Ứng dụng gần đây</string>
+  <string name="edge_gesture_value_previous_sentence" translatable="false">EDGE_GESTURE_PREVIOUS_SENTENCE</string>
+  <string name="edge_gesture_value_next_sentence" translatable="false">EDGE_GESTURE_NEXT_SENTENCE</string>
+  <string name="edge_gesture_value_previous_recent" translatable="false">EDGE_GESTURE_PREVIOUS_RECENT</string>
+  <string name="edge_gesture_value_next_recent" translatable="false">EDGE_GESTURE_NEXT_RECENT</string>
+</resources>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:key="pref_edge_gestures_enabled"
+      android:title="@string/edge_gestures_enabled"
+      android:defaultValue="false" />
+  <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+      android:key="pref_edge_gestures_width"
+      android:title="@string/edge_gestures_width"
+      android:defaultValue="24"
+      android:max="48"
+      app:min="12"
+      app:seekBarIncrement="2"
+      app:showSeekBarValue="true" />
+  <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+      android:key="pref_edge_gestures_distance"
+      android:title="@string/edge_gestures_distance"
+      android:defaultValue="32"
+      android:max="72"
+      app:min="16"
+      app:seekBarIncrement="2"
+      app:showSeekBarValue="true" />
+</PreferenceScreen>
