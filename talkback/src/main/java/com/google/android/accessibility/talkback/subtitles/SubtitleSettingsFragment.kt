@@ -37,8 +37,8 @@ class SubtitleSettingsFragment : TalkbackBaseFragment(R.xml.subtitle_preferences
       }
     }
     val defaults = mapOf(
-      SubtitleSettings.LEFT to 0, SubtitleSettings.TOP to 60,
-      SubtitleSettings.RIGHT to 100, SubtitleSettings.BOTTOM to 100
+      SubtitleSettings.LEFT to 0, SubtitleSettings.TOP to 0,
+      SubtitleSettings.RIGHT to 100, SubtitleSettings.BOTTOM to 20
     )
     for ((key, default) in defaults) {
       findPreference<SeekBarPreference>(key)?.apply {

@@ -26,7 +26,7 @@ object SubtitleSettings {
   fun geminiVoice(prefs: SharedPreferences): String =
     prefs.getString(GEMINI_VOICE, VOICE_GEMINI) ?: VOICE_GEMINI
   fun geminiChannel(prefs: SharedPreferences): String =
-    prefs.getString(GEMINI_CHANNEL, CHANNEL_ACCESSIBILITY) ?: CHANNEL_ACCESSIBILITY
+    prefs.getString(GEMINI_CHANNEL, CHANNEL_MEDIA) ?: CHANNEL_MEDIA
   fun region(prefs: SharedPreferences): String = prefs.getString(REGION, "auto") ?: "auto"
   fun interrupt(prefs: SharedPreferences): Boolean = prefs.getString(SPEECH, "finish") == "interrupt"
   fun interval(prefs: SharedPreferences): Long =
@@ -47,9 +47,9 @@ object SubtitleSettings {
       }
       "custom" -> {
         val left = prefs.getInt(LEFT, 0).coerceIn(0, 99)
-        val top = prefs.getInt(TOP, 60).coerceIn(0, 99)
+        val top = prefs.getInt(TOP, 0).coerceIn(0, 99)
         val right = prefs.getInt(RIGHT, 100).coerceIn(left + 1, 100)
-        val bottom = prefs.getInt(BOTTOM, 100).coerceIn(top + 1, 100)
+        val bottom = prefs.getInt(BOTTOM, 20).coerceIn(top + 1, 100)
         result.set(screen.left + screen.width() * left / 100,
           screen.top + screen.height() * top / 100,
           screen.left + screen.width() * right / 100,
