@@ -69,7 +69,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private final Runnable transitionTimeout = () -> recoverTransition("no state callback");
   private final Runnable armExtendedAfterHold = () -> {
     if (active && twoFingerTracking && !twoFingerMoved && !completedInteraction
-        && controllerState() == TouchInteractionController.STATE_TOUCH_INTERACTING) {
+        && canTrackTwoFingers()) {
       heldTwoFingerGesture = true;
     }
   };
@@ -291,6 +291,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       }
       if (event.getPointerCount() == 2
           && event.getActionMasked() == MotionEvent.ACTION_MOVE
+          && !heldTwoFingerGesture
           && !(rotationEnabled && rotationTracker.isPossibleRotation())
           && distorted(event)) {
         delegate();
@@ -467,9 +468,15 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         service.getString(R.string.shortcut_value_unassigned));
   }
 
+  private boolean canTrackTwoFingers() {
+    int currentState = controllerState();
+    return currentState == TouchInteractionController.STATE_TOUCH_INTERACTING
+        || currentState == TouchInteractionController.STATE_TOUCH_EXPLORING;
+  }
+
   private void beginTwoFingerTracking(MotionEvent event) {
     resetTwoFingerTracking();
-    if (controllerState() != TouchInteractionController.STATE_TOUCH_INTERACTING) return;
+    if (!canTrackTwoFingers()) return;
     twoFingerTracking = true;
     dragPointerId = event.getPointerId(0);
     otherPointerId = event.getPointerId(1);
