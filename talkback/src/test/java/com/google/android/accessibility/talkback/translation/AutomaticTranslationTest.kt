@@ -127,6 +127,7 @@ class AutomaticTranslationTest {
       .remove(TranslationSettings.PREF_BILINGUAL_TRANSLATED_PROFILE)
       .commit()
     TranslationSettings.setTarget(prefs, "en")
+    TranslationSettings.setSource(prefs, null)
     TranslationSettings.setService(prefs, TranslationService.ON_DEVICE)
     engine.languages["Guten Morgen"] = "de"
     engine.languages["Bonjour tout le monde"] = "fr"
