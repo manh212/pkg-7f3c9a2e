@@ -82,7 +82,7 @@ object DictationSettings {
   }
 
   fun recognition(prefs: SharedPreferences): Recognition =
-    Recognition.of(prefs.getString(PREF_RECOGNITION, null)) ?: Recognition.ANDROID
+    Recognition.of(prefs.getString(PREF_RECOGNITION, null)) ?: Recognition.ZIPFORMER
 
   fun setRecognition(prefs: SharedPreferences, recognition: Recognition) =
     prefs.edit { putString(PREF_RECOGNITION, recognition.id) }
