@@ -321,12 +321,7 @@ public class TalkBackPreferenceFilter {
         && (TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_rotate_clockwise_key))
             || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_rotate_counterclockwise_key))
             || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_pinch_key))
-            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_spread_key))
-            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_anchored_swipe_up_key))
-            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_anchored_swipe_down_key))
-            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_anchored_swipe_left_key))
-            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_anchored_swipe_right_key))
-            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_anchored_tap_key)))) return true;
+            || TextUtils.equals(key, context.getString(R.string.pref_shortcut_2finger_spread_key)))) return true;
     Optional<TalkBackPreference> pref =
         Stream.of(TalkBackPreference.values())
             .filter(p -> TextUtils.equals(key, context.getString(p.resId)))
