@@ -301,7 +301,7 @@ object VolumeKeyManager {
         editor.putString(KEY_UP_HOLD_LOCKED_ACTION, ACTION_UNASSIGNED)
       }
       editor.remove(OLD_KEY_VOLUME_ACTIVATION)
-    } else if (isUpgrade(context)) {
+    } else if (isUpgrade(context) && !prefs.contains(KEY_MANAGED)) {
       editor.putBoolean(KEY_MANAGED, true)
     }
     editor.apply()
