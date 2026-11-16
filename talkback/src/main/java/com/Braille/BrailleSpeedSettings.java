@@ -6,7 +6,7 @@ import java.util.Map;
 public final class BrailleSpeedSettings {
     public static final int MIN_LETTER_DELAY_MS = 1;
     public static final int MAX_LETTER_DELAY_MS = 300;
-    public static final int DEFAULT_LETTER_DELAY_MS = 50;
+    public static final int DEFAULT_LETTER_DELAY_MS = 35;
     public static final int MIN_GESTURE_DELAY_MS = 100;
     public static final int MAX_GESTURE_DELAY_MS = 5000;
     public static final int DEFAULT_GESTURE_DELAY_MS = 1000;
