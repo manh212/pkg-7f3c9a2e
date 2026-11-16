@@ -106,8 +106,9 @@ public class VendorConfigReader {
       return null;
     }
 
-    if (vendorConfigCache.containsKey(context)) {
-      return Objects.requireNonNull(vendorConfigCache.get(context)).orElse(null);
+    Context appContext = context.getApplicationContext();
+    if (vendorConfigCache.containsKey(appContext)) {
+      return Objects.requireNonNull(vendorConfigCache.get(appContext)).orElse(null);
     }
 
     PackageManager packageManager = context.getPackageManager();
@@ -131,12 +132,11 @@ public class VendorConfigReader {
       VendorConfig config = retrieveConfigFromPackage(VendorPackage.create(packageName, resources));
       // Once a valid config is found, return it; otherwise continue search in other packages.
       if (config != null) {
-        vendorConfigCache.put(context, Optional.of(config));
+        vendorConfigCache.put(appContext, Optional.of(config));
         return config;
       }
     }
 
-    vendorConfigCache.put(context, Optional.empty());
     return null;
   }
 
@@ -299,8 +299,9 @@ public class VendorConfigReader {
 
   static JSONObject parseJsonFromInputStream(InputStream inputStream)
       throws JSONException, IOException {
-    Reader reader = new InputStreamReader(inputStream, UTF_8);
-    String jsonString = CharStreams.toString(reader);
-    return new JSONObject(jsonString);
+    try (Reader reader = new InputStreamReader(inputStream, UTF_8)) {
+      String jsonString = CharStreams.toString(reader);
+      return new JSONObject(jsonString);
+    }
   }
 }
