@@ -117,8 +117,13 @@
   <string name="title_pref_shortcut_2finger_rotate_clockwise">Xoay theo chiều kim đồng hồ bằng 2 ngón tay</string>
   <string name="title_pref_shortcut_2finger_rotate_counterclockwise">Xoay ngược chiều kim đồng hồ bằng 2 ngón tay</string>
   <string name="title_pref_shortcut_2finger_scrub">Chà bằng 2 ngón tay</string>
-  <string name="title_pref_shortcut_2finger_pinch">Chụm bằng 2 ngón tay</string>
-  <string name="title_pref_shortcut_2finger_spread">Tách bằng 2 ngón tay</string>
+  <string name="title_pref_shortcut_2finger_pinch">Chụm hai ngón</string>
+  <string name="title_pref_shortcut_2finger_spread">Xòe hai ngón</string>
+  <string name="title_pref_shortcut_2finger_anchored_swipe_up">Giữ một ngón rồi vuốt lên</string>
+  <string name="title_pref_shortcut_2finger_anchored_swipe_down">Giữ một ngón rồi vuốt xuống</string>
+  <string name="title_pref_shortcut_2finger_anchored_swipe_left">Giữ một ngón rồi vuốt sang trái</string>
+  <string name="title_pref_shortcut_2finger_anchored_swipe_right">Giữ một ngón rồi vuốt sang phải</string>
+  <string name="title_pref_shortcut_2finger_anchored_tap">Giữ một ngón rồi chạm bằng ngón kia</string>
   <string name="title_pref_shortcut_3finger_pinch">Chụm bằng 3 ngón tay</string>
   <string name="title_pref_shortcut_3finger_spread">Tách bằng 3 ngón tay</string>
   <string name="title_pref_shortcut_4finger_pinch">Chụm bằng 4 ngón tay</string>

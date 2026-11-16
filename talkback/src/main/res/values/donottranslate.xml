@@ -761,6 +761,13 @@
       <item>@string/pref_extended_gesture_left_down_key</item>
       <item>@string/pref_extended_gesture_right_up_key</item>
       <item>@string/pref_extended_gesture_right_down_key</item>
+      <item>@string/pref_shortcut_2finger_pinch_key</item>
+      <item>@string/pref_shortcut_2finger_spread_key</item>
+      <item>@string/pref_shortcut_2finger_anchored_swipe_up_key</item>
+      <item>@string/pref_shortcut_2finger_anchored_swipe_down_key</item>
+      <item>@string/pref_shortcut_2finger_anchored_swipe_left_key</item>
+      <item>@string/pref_shortcut_2finger_anchored_swipe_right_key</item>
+      <item>@string/pref_shortcut_2finger_anchored_tap_key</item>
       <item>@string/pref_shortcut_back_tap_double_key</item>
       <item>@string/pref_shortcut_back_tap_triple_key</item>
     </string-array>
