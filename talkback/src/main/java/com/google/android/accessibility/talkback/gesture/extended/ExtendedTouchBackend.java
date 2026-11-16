@@ -8,6 +8,7 @@ import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.text.TextUtils;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
@@ -16,9 +17,11 @@ import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
+import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.TwoFingerRotationTracker;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
+import com.google.android.accessibility.utils.gestures.AnchoredGesture;
 import com.google.android.accessibility.utils.gestures.GestureConfiguration;
 import com.google.android.accessibility.utils.gestures.GestureManifold;
 import com.google.android.accessibility.utils.gestures.TwoFingerDirectionalGesture;
@@ -44,6 +47,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean twoFingerTracking;
   private boolean twoFingerMoved;
   private boolean heldTwoFingerGesture;
+  private boolean pinchConsumed;
   private final Runnable failure;
   private final boolean rotationEnabled;
   private final boolean extendedEnabled;
@@ -110,7 +114,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
                     clockwise
                         ? com.google.android.accessibility.talkback.gesture.GestureShortcutMapping.ROTATE_CLOCKWISE
                         : com.google.android.accessibility.talkback.gesture.GestureShortcutMapping.ROTATE_COUNTERCLOCKWISE,
-                    Display.DEFAULT_DISPLAY, java.util.Collections.emptyList())));
+                    Display.DEFAULT_DISPLAY, java.util.Collections.emptyList())),
+            this::onPinch);
     handler = new Handler(service.getMainLooper());
     dragSlop = touchSlop;
     controller = service.getTouchInteractionController(Display.DEFAULT_DISPLAY);
@@ -128,6 +133,10 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       for (int id = ExtendedGestures.FIRST_ID; id <= ExtendedGestures.LAST_ID; id++) {
         detector.addGestureMatcher(new TwoFingerDirectionalGesture(service, id,
             ExtendedGestures.first(id), ExtendedGestures.second(id), detector, event -> {}));
+      }
+      for (int id = AnchoredGestures.FIRST_ID; id <= AnchoredGestures.LAST_ID; id++) {
+        detector.addGestureMatcher(new AnchoredGesture(service, id,
+            AnchoredGesture.directionFor(id), detector, event -> {}));
       }
     }
   }
@@ -249,6 +258,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         else resetTwoFingerTracking();
       }
       if (rotationEnabled
+          && !heldTwoFingerGesture
           && state != TouchInteractionController.STATE_DELEGATING
           && state != TouchInteractionController.STATE_DRAGGING
           && (rotationTracker.isRotating()
@@ -275,6 +285,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
           requestDrag(event.getPointerId(0));
           return;
         }
+      }
+      if (pinchConsumed && action == MotionEvent.ACTION_MOVE) {
+        return;
       }
       if (event.getPointerCount() == 2
           && event.getActionMasked() == MotionEvent.ACTION_MOVE
@@ -402,7 +415,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private void completeGesture(AccessibilityGestureEvent event) {
     if (!active || completedInteraction || state == TouchInteractionController.STATE_DELEGATING || state == TouchInteractionController.STATE_DRAGGING) return;
     int id = event.getGestureId();
-    if (ExtendedGestures.contains(id) && !heldTwoFingerGesture) return;
+    if ((ExtendedGestures.contains(id) || AnchoredGestures.contains(id)) && !heldTwoFingerGesture) return;
     handler.removeCallbacks(explore);
     cancelStationaryTouchExploration();
     if (id == GestureManifold.GESTURE_TOUCH_EXPLORE || id == GestureManifold.GESTURE_TAP_UP_TOUCH_EXPLORE) {
@@ -432,6 +445,26 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     if (active && !com.google.android.accessibility.talkback.pause.PauseController.isPaused()) {
       service.onGesture(event);
     }
+  }
+
+  private void onPinch(boolean inward) {
+    int gestureId =
+        inward ? GestureShortcutMapping.PINCH_IN : GestureShortcutMapping.PINCH_OUT;
+    if (!isGestureAssigned(gestureId)) {
+      return;
+    }
+    pinchConsumed = true;
+    service.onGesture(new AccessibilityGestureEvent(
+        gestureId, Display.DEFAULT_DISPLAY, java.util.Collections.emptyList()));
+  }
+
+  private boolean isGestureAssigned(int gestureId) {
+    GestureShortcutMapping mapping = service.getGestureShortcutMapping();
+    if (mapping == null) {
+      return false;
+    }
+    return !TextUtils.equals(mapping.getActionKeyFromGestureId(gestureId),
+        service.getString(R.string.shortcut_value_unassigned));
   }
 
   private void beginTwoFingerTracking(MotionEvent event) {
@@ -486,6 +519,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     twoFingerTracking = false;
     twoFingerMoved = false;
     heldTwoFingerGesture = false;
+    pinchConsumed = false;
     dragPointerId = -1;
     otherPointerId = -1;
   }
