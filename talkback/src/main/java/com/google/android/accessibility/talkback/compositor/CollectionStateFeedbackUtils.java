@@ -603,7 +603,7 @@ public final class CollectionStateFeedbackUtils {
                     getCollectionTableItemRowIndex(collectionState) + 1),
                 context.getString(
                         R.string.column_index_template,
-                        getCollectionTableItemColumnIndex(collectionState) + 1)
+                        getCollectionTableItemColumnIndex(collectionState) + 1))
             : null,
         quantityCharSequence(
             R.plurals.template_list_row_count,
