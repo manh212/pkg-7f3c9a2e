@@ -251,12 +251,12 @@ public class QuickActionPerformerTest {
 
     assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
 
-    // Unset reads as the default (words, 3); the next choice is characters and words (0).
-    assertEquals("0", prefs.getString("pref_echo_on_screen_keyboard", null));
+    // Unset reads as the default (words, 3); the next choice is silent typing (4).
+    assertEquals("4", prefs.getString("pref_echo_on_screen_keyboard", null));
     assertEquals(
         context.getString(R.string.title_pref_echo_virtual_keyboard)
             + ", "
-            + KeyboardEchoSettings.choiceName(context.getResources(), 0),
+            + KeyboardEchoSettings.choiceName(context.getResources(), 4),
         spokenText());
   }
 
