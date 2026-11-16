@@ -9,7 +9,6 @@ import static org.junit.Assert.assertTrue;
 import android.content.Intent;
 import android.os.Bundle;
 import android.preference.PreferenceActivity;
-import android.provider.Settings;
 import com.google.android.accessibility.talkback.preference.base.SettingsSearchNavigation;
 import com.google.android.accessibility.utils.preference.BasePreferencesActivity;
 import org.junit.Test;
@@ -27,7 +26,7 @@ public class TalkBackSearchIndexablesProviderTest {
     assertFalse(TalkBackSearchIndexablesProvider.isFromSearchIndexablesContract(null));
 
     Intent withKey = new Intent();
-    withKey.putExtra(Settings.EXTRA_FRAGMENT_ARG_KEY, "pref_some_key");
+    withKey.putExtra(TalkBackSearchIndexablesProvider.EXTRA_FRAGMENT_ARG_KEY, "pref_some_key");
     assertTrue(TalkBackSearchIndexablesProvider.isFromSearchIndexablesContract(withKey));
 
     Intent withFragment = new Intent();
@@ -48,11 +47,25 @@ public class TalkBackSearchIndexablesProviderTest {
   @Test
   public void keyIsKeptAsTargetWhenServiceIsUnavailable() {
     Intent intent = new Intent();
-    intent.putExtra(Settings.EXTRA_FRAGMENT_ARG_KEY, "pref_some_key");
+    intent.putExtra(TalkBackSearchIndexablesProvider.EXTRA_FRAGMENT_ARG_KEY, "pref_some_key");
     TalkBackSearchIndexablesProvider.assignToFragmentFromSearch(intent);
     Bundle args = intent.getBundleExtra(BasePreferencesActivity.FRAGMENT_ARGS);
     assertNotNull(args);
     assertEquals("pref_some_key", args.getString(SettingsSearchNavigation.TARGET_KEY));
     assertNull(intent.getStringExtra(BasePreferencesActivity.FRAGMENT_NAME));
+  }
+
+  @Test
+  public void keyInsideFragmentArgumentsIsKeptAsTarget() {
+    Intent intent = new Intent();
+    Bundle args = new Bundle();
+    args.putString(
+        TalkBackSearchIndexablesProvider.EXTRA_FRAGMENT_ARG_KEY, "pref_some_key");
+    intent.putExtra(
+        TalkBackSearchIndexablesProvider.EXTRA_SHOW_FRAGMENT_ARGUMENTS, args);
+    TalkBackSearchIndexablesProvider.assignToFragmentFromSearch(intent);
+    Bundle result = intent.getBundleExtra(BasePreferencesActivity.FRAGMENT_ARGS);
+    assertNotNull(result);
+    assertEquals("pref_some_key", result.getString(SettingsSearchNavigation.TARGET_KEY));
   }
 }

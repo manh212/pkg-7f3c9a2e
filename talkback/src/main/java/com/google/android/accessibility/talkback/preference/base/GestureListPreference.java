@@ -279,6 +279,15 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     save(getContext(), getKey(), value);
   }
 
+  /**
+   * Rebinds this row so it shows its current value. Needed after a reset changes the stored
+   * values underneath it; {@link androidx.preference.Preference#notifyChanged()} is protected,
+   * so the refresh has to go through this method.
+   */
+  public void refreshRow() {
+    notifyChanged();
+  }
+
   public static void save(Context context, String key, String value) {
     SharedPreferences sharedPreferences = SharedPreferencesUtils.getSharedPreferences(context);
     if (!GestureProfiles.setRowValue(sharedPreferences, key, value)) {

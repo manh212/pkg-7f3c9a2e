@@ -19,7 +19,6 @@ package com.google.android.accessibility.talkback.preference.search;
 import android.content.Intent;
 import android.os.Bundle;
 import android.preference.PreferenceActivity;
-import android.provider.Settings;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.preference.base.SettingsSearchIndex;
 import com.google.android.accessibility.talkback.preference.base.SettingsSearchNavigation;
@@ -34,6 +33,17 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public final class TalkBackSearchIndexablesProvider {
 
+  /**
+   * Fragment "key" argument, as defined by the system Settings app
+   * (com.android.settings.SettingsActivity.EXTRA_FRAGMENT_ARG_KEY): the preference key travels
+   * inside the fragment-arguments bundle. Also accepted as a top-level intent extra.
+   */
+  static final String EXTRA_FRAGMENT_ARG_KEY = ":settings:fragment_args_key";
+  /** Fragment-arguments bundle extra, as defined by the system Settings app. */
+  static final String EXTRA_SHOW_FRAGMENT_ARGUMENTS = ":settings:show_fragment_args";
+  /** Fragment extra, as defined by the system Settings app. */
+  static final String EXTRA_SHOW_FRAGMENT = ":settings:show_fragment";
+
   private TalkBackSearchIndexablesProvider() {}
 
   /**
@@ -45,8 +55,8 @@ public final class TalkBackSearchIndexablesProvider {
     if (intent == null) {
       return;
     }
-    String key = intent.getStringExtra(Settings.EXTRA_FRAGMENT_ARG_KEY);
-    String fragment = intent.getStringExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT);
+    String key = fragmentArgKey(intent);
+    String fragment = fragmentName(intent);
     SettingsSearchIndex.Entry entry = null;
     if ((fragment == null || fragment.isEmpty()) && key != null && !key.isEmpty()) {
       entry = entryForKey(key);
@@ -73,12 +83,36 @@ public final class TalkBackSearchIndexablesProvider {
   /** Returns true when the intent carries the system Settings search contract extras. */
   public static boolean isFromSearchIndexablesContract(Intent intent) {
     return intent != null
-        && (intent.hasExtra(Settings.EXTRA_FRAGMENT_ARG_KEY)
-            || intent.hasExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT));
+        && (hasFragmentArgKey(intent)
+            || intent.hasExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT)
+            || intent.hasExtra(EXTRA_SHOW_FRAGMENT));
   }
 
-  @Nullable
-  private static SettingsSearchIndex.Entry entryForKey(String key) {
+  /** Reads the preference key from the top-level extra or the fragment-arguments bundle. */
+  private static String fragmentArgKey(Intent intent) {
+    String key = intent.getStringExtra(EXTRA_FRAGMENT_ARG_KEY);
+    if (key != null && !key.isEmpty()) {
+      return key;
+    }
+    Bundle args = intent.getBundleExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS);
+    return args != null ? args.getString(EXTRA_FRAGMENT_ARG_KEY) : null;
+  }
+
+  private static boolean hasFragmentArgKey(Intent intent) {
+    String key = fragmentArgKey(intent);
+    return key != null && !key.isEmpty();
+  }
+
+  /** Reads the fragment from either the framework extra or the Settings app's own extra. */
+  private static String fragmentName(Intent intent) {
+    String fragment = intent.getStringExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT);
+    if (fragment != null && !fragment.isEmpty()) {
+      return fragment;
+    }
+    return intent.getStringExtra(EXTRA_SHOW_FRAGMENT);
+  }
+
+  private static SettingsSearchIndex.@Nullable Entry entryForKey(String key) {
     TalkBackService service = TalkBackService.getInstance();
     if (service == null) {
       return null;

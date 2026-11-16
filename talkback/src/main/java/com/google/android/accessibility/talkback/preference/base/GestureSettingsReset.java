@@ -78,7 +78,7 @@ public final class GestureSettingsReset {
     for (int i = 0; i < group.getPreferenceCount(); i++) {
       Preference preference = group.getPreference(i);
       if (preference instanceof GestureListPreference gesture) {
-        gesture.notifyChanged();
+        gesture.refreshRow();
       } else if (preference instanceof PreferenceGroup nested) {
         refreshGestureRows(nested);
       }
