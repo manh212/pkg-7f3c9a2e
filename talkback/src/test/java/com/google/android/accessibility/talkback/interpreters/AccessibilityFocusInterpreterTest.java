@@ -62,6 +62,8 @@ public class AccessibilityFocusInterpreterTest {
   private static final class RecordingReceiver implements Pipeline.InterpretationReceiver {
     final List<Interpretation> interpretations = new ArrayList<>();
     final List<AccessibilityEvent> events = new ArrayList<>();
+    // The delivered event is recycled after input returns, so snapshot its package name here.
+    final List<CharSequence> eventPackages = new ArrayList<>();
 
     @Override
     public boolean input(
@@ -71,6 +73,7 @@ public class AccessibilityFocusInterpreterTest {
         AccessibilityNodeInfoCompat eventSourceNode) {
       interpretations.add(interpretation);
       events.add(event);
+      eventPackages.add(event == null ? null : event.getPackageName());
       return true;
     }
   }
@@ -109,7 +112,7 @@ public class AccessibilityFocusInterpreterTest {
 
     assertEquals(1, receiver.interpretations.size());
     assertTrue(receiver.interpretations.get(0) instanceof Interpretation.ManualScroll);
-    assertEquals("com.example.app", receiver.events.get(0).getPackageName());
+    assertEquals("com.example.app", receiver.eventPackages.get(0));
   }
 
   @Test
@@ -130,7 +133,7 @@ public class AccessibilityFocusInterpreterTest {
     shadowOf(Looper.getMainLooper()).idleFor(200, TimeUnit.MILLISECONDS);
 
     assertEquals(1, receiver.interpretations.size());
-    assertEquals("com.example.second", receiver.events.get(0).getPackageName());
+    assertEquals("com.example.second", receiver.eventPackages.get(0));
   }
 
   @Test

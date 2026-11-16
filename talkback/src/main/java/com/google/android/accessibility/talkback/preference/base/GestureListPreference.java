@@ -1284,8 +1284,11 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
 
     private static ImmutableList<ActionItem> createItemsFromArray(String[] texts, String[] values) {
       if (texts.length != values.length) {
-        LogUtils.e(TAG, "createItemsFromArray : Length doesn't match.");
-        return ImmutableList.of();
+        LogUtils.e(
+            TAG,
+            "createItemsFromArray : Length doesn't match. texts=%d values=%d",
+            texts.length,
+            values.length);
       }
 
       if (texts.length == 0) {
@@ -1294,7 +1297,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
       }
 
       ImmutableList.Builder<ActionItem> listBuilder = ImmutableList.builder();
-      for (int i = 0; i < texts.length; ++i) {
+      for (int i = 0; i < Math.min(texts.length, values.length); ++i) {
         listBuilder.add(new ActionItem(texts[i], values[i], TYPE_ACTION_ITEM));
       }
       return listBuilder.build();

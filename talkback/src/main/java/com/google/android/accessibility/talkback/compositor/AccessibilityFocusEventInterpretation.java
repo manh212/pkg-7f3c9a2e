@@ -118,6 +118,7 @@ public class AccessibilityFocusEventInterpretation extends ReadOnly {
 
   public void setIsEqualsToLastHoverEnterKeyboardEventNode(
       boolean isEqualsToLastHoverEnterKeyboardEventNode) {
+    checkIsWritable();
     this.isEqualsToLastHoverEnterKeyboardEventNode = isEqualsToLastHoverEnterKeyboardEventNode;
   }
 

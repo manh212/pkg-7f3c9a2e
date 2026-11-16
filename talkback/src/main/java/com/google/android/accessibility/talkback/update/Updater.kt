@@ -375,7 +375,7 @@ object Updater {
       )
       return
     }
-    if (!downloading.compareAndSet(false, true)) {
+    if (isBusy || !downloading.compareAndSet(false, true)) {
       toast(appContext, R.string.update_already_downloading)
       return
     }

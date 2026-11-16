@@ -174,7 +174,10 @@ public class VoiceSwitchingFragment extends TalkbackBaseFragment {
     List<String> labels = new ArrayList<>();
     for (Voice voice : voices) {
       names.add(voice.getName());
-      labels.add(voice.getName() + ", " + voice.getLocale().getDisplayName());
+      labels.add(
+          voice.getLocale() == null
+              ? voice.getName()
+              : voice.getName() + ", " + voice.getLocale().getDisplayName());
     }
     for (String name : order) {
       if (!names.contains(name)) {

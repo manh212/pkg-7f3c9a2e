@@ -247,11 +247,7 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
     if (show == tapDelayShown) {
       return;
     }
-    if (show) {
-      getPreferenceScreen().addPreference(tapDelayPref);
-    } else {
-      getPreferenceScreen().removePreference(tapDelayPref);
-    }
+    tapDelayPref.setVisible(show);
     tapDelayShown = show;
   }
 

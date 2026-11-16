@@ -71,6 +71,7 @@ public class LinkMenu implements NodeMenu {
         node, BASE_CLICKABLE_SPAN, spannableStrings);
 
     final List<ContextMenuItem> result = new ArrayList<>();
+    int nextItemId = 0;
     for (SpannableWithOffset spannableWithOffset : spannableStrings) {
       if (spannableWithOffset == null || spannableWithOffset.spannableString == null) {
         continue;
@@ -85,20 +86,21 @@ public class LinkMenu implements NodeMenu {
         if (span == null) {
           continue;
         }
+        final int itemId = nextItemId++;
         ContextMenuItem menuItem = null;
         if (span instanceof URLSpan) {
           if (TalkbackFeatureSupport.skipURLSpanClick()) {
             continue;
           }
           // For ir-relative UrlSpans, open the link with browser directly.
-          menuItem = createMenuItemForUrlSpan(context, i, spannable, (URLSpan) span, analytics);
+          menuItem = createMenuItemForUrlSpan(context, itemId, spannable, (URLSpan) span, analytics);
         }
         // For other kinds of ClickableSpans(including relative UrlSpan) from O, activate it with
         // ClickableSpan.onClick(null).
         if (menuItem == null && span instanceof ClickableSpan) {
           menuItem =
               createMenuItemForClickableSpan(
-                  context, i, spannable, (ClickableSpan) span, analytics);
+                  context, itemId, spannable, (ClickableSpan) span, analytics);
         }
         if (menuItem != null) {
           result.add(menuItem);

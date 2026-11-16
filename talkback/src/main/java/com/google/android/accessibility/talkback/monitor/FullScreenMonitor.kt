@@ -231,7 +231,7 @@ class FullScreenMonitor(
           val first = maxOf(0, children - (MAX_NODES - visited - nodes.size))
           for (index in children - 1 downTo first) {
             if (SystemClock.uptimeMillis() > deadline) break
-            node.getChild(index)?.let(nodes::addLast)
+            node.getChild(index)?.let(nodes::addFirst)
           }
         } finally {
           if (node !== root) node.recycle()
@@ -243,7 +243,7 @@ class FullScreenMonitor(
         if (node !== root) node.recycle()
       }
     }
-    return lines.asReversed()
+    return lines
   }
 
   private fun speak(pipeline: Pipeline.FeedbackReturner, lines: List<String>) {

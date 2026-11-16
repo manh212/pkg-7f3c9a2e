@@ -461,6 +461,10 @@ public class ScreenRecognitionController {
     return stop(true);
   }
 
+  public void shutdown() {
+    nodeTraversalExecutor.shutdown();
+  }
+
   public boolean stopSilently() {
     return stop(false);
   }

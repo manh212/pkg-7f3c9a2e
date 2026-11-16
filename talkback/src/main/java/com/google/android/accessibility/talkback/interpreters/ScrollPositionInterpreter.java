@@ -102,7 +102,8 @@ public class ScrollPositionInterpreter implements ScrollEventHandler {
       AccessibilityNode eventSource = AccessibilityNode.takeOwnership(event.getSource());
       AccessibilityNode deduplicatedSource =
           AccessibilityNode.takeOwnership(eventDeduplicated.getSource());
-      if (deduplicatedSource != null
+      if (eventSource != null
+          && deduplicatedSource != null
           && !deduplicatedSource.equals(eventSource)
           && eventSource.getCollectionInfo() != null
           && AccessibilityNode.shareParent(eventSource, deduplicatedSource)) {
@@ -132,6 +133,9 @@ public class ScrollPositionInterpreter implements ScrollEventHandler {
   }
 
   private void clearEventDeduplicated() {
+    if (eventDeduplicated != null) {
+      eventDeduplicated.recycle();
+    }
     eventDeduplicated = null;
     eventId = null;
   }

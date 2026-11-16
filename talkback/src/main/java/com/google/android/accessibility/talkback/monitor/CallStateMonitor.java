@@ -69,7 +69,7 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
             return;
           }
           // If the phone permission request is accepted by the user, start monitoring call state.
-          for (int i = 0; i < permissions.length; i++) {
+          for (int i = 0; i < Math.min(permissions.length, grantResults.length); i++) {
             if (TextUtils.equals(permissions[i], permission.READ_PHONE_STATE)) {
               context.unregisterReceiver(permissionRequestReceiver);
 

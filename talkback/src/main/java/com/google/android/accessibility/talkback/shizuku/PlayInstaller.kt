@@ -151,13 +151,14 @@ object PlayInstaller {
       onDone(false)
       return
     }
-    val descriptors =
-      try {
-        apks.map { ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY) }
-      } catch (e: Exception) {
-        onDone(false)
-        return
-      }
+    val descriptors = ArrayList<ParcelFileDescriptor>()
+    try {
+      for (apk in apks) descriptors += ParcelFileDescriptor.open(apk, ParcelFileDescriptor.MODE_READ_ONLY)
+    } catch (e: Exception) {
+      descriptors.forEach { runCatching { it.close() } }
+      onDone(false)
+      return
+    }
     ShizukuShell.install(context, descriptors, apks.map { it.length() }, context.packageName, installer, onDone)
   }
 

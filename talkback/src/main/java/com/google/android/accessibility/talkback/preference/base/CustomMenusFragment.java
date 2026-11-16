@@ -81,6 +81,8 @@ public final class CustomMenusFragment extends TalkbackBaseFragment {
           if (CustomMenus.add(context, name) != null) {
             dialog.dismiss();
             refresh();
+          } else {
+            field.setError(getString(R.string.custom_menu_name_taken));
           }
         }));
     dialog.show();

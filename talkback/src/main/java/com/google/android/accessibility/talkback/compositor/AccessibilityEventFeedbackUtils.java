@@ -21,6 +21,8 @@ import android.content.Context;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.view.accessibility.AccessibilityWindowInfoCompat;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
@@ -103,14 +105,23 @@ public final class AccessibilityEventFeedbackUtils {
 
   /** Returns the page index count. */
   public static CharSequence getPagerIndexCount(
-      AccessibilityEvent event, Context context, GlobalVariables globalVariables) {
+      @Nullable AccessibilityEvent event, Context context, GlobalVariables globalVariables) {
+    if (event == null) {
+      return "";
+    }
     int fromIndex = event.getFromIndex();
     int itemCount = event.getItemCount();
     if (fromIndex >= 0 && itemCount > 0) {
-      // Omit title if page is focused, because page-title will be announced for focus-event.
-      CharSequence pageTitle =
-          AccessibilityNodeInfoUtils.getSelectedPageTitle(
-              AccessibilityEventUtils.sourceCompat(event));
+      AccessibilityNodeInfoCompat source = AccessibilityEventUtils.sourceCompat(event);
+      CharSequence pageTitle = null;
+      try {
+        // Omit title if page is focused, because page-title will be announced for focus-event.
+        pageTitle = AccessibilityNodeInfoUtils.getSelectedPageTitle(source);
+      } finally {
+        if (source != null) {
+          source.recycle();
+        }
+      }
       if (!TextUtils.isEmpty(pageTitle) && !globalVariables.focusIsPage()) {
         return CompositorUtils.joinCharSequences(
             pageTitle,
@@ -129,9 +140,22 @@ public final class AccessibilityEventFeedbackUtils {
       return false;
     }
     AccessibilityNodeInfo node = AccessibilityEventUtils.getSource(event);
-    return node != null
-        && node.getWindow() != null
-        && node.getWindow().getType() == AccessibilityWindowInfoCompat.TYPE_INPUT_METHOD
-        && Role.getRole(node) == ROLE_TEXT_ENTRY_KEY;
+    if (node == null) {
+      return false;
+    }
+    try {
+      AccessibilityWindowInfo window = node.getWindow();
+      if (window == null) {
+        return false;
+      }
+      try {
+        return window.getType() == AccessibilityWindowInfoCompat.TYPE_INPUT_METHOD
+            && Role.getRole(node) == ROLE_TEXT_ENTRY_KEY;
+      } finally {
+        window.recycle();
+      }
+    } finally {
+      node.recycle();
+    }
   }
 }

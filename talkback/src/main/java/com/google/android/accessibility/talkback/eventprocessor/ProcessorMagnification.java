@@ -238,20 +238,30 @@ public class ProcessorMagnification implements AccessibilityEventListener {
     if (!FeatureSupport.supportMagnificationController()) {
       return;
     }
-    AccessibilityNodeInfoCompat sourceNode = AccessibilityNodeInfoUtils.toCompat(event.getSource());
+    AccessibilityNodeInfoCompat sourceNode =
+        AccessibilityNodeInfoUtils.toCompat(event.getSource());
     AccessibilityWindowInfoCompat window = AccessibilityNodeInfoUtils.getWindow(sourceNode);
-    // It’s unnecessary to recenter the magnifier if the focus is on the keyboard because Keyboard
-    // isn't in the magnifier and when the magnifier is not magnifying.
-    // TODO: recenter magnifier for window magnification
-    if (sourceNode == null
-        || window == null
-        || AccessibilityNodeInfoUtils.isKeyboard(sourceNode)
-        || (AccessibilityWindowInfoUtils.getType(window) == TYPE_MAGNIFICATION_OVERLAY)
-        || getMagnificationScale() <= 1) {
-      return;
-    }
+    try {
+      // It’s unnecessary to recenter the magnifier if the focus is on the keyboard because Keyboard
+      // isn't in the magnifier and when the magnifier is not magnifying.
+      // TODO: recenter magnifier for window magnification
+      if (sourceNode == null
+          || window == null
+          || AccessibilityNodeInfoUtils.isKeyboard(sourceNode)
+          || (AccessibilityWindowInfoUtils.getType(window) == TYPE_MAGNIFICATION_OVERLAY)
+          || getMagnificationScale() <= 1) {
+        return;
+      }
 
-    recenterMagnifier(sourceNode, AccessibilityWindowInfoUtils.getType(window));
+      recenterMagnifier(sourceNode, AccessibilityWindowInfoUtils.getType(window));
+    } finally {
+      if (sourceNode != null) {
+        sourceNode.recycle();
+      }
+      if (window != null) {
+        window.recycle();
+      }
+    }
   }
 
   /** Registers the magnification change listener when TalkBack resumes. */
@@ -267,6 +277,7 @@ public class ProcessorMagnification implements AccessibilityEventListener {
       magnificationController.removeListener(onMagnificationChangedListener);
 
       lastScale = 1.0f;
+      lastActivated = false;
       lastMode = MagnificationConfig.MAGNIFICATION_MODE_DEFAULT;
     }
   }

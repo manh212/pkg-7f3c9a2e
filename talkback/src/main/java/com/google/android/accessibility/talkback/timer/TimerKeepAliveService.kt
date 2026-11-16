@@ -139,8 +139,13 @@ class TimerKeepAliveService : Service() {
       }
     }
 
+    /**
+     * Runs [action] on the main thread, always by posting it, so that [refresh] and [stop] run in
+     * the order they were asked: a refresh queued before a stop must not run after it and restart
+     * the service the stop just ended.
+     */
     private fun onMain(action: () -> Unit) {
-      if (Looper.myLooper() == main.looper) action() else main.post { action() }
+      main.post { action() }
     }
 
     private fun anyActiveNow(context: Context): Boolean {

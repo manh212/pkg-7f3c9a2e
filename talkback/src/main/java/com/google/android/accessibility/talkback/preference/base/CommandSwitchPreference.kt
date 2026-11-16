@@ -78,8 +78,13 @@ constructor(context: Context, attrs: AttributeSet? = null) :
     }
     val grant = grant ?: return
     if (!isChecked || command == null) return
+    if (needsGrant) {
+      persistBoolean(false)
+    }
     ShizukuGrants.request(context, grant) { granted ->
-      if (!granted && needsGrant) {
+      if (granted && needsGrant && isChecked) {
+        persistBoolean(true)
+      } else if (!granted && needsGrant) {
         isChecked = false
       }
       onGrantFinished?.run()

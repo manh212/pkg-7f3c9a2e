@@ -123,9 +123,18 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
                       queued, MASK_SPOKEN_BEFORE_WEB_FOCUS));
     }
     for (AccessibilityEvent earlierEvent : earlier) {
-      processEvent(earlierEvent, Performance.getInstance().toEventId(earlierEvent));
+      try {
+        processEvent(earlierEvent, Performance.getInstance().toEventId(earlierEvent));
+      } finally {
+        earlierEvent.recycle();
+      }
     }
-    processEvent(AccessibilityEvent.obtain(event), eventId);
+    AccessibilityEvent webFocusEvent = AccessibilityEvent.obtain(event);
+    try {
+      processEvent(webFocusEvent, eventId);
+    } finally {
+      webFocusEvent.recycle();
+    }
   }
 
   public void clearQueue() {

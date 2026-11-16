@@ -39,6 +39,7 @@ import androidx.preference.TwoStatePreference
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.preference.ItemOrder
+import com.google.android.accessibility.talkback.preference.TalkBackPreferenceFilter
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
@@ -70,11 +71,39 @@ abstract class ItemListFragment(xmlResId: Int) : TalkbackBaseFragment(xmlResId) 
   private val groups = ArrayList<AccessibilitySuitePreferenceCategory>()
   private var searchQuery = ""
   private var searchView: SearchView? = null
+  private var lastFingerprint = ""
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
+    buildLists(preferenceScreen)
+  }
+
+  override fun onResume() {
+    super.onResume()
+    if (FormFactorUtils.isAndroidWear() || !::currentCategory.isInitialized) return
+    if (storedFingerprint() == lastFingerprint) return
     val context = requireContext()
-    val xmlScreen = preferenceScreen
+    val xmlResId = getXmlResId()
+    if (xmlResId < 0) return
+    val xmlScreen = preferenceManager.inflateFromResource(context, xmlResId, null)
+    TalkBackPreferenceFilter(context).filterPreferences(xmlScreen)
+    buildLists(xmlScreen)
+    filterItems()
+  }
+
+  protected open fun onListsBuilt() {}
+
+  private fun storedFingerprint(): String {
+    val order = prefs.getString(orderKey, null) ?: ""
+    val membership =
+      items.keys.sorted().joinToString(",") { key ->
+        "$key=${if (prefs.contains(key)) prefs.getBoolean(key, false).toString() else "-"}"
+      }
+    return "$order|$membership"
+  }
+
+  private fun buildLists(xmlScreen: PreferenceScreen) {
+    val context = requireContext()
     hideUnavailable(xmlScreen)
     if (FormFactorUtils.isAndroidWear()) {
 
@@ -82,6 +111,8 @@ abstract class ItemListFragment(xmlResId: Int) : TalkbackBaseFragment(xmlResId) 
       return
     }
     prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    items.clear()
+    groups.clear()
     val defaults = defaultOrder(context)
     val known = defaults.toSet()
 
@@ -175,6 +206,8 @@ abstract class ItemListFragment(xmlResId: Int) : TalkbackBaseFragment(xmlResId) 
         isVisible = false
       }
     )
+    lastFingerprint = storedFingerprint()
+    onListsBuilt()
   }
 
   override fun onCreateView(

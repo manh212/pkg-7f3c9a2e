@@ -118,7 +118,7 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
         findPreference(getString(R.string.pref_developer_version_code_key));
     if (!shouldShowVersionInSubtitle() && (prefVersion != null) && (versionInfo != null)) {
       prefVersion.setSummary(versionInfo);
-    } else {
+    } else if (prefVersion != null) {
       getPreferenceScreen().removePreference(prefVersion);
     }
 
@@ -222,6 +222,7 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     // Monitor the touch-explore system-setting.
     @Nullable TalkBackService talkBackService = TalkBackService.getInstance();
     if (talkBackService == null || !talkBackService.supportsTouchScreen()) {
+      contentObserverRegistered = false;
       return;
     }
 
@@ -236,6 +237,7 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     // Stop monitoring the touch-explore system-setting.
     if (contentObserverRegistered) {
       context.getContentResolver().unregisterContentObserver(touchExploreObserver);
+      contentObserverRegistered = false;
     }
 
     super.onPause();

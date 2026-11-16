@@ -87,7 +87,9 @@ abstract class ParseTreeNode {
 
   // Query the length as an array.
   int getArrayLength(ParseTree.VariableDelegate delegate, String logIndent) {
-    LogUtils.e(TAG, "Cannot query array length of " + getClass());
-    return 0;
+    if (getType() == ParseTree.VARIABLE_CHILD_ARRAY) {
+      return resolveToChildArray(delegate, logIndent).size();
+    }
+    return resolveToArray(delegate, logIndent).size();
   }
 }

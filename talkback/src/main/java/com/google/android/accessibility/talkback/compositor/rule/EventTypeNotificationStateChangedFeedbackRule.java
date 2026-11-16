@@ -175,6 +175,8 @@ public final class EventTypeNotificationStateChangedFeedbackRule {
         // Many notifications repeat their title as the ticker.
         notificationDetails.add(notificationTickerText);
       }
+    } else if (!TextUtils.isEmpty(notificationTickerText)) {
+      notificationDetails.add(notificationTickerText);
     }
 
     CharSequence text =

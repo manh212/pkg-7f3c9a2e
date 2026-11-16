@@ -67,6 +67,8 @@ class InternalLiveRecognitionService : Service() {
     private var connectionGeneration = 0
     private var lastRawTranscript = ""
     private var reconnectAttempts = 0
+    private val reconnectLock = Any()
+    private var reconnectPending = false
     private var setupFailures = 0
     private var setupCompleted = false
     private var transcriptPlacement = GeminiLiveClient.TranscriptPlacement.LEGACY
@@ -242,10 +244,17 @@ class InternalLiveRecognitionService : Service() {
         if (!setupCompleted) {
             setupFailures++
             // Before subtitles were unified, the wire setup placed the optional
-            // transcription field at top level. First retry the official format
-            // only if that historical setup is rejected.
-            if (transcriptPlacement == GeminiLiveClient.TranscriptPlacement.LEGACY) {
+            // transcription field at top level. Retry the official format only
+            // when the setup itself is rejected (an API error response), not on
+            // a transport failure or a close.
+            if (stage == "error"
+                && code == 400
+                && transcriptPlacement == GeminiLiveClient.TranscriptPlacement.LEGACY) {
                 transcriptPlacement = GeminiLiveClient.TranscriptPlacement.GENERATION_CONFIG
+                LogUtils.w(
+                    "SubtitleFlow",
+                    "Setup rejected (code=%d); retrying with generation-config transcription placement",
+                    code)
             }
         }
         LogUtils.w("SubtitleFlow",
@@ -354,21 +363,28 @@ class InternalLiveRecognitionService : Service() {
 
     @SuppressLint("NewApi")
     private fun reconnect(key: String) {
-        if (!active) return
-        reconnectAttempts++
-        if (reconnectAttempts > 5) {
-            LogUtils.w("SubtitleFlow", "Session stopped after retries; setupFailures=%d", setupFailures)
-            announce("Không thể tiếp tục đọc phụ đề.")
-            stopSelf()
-            return
+        val attempt: Int
+        synchronized(reconnectLock) {
+            if (!active || reconnectPending) return
+            reconnectPending = true
+            reconnectAttempts++
+            if (reconnectAttempts > 5) {
+                reconnectPending = false
+                LogUtils.w("SubtitleFlow", "Session stopped after retries; setupFailures=%d", setupFailures)
+                announce("Không thể tiếp tục đọc phụ đề.")
+                stopSelf()
+                return
+            }
+            ++connectionGeneration
+            attempt = reconnectAttempts
         }
-        ++connectionGeneration
         client?.close(false)
         client = null
         queue?.clear()
         source?.pause()
         scope.launch {
-            delay(minOf(1_000L * reconnectAttempts, 5_000L))
+            delay(minOf(1_000L * attempt, 5_000L))
+            synchronized(reconnectLock) { reconnectPending = false }
             if (!active) return@launch
             // Match the original source: resume capture only after Gemini setup completes.
             connectGemini(key)

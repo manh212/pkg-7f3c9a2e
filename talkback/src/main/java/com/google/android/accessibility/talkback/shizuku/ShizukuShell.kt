@@ -22,6 +22,7 @@ import android.content.ServiceConnection
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import androidx.annotation.VisibleForTesting
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.concurrent.LinkedBlockingQueue
@@ -219,18 +220,73 @@ object ShizukuShell {
         onDone(false)
         return@withShizukuPermission
       }
-      call(
-        appContext,
-        { connected ->
-          val error = connected.run(command.ordinal, argument)
-          if (error != null) {
-            LogUtils.w(TAG, "%s %s failed: %s", command, argument, error)
-          }
-          error == null
-        },
-      ) { worked ->
-        onDone(worked == true)
+      if (command == ShizukuCommand.INPUT_TEXT) {
+        // The `input` command turns a literal %s into a space, so text containing
+        // %s is typed in pieces cut between the % and the s; no single call then
+        // contains the %s sequence.
+        val chunks = splitInputText(argument)
+        if (chunks.isEmpty()) {
+          onDone(false)
+        } else if (chunks.size == 1) {
+          runCommand(appContext, command, argument, onDone)
+        } else {
+          runChunks(appContext, chunks, 0, onDone)
+        }
+        return@withShizukuPermission
       }
+      runCommand(appContext, command, argument, onDone)
+    }
+  }
+
+  /**
+   * Cuts [text] into pieces at each literal "%s", between the % and the s, so no piece contains
+   * the sequence the `input` command turns into a space.
+   */
+  @VisibleForTesting
+  internal fun splitInputText(text: String): List<String> {
+    val chunks = ArrayList<String>()
+    var start = 0
+    var i = 0
+    while (i + 1 < text.length) {
+      if (text[i] == '%' && text[i + 1] == 's') {
+        chunks += text.substring(start, i + 1)
+        start = i + 1
+      }
+      i++
+    }
+    if (start < text.length) chunks += text.substring(start)
+    return chunks.filter { it.isNotEmpty() }
+  }
+
+  private fun runCommand(
+    context: Context,
+    command: ShizukuCommand,
+    argument: String,
+    onDone: (Boolean) -> Unit,
+  ) {
+    call(
+      context,
+      { connected ->
+        val error = connected.run(command.ordinal, argument)
+        if (error != null) {
+          LogUtils.w(TAG, "%s %s failed: %s", command, argument, error)
+        }
+        error == null
+      },
+    ) { worked ->
+      onDone(worked == true)
+    }
+  }
+
+  private fun runChunks(
+    context: Context,
+    chunks: List<String>,
+    index: Int,
+    onDone: (Boolean) -> Unit,
+  ) {
+    runCommand(context, ShizukuCommand.INPUT_TEXT, chunks[index]) { worked ->
+      if (!worked || index + 1 == chunks.size) onDone(worked)
+      else runChunks(context, chunks, index + 1, onDone)
     }
   }
 

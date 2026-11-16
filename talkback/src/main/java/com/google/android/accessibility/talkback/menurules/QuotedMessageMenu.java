@@ -88,7 +88,10 @@ public class QuotedMessageMenu implements NodeMenu {
         menuItem -> {
           @Nullable AccessibilityNodeInfoCompat current =
               node.refresh() ? TelegramReplyQuote.quoteNodeOf(node) : null;
-          goToQuotedMessage(node, current != null ? current : quote);
+          if (current == null) {
+            return false;
+          }
+          goToQuotedMessage(node, current);
           return true;
         });
     items.add(item);

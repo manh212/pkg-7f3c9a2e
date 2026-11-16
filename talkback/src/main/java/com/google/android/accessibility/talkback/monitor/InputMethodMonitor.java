@@ -80,7 +80,11 @@ public class InputMethodMonitor {
     if (accessibilityWindowInfo == null) {
       return null;
     }
-    return accessibilityWindowInfo.getRoot();
+    try {
+      return accessibilityWindowInfo.getRoot();
+    } finally {
+      accessibilityWindowInfo.recycle();
+    }
   }
 
   /**
@@ -92,7 +96,11 @@ public class InputMethodMonitor {
     if (root == null) {
       return null;
     }
-    return AccessibilityNodeInfoUtils.toCompat(root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT));
+    try {
+      return AccessibilityNodeInfoUtils.toCompat(root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT));
+    } finally {
+      root.recycle();
+    }
   }
 
   /**
@@ -150,12 +158,12 @@ public class InputMethodMonitor {
             service.getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
   }
 
-  /** Returns the version code of the given package, assuming that it is installed. */
+  /** Returns the version code of the given package, or 0 when it is not installed. */
   private int findInstalledVersionOfPackage(@NonNull String packageName) {
     try {
       return service.getPackageManager().getPackageInfo(packageName, /* flags= */ 0).versionCode;
     } catch (NameNotFoundException e) {
-      throw new AssertionError("Package not found despite being the default input method.", e);
+      return 0;
     }
   }
 

@@ -62,6 +62,11 @@ class WebScrollFocusTest {
       return nodes[index]
     }
 
+    // Production getChild() returns a fresh node object per call, so recycling a probed
+    // child never affects the tree. This fake returns the shared tree nodes, so recycle
+    // must not destroy them.
+    override fun recycle() {}
+
     override fun equals(other: Any?) = this === other
 
     override fun hashCode() = System.identityHashCode(this)

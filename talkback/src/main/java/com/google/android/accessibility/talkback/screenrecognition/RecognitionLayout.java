@@ -50,6 +50,9 @@ final class RecognitionLayout {
     if (group != null) {
       result.add(new RecognizedItem(label.toString(), group, false));
     }
+    if (result.isEmpty() && !text.trim().isEmpty() && !bounds.isEmpty()) {
+      result.add(new RecognizedItem(text.trim(), bounds, false));
+    }
     return result;
   }
 

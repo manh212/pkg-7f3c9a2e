@@ -67,6 +67,19 @@ class ReviewTextTest {
   }
 
   @Test
+  fun aShortItemDoesNotNarrowTheLineBand() {
+    val text =
+      ReviewText(
+        listOf(
+          item("Tall", 0, 0, 100, 100),
+          item("Short", 120, 40, 200, 60),
+          item("Wide", 220, 40, 400, 90),
+        )
+      )
+    assertEquals(listOf("Tall Short Wide"), text.lines.map { it.text })
+  }
+
+  @Test
   fun spacesAroundAnItemAreDropped() {
     val cursor = ReviewCursor(ReviewText(listOf(item(" end ", 0, 0, 50, 10))))
     cursor.moveToLineEnd()

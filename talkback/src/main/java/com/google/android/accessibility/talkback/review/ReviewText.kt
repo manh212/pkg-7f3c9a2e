@@ -117,10 +117,12 @@ class ReviewText(items: List<ReviewItem>) {
         .sortedWith(compareBy({ it.top }, { it.left }))
     val lines = mutableListOf<MutableList<ReviewItem>>()
     for (item in sorted) {
-
-      val band = lines.lastOrNull()?.minByOrNull { it.bottom - it.top }
-      if (band != null && item.centerY in band.top..band.bottom && band.centerY in item.top..item.bottom) {
-        lines.last().add(item)
+      val lastLine = lines.lastOrNull()
+      val bandCenterY = lastLine?.minByOrNull { it.bottom - it.top }?.centerY
+      if (lastLine != null && bandCenterY != null &&
+          item.centerY in lastLine.minOf { it.top }..lastLine.maxOf { it.bottom } &&
+          bandCenterY in item.top..item.bottom) {
+        lastLine.add(item)
       } else {
         lines.add(mutableListOf(item))
       }

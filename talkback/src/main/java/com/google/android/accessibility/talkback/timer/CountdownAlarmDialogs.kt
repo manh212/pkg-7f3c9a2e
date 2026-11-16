@@ -109,7 +109,10 @@ object CountdownAlarmDialogs {
               .setNegativeButton(android.R.string.cancel, null)
               .setPositiveButton(R.string.countdown_alarm_cancel_action) { _, _ ->
                 NotificationReader.cancelCountdownAlarm(entry.id)
-                if (NotificationReader.countdownAlarms().any { it.deadlineMillis > now }) {
+                // Re-capture the time: the dialog may have been open long
+                // enough for an alarm's deadline to pass since the list opened.
+                val nowAfterCancel = System.currentTimeMillis()
+                if (NotificationReader.countdownAlarms().any { it.deadlineMillis > nowAfterCancel }) {
                   showRunning(context, speaker, eventId)
                 }
               }

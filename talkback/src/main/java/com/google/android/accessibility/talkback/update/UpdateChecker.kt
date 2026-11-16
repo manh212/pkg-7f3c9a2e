@@ -93,7 +93,6 @@ object UpdateChecker {
    * Returns the newer build, or null if this build is current. This blocks on the network.
    *
    * @throws IOException if GitHub cannot be reached or returns an error.
-   * @throws JSONException if the release is not in the expected format.
    */
   @WorkerThread
   fun check(context: Context): UpdateInfo? {
@@ -124,7 +123,14 @@ object UpdateChecker {
     currentHash: String,
     apkName: String = PHONE_APK_NAME,
   ): UpdateInfo? =
-    releases.mapNotNull { parseRelease(it, currentBuild, currentHash, apkName) }.maxByOrNull {
+    releases.mapNotNull {
+      try {
+        parseRelease(it, currentBuild, currentHash, apkName)
+      } catch (e: JSONException) {
+        LogUtils.w(TAG, "Cannot parse release: %s", e)
+        null
+      }
+    }.maxByOrNull {
       it.build
     }
 

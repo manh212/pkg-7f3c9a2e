@@ -420,6 +420,13 @@ class AudioDeviceRouter @JvmOverloads constructor(
           Log.w(TAG, "Failed to set preferredDevice on existing keepAliveTrack", e)
         }
       }
+      if (keepAliveTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+        try {
+          keepAliveTrack?.play()
+        } catch (e: Exception) {
+          Log.w(TAG, "Failed to resume keep-alive track", e)
+        }
+      }
       return
     }
     try {

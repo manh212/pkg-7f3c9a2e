@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.shizuku
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
@@ -39,6 +40,9 @@ object ShizukuClipboard {
   @Volatile private var lastRead = 0L
 
   private var readToast: Pair<Locale, Regex?>? = null
+
+  private const val SHELL_PACKAGE = "com.android.shell"
+  private const val SHELL_LABEL_FALLBACK = "Shell"
 
   private val watcher =
     object : IClipboardWatcher.Stub() {
@@ -85,7 +89,11 @@ object ShizukuClipboard {
     return readToastPattern()?.matches(text) == true
   }
 
-  /** Android's "%1$s pasted from your clipboard", in the system's language, with any app name. */
+  /**
+   * Android's "%1$s pasted from your clipboard", in the system's language, with the shell's own
+   * label in place of the app name, so another app pasting within the window is not mistaken
+   * for the shell's read toast.
+   */
   private fun readToastPattern(): Regex? {
     val locale = Resources.getSystem().configuration.locales[0]
     readToast?.let { (cached, pattern) -> if (cached == locale) return pattern }
@@ -95,11 +103,23 @@ object ShizukuClipboard {
         val id = resources.getIdentifier("pasted_from_clipboard", "string", "android")
         val format = if (id == 0) null else resources.getString(id)
         val parts = format?.split("%1\$s", "%s")?.takeIf { it.size == 2 }
-        parts?.let { Regex(Regex.escape(it[0]) + ".+" + Regex.escape(it[1])) }
+        val label = shellLabel()
+        if (parts == null || label == null) null
+        else Regex(Regex.escape(parts[0]) + Regex.escape(label) + Regex.escape(parts[1]))
       } catch (e: RuntimeException) {
         null
       }
     readToast = locale to pattern
     return pattern
+  }
+
+  /** The shell app's label, as Android shows it in the clipboard-access toast. */
+  private fun shellLabel(): String? {
+    val packageManager = context?.packageManager ?: return null
+    return try {
+      packageManager.getApplicationInfo(SHELL_PACKAGE, 0).loadLabel(packageManager).toString()
+    } catch (e: PackageManager.NameNotFoundException) {
+      SHELL_LABEL_FALLBACK
+    }
   }
 }

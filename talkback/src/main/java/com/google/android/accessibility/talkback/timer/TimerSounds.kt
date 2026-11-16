@@ -117,9 +117,11 @@ object TimerSounds : SoundChoiceStore {
     val file = soundFile(context, slot) ?: return false
     synchronized(lock) {
       val soundId = load(file)
-      if (soundId != 0) pool?.play(soundId, 1f, 1f, 1, 0, 1f)
+      if (soundId == 0) return false
+      // SoundPool.play returns 0 while the sample is still loading, so a timer firing
+      // before the load finishes reports false and the caller plays its own sound.
+      return pool?.play(soundId, 1f, 1f, 1, 0, 1f) != 0
     }
-    return true
   }
 
   /** Loads [file] into the pool, reloading it when the file on disk has changed. */

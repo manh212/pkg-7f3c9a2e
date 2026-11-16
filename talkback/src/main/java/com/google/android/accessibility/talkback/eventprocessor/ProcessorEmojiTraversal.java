@@ -89,10 +89,11 @@ public class ProcessorEmojiTraversal implements AccessibilityEventListener {
     pipeline.returnFeedback(
         eventId,
         Feedback.nodeAction(
-            source,
+            AccessibilityNodeInfoCompat.obtain(source),
             forward
                 ? AccessibilityNodeInfoCompat.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
                 : AccessibilityNodeInfoCompat.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY,
             args));
+    source.recycle();
   }
 }

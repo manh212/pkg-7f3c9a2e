@@ -56,26 +56,31 @@ public class StateChangeEventInterpreter implements AccessibilityEventListener {
     if (node == null) {
       return;
     }
-    NodeActionRecord actionRecord = actorState.getNodeActionPerformerState().getNodeActionRecord();
-    if (actionRecord == null) {
-      return;
-    }
-    long timeDiff = event.getEventTime() - actionRecord.actionTime;
-    if ((timeDiff < 0L) || (timeDiff > ACTION_TIMEOUT_MS)) {
-      return;
-    }
+    try {
+      NodeActionRecord actionRecord =
+          actorState.getNodeActionPerformerState().getNodeActionRecord();
+      if (actionRecord == null) {
+        return;
+      }
+      long timeDiff = event.getEventTime() - actionRecord.actionTime;
+      if ((timeDiff < 0L) || (timeDiff > ACTION_TIMEOUT_MS)) {
+        return;
+      }
 
-    if (ClickFeedback.isSaid(
-        event.getEventTime(),
-        AccessibilityNodeInfoUtils.getState(AccessibilityNodeInfoUtils.toCompat(node)))) {
-      return;
-    }
-    // When the node is within accessibility focus, it is handled by
-    // "TYPE_WINDOW_CONTENT_CHANGED" in compositor.json.
-    if (!AccessibilityNodeInfoUtils.isSelfOrAncestorFocused(
-            AccessibilityNodeInfoUtils.toCompat(node))
-        && actionRecord.actionedNodeMatches(node)) {
-      pipeline.input(eventId, event, new ID(STATE_CHANGE));
+      if (ClickFeedback.isSaid(
+          event.getEventTime(),
+          AccessibilityNodeInfoUtils.getState(AccessibilityNodeInfoUtils.toCompat(node)))) {
+        return;
+      }
+      // When the node is within accessibility focus, it is handled by
+      // "TYPE_WINDOW_CONTENT_CHANGED" in compositor.json.
+      if (!AccessibilityNodeInfoUtils.isSelfOrAncestorFocused(
+              AccessibilityNodeInfoUtils.toCompat(node))
+          && actionRecord.actionedNodeMatches(node)) {
+        pipeline.input(eventId, event, new ID(STATE_CHANGE));
+      }
+    } finally {
+      node.recycle();
     }
   }
 }

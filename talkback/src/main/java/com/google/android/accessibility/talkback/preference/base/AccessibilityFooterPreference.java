@@ -49,10 +49,11 @@ public final class AccessibilityFooterPreference extends Preference {
     // Format the title to be bullet lists.
     // TODO: b/317271201 - Add utils to format bullet lists
     TextView title = holder.itemView.findViewById(android.R.id.title);
-    String baseString = getTitle().toString();
-    if (title == null || TextUtils.isEmpty(baseString)) {
+    CharSequence titleText = getTitle();
+    if (title == null || TextUtils.isEmpty(titleText)) {
       return;
     }
+    String baseString = titleText.toString();
     SpannableString spannableString = new SpannableString(baseString);
     List<String> strings = Splitter.on("\n\n").splitToList(baseString);
     if (strings.size() != 2) {

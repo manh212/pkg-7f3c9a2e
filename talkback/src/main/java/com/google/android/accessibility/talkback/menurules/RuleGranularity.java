@@ -236,6 +236,7 @@ public class RuleGranularity extends NodeMenuRule {
   public List<ContextMenuItem> getMenuItemsForNode(
       Context context, AccessibilityNodeInfoCompat node, boolean includeAncestors) {
     final List<ContextMenuItem> items = new ArrayList<>();
+    final List<ContextMenuItem> tableItems = new ArrayList<>();
     final boolean hasWebContent = WebInterfaceUtils.hasNavigableWebContent(node);
 
     for (CursorGranularity granularity : CursorGranularity.values()) {
@@ -264,11 +265,12 @@ public class RuleGranularity extends NodeMenuRule {
       ContextMenuItem item = createMenuItem(context, node, granularity);
       // Items are added in "natural" order but put table navigation items at the top.
       if (granularity.isTableNavigationGranularity()) {
-        items.add(0, item);
+        tableItems.add(item);
       } else {
         items.add(item);
       }
     }
+    items.addAll(0, tableItems);
 
     return items;
   }

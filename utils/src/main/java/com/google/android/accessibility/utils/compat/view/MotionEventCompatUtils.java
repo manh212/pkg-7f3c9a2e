@@ -20,6 +20,9 @@ import android.os.SystemClock;
 import android.view.MotionEvent;
 import com.google.android.accessibility.utils.compat.CompatUtils;
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Compat utility class for motion event. */
 public class MotionEventCompatUtils {
@@ -35,7 +38,8 @@ public class MotionEventCompatUtils {
     public static final int ACTION_HOVER_ENTER = 0x9;
     public static final int ACTION_HOVER_EXIT = 0xA;
 
-    private static long sPreviousDownTime = 0;
+    private static final Map<Long, Long> sDownTimes =
+            Collections.synchronizedMap(new HashMap<>());
 
     private MotionEventCompatUtils() {
         // This class is non-instantiable.
@@ -96,19 +100,28 @@ public class MotionEventCompatUtils {
     public static MotionEvent convertHoverToTouch(MotionEvent hoverEvent) {
         final MotionEvent touchEvent = MotionEvent.obtain(hoverEvent);
 
-        long downTime = sPreviousDownTime;
+        long downTime = touchEvent.getDownTime();
+        long streamKey = streamKey(hoverEvent);
 
     switch (touchEvent.getAction()) {
       case MotionEventCompatUtils.ACTION_HOVER_ENTER -> {
         touchEvent.setAction(MotionEvent.ACTION_DOWN);
-        sPreviousDownTime = SystemClock.uptimeMillis();
-        downTime = sPreviousDownTime;
+        downTime = SystemClock.uptimeMillis();
+        sDownTimes.put(streamKey, downTime);
       }
-      case MotionEventCompatUtils.ACTION_HOVER_MOVE ->
-          touchEvent.setAction(MotionEvent.ACTION_MOVE);
+      case MotionEventCompatUtils.ACTION_HOVER_MOVE -> {
+        touchEvent.setAction(MotionEvent.ACTION_MOVE);
+        Long storedDownTime = sDownTimes.get(streamKey);
+        if (storedDownTime != null) {
+          downTime = storedDownTime;
+        }
+      }
       case MotionEventCompatUtils.ACTION_HOVER_EXIT -> {
         touchEvent.setAction(MotionEvent.ACTION_UP);
-        sPreviousDownTime = 0;
+        Long storedDownTime = sDownTimes.remove(streamKey);
+        if (storedDownTime != null) {
+          downTime = storedDownTime;
+        }
       }
       default -> downTime = touchEvent.getDownTime();
     }
@@ -117,5 +130,11 @@ public class MotionEventCompatUtils {
         MotionEventCompatUtils.setDownTime(touchEvent, downTime);
 
         return touchEvent;
+    }
+
+    private static long streamKey(MotionEvent event) {
+        return ((long) event.getDeviceId() << 32)
+                | ((event.getSource() & 0xffff) << 16)
+                | (event.getPointerId(0) & 0xffff);
     }
 }

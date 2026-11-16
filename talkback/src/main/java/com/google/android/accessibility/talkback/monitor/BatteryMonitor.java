@@ -88,17 +88,25 @@ public class BatteryMonitor extends SameThreadBroadcastReceiver {
       }
       case Intent.ACTION_POWER_DISCONNECTED -> {
         powerConnected = false;
-        pipeline.input(
-            EVENT_ID_UNTRACKED,
-            new Interpretation.Power(
-                /* connected= */ powerConnected, batteryLevel, /* powerSaveMode= */ powerSaveMode));
+        if (pipeline != null) {
+          pipeline.input(
+              EVENT_ID_UNTRACKED,
+              new Interpretation.Power(
+                  /* connected= */ powerConnected,
+                  batteryLevel,
+                  /* powerSaveMode= */ powerSaveMode));
+        }
       }
       case Intent.ACTION_POWER_CONNECTED -> {
         powerConnected = true;
-        pipeline.input(
-            EVENT_ID_UNTRACKED,
-            new Interpretation.Power(
-                /* connected= */ powerConnected, batteryLevel, /* powerSaveMode= */ powerSaveMode));
+        if (pipeline != null) {
+          pipeline.input(
+              EVENT_ID_UNTRACKED,
+              new Interpretation.Power(
+                  /* connected= */ powerConnected,
+                  batteryLevel,
+                  /* powerSaveMode= */ powerSaveMode));
+        }
       }
       case PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> powerSaveMode = getPowerSaveModeState();
       default -> {

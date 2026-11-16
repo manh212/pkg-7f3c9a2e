@@ -67,21 +67,14 @@ class TextEntityMenu(private val pipeline: Pipeline.FeedbackReturner) : NodeMenu
 
   data class Classified(val start: Int, val end: Int, val type: String)
 
-  override fun accept(context: Context, node: AccessibilityNodeInfoCompat): Boolean {
-    if (mayHold(node.text) || mayHold(node.contentDescription)) return true
-    for (i in 0 until minOf(node.childCount, MAX_CHILDREN_CHECKED)) {
-      val child = node.getChild(i) ?: continue
-      if (mayHold(child.text) || mayHold(child.contentDescription)) return true
-    }
-    return false
-  }
+  override fun accept(context: Context, node: AccessibilityNodeInfoCompat): Boolean =
+    mayHold(textOf(node))
 
   override fun getMenuItemsForNode(
     context: Context,
     node: AccessibilityNodeInfoCompat,
     includeAncestors: Boolean,
   ): List<ContextMenuItem> {
-    if (!includeAncestors) return emptyList()
     val text = textOf(node)
     val classified = classify(context, text, wait = noWait.get() != true)
     return find(text, linkedUrls(node), classified).mapIndexed { index, entity ->
@@ -135,7 +128,6 @@ class TextEntityMenu(private val pipeline: Pipeline.FeedbackReturner) : NodeMenu
     private const val MAX_NODES = 40
     private const val MAX_CHARACTERS = 4_000
     private const val MAX_ENTITIES = 20
-    private const val MAX_CHILDREN_CHECKED = 10
     private const val CLASSIFY_TIMEOUT_MS = 1_000L
     private val MAY_HOLD = Regex("\\p{Nd}{4}|@|://|[a-zA-Z0-9]\\.[a-zA-Z]{2,}")
 

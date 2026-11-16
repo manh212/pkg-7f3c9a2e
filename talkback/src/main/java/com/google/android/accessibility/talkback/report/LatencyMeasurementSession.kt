@@ -28,9 +28,9 @@ object LatencyMeasurementSession {
   private var completionListener: Consumer<String>? = null
   private var pendingReport: String? = null
   private var running = false
+  private var generation = 0
   private var finishFuture: ScheduledFuture<*>? = null
   private var reportContext: Context? = null
-  private val finishRunnable = Runnable { finishTimedMeasurement() }
 
   @JvmStatic
   fun reset() {
@@ -62,11 +62,12 @@ object LatencyMeasurementSession {
 
   @JvmStatic
   fun startTimedMeasurement(context: Context) {
-    synchronized(lock) {
+    val runGeneration = synchronized(lock) {
       finishFuture?.cancel(false)
       finishFuture = null
       running = false
       pendingReport = null
+      ++generation
     }
     reset()
     reportContext = context.applicationContext
@@ -76,7 +77,10 @@ object LatencyMeasurementSession {
       running = true
       finishFuture =
         measurementScheduler.schedule(
-          finishRunnable, MEASUREMENT_DURATION_MS, TimeUnit.MILLISECONDS)
+          { finishTimedMeasurement(runGeneration) },
+          MEASUREMENT_DURATION_MS,
+          TimeUnit.MILLISECONDS,
+        )
     }
     LogUtils.i(
       "LatencyTrace",
@@ -84,12 +88,16 @@ object LatencyMeasurementSession {
     )
   }
 
-  private fun finishTimedMeasurement() {
+  private fun finishTimedMeasurement(runGeneration: Int) {
     val shouldFinish = synchronized(lock) {
-      if (!running) {
+      if (!running || runGeneration != generation) {
         false
       } else {
         finishFuture = null
+        // Clear the flag here, on the scheduler thread, before the report is
+        // built: the posted block below runs later, and a measurement started
+        // in between must not be killed by it.
+        running = false
         true
       }
     }
@@ -105,7 +113,6 @@ object LatencyMeasurementSession {
     mainHandler.post {
       TalkBackService.getInstance()?.updateNavigationMotionReporting()
       val listener = synchronized(lock) {
-        running = false
         if (completionListener == null) {
           pendingReport = report
           null

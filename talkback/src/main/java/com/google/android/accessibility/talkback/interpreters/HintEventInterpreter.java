@@ -22,6 +22,10 @@ import static com.google.android.accessibility.utils.input.TextEventInterpretati
 import static com.google.android.accessibility.utils.input.TextEventInterpretation.TEXT_ADD;
 
 import android.content.Context;
+import android.text.InputType;
+import android.text.Spannable;
+import android.text.TextUtils;
+import android.text.style.SuggestionSpan;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.core.view.accessibility.AccessibilityEventCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -155,24 +159,39 @@ public class HintEventInterpreter implements AccessibilityEventListener, Interpr
       return;
     }
 
-    @TextEvent int event = textEventInterpretation.getEvent();
-    if (event == SELECTION_MOVE_CURSOR_NO_SELECTION
-        || (event == TEXT_ADD && node.getTextSelectionStart() == node.getTextSelectionEnd())) {
-      // Suggestion span may not be ready when receiving a TYPE_VIEW_TEXT_CHANGED event,
-      // so spelling suggestion can’t extract in TextEventInterpreter.
-      int currentCursorPosition = actorState.getEditState().getCurrentCursorPosition();
-      if (event == TEXT_ADD) {
-        // Don't actively perform spell check to avoid the increase of latency for typing.
-        sendSpellingSuggestionHint(interpretation.eventId, node, currentCursorPosition, false);
-      } else {
-        // The spell checker can take 500 ms or more to answer, or not answer at all.
-        SpellChecker.checkInBackground(
-            context,
-            node.getText(),
-            () ->
-                sendSpellingSuggestionHint(
-                    interpretation.eventId, node, currentCursorPosition, true));
+    try {
+      @TextEvent int event = textEventInterpretation.getEvent();
+      if (event == SELECTION_MOVE_CURSOR_NO_SELECTION
+          || (event == TEXT_ADD && node.getTextSelectionStart() == node.getTextSelectionEnd())) {
+        // Suggestion span may not be ready when receiving a TYPE_VIEW_TEXT_CHANGED event,
+        // so spelling suggestion can’t extract in TextEventInterpreter.
+        int currentCursorPosition = actorState.getEditState().getCurrentCursorPosition();
+        if (event == TEXT_ADD) {
+          // Don't actively perform spell check to avoid the increase of latency for typing.
+          sendSpellingSuggestionHint(interpretation.eventId, node, currentCursorPosition, false);
+        } else {
+          // The spell checker can take 500 ms or more to answer, or not answer at all.
+          // Snapshot the text and selection now: the node is recycled when this returns,
+          // and the field may have changed by the time the callback runs.
+          CharSequence text = node.getText();
+          int inputType = node.getInputType();
+          int selectionStart = node.getTextSelectionStart();
+          int selectionEnd = node.getTextSelectionEnd();
+          SpellChecker.checkInBackground(
+              context,
+              text,
+              () ->
+                  sendSpellingSuggestionHint(
+                      interpretation.eventId,
+                      text,
+                      inputType,
+                      selectionStart,
+                      selectionEnd,
+                      currentCursorPosition));
+        }
       }
+    } finally {
+      node.recycle();
     }
   }
 
@@ -195,5 +214,48 @@ public class HintEventInterpreter implements AccessibilityEventListener, Interpr
     // Sends a hint for spelling suggestion.
     pipelineInterpretationReceiver.input(
         eventId, new Interpretation.ID(Value.SPELLING_SUGGESTION_HINT));
+  }
+
+  private void sendSpellingSuggestionHint(
+      @Nullable EventId eventId,
+      CharSequence text,
+      int inputType,
+      int selectionStart,
+      int selectionEnd,
+      int cursorPosition) {
+    if (inputType == InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS || selectionStart != selectionEnd) {
+      return;
+    }
+    if (cursorPosition == NO_POSITION) {
+      cursorPosition = selectionEnd;
+    }
+    CharSequence textWithSpans = SpellChecker.getTextWithSuggestionSpans(context, text);
+    if (TextUtils.isEmpty(textWithSpans) || !(textWithSpans instanceof Spannable spannedText)) {
+      return;
+    }
+    // Returns the suggestion if just a space or punctuation is between the typo and the cursor.
+    if (cursorPosition > 0) {
+      if (cursorPosition < textWithSpans.length()) {
+        if (!Character.isLetterOrDigit(textWithSpans.charAt(cursorPosition - 1))
+            && !Character.isLetterOrDigit(textWithSpans.charAt(cursorPosition))) {
+          cursorPosition--;
+        }
+      } else if (cursorPosition == textWithSpans.length()) {
+        if (!Character.isLetterOrDigit(textWithSpans.charAt(cursorPosition - 1))) {
+          cursorPosition--;
+        }
+      }
+    }
+    SuggestionSpan[] spans =
+        spannedText.getSpans(0, textWithSpans.length(), SuggestionSpan.class);
+    for (SuggestionSpan span : spans) {
+      if (span.getSuggestions().length > 0
+          && spannedText.getSpanStart(span) <= cursorPosition
+          && spannedText.getSpanEnd(span) >= cursorPosition) {
+        pipelineInterpretationReceiver.input(
+            eventId, new Interpretation.ID(Value.SPELLING_SUGGESTION_HINT));
+        return;
+      }
+    }
   }
 }

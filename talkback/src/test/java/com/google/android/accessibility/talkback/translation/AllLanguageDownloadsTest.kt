@@ -79,6 +79,14 @@ class AllLanguageDownloadsTest {
   }
 
   @Test
+  fun emptyLanguageList_finishesImmediately() {
+    AllLanguageDownloads.start(models, emptyList(), wifiOnly = true) { finished += it }
+    assertEquals(listOf(AllLanguageDownloads.Progress(0, 0, 0)), finished)
+    assertFalse(AllLanguageDownloads.isRunning)
+    assertTrue(models.asked.isEmpty())
+  }
+
+  @Test
   fun stop_startsNoMoreDownloads_andNothingFinishes() {
     AllLanguageDownloads.start(models, listOf("de", "fr"), wifiOnly = false) { finished += it }
     AllLanguageDownloads.stop()

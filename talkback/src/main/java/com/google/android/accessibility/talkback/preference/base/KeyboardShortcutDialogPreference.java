@@ -556,18 +556,8 @@ public class KeyboardShortcutDialogPreference extends Preference
 
   /** Shows dialog if there is duplicate key assigned. */
   private void showOverrideKeyComboDialog(final String key) {
-    final Preference currentActionPreference = getPreferenceManager().findPreference(key);
-    if (currentActionPreference == null) {
-      return;
-    }
-
-    final Preference newActionPreference = getPreferenceManager().findPreference(getKey());
-    if (newActionPreference == null) {
-      return;
-    }
-
-    CharSequence currentAction = currentActionPreference.getTitle();
-    CharSequence newAction = newActionPreference.getTitle();
+    CharSequence currentAction = titleOf(key);
+    CharSequence newAction = titleOf(getKey());
     setKeyEventSource(KEY_EVENT_SOURCE_ACTIVITY);
     showOverrideKeyComboDialog(
         currentAction,
@@ -653,7 +643,7 @@ public class KeyboardShortcutDialogPreference extends Preference
 
   private void showSetUpKeyComboDialog() {
     if (supportedSequenceKeyInfra) {
-      CharSequence title = getPreferenceManager().findPreference(getKey()).getTitle();
+      CharSequence title = titleOf(getKey());
       A11yAlertDialogWrapper wrapper =
           A11yAlertDialogWrapper.materialDialogBuilder(getContext())
               .setTitle(getContext().getString(R.string.keyboard_assignment_dialog_title, title))
@@ -921,14 +911,7 @@ public class KeyboardShortcutDialogPreference extends Preference
   }
 
   private void handleDuplicateShortcut(TextView errorTextView, String conflictingKey) {
-    final Preference currentActionPreference =
-        getPreferenceManager().findPreference(conflictingKey);
-
-    if (currentActionPreference == null) {
-      return;
-    }
-
-    CharSequence currentAction = currentActionPreference.getTitle();
+    CharSequence currentAction = titleOf(conflictingKey);
     String message = getContext().getString(R.string.already_in_use_error_message, currentAction);
     showError(errorTextView, message);
   }

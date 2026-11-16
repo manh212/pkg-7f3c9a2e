@@ -167,6 +167,7 @@ public class SubtreeChangeEventInterpreter
     if (!defaultDisplayOn) {
       // If the display is off, we don't need to do it anymore.
       subtreeChangedHandler.removeMessages(SubtreeChangedHandler.MSG_CHECK_ACCESSIBILITY_FOCUS);
+      resetSubtreeChangedDelayMs();
     }
   }
 

@@ -279,6 +279,9 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
 
     // We need to save the last focused event so that we can filter out related selected events.
     if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
+      if (lastFocusedEvent != null) {
+        lastFocusedEvent.recycle();
+      }
       lastFocusedEvent = AccessibilityEvent.obtain(event);
     }
 
@@ -447,13 +450,26 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
     // windows open, is when the picture-in-picture mode is active.
     if (FormFactorUtils.isAndroidTv()
         && event.getEventType() == AccessibilityEvent.TYPE_VIEW_FOCUSED
-        && isPipFocused()
-        && event.getSource() != null
-        && event.getSource().getWindowId()
-            != AccessibilityServiceCompatUtils.getPipWindow(service).getId()) {
-      LogUtils.v(
-          TAG, "Drop view focused event due to focus being on PIP and event not coming from PIP");
-      return true;
+        && isPipFocused()) {
+      AccessibilityNodeInfo source = event.getSource();
+      AccessibilityWindowInfo pipWindow = AccessibilityServiceCompatUtils.getPipWindow(service);
+      try {
+        if (source != null
+            && pipWindow != null
+            && source.getWindowId() != pipWindow.getId()) {
+          LogUtils.v(
+              TAG,
+              "Drop view focused event due to focus being on PIP and event not coming from PIP");
+          return true;
+        }
+      } finally {
+        if (source != null) {
+          source.recycle();
+        }
+        if (pipWindow != null) {
+          pipWindow.recycle();
+        }
+      }
     }
 
     boolean isPhoneRinging =
@@ -560,7 +576,10 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
     @Nullable AccessibilityNodeInfo source = event.getSource();
     sameAsLast = sameAsLast && source != null && source.equals(lastSelectedSource);
     lastSelectedSignature = signature;
-    lastSelectedSource = source;
+    if (lastSelectedSource != null) {
+      lastSelectedSource.recycle();
+    }
+    lastSelectedSource = source == null ? null : AccessibilityNodeInfo.obtain(source);
     lastSelectedTime = time;
     return sameAsLast;
   }
@@ -716,7 +735,11 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
           @SuppressWarnings("unchecked")
           EventIdAnd<AccessibilityEvent> eventAndId = (EventIdAnd<AccessibilityEvent>) message.obj;
           AccessibilityEvent event = eventAndId.object;
-          parent.processEvent(event, eventAndId.eventId);
+          try {
+            parent.processEvent(event, eventAndId.eventId);
+          } finally {
+            event.recycle();
+          }
         }
         case MESSAGE_WHAT_PROCESSOR_IDLE -> {
           if (accessibilityEventIdleListener != null) {

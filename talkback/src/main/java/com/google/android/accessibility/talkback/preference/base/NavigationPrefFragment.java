@@ -52,10 +52,11 @@ public class NavigationPrefFragment extends VerbosityPrefFragment {
           (preference, value) -> {
             if (BrowseModeApps.ALWAYS.equals(value)) {
               TalkBackService service = TalkBackService.getInstance();
-              if (service != null && service.getKeyComboManager() != null) {
-                BrowseModeApps.rememberGlobal(
-                    requireContext(), service.getKeyComboManager().isBrowseModeEnabled());
+              if (service == null || service.getKeyComboManager() == null) {
+                return false;
               }
+              BrowseModeApps.rememberGlobal(
+                  requireContext(), service.getKeyComboManager().isBrowseModeEnabled());
             }
             return true;
           });

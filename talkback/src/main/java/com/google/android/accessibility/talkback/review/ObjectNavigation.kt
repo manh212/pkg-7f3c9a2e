@@ -64,7 +64,9 @@ class ObjectNavigation(
   private fun parent(eventId: EventId?) {
     var node = current()?.parent
     while (node != null && !node.isVisibleToUser) {
-      node = node.parent
+      val next = node.parent
+      node.recycle()
+      node = next
     }
     if (node == null) {
       speak(R.string.object_navigation_no_parent, eventId)
@@ -75,31 +77,58 @@ class ObjectNavigation(
 
   private fun firstChild(eventId: EventId?) {
     val node = current()
-    val child = node?.let { visibleChildren(it).firstOrNull() }
+    val children = node?.let { visibleChildren(it) }.orEmpty()
+    val child = children.firstOrNull()
     if (child == null) {
       speak(R.string.object_navigation_no_child, eventId)
       return
     }
+    children.drop(1).forEach { it.recycle() }
     review.selectObject(child)
   }
 
   private fun sibling(forward: Boolean, eventId: EventId?) {
     val node = current()
-    val siblings = node?.parent?.let { visibleChildren(it) }.orEmpty()
+    val parent = node?.parent
+    val siblings = parent?.let { visibleChildren(it) }.orEmpty()
     val index = siblings.indexOf(node)
     val target = if (index < 0) null else siblings.getOrNull(if (forward) index + 1 else index - 1)
     if (target == null) {
+      siblings.filter { it != node }.forEach { it.recycle() }
+      parent?.recycle()
       speak(
         if (forward) R.string.object_navigation_no_next else R.string.object_navigation_no_previous,
         eventId,
       )
       return
     }
+    siblings.filter { it != target && it != node }.forEach { it.recycle() }
+    parent?.recycle()
     review.selectObject(target)
   }
 
-  private fun visibleChildren(node: AccessibilityNodeInfoCompat): List<AccessibilityNodeInfoCompat> =
-    (0 until node.childCount).mapNotNull { node.getChild(it) }.filter { it.isVisibleToUser }
+  private fun visibleChildren(node: AccessibilityNodeInfoCompat): List<AccessibilityNodeInfoCompat> {
+    val children = ArrayList<AccessibilityNodeInfoCompat>()
+    for (index in 0 until node.childCount) {
+      val child = node.getChild(index) ?: continue
+      if (child.isVisibleToUser) {
+        children.add(child)
+      } else {
+        child.recycle()
+      }
+    }
+    return children
+  }
+
+  private fun visibleChildCount(node: AccessibilityNodeInfoCompat): Int {
+    var count = 0
+    for (index in 0 until node.childCount) {
+      val child = node.getChild(index) ?: continue
+      if (child.isVisibleToUser) count++
+      child.recycle()
+    }
+    return count
+  }
 
   private fun focusable(forward: Boolean, eventId: EventId?) {
     val start = current() ?: return
@@ -145,7 +174,7 @@ class ObjectNavigation(
         node.contentDescription.isNullOrBlank() &&
         (role == Role.ROLE_NONE || role == Role.ROLE_VIEW_GROUP)
     ) {
-      val count = visibleChildren(node).size
+      val count = visibleChildCount(node)
       if (count == 0) return
       pipeline.returnFeedback(
         eventId,

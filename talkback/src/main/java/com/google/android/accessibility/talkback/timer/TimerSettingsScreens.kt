@@ -74,7 +74,16 @@ class SpokenClockSettingsFragment :
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
     findPreference<Preference>(TimerSounds.Slot.CLOCK.key)?.let { soundChooser.bind(it) }
     findPreference<SwitchPreferenceCompat>(SpokenSchedules.KEY_CLOCK_ENABLED)?.let {
+      // The switch shows the computed value while the key is absent, so it must
+      // not persist on its own: merely opening this screen would freeze the
+      // clock on or off, and later hour changes would stop affecting it. The
+      // key is written only when the user flips the switch.
+      it.isPersistent = false
       it.isChecked = SpokenSchedules.clockEnabled(prefs)
+      it.setOnPreferenceChangeListener { _, value ->
+        prefs.edit().putBoolean(SpokenSchedules.KEY_CLOCK_ENABLED, value as Boolean).apply()
+        true
+      }
     }
     findPreference<ListPreference>(SpokenSchedules.KEY_CLOCK_INTERVAL)?.let {
       it.value = SpokenSchedules.clockIntervalMinutes(prefs).toString()

@@ -423,6 +423,7 @@ public class EventFilter {
     PreparedFocusSpeech.@Nullable Prepared prepared = info.columnWrap == ColumnWrap.NONE
         ? PreparedFocusSpeech.take(focusedNode, action.targetType) : null;
     AccessibilityNodeInfoCompat node;
+    boolean ownsNode = false;
     @Nullable EventFeedback preparedFeedback;
     @Nullable CharSequence preparedContainerTitle = null;
     if (prepared != null) {
@@ -444,13 +445,18 @@ public class EventFilter {
       @SuppressWarnings("deprecation") // obtain(): copy, so that the saved node is left as it was.
       AccessibilityNodeInfoCompat copy = AccessibilityNodeInfoCompat.obtain(focusedNode);
       if (!copy.refresh()) {
+        copy.recycle();
         return false;
       }
       node = copy;
+      ownsNode = true;
       preparedFeedback = null;
     }
     if (!shouldSpeakFocusEarly(node)) {
       Performance.getInstance().onNavigationDetail(eventId, "early_focus", 0);
+      if (ownsNode) {
+        node.recycle();
+      }
       return false;
     }
     Performance.getInstance().onNavigationDetail(eventId, "early_focus", 1);
@@ -587,9 +593,15 @@ public class EventFilter {
       return false;
     }
     AccessibilityWindowInfo window = AccessibilityNodeInfoUtils.getWindow(node.unwrap());
-    if (AccessibilityWindowInfoUtils.getType(window)
-        == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
-      return false;
+    try {
+      if (AccessibilityWindowInfoUtils.getType(window)
+          == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+        return false;
+      }
+    } finally {
+      if (window != null) {
+        window.recycle();
+      }
     }
     // An item only partly on screen, which the swipe is about to scroll into view, can have all
     // its text in children still off screen, which descriptions leave out unless they are spoken
@@ -601,8 +613,15 @@ public class EventFilter {
   private static boolean hasChildOffScreen(AccessibilityNodeInfoCompat node) {
     for (int i = 0; i < node.getChildCount(); i++) {
       AccessibilityNodeInfoCompat child = node.getChild(i);
-      if (child != null && !child.isVisibleToUser()) {
-        return true;
+      if (child == null) {
+        continue;
+      }
+      try {
+        if (!child.isVisibleToUser()) {
+          return true;
+        }
+      } finally {
+        child.recycle();
       }
     }
     return false;

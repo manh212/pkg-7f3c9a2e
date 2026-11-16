@@ -183,6 +183,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
       context.unregisterReceiver(this);
       displayMonitor.removeDisplayStateChangedListener(this);
       monitoring = false;
+      executor.shutdown();
     }
   }
 
@@ -444,7 +445,9 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
                     | FeedbackItem.FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP
                     | FeedbackItem.FLAG_PRIORITY_SCREEN_ON_TIME);
 
-    pipeline.returnFeedback(eventId, Feedback.speech(ttsText, speakOptions));
+    if (ttsText.length() > 0) {
+      pipeline.returnFeedback(eventId, Feedback.speech(ttsText, speakOptions));
+    }
   }
 
   /**

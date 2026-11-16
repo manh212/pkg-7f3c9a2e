@@ -161,12 +161,16 @@ public class ScreenshotCapture {
   public static class WindowOrFullScreenScreenshotCallback implements TakeScreenshotCallback {
     private boolean captureByWindow = false;
     @Nullable private Bitmap bitmap;
+    private boolean failed = false;
+    private int failureErrorCode = 0;
 
     public WindowOrFullScreenScreenshotCallback() {}
 
     @Override
     public void onFailure(int errorCode) {
       LogUtils.e(TAG, "Taking screenshot but failed [error:" + errorCode + "]");
+      failed = true;
+      failureErrorCode = errorCode;
     }
 
     @Override
@@ -197,6 +201,16 @@ public class ScreenshotCapture {
     @Nullable
     public Bitmap getBitmap() {
       return bitmap;
+    }
+
+    /** Whether the screenshot failed, so a null bitmap means failure rather than pending. */
+    public boolean hasFailed() {
+      return failed;
+    }
+
+    /** The error code from {@link #onFailure}, or 0 if the screenshot did not fail. */
+    public int getFailureErrorCode() {
+      return failureErrorCode;
     }
   }
 }

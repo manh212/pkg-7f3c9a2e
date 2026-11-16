@@ -33,6 +33,13 @@ class RecognitionLayoutTest {
     assertEquals(listOf("Đăng nhập"), items.map { it.text })
   }
 
+  @Test fun fallsBackToTheWholeLineWhenEveryWordIsFilteredOut() {
+    val items = RecognitionLayout.splitLine("Tiếng Việt", Rect(2, 3, 90, 25),
+      listOf(word("", 10, 40), word("  ", 50, 85)), emptyList())
+    assertEquals(listOf("Tiếng Việt"), items.map { it.text })
+    assertEquals(Rect(2, 3, 90, 25), items.single().bounds)
+  }
+
   @Test fun usesLineFallbackAndDropsEmptyBoxes() {
     assertEquals("Tiếng Việt", RecognitionLayout.splitLine(" Tiếng Việt ", Rect(2, 3, 90, 25),
       emptyList(), emptyList()).single().text)

@@ -161,7 +161,14 @@ public class OfflineTranslator {
     Translator client;
     synchronized (this) {
       translationsInFlight++;
-      client = getOrCreateTranslator();
+      try {
+        client = getOrCreateTranslator();
+      } catch (RuntimeException e) {
+        translationsInFlight--;
+        noteActivity();
+        callback.onFailure();
+        return;
+      }
     }
     client
         .translate(text)

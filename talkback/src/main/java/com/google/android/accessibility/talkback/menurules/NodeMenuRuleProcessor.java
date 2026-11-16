@@ -58,7 +58,9 @@ public class NodeMenuRuleProcessor implements NodeMenuProvider {
 
     NodeMenuRule nodeMenuRule = menuItemCreator.getMenuRuleById(itemId);
 
-    if ((nodeMenuRule == null) || !nodeMenuRule.accept(service, node)) {
+    if ((nodeMenuRule == null)
+        || !nodeMenuRule.isEnabled(service)
+        || !nodeMenuRule.accept(service, node)) {
       return;
     }
 

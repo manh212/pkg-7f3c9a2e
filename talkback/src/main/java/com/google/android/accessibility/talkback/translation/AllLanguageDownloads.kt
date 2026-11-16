@@ -38,7 +38,11 @@ object AllLanguageDownloads {
     wifiOnly: Boolean,
     onFinished: (Progress) -> Unit,
   ) {
-    if (isRunning || languages.isEmpty()) return
+    if (languages.isEmpty()) {
+      onFinished(Progress(0, 0, 0))
+      return
+    }
+    if (isRunning) return
     queue.clear()
     queue.addAll(languages)
     run++

@@ -64,13 +64,13 @@ class ScreenReview(
     when (event.eventType) {
       AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED,
       AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
-        objectTarget = null
+        clearObjectTarget()
         startAtFocus = true
         stale = true
       }
       AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
       AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
-        objectTarget = null
+        clearObjectTarget()
         startAtFocus = true
         stale = true
       }
@@ -82,12 +82,30 @@ class ScreenReview(
   fun currentObject(): AccessibilityNodeInfoCompat? {
     val target = objectTarget ?: return null
     if (target.refresh() && target.isVisibleToUser) return target
-    objectTarget = null
+    clearObjectTarget()
     return null
   }
 
+  private fun clearObjectTarget() {
+    objectTarget?.recycle()
+    objectTarget = null
+  }
+
+  private fun recycleCursorSources(cursor: ReviewCursor?) {
+    val recycled = HashSet<AccessibilityNodeInfoCompat>()
+    cursor?.text?.lines?.forEach { line ->
+      line.items.forEach { item ->
+        (item.source as? AccessibilityNodeInfoCompat)?.let { source ->
+          if (recycled.add(source)) source.recycle()
+        }
+      }
+    }
+  }
+
   fun selectObject(node: AccessibilityNodeInfoCompat) {
+    clearObjectTarget()
     objectTarget = node
+    recycleCursorSources(cursor)
     cursor = null
     startAtFocus = true
     stale = true
@@ -125,7 +143,7 @@ class ScreenReview(
       Key.REVIEW_CLICK -> click(long = false)
       Key.REVIEW_LONG_CLICK -> click(long = true)
       Key.REVIEW_MOVE_TO_FOCUS -> {
-        objectTarget = null
+        clearObjectTarget()
         startAtFocus = true
         speakCurrent(Spoken.LINE)
       }
@@ -192,7 +210,8 @@ class ScreenReview(
   fun shutdown() {
     handler.removeCallbacksAndMessages(null)
     takenKeys.clear()
-    objectTarget = null
+    clearObjectTarget()
+    recycleCursorSources(cursor)
     cursor = null
     isCursorOn = false
   }
@@ -209,7 +228,7 @@ class ScreenReview(
       speak(service.getString(if (forward) R.string.review_bottom else R.string.review_top))
       return
     }
-    objectTarget = null
+    clearObjectTarget()
     speak(cursor, spoken)
   }
 
@@ -245,6 +264,7 @@ class ScreenReview(
     }
     val text = ReviewText(screenItems())
     if (text.isEmpty) {
+      recycleCursorSources(cursor)
       cursor = null
       speak(service.getString(R.string.review_no_text))
       return null
@@ -258,10 +278,11 @@ class ScreenReview(
 
       fresh.currentWord?.let { landed ->
         if (landed.text == word.text) {
-          repeat(old.offset - word.start) { fresh.moveCharacter(forward = true) }
+          repeat((old.offset - word.start).coerceAtLeast(0)) { fresh.moveCharacter(forward = true) }
         }
       }
     }
+    recycleCursorSources(cursor)
     cursor = fresh
     stale = false
     readAt = SystemClock.uptimeMillis()
@@ -295,6 +316,8 @@ class ScreenReview(
     val stack = ArrayDeque<Pair<AccessibilityNodeInfoCompat, Int>>()
     stack.addLast(root to 0)
     var visited = 0
+    val obtained = mutableListOf<AccessibilityNodeInfoCompat>()
+    val retained = HashSet<AccessibilityNodeInfoCompat>()
     while (stack.isNotEmpty() && visited < MAX_NODES) {
       val (node, depth) = stack.removeLast()
       visited++
@@ -308,15 +331,15 @@ class ScreenReview(
           ?: node.hintText?.toString()?.takeIf { it.isNotBlank() && node.isEditable }
       if (label != null) {
         items.add(ReviewItem(label, bounds.left, bounds.top, bounds.right, bounds.bottom, node))
-
-        if (text == null && !node.contentDescription.isNullOrBlank()) continue
+        retained.add(node)
       }
       if (depth >= MAX_DEPTH) continue
 
       for (index in node.childCount - 1 downTo 0) {
-        node.getChild(index)?.let { stack.addLast(it to depth + 1) }
+        node.getChild(index)?.let { obtained.add(it); stack.addLast(it to depth + 1) }
       }
     }
+    obtained.filter { it !in retained }.forEach { it.recycle() }
     return items
   }
 

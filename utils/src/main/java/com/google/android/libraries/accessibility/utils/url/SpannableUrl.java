@@ -55,13 +55,18 @@ public abstract class SpannableUrl {
       urlSpan().onClick(null);
     } catch (RuntimeException e) {
       LogUtils.i(TAG, "Clicking urlSpan failed: %s\n%s", urlSpan(), e);
+      String url = path();
+      if (url == null) {
+        LogUtils.i(TAG, "No URL to open for urlSpan: %s", urlSpan());
+        return;
+      }
       try {
-        LogUtils.i(TAG, "Attempting to open %s using Intent",  path());
-        UrlUtils.openUrlWithIntent(context, path());
+        LogUtils.i(TAG, "Attempting to open %s using Intent", url);
+        UrlUtils.openUrlWithIntent(context, url);
       } catch (ActivityNotFoundException anfe) {
         // Sometimes a malformed link can cause an ActivityNotFound exception when a link is
         // clicked.
-        LogUtils.i(TAG, "Activity not found when opening url: %s/n%s", path(), anfe);
+        LogUtils.i(TAG, "Activity not found when opening url: %s/n%s", url, anfe);
       }
     }
   }

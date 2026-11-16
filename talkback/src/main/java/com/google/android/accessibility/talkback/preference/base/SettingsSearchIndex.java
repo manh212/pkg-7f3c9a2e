@@ -93,7 +93,8 @@ public final class SettingsSearchIndex {
       }
       if (!pending.isEmpty()) {
         Screen screen = pending.removeFirst();
-        if (visited.add(screen.fragment + ":" + screen.xml)) {
+        if (visited.add(
+            screen.fragment + ":" + screen.xml + ":" + screen.path + ":" + screen.arguments)) {
           read(screen);
         }
         return true;
@@ -179,7 +180,7 @@ public final class SettingsSearchIndex {
           if (childFragment != null && childFragment.startsWith("com.google.android.accessibility.talkback.")) {
             int childXml = xmlFor(childFragment);
             if (childXml > 0) {
-              pending.add(new Screen(childFragment, childXml, join(parent.path, title), new Bundle(), developer));
+              pending.add(new Screen(childFragment, childXml, join(parent.path, title), arguments, developer));
               if (childFragment.endsWith(".TalkBackKeyboardShortcutPreferenceFragment")) {
                 pending.add(new Screen(childFragment, R.xml.new_key_combo_preferences,
                     join(parent.path, title), new Bundle(), developer));
@@ -411,7 +412,16 @@ public final class SettingsSearchIndex {
       if (TextUtils.isEmpty(entry.fragment) || TextUtils.isEmpty(entry.title)) {
         return;
       }
-      String identity = entry.fragment + "\n" + entry.key + "\n" + entry.title + "\n" + entry.arguments;
+      String identity =
+          entry.fragment
+              + "\n"
+              + entry.key
+              + "\n"
+              + entry.title
+              + "\n"
+              + entry.path
+              + "\n"
+              + entry.arguments;
       if (identities.add(identity)) {
         entries.add(entry);
       }

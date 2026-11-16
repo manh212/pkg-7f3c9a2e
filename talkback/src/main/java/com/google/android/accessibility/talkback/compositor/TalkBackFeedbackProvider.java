@@ -120,7 +120,9 @@ public class TalkBackFeedbackProvider implements EventFeedbackProvider {
     if (requestRefreshSourceNode(event, eventOptions.sourceNode)) {
       AccessibilityNodeInfoCompat newSourceNode =
           AccessibilityNodeInfoUtils.refreshNode(eventOptions.sourceNode);
-      eventOptions.source(newSourceNode);
+      if (newSourceNode != null) {
+        eventOptions.source(newSourceNode);
+      }
     }
 
     EventFeedback eventFeedback = eventFeedbackFunction.apply(eventOptions);

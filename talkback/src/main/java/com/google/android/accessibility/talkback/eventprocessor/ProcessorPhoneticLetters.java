@@ -59,7 +59,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.json.JSONException;
@@ -197,7 +196,16 @@ public class ProcessorPhoneticLetters implements AccessibilityEventListener {
     // Input Method.
     final AccessibilityNodeInfo source = AccessibilityEventUtils.getSource(event);
     AccessibilityWindowInfo window = AccessibilityNodeInfoUtils.getWindow(source);
-    return (AccessibilityWindowInfoUtils.getType(window) == TYPE_INPUT_METHOD);
+    try {
+      return (AccessibilityWindowInfoUtils.getType(window) == TYPE_INPUT_METHOD);
+    } finally {
+      if (source != null) {
+        source.recycle();
+      }
+      if (window != null) {
+        window.recycle();
+      }
+    }
   }
 
   /** Handle an event that indicates a text is being traversed at character granularity. */
@@ -390,9 +398,13 @@ public class ProcessorPhoneticLetters implements AccessibilityEventListener {
       } else {
         // Get the letter for the base language, if possible.
         String baseLanguage = parsedLocale.getLanguage();
-        normalizedLetter =
-            letter.toLowerCase(Objects.requireNonNull(LocaleUtils.parseLocaleString(baseLanguage)));
-        value = getPhoneticLetterMap(parsedLocale.getLanguage()).get(normalizedLetter);
+        Locale baseLocale = LocaleUtils.parseLocaleString(baseLanguage);
+        if (baseLocale == null) {
+          value = getPhoneticLetterMap(FALLBACK_LOCALE).get(normalizedLetter);
+        } else {
+          normalizedLetter = letter.toLowerCase(baseLocale);
+          value = getPhoneticLetterMap(parsedLocale.getLanguage()).get(normalizedLetter);
+        }
       }
     }
     if (isAlphaPhoneticWord(value)) {
@@ -428,17 +440,13 @@ public class ProcessorPhoneticLetters implements AccessibilityEventListener {
       if (phoneticLettersId == 0) {
         return map;
       }
-      InputStream stream = service.getResources().openRawResource(phoneticLettersId);
-      BufferedReader reader = null;
-      try {
-        reader = new BufferedReader(new InputStreamReader(stream, UTF_8));
+      try (InputStream stream = service.getResources().openRawResource(phoneticLettersId);
+          BufferedReader reader = new BufferedReader(new InputStreamReader(stream, UTF_8))) {
         StringBuilder stringBuilder = new StringBuilder();
         String input;
         while ((input = reader.readLine()) != null) {
           stringBuilder.append(input);
         }
-        stream.close();
-        reader.close();
 
         JSONObject locales = new JSONObject(stringBuilder.toString());
         JSONObject phoneticLetters = locales.getJSONObject(locale);

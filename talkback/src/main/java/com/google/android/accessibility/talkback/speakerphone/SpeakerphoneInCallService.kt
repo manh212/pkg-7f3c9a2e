@@ -87,10 +87,13 @@ class SpeakerphoneInCallService : InCallService() {
   private val applyReading = Runnable {
     val nearEar = pendingNearEar ?: return@Runnable
     if (!TalkBackService.isServiceActive() || PauseController.isPaused()) {
-      // Forget the reading, so the next one switches once Backtalk is back.
-      pendingNearEar = null
+      // Hold the reading and retry, so it still switches once Backtalk is back. The sensor
+      // only fires on change, so forgetting it here would leave the call on the wrong route
+      // while the phone stays still.
+      main.postDelayed(applyReading, RETRY_PAUSED_MS)
       return@Runnable
     }
+    pendingNearEar = null
     val target = policy.onProximity(nearEar, currentRoute()) ?: return@Runnable
     Log.i(TAG, "Phone ${if (nearEar) "at" else "away from"} the ear, switching to $target")
     setAudioRoute(
@@ -188,6 +191,9 @@ class SpeakerphoneInCallService : InCallService() {
 
     /** How long a reading must hold before the call switches. */
     private const val SETTLE_MS = 300L
+
+    /** How long to wait before retrying a reading held while Backtalk is paused. */
+    private const val RETRY_PAUSED_MS = 1000L
 
     /** Closer than this, in centimetres, counts as at the ear. */
     private const val NEAR_CM = 5f

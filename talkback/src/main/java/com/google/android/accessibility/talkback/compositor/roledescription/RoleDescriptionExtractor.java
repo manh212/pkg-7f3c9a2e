@@ -58,6 +58,9 @@ public class RoleDescriptionExtractor {
 
   /** Returns whether {@code descriptionOrder} speaks the state before the name. */
   public static boolean isStateBeforeName(@DescriptionOrder int descriptionOrder) {
+    if (splitControlSpeechEnabled) {
+      descriptionOrder = DESC_ORDER_ROLE_STATE_NAME_POSITION;
+    }
     return descriptionOrder == DESC_ORDER_STATE_NAME_ROLE_POSITION
         || descriptionOrder == DESC_ORDER_ROLE_STATE_NAME_POSITION
         || descriptionOrder == DESC_ORDER_STATE_ROLE_NAME_POSITION;
@@ -80,7 +83,7 @@ public class RoleDescriptionExtractor {
       case DESC_ORDER_NAME_STATE_ROLE_POSITION -> CompositorUtils.dedupJoin(name, state, role);
       case DESC_ORDER_ROLE_STATE_NAME_POSITION -> CompositorUtils.dedupJoin(role, state, name);
       case DESC_ORDER_STATE_ROLE_NAME_POSITION -> CompositorUtils.dedupJoin(state, role, name);
-      default -> "";
+      default -> CompositorUtils.dedupJoin(name, role, state);
     };
   }
 
@@ -181,12 +184,18 @@ public class RoleDescriptionExtractor {
       default -> {
         // If the parent node is pager, use the pager node description.
         AccessibilityNodeInfoCompat parentNode = node.getParent();
-        if (parentNode != null
-            && Role.getRole(parentNode) == Role.ROLE_PAGER
-            && AccessibilityNodeInfoUtils.countVisibleChildren(parentNode) == 1) {
-          return pagerPageDescription;
+        if (parentNode == null) {
+          return defaultDescription;
         }
-        return defaultDescription;
+        try {
+          if (Role.getRole(parentNode) == Role.ROLE_PAGER
+              && AccessibilityNodeInfoUtils.countVisibleChildren(parentNode) == 1) {
+            return pagerPageDescription;
+          }
+          return defaultDescription;
+        } finally {
+          parentNode.recycle();
+        }
       }
     }
   }

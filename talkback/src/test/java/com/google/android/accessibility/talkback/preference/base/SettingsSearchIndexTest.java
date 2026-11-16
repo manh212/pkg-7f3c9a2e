@@ -93,6 +93,19 @@ public class SettingsSearchIndexTest {
   }
 
   @Test
+  public void sameFragmentIndexedUnderEachParentPath() {
+    Context context = RuntimeEnvironment.getApplication();
+    List<SettingsSearchIndex.Entry> entries = build(context);
+    long paths =
+        entries.stream()
+            .filter(entry -> entry.fragment.endsWith("OcrSettingsFragment"))
+            .map(entry -> entry.path)
+            .distinct()
+            .count();
+    assertTrue("OcrSettingsFragment must be indexed under each parent path", paths > 1);
+  }
+
+  @Test
   public void granularityDetailRowIsIndexedUnderTheContextMenu() {
     Context context = RuntimeEnvironment.getApplication();
     List<SettingsSearchIndex.Entry> entries = build(context);

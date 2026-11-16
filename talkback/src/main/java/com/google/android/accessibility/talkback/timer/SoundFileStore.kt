@@ -131,19 +131,40 @@ object SoundFileStore {
       return false
     }
     val directory = directory(context, dirName)
-    for (slot in slots) {
-      directory.listFiles()
-        ?.filter { it.isFile && it.name.startsWith(slot.fileName + ".") && !it.name.endsWith(".part") }
-        ?.forEach { it.delete() }
-    }
+    directory.mkdirs()
+    // Write every sound to a staging file first, so a failure leaves the sounds
+    // already installed untouched; only once all of them are on disk do the
+    // staged files replace the current ones.
+    val staged = ArrayList<Pair<String, File>>()
     for ((_, name, bytes) in files) {
-      val file = File(directory, name)
+      val staging = File(directory, "$name.part")
       try {
-        directory.mkdirs()
-        file.writeBytes(bytes)
+        staging.writeBytes(bytes)
       } catch (e: IOException) {
+        staged.forEach { it.second.delete() }
+        staging.delete()
         return false
       }
+      // A backup may carry the same file twice; the later write wins, and only
+      // one swap is needed for it.
+      if (staged.none { it.first == name }) staged += name to staging
+    }
+    for ((name, staging) in staged) {
+      if (!staging.renameTo(File(directory, name))) {
+        staged.forEach { it.second.delete() }
+        return false
+      }
+    }
+    val restoredNames = files.map { it.second }.toSet()
+    for (slot in slots) {
+      directory.listFiles()
+        ?.filter {
+          it.isFile &&
+            it.name.startsWith(slot.fileName + ".") &&
+            !it.name.endsWith(".part") &&
+            it.name !in restoredNames
+        }
+        ?.forEach { it.delete() }
     }
     return true
   }

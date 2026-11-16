@@ -74,7 +74,7 @@ public class AdvancedSettingFragment extends TalkBackPreferenceFragment {
                 checked,
                 worked -> {
                   done.accept(worked);
-                  if (isAdded()) {
+                  if (worked && isAdded()) {
                     updatePlayInstaller();
                   }
                 }));

@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.compositor.parsetree;
 
 import androidx.annotation.Nullable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,12 +42,21 @@ class ParseTreeSwitchNode extends ParseTreeNode {
 
   @Override
   public int getType() {
-    return mCases.entrySet().iterator().next().getValue().getType();
+    return typeDelegate().getType();
   }
 
   @Override
   public int getEnumType() {
-    return mCases.entrySet().iterator().next().getValue().getEnumType();
+    return typeDelegate().getEnumType();
+  }
+
+  @Override
+  public boolean canCoerceTo(@ParseTree.VariableType int type) {
+    return typeDelegate().canCoerceTo(type);
+  }
+
+  private ParseTreeNode typeDelegate() {
+    return mCases.get(Collections.min(mCases.keySet()));
   }
 
   @Override
@@ -114,6 +124,18 @@ class ParseTreeSwitchNode extends ParseTreeNode {
       return node.resolveToArray(delegate, logIndent);
     } else {
       return mDefault.resolveToArray(delegate, logIndent);
+    }
+  }
+
+  @Override
+  public List<ParseTree.VariableDelegate> resolveToChildArray(
+      ParseTree.VariableDelegate delegate, String logIndent) {
+    int value = mCondition.resolveToInteger(delegate, logIndent);
+    ParseTreeNode node = mCases.get(value);
+    if (node != null) {
+      return node.resolveToChildArray(delegate, logIndent);
+    } else {
+      return mDefault.resolveToChildArray(delegate, logIndent);
     }
   }
 }

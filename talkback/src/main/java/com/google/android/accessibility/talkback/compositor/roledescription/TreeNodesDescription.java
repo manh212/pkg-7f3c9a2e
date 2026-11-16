@@ -178,7 +178,14 @@ public class TreeNodesDescription {
       return false;
     }
     AccessibilityNodeInfoCompat srcNode = AccessibilityEventUtils.sourceCompat(event);
-    return (srcNode != null) && (srcNode.getLiveRegion() != ACCESSIBILITY_LIVE_REGION_NONE);
+    if (srcNode == null) {
+      return false;
+    }
+    try {
+      return srcNode.getLiveRegion() != ACCESSIBILITY_LIVE_REGION_NONE;
+    } finally {
+      srcNode.recycle();
+    }
   }
 
   /**

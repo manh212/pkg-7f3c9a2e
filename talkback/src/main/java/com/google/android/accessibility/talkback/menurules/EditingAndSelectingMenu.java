@@ -176,7 +176,7 @@ public class EditingAndSelectingMenu implements NodeMenu {
     if (!isAndroidWear
         && AccessibilityNodeInfoUtils.supportsAnyAction(
             node, AccessibilityNodeInfoCompat.ACTION_SET_SELECTION)
-        && AccessibilityNodeInfoUtils.getText(node) != null) {
+        && !TextUtils.isEmpty(AccessibilityNodeInfoUtils.getText(node))) {
       ContextMenuItem select =
           ContextMenu.createMenuItem(
               context,

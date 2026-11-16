@@ -78,6 +78,7 @@ public class UiChangeEventInterpreter implements WindowEventHandler, Accessibili
     if (sourceNode != null) {
       Rect sourceNodeBounds = new Rect();
       sourceNode.getBoundsInScreen(sourceNodeBounds);
+      sourceNode.recycle();
       pipeline.input(
           eventId,
           Interpretation.UiChange.createPartialScreenUiChange(

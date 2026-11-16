@@ -98,6 +98,14 @@ class UpdateCheckerTest {
   }
 
   @Test
+  fun aMalformedReleaseDoesNotHideAValidUpdate() {
+    val malformed =
+      JSONObject().put("body", "no build line here").put("assets", JSONArray()).toString()
+    assertEquals(12, UpdateChecker.newest(listOf(malformed, release(12)), 10, "")!!.build)
+    assertNull(UpdateChecker.newest(listOf(malformed), 10, ""))
+  }
+
+  @Test
   fun aDevelopmentBuildIsOfferedTheNextStableRelease() {
     assertEquals(12, UpdateChecker.newest(listOf(release(12)), 11, "")!!.build)
     assertNull(UpdateChecker.newest(listOf(release(12), release(11)), 12, ""))

@@ -127,6 +127,7 @@ final class WebFocusRecovery {
     } else {
       outcome = NOTHING_IN_VIEW;
     }
+    recycleAncestors();
   }
 
   boolean step() {
@@ -148,6 +149,9 @@ final class WebFocusRecovery {
       stepWalk();
     } else {
       decide();
+    }
+    if (outcome != RUNNING) {
+      recycleAncestors();
     }
     return outcome != RUNNING;
   }
@@ -180,6 +184,7 @@ final class WebFocusRecovery {
       scrolledHoldsFocus |= node.equals(scrolled);
     }
     if (ancestorsRead >= MAX_ANCESTORS_READ) {
+      discardWalkNode(node);
       walking = null;
       return;
     }
@@ -195,13 +200,42 @@ final class WebFocusRecovery {
         return;
       }
     }
+    discardWalkNode(node);
     walking = parent;
+  }
+
+  private void discardWalkNode(AccessibilityNodeInfoCompat node) {
+    if (walk == WALK_FROM_SCROLLED && !isRetained(node) && !node.equals(webView)) {
+      node.recycle();
+    }
+  }
+
+  private boolean isRetained(@Nullable AccessibilityNodeInfoCompat node) {
+    return node != null
+        && (node.equals(focus)
+            || node.equals(lastFocused)
+            || node.equals(scrolled)
+            || node.equals(strip)
+            || node.equals(item));
+  }
+
+  private void recycleAncestors() {
+    boolean webViewInAncestors = webView != null && focusAndAncestors.contains(webView);
+    for (AccessibilityNodeInfoCompat node : focusAndAncestors) {
+      if (!isRetained(node)) {
+        node.recycle();
+      }
+    }
+    focusAndAncestors.clear();
+    if (webView != null && !webViewInAncestors && !isRetained(webView)) {
+      webView.recycle();
+    }
+    webView = null;
   }
 
   private void decide() {
     if (focus == null && walk == WALK_FROM_FOCUS && !(scrolledHoldsFocus && webView != null)) {
-      focusAndAncestors.clear();
-      webView = null;
+      recycleAncestors();
       startWalk(WALK_FROM_SCROLLED, scrolled);
       return;
     }
@@ -216,7 +250,7 @@ final class WebFocusRecovery {
       return;
     }
     if (focus == null) {
-      if (!scrolledBounds.isEmpty() && !viewport.intersect(scrolledBounds)) {
+      if (!scrolledBounds.isEmpty() && !Rect.intersects(viewport, scrolledBounds)) {
         outcome = NOT_WEB_SCROLL;
         return;
       }
@@ -224,7 +258,7 @@ final class WebFocusRecovery {
       return;
     }
     if (scrolledHoldsFocus) {
-      if (!scrolledBounds.isEmpty() && !viewport.intersect(scrolledBounds)) {
+      if (!scrolledBounds.isEmpty() && !Rect.intersects(viewport, scrolledBounds)) {
         outcome = NOT_WEB_SCROLL;
         return;
       }
@@ -254,7 +288,7 @@ final class WebFocusRecovery {
       searchRoot = webView;
     } else if (!scrolledHoldsFocus
         && !scrolledBounds.isEmpty()
-        && !viewport.intersect(scrolledBounds)) {
+        && !Rect.intersects(viewport, scrolledBounds)) {
       outcome = NOT_WEB_SCROLL;
       return;
     }

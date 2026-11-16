@@ -39,6 +39,8 @@ import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFra
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.widget.KeyboardSafeEditText
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class TranslationFragment : TalkbackBaseFragment(R.xml.translation_preferences) {
   private lateinit var prefs: SharedPreferences
@@ -272,15 +274,14 @@ class TranslationFragment : TalkbackBaseFragment(R.xml.translation_preferences) 
     val models = onDevice ?: return
     val appContext = requireContext().applicationContext
     val languages = selectedLanguages()
-    var left = languages.size
-    var failed = false
-    if (left == 0) return
+    val left = AtomicInteger(languages.size)
+    val failed = AtomicBoolean(false)
+    if (left.get() == 0) return
     for (language in languages) {
       models.download(language, TranslationSettings.wifiOnly(prefs)) { ok ->
-        failed = failed || !ok
-        left--
-        if (left == 0) {
-          Toast.makeText(appContext, if (failed) R.string.offline_translation_pack_download_failed
+        if (!ok) failed.set(true)
+        if (left.decrementAndGet() == 0) {
+          Toast.makeText(appContext, if (failed.get()) R.string.offline_translation_pack_download_failed
               else R.string.offline_translation_pack_ready, Toast.LENGTH_SHORT).show()
           if (isAdded) refreshDownloaded()
         }

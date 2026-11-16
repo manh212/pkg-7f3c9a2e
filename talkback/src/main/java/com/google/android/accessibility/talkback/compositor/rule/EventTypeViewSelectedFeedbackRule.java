@@ -167,9 +167,12 @@ public final class EventTypeViewSelectedFeedbackRule {
   }
 
   private static int ttsClearQueueGroup(int role) {
-    return (role == Role.ROLE_PROGRESS_BAR || role == Role.ROLE_SEEK_CONTROL)
-        ? role
-        : SpeechController.UTTERANCE_GROUP_DEFAULT;
+    if (role == Role.ROLE_PROGRESS_BAR) {
+      return SpeechController.UTTERANCE_GROUP_PROGRESS_BAR_PROGRESS;
+    } else if (role == Role.ROLE_SEEK_CONTROL) {
+      return SpeechController.UTTERANCE_GROUP_SEEK_PROGRESS;
+    }
+    return SpeechController.UTTERANCE_GROUP_DEFAULT;
   }
 
   private static int earcon(

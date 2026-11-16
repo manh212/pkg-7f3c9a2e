@@ -16,19 +16,28 @@
 
 package com.google.android.accessibility.talkback.menurules
 
+import android.content.Context
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.textclassifier.TextClassifier
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.menurules.TextEntityMenu.Classified
 import com.google.android.accessibility.talkback.menurules.TextEntityMenu.Entity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TextEntityMenuTest {
+  private val context: Context = RuntimeEnvironment.getApplication()
+  private val menu = TextEntityMenu(Pipeline.FeedbackReturner { false })
   private fun classified(text: String, vararg parts: Pair<String, String>): List<Classified> =
     parts.map { (part, type) ->
       val start = text.indexOf(part)
@@ -133,5 +142,42 @@ class TextEntityMenuTest {
       listOf<Entity>(Entity.Code("482916")),
       TextEntityMenu.find("Code:482916 10 min", classified = listOf()),
     )
+  }
+
+  @Test
+  fun accept_findsEntityInEleventhChild() {
+    val node = AccessibilityNodeInfo.obtain()
+    val shadow = Shadows.shadowOf(node)
+    repeat(10) {
+      val child = AccessibilityNodeInfo.obtain()
+      child.text = "filler"
+      shadow.addChild(child)
+    }
+    val eleventh = AccessibilityNodeInfo.obtain()
+    eleventh.text = "Your verification code is 482916"
+    shadow.addChild(eleventh)
+
+    assertTrue(menu.accept(context, AccessibilityNodeInfoCompat.wrap(node)))
+  }
+
+  @Test
+  fun accept_ignoresPlainText() {
+    val node = AccessibilityNodeInfo.obtain()
+    node.text = "Just some words here"
+
+    assertFalse(menu.accept(context, AccessibilityNodeInfoCompat.wrap(node)))
+  }
+
+  @Test
+  fun selfOnlyQueryStillOffersTheNodesOwnEntities() {
+    val node = AccessibilityNodeInfo.obtain()
+    node.text = "See https://example.com for details"
+
+    val items =
+      TextEntityMenu.withoutWaiting {
+        menu.getMenuItemsForNode(context, AccessibilityNodeInfoCompat.wrap(node), false)
+      }
+
+    assertFalse(items.isEmpty())
   }
 }

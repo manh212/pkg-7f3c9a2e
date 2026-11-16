@@ -203,7 +203,10 @@ class CountdownAlarmEngine(
       return
     }
     repeatsLeft = CountdownAlarm.repeats(context)
-    if (wakeLock?.isHeld != true) wakeLock?.acquire(RING_WAKE_MS)
+    // Restart the wake-lock timeout for each alarm: one lock acquired for the
+    // first alarm can expire while later alarms in the queue are still ringing.
+    wakeLock?.takeIf { it.isHeld }?.release()
+    wakeLock?.acquire(RING_WAKE_MS)
     handler.post(repeatStep)
   }
 

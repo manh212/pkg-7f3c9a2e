@@ -55,8 +55,7 @@ public class ContextMenuFragment extends ItemListFragment {
   }
 
   @Override
-  public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-    super.onCreatePreferences(savedInstanceState, rootKey);
+  protected void onListsBuilt() {
     addNavigationDetailRow();
     updateNavigationOptions(getPreferenceScreen());
   }

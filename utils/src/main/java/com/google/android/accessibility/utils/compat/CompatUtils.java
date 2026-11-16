@@ -52,15 +52,24 @@ public class CompatUtils {
       return null;
     }
 
+    Method method;
     try {
-      return targetClass.getDeclaredMethod(name, parameterTypes);
+      method = targetClass.getDeclaredMethod(name, parameterTypes);
     } catch (Exception e) {
       if (DEBUG) {
         e.printStackTrace();
       }
+
+      return null;
     }
 
-    return null;
+    try {
+      method.setAccessible(true);
+    } catch (Exception e) {
+      Log.w(TAG, "Cannot set method " + name + " accessible: " + e.getMessage());
+    }
+
+    return method;
   }
 
   @Nullable
@@ -69,15 +78,24 @@ public class CompatUtils {
       return null;
     }
 
+    Field field;
     try {
-      return targetClass.getDeclaredField(name);
+      field = targetClass.getDeclaredField(name);
     } catch (Exception e) {
       if (DEBUG) {
         e.printStackTrace();
       }
+
+      return null;
     }
 
-    return null;
+    try {
+      field.setAccessible(true);
+    } catch (Exception e) {
+      Log.w(TAG, "Cannot set field " + name + " accessible: " + e.getMessage());
+    }
+
+    return field;
   }
 
   public static @PolyNull Object invoke(
@@ -89,7 +107,7 @@ public class CompatUtils {
     try {
       return method.invoke(receiver, args);
     } catch (Exception e) {
-      Log.e(TAG, "Exception in invoke: " + e.getClass().getSimpleName());
+      Log.e(TAG, "Exception in invoke: " + method.getName() + ": " + e.getMessage());
 
       if (DEBUG) {
         e.printStackTrace();
@@ -107,6 +125,8 @@ public class CompatUtils {
     try {
       return field.get(receiver);
     } catch (Exception e) {
+      Log.e(TAG, "Exception in getFieldValue: " + field.getName() + ": " + e.getMessage());
+
       if (DEBUG) {
         e.printStackTrace();
       }

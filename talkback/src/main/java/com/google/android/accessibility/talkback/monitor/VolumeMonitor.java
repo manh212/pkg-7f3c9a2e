@@ -84,9 +84,6 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
   /** The number of times to speak the accessibility volume control hint. */
   private static final int A11Y_VOLUME_CONTROL_HINT_TIMES = 3;
 
-  /** Keep track of adjustments made by this class. */
-  private final SparseIntArray selfAdjustments = new SparseIntArray(10);
-
   /** When SandFly's own volume changes stop being ignored, by stream. */
   private final SparseLongArray selfAdjustedUntil = new SparseLongArray(10);
 
@@ -175,17 +172,6 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
     selfAdjustedUntil.put(streamType, SystemClock.uptimeMillis() + SELF_ADJUSTMENT_MS);
   }
 
-  private boolean isSelfAdjusted(int streamType, int volume) {
-    if (selfAdjustments.indexOfKey(streamType) < 0) {
-      return false;
-    } else if (selfAdjustments.get(streamType) == volume) {
-      selfAdjustments.put(streamType, -1);
-      return true;
-    }
-
-    return false;
-  }
-
   /**
    * Called after volume changes. Handles acquiring control of the current stream and providing
    * feedback.
@@ -195,8 +181,7 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
    * @param prevVolume The previous volume.
    */
   private void internalOnVolumeChanged(int streamType, int volume, int prevVolume) {
-    if (isSelfAdjusted(streamType, volume)
-        || SystemClock.uptimeMillis() < selfAdjustedUntil.get(streamType, 0)) {
+    if (SystemClock.uptimeMillis() < selfAdjustedUntil.get(streamType, 0)) {
       // Ignore self-adjustments.
       return;
     }

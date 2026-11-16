@@ -2,6 +2,7 @@ package com.google.android.accessibility.talkback.compositor
 
 import android.app.Notification
 import android.content.SharedPreferences
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -172,10 +173,17 @@ class ProgressBarAnnouncer(
   private fun observe(node: AccessibilityNodeInfo, event: AccessibilityEvent? = null) {
     if (!node.isVisibleToUser || Role.getRole(node) != Role.ROLE_PROGRESS_BAR) return
     val reading = ProgressReading.fromNode(node, event)
-    val key = Source(node.windowId, node.hashCode().toString())
+    val key = Source(node.windowId, stableId(node, reading))
     val last = previous[key]
     if (event == null && last?.percent != null && reading.percent == null) return
     record(key, reading)
+  }
+
+  private fun stableId(node: AccessibilityNodeInfo, reading: ProgressReading): String {
+    node.viewIdResourceName?.let { return it }
+    val bounds = Rect()
+    node.getBoundsInScreen(bounds)
+    return "$bounds|${reading.label}"
   }
 
   private fun record(key: Source, reading: ProgressReading) {

@@ -34,6 +34,8 @@ import java.util.Locale
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import org.json.JSONException
 
 class Translator(context: Context) {
@@ -282,15 +284,15 @@ class Translator(context: Context) {
       if (downloads == Downloads.NONE) return@downloaded fail(Kind.DOWNLOADING, "")
       report(Result.Downloading(missing))
       val wifiOnly = TranslationSettings.wifiOnly(prefs)
-      var left = missing.size
-      var failed = false
+      val left = AtomicInteger(missing.size)
+      val failed = AtomicBoolean(false)
       for (language in missing) {
         models.download(language, wifiOnly) { ok ->
-          failed = failed || !ok
-          if (--left > 0) return@download
+          if (!ok) failed.set(true)
+          if (left.decrementAndGet() > 0) return@download
           when {
-            downloads == Downloads.START -> if (!failed) onDownloaded()
-            failed -> fail(Kind.CONNECTION, "")
+            downloads == Downloads.START -> if (!failed.get()) onDownloaded()
+            failed.get() -> fail(Kind.CONNECTION, "")
             else -> translate()
           }
         }

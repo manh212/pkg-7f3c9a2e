@@ -404,7 +404,11 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
       final AccessibilityNodeInfoCompat sourceNode =
           AccessibilityEventUtils.sourceCompat(event);
       if (sourceNode != null) {
-        updateStateFromFocusedNode(sourceNode);
+        try {
+          updateStateFromFocusedNode(sourceNode);
+        } finally {
+          sourceNode.recycle();
+        }
         currentDisplayId = AccessibilityEventUtils.getDisplayId(event);
       }
     }
@@ -415,9 +419,15 @@ public class GlobalVariables extends TimedFlags implements ParseTree.VariableDel
     final AccessibilityNodeInfoCompat scrollableNode =
         AccessibilityNodeInfoUtils.getSelfOrMatchingAncestor(
             node, AccessibilityNodeInfoUtils.FILTER_SCROLLABLE);
-    isLastFocusInScrollableNode = isCurrentFocusInScrollableNode;
-    isCurrentFocusInScrollableNode = (scrollableNode != null);
-    isFocusPage = AccessibilityNodeInfoUtils.isPage(node);
+    try {
+      isLastFocusInScrollableNode = isCurrentFocusInScrollableNode;
+      isCurrentFocusInScrollableNode = (scrollableNode != null);
+      isFocusPage = AccessibilityNodeInfoUtils.isPage(node);
+    } finally {
+      if (scrollableNode != null && scrollableNode != node) {
+        scrollableNode.recycle();
+      }
+    }
 
     mLastWindowId = mCurrentWindowId;
     mCurrentWindowId = node.getWindowId();

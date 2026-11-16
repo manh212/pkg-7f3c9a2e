@@ -94,6 +94,7 @@ class UpdateProgressActivity : Activity() {
 
   override fun onDestroy() {
     handler.removeCallbacks(refresh)
+    dialog?.dismiss()
     dialog = null
     super.onDestroy()
   }

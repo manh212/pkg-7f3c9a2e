@@ -179,6 +179,10 @@ final class WebScrollFocus {
     private static final class Frame {
       final AccessibilityNodeInfoCompat node;
       final int count;
+      // True when the node came from getChild() inside this search; such nodes are owned by
+      // this search and recycled when their frame is done. Nodes handed in by the caller
+      // (the root and the focus ancestors) are never owned.
+      final boolean owned;
 
       int next;
 
@@ -186,10 +190,11 @@ final class WebScrollFocus {
 
       int high;
 
-      Frame(AccessibilityNodeInfoCompat node, int count, int next) {
+      Frame(AccessibilityNodeInfoCompat node, int count, int next, boolean owned) {
         this.node = node;
         this.count = count;
         this.next = next;
+        this.owned = owned;
       }
     }
 
@@ -248,8 +253,17 @@ final class WebScrollFocus {
     private void finish(@Nullable AccessibilityNodeInfoCompat item) {
       result = item;
       done = true;
+      for (Frame frame : frames) {
+        recycleFrame(frame, item);
+      }
       frames.clear();
       findingIndex = false;
+    }
+
+    private void recycleFrame(Frame frame, @Nullable AccessibilityNodeInfoCompat keep) {
+      if (frame.owned && frame.node != keep) {
+        frame.node.recycle();
+      }
     }
 
     private void startLevel() {
@@ -269,9 +283,13 @@ final class WebScrollFocus {
       if (indexScan < count && indexReadsLeft > 0) {
         indexReadsLeft--;
         int i = indexScan++;
-        if (node.equals(parent.getChild(i))) {
+        AccessibilityNodeInfoCompat child = parent.getChild(i);
+        if (node.equals(child)) {
           findingIndex = false;
-          frames.push(new Frame(parent, count, forward ? i + 1 : i - 1));
+          frames.push(new Frame(parent, count, forward ? i + 1 : i - 1, false));
+        }
+        if (child != null && !node.equals(child)) {
+          child.recycle();
         }
         return;
       }
@@ -281,15 +299,19 @@ final class WebScrollFocus {
         pushStart(parent);
         return;
       }
-      Frame frame = new Frame(parent, count, 0);
+      Frame frame = new Frame(parent, count, 0, false);
       frame.low = forward ? read : 0;
       frame.high = count;
       frames.push(frame);
     }
 
     private void pushStart(AccessibilityNodeInfoCompat node) {
+      pushStart(node, false);
+    }
+
+    private void pushStart(AccessibilityNodeInfoCompat node, boolean owned) {
       int count = node.getChildCount();
-      Frame frame = new Frame(node, count, forward ? 0 : count - 1);
+      Frame frame = new Frame(node, count, forward ? 0 : count - 1, owned);
       if (count > MIN_CHILDREN_FOR_BINARY_SEARCH) {
         frame.low = 0;
         frame.high = count;
@@ -306,6 +328,7 @@ final class WebScrollFocus {
       int i = frame.next;
       if (i < 0 || i >= frame.count) {
         frames.pop();
+        recycleFrame(frame, partial);
         return false;
       }
       if (nodesLeft-- <= 0) {
@@ -319,6 +342,7 @@ final class WebScrollFocus {
       }
       child.getBoundsInScreen(bounds);
       if (isOutside(bounds, viewport)) {
+        child.recycle();
         return true;
       }
       if (isItem(child, bounds, viewport)) {
@@ -330,7 +354,7 @@ final class WebScrollFocus {
           partial = child;
         }
       }
-      pushStart(child);
+      pushStart(child, true);
       return true;
     }
 
@@ -346,6 +370,7 @@ final class WebScrollFocus {
       if (child != null) {
         child.getBoundsInScreen(bounds);
         before = forward ? isAbove(bounds, viewport) : !isBelow(bounds, viewport);
+        child.recycle();
       }
       if (before) {
         frame.low = middle + 1;

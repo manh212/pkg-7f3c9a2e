@@ -54,14 +54,17 @@ object CountdownAlarm {
     runCatching {
       val array = JSONArray(stored)
       for (i in 0 until array.length()) {
-        val item = array.getJSONObject(i)
-        entries +=
+        // One malformed entry must not drop every alarm after it.
+        val entry = runCatching {
+          val item = array.getJSONObject(i)
           Entry(
             item.getLong("id"),
             item.optString("name"),
             item.getLong("deadline"),
             item.getLong("duration"),
           )
+        }.getOrNull() ?: continue
+        entries += entry
       }
     }
     return entries.sortedBy { it.deadlineMillis }

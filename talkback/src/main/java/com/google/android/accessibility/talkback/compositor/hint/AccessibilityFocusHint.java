@@ -135,12 +135,16 @@ public class AccessibilityFocusHint {
       LogUtils.w(TAG, "getHintForAdjustableChild: error  Parent node is null.");
       return false;
     }
-    int role = Role.getRole(parentNode);
-    return role == ROLE_NUMBER_PICKER
-        && (AccessibilityNodeInfoUtils.supportsAction(
-                parentNode, AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD)
-            || AccessibilityNodeInfoUtils.supportsAction(
-                parentNode, AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD));
+    try {
+      int role = Role.getRole(parentNode);
+      return role == ROLE_NUMBER_PICKER
+          && (AccessibilityNodeInfoUtils.supportsAction(
+                  parentNode, AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD)
+              || AccessibilityNodeInfoUtils.supportsAction(
+                  parentNode, AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD));
+    } finally {
+      parentNode.recycle();
+    }
   }
 
   private static boolean isValidAdjustableNodeForWear(AccessibilityNodeInfoCompat node) {

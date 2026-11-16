@@ -71,6 +71,11 @@ class WebFocusRecoveryTest {
       return parentNode
     }
 
+    // Production getParent()/getChild() return a fresh node object per call, so recycling
+    // a walked parent never affects the tree. This fake returns the shared tree nodes,
+    // so recycle must not destroy them.
+    override fun recycle() {}
+
     override fun equals(other: Any?) = this === other
 
     override fun hashCode() = System.identityHashCode(this)

@@ -16,6 +16,9 @@ public final class UrlUtils {
    * @param url The URL to open
    */
   public static void openUrlWithIntent(Context context, CharSequence url) {
+    if (url == null) {
+      return;
+    }
     Intent intent = new Intent(Intent.ACTION_VIEW);
     Uri destination = Uri.parse(url.toString());
     intent.setData(destination);

@@ -35,25 +35,29 @@ class ClickFeedback(
   fun click(target: AccessibilityNodeInfoCompat, eventId: EventId?, click: () -> Boolean): Boolean {
     compositor.giveClickCues(eventId)
 
-    val items = itemsWithState(target)
-    val before = items?.let { stateOf(it) }
-    val start = SystemClock.uptimeMillis()
-    val success = click()
-    val sent = SENT.add(start, SystemClock.uptimeMillis(), target.packageName?.toString())
-    if (!success || items == null) {
-      return success
-    }
+    val items = itemsWithState(target) ?: return click()
+    try {
+      val before = stateOf(items)
+      val start = SystemClock.uptimeMillis()
+      val success = click()
+      val sent = SENT.add(start, SystemClock.uptimeMillis(), target.packageName?.toString())
+      if (!success) {
+        return success
+      }
 
-    if (!items.all { it.refresh() }) {
+      if (!items.all { it.refresh() }) {
+        return true
+      }
+      val after = stateOf(items) ?: return true
+      if (TextUtils.equals(after.text, before?.text) || Scripts.isSilenced(after.node)) {
+        return true
+      }
+      sent.said = after.text.toString()
+      compositor.sayClickState(after.node, after.text, eventId)
       return true
+    } finally {
+      items.forEach { it.recycle() }
     }
-    val after = stateOf(items) ?: return true
-    if (TextUtils.equals(after.text, before?.text) || Scripts.isSilenced(after.node)) {
-      return true
-    }
-    sent.said = after.text.toString()
-    compositor.sayClickState(after.node, after.text, eventId)
-    return true
   }
 
   fun filter(
@@ -99,9 +103,15 @@ class ClickFeedback(
       if (child.isCheckable || !TextUtils.isEmpty(AccessibilityNodeInfoUtils.getState(child))) {
         items += child
         any = true
+      } else {
+        child.recycle()
       }
     }
-    return if (any) items else null
+    if (!any) {
+      items.forEach { it.recycle() }
+      return null
+    }
+    return items
   }
 
   private class State(val node: AccessibilityNodeInfoCompat, val text: CharSequence)
