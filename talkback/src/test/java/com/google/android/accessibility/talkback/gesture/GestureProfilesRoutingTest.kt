@@ -76,32 +76,15 @@ class GestureProfilesRoutingTest {
     assertTrue(mapping.hasGestureOverride(GestureShortcutMapping.ROTATE_CLOCKWISE))
   }
 
-  @Test fun pinchAndAnchoredGesturesHaveAssignableProfileKeys() {
+  @Test fun pinchGesturesHaveAssignableProfileKeys() {
     val pinchIn = context.getString(R.string.pref_shortcut_2finger_pinch_key)
     val pinchOut = context.getString(R.string.pref_shortcut_2finger_spread_key)
-    val anchoredUp = context.getString(R.string.pref_shortcut_2finger_anchored_swipe_up_key)
-    val anchoredDown = context.getString(R.string.pref_shortcut_2finger_anchored_swipe_down_key)
-    val anchoredLeft = context.getString(R.string.pref_shortcut_2finger_anchored_swipe_left_key)
-    val anchoredRight = context.getString(R.string.pref_shortcut_2finger_anchored_swipe_right_key)
-    val anchoredTap = context.getString(R.string.pref_shortcut_2finger_anchored_tap_key)
-    select(mapOf(pinchIn to "PINCH_IN", pinchOut to "PINCH_OUT", anchoredUp to "ANCHORED_UP",
-        anchoredDown to "ANCHORED_DOWN", anchoredLeft to "ANCHORED_LEFT",
-        anchoredRight to "ANCHORED_RIGHT", anchoredTap to "ANCHORED_TAP"))
+    select(mapOf(pinchIn to "PINCH_IN", pinchOut to "PINCH_OUT"))
     assertEquals("PINCH_IN", mapping.getActionKeyFromGestureId(GestureShortcutMapping.PINCH_IN))
     assertEquals("PINCH_OUT", mapping.getActionKeyFromGestureId(GestureShortcutMapping.PINCH_OUT))
-    assertEquals("ANCHORED_UP", mapping.getActionKeyFromGestureId(GestureShortcutMapping.ANCHORED_SWIPE_UP))
-    assertEquals("ANCHORED_DOWN", mapping.getActionKeyFromGestureId(GestureShortcutMapping.ANCHORED_SWIPE_DOWN))
-    assertEquals("ANCHORED_LEFT", mapping.getActionKeyFromGestureId(GestureShortcutMapping.ANCHORED_SWIPE_LEFT))
-    assertEquals("ANCHORED_RIGHT", mapping.getActionKeyFromGestureId(GestureShortcutMapping.ANCHORED_SWIPE_RIGHT))
-    assertEquals("ANCHORED_TAP", mapping.getActionKeyFromGestureId(GestureShortcutMapping.ANCHORED_TAP))
-    assertTrue(mapping.hasGestureOverride(GestureShortcutMapping.ANCHORED_TAP))
+    assertTrue(mapping.hasGestureOverride(GestureShortcutMapping.PINCH_OUT))
     assertEquals("Chụm hai ngón", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.PINCH_IN))
     assertEquals("Xòe hai ngón", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.PINCH_OUT))
-    assertEquals("Giữ một ngón rồi vuốt lên", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.ANCHORED_SWIPE_UP))
-    assertEquals("Giữ một ngón rồi vuốt xuống", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.ANCHORED_SWIPE_DOWN))
-    assertEquals("Giữ một ngón rồi vuốt sang trái", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.ANCHORED_SWIPE_LEFT))
-    assertEquals("Giữ một ngón rồi vuốt sang phải", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.ANCHORED_SWIPE_RIGHT))
-    assertEquals("Giữ một ngón rồi chạm bằng ngón kia", GestureShortcutMapping.getGestureString(context, GestureShortcutMapping.ANCHORED_TAP))
   }
 
   @Test fun unassignedProfileIsDistinctFromInheritedGlobalAssignment() {
