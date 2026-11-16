@@ -5,7 +5,12 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 34)
 public class BilingualSpeechTextTest {
   @Test
   public void originalFirst_keepsEachVoiceProfile() {
