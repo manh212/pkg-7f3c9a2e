@@ -304,7 +304,12 @@ class GranularEditingActivity : AppCompatActivity() {
   }
 
   /** Makes [newText] the text, keeping the old one for Undo, and focuses the piece at [focusAt]. */
-  private fun change(newText: String, focusAt: Int, @StringRes announcement: Int? = null) {
+  private fun change(
+    newText: String,
+    focusAt: Int,
+    @StringRes announcement: Int? = null,
+    announcementText: String? = null,
+  ) {
     if (newText == text) return
     undo += text
     if (undo.size > MAX_UNDO) undo.removeAt(0)
@@ -314,6 +319,7 @@ class GranularEditingActivity : AppCompatActivity() {
     focus(focusAt)
     persistDocument()
     announcement?.let { list.announceForAccessibility(getString(it)) }
+    announcementText?.let { list.announceForAccessibility(it) }
   }
 
   /** A document is saved as its text changes; a text field is only written back by Save. */
@@ -326,11 +332,17 @@ class GranularEditingActivity : AppCompatActivity() {
     val position = index.coerceIn(0, pieces.size - 1)
     list.scrollToPosition(position)
     list.post {
-      list
-        .findViewHolderForAdapterPosition(position)
-        ?.itemView
-        ?.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
+      if (!focusPosition(position)) {
+        list.post { focusPosition(position) }
+      }
     }
+  }
+
+  private fun focusPosition(position: Int): Boolean {
+    val holder = list.findViewHolderForAdapterPosition(position) ?: return false
+    return holder
+      .itemView
+      .performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
   }
 
   private fun chooseGranularity() {
@@ -1021,7 +1033,7 @@ ${JSONObject().put("source", target)}"""
       return
     }
     if (text.isEmpty()) {
-      change(pasted, 0)
+      change(pasted, 0, announcementText = getString(R.string.template_text_pasted, pasted))
       return
     }
     AlertDialog.Builder(this)
@@ -1033,9 +1045,13 @@ ${JSONObject().put("source", target)}"""
         )
       ) { _, which ->
         if (which == 0) {
-          change(pasted, 0)
+          change(pasted, 0, announcementText = getString(R.string.template_text_pasted, pasted))
         } else {
-          change(TextPieces.append(text, pasted, granularity), Int.MAX_VALUE)
+          change(
+            TextPieces.append(text, pasted, granularity),
+            Int.MAX_VALUE,
+            announcementText = getString(R.string.template_text_pasted, pasted),
+          )
         }
       }
       .setNegativeButton(android.R.string.cancel, null)
