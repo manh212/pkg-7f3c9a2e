@@ -137,7 +137,7 @@ object TranslationSettings {
     prefs.edit { putStringSet(PREF_UNTRANSLATED, languages) }
 
   fun source(prefs: SharedPreferences): String? =
-    TranslationLanguages.normalize(prefs.getString(PREF_SOURCE, DETECT))
+    TranslationLanguages.normalize(prefs.getString(PREF_SOURCE, "en"))
 
   fun target(prefs: SharedPreferences): String =
     TranslationLanguages.normalize(prefs.getString(PREF_TARGET, DEVICE))
