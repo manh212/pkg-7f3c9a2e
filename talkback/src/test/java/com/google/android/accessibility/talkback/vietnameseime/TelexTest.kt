@@ -105,6 +105,21 @@ class TelexTest {
   }
 
   @Test
+  fun toneKeyLetterAfterSameLetterAppends() {
+    assertEquals("massage", type("masssage"))
+    assertEquals("Massage", type("Masssage"))
+    assertEquals("MASSAGE", type("MASSSAGE"))
+    assertEquals("boss", type("bosss"))
+    assertEquals("class", type("classs"))
+    assertEquals("buff", type("bufff"))
+    assertEquals("fixx", type("fixxx"))
+    assertEquals("tiss", type("tisss"))
+    assertEquals("ass", type("asss"))
+    assertEquals("telex", type("telexx"))
+    assertEquals("tis", type("tiss"))
+  }
+
+  @Test
   fun backspaceKeepsTheToneOnTheRemainingSyllable() {
     assertEquals("hòa", Telex.deleteLast("hoàn"))
     assertEquals("hò", Telex.deleteLast("hòa"))
