@@ -45,9 +45,12 @@ public final class ArrayUtils {
    * algorithm. The array must be sorted in ascending order prior to making this call.
    *
    * @return The index of the search value if it's contained in the array. Otherwise returns the
-   *     index of the closest value in the array.
+   *     index of the closest value in the array, or -1 if the array is null or empty.
    */
   public static int binarySearchClosestIndex(float[] array, float target) {
+    if (array == null || array.length == 0) {
+      return -1;
+    }
     if (target < array[0]) {
       return 0;
     }

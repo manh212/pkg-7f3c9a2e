@@ -173,7 +173,7 @@ class KeyboardSchemeFragment : TalkbackBaseFragment() {
     val collision = model.getKeyForKeyCombo(combo)
     val commit = {
       if (previousKey != null && previousKey != key) model.clearKeyCombo(previousKey)
-      if (collision != null && collision != key) model.clearKeyCombo(collision)
+      clearComboFromAllKeys(model, combo, key)
       model.saveKeyCombo(key, combo)
       fill()
     }
@@ -185,6 +185,20 @@ class KeyboardSchemeFragment : TalkbackBaseFragment() {
         .show()
     } else {
       commit()
+    }
+  }
+
+  /**
+   * Clears [combo] from every command holding it, not just the first one found: the same combo
+   * can be assigned to several commands, and clearing only the first leaves the collision in
+   * place for the rest.
+   */
+  private fun clearComboFromAllKeys(model: KeyComboModel, combo: KeyCombo, exceptKey: String) {
+    val cleared = HashSet<String>()
+    var collision = model.getKeyForKeyCombo(combo)
+    while (collision != null && collision != exceptKey && cleared.add(collision)) {
+      model.clearKeyCombo(collision)
+      collision = model.getKeyForKeyCombo(combo)
     }
   }
 

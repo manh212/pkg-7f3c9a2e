@@ -57,19 +57,19 @@ data class Rect(
   val bottom: Int? = null,
 ) {
   val width: Int
-    get() = right!! - left!!
+    get() = if (right == null || left == null) 0 else right - left
 
   val height: Int
-    get() = bottom!! - top!!
+    get() = if (bottom == null || top == null) 0 else bottom - top
 
   val area: Int
     get() = width * height
 
   val centerX
-    get() = (left!! + right!!) / 2f
+    get() = if (left == null || right == null) 0f else (left + right) / 2f
 
   val centerY
-    get() = (top!! + bottom!!) / 2f
+    get() = if (top == null || bottom == null) 0f else (top + bottom) / 2f
 
   /** Returns true if all the bounds are set. */
   fun isValid(): Boolean =

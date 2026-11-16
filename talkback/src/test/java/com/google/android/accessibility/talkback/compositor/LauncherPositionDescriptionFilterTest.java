@@ -73,7 +73,7 @@ public class LauncherPositionDescriptionFilterTest {
         .putBoolean(customKey(R.string.pref_table_speak_row_column_numbers_key), true)
         .commit();
     assertFiltered("Bộ sưu tập, Hàng 1, Cột 1, Trong lưới, 4 hàng, 4 cột",
-        "Bộ sưu tập, Hàng 1, Cột 1");
+        "Bộ sưu tập, Hàng 1, Cột 1, 4 hàng, 4 cột");
   }
 
   @Test
@@ -82,7 +82,7 @@ public class LauncherPositionDescriptionFilterTest {
         .putBoolean(customKey(R.string.pref_speak_container_element_positions_key), true)
         .commit();
     assertFiltered("Bộ sưu tập, Hàng 1, Cột 1, Trong lưới, 4 hàng, 4 cột",
-        "Bộ sưu tập");
+        "Bộ sưu tập, Trong lưới");
   }
 
   @Test

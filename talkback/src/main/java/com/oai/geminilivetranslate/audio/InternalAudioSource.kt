@@ -77,8 +77,13 @@ class InternalAudioSource(
                 val read = audioRecord.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
                 when {
                     read > 0 -> {
-                        val pcm = converter.process(buffer, read)
-                        if (pcm.isNotEmpty()) listener.onPcm16Mono16k(pcm)
+                        if (discardBufferedOnResume.getAndSet(false)) {
+                            converter.reset()
+                            drainBufferedAudio(audioRecord, buffer)
+                        } else {
+                            val pcm = converter.process(buffer, read)
+                            if (pcm.isNotEmpty()) listener.onPcm16Mono16k(pcm)
+                        }
                     }
                     read == AudioRecord.ERROR_DEAD_OBJECT -> {
                         terminalError = projectionStoppedError()

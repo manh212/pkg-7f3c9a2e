@@ -106,11 +106,11 @@ public abstract class Filter<T> {
     @CanIgnoreReturnValue
     @Override
     public FilterAnd<T> and(@Nullable Filter<T> filter) {
-      if (filter != null) {
-        mFilters.add(filter);
+      if (filter == null) {
+        return this;
       }
 
-      return this;
+      return new FilterAnd<>(this, filter);
     }
   }
 
@@ -136,11 +136,11 @@ public abstract class Filter<T> {
     @CanIgnoreReturnValue
     @Override
     public FilterOr<T> or(@Nullable Filter<T> filter) {
-      if (filter != null) {
-        mFilters.add(filter);
+      if (filter == null) {
+        return this;
       }
 
-      return this;
+      return new FilterOr<>(this, filter);
     }
   }
 }

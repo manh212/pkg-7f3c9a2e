@@ -32,7 +32,6 @@ import android.os.Vibrator;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -256,11 +255,13 @@ private BraillePhoneCanvasView brailleCanvasView;
         String uri = "";
         boolean failedNotified;
         MediaPlayer player;
+        boolean preparing;
     }
 
     private final SoundSlot capitalSlot = new SoundSlot();
     private final SoundSlot spaceSlot = new SoundSlot();
     private boolean customSoundFailedNotified = false;
+    private boolean customSoundPreparing = false;
     private TextView tvCapitalSoundName;
     private TextView tvSpaceSoundName;
 
@@ -637,10 +638,8 @@ calDotY[i] = prefs.getFloat("cal_y_" + i, 0f);
         }
 
         String customKeysCsv = prefs.getString("custom_char_keys", null);
-        if (customKeysCsv != null) {
-            charToDotsMap.clear();
-        }
         if (customKeysCsv != null && customKeysCsv.length() > 0) {
+            charToDotsMap.clear();
             String[] keys = customKeysCsv.split("\u001F");
             for (int i = 0; i < keys.length; i++) {
                 String k = keys[i];
@@ -726,19 +725,17 @@ editor.apply();
     private void loadEmojiSettings() {
         resetDefaultEmoji();
         String emojiKeysCsv = prefs.getString("emoji_keys", null);
-        if (emojiKeysCsv == null) return;
+        if (emojiKeysCsv == null || emojiKeysCsv.length() == 0) return;
         emojiToDotsMap.clear();
-        if (emojiKeysCsv.length() > 0) {
-            String[] keys = emojiKeysCsv.split("\u001F");
-            for (int i = 0; i < keys.length; i++) {
-                String k = keys[i];
-                if (k != null && k.length() > 0) {
-                    String savedDots = prefs.getString("emoji_dots_" + k, null);
-                    if (savedDots != null && savedDots.length() > 0) {
-                        String normalized = normalizeDotsString(savedDots);
-                        if (normalized.length() > 0) {
-                            BrailleChordMapValidator.putIfUnique(emojiToDotsMap, k, normalized);
-                        }
+        String[] keys = emojiKeysCsv.split("\u001F");
+        for (int i = 0; i < keys.length; i++) {
+            String k = keys[i];
+            if (k != null && k.length() > 0) {
+                String savedDots = prefs.getString("emoji_dots_" + k, null);
+                if (savedDots != null && savedDots.length() > 0) {
+                    String normalized = normalizeDotsString(savedDots);
+                    if (normalized.length() > 0) {
+                        BrailleChordMapValidator.putIfUnique(emojiToDotsMap, k, normalized);
                     }
                 }
             }
@@ -1270,16 +1267,6 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     private void vibrateForLevel(View view, long vibrateMs) {
-        if (view != null) {
-            try {
-                view.performHapticFeedback(
-                        vibrationLevel == 0 ? HapticFeedbackConstants.KEYBOARD_TAP : HapticFeedbackConstants.LONG_PRESS,
-                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-                                | HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
-                );
-            } catch (Throwable ignored) {
-            }
-        }
         if (vibrator != null && vibrateMs > 0) {
             long scaledMs = vibrateMs;
             if (vibrationLevel == 0) {
@@ -1406,27 +1393,29 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     private void migrateSoundsToPrivateStorage() {
-        if (customSoundUri != null && customSoundUri.startsWith("content:")) {
-            String copied = copySoundToPrivateStorage(Uri.parse(customSoundUri), "typing");
-            if (copied != null) {
-                customSoundUri = copied;
-                prefs.edit().putString("custom_sound_uri", copied).apply();
+        new Thread(() -> {
+            if (customSoundUri != null && customSoundUri.startsWith("content:")) {
+                String copied = copySoundToPrivateStorage(Uri.parse(customSoundUri), "typing");
+                if (copied != null) {
+                    customSoundUri = copied;
+                    prefs.edit().putString("custom_sound_uri", copied).apply();
+                }
             }
-        }
-        if (capitalSlot.uri != null && capitalSlot.uri.startsWith("content:")) {
-            String copied = copySoundToPrivateStorage(Uri.parse(capitalSlot.uri), "capital");
-            if (copied != null) {
-                capitalSlot.uri = copied;
-                prefs.edit().putString("custom_sound_capital_uri", copied).apply();
+            if (capitalSlot.uri != null && capitalSlot.uri.startsWith("content:")) {
+                String copied = copySoundToPrivateStorage(Uri.parse(capitalSlot.uri), "capital");
+                if (copied != null) {
+                    capitalSlot.uri = copied;
+                    prefs.edit().putString("custom_sound_capital_uri", copied).apply();
+                }
             }
-        }
-        if (spaceSlot.uri != null && spaceSlot.uri.startsWith("content:")) {
-            String copied = copySoundToPrivateStorage(Uri.parse(spaceSlot.uri), "space");
-            if (copied != null) {
-                spaceSlot.uri = copied;
-                prefs.edit().putString("custom_sound_space_uri", copied).apply();
+            if (spaceSlot.uri != null && spaceSlot.uri.startsWith("content:")) {
+                String copied = copySoundToPrivateStorage(Uri.parse(spaceSlot.uri), "space");
+                if (copied != null) {
+                    spaceSlot.uri = copied;
+                    prefs.edit().putString("custom_sound_space_uri", copied).apply();
+                }
             }
-        }
+        }, "braille-sound-migrate").start();
     }
 
     private SoundSlot slotFor(int soundSlot) {
@@ -1532,13 +1521,17 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         }
         SoundSlot slot = slotFor(soundSlot);
         releaseSlot(slot);
-        String storedSlot = copySoundToPrivateStorage(uri, soundSlot == SOUND_SLOT_CAPITAL ? "capital" : "space");
-        slot.uri = storedSlot != null ? storedSlot : uri.toString();
-        slot.failedNotified = false;
-        savePhoneOptions();
-        updateSlotLabel(soundSlot);
-        playSlot(slot);
-        speak("Đã chọn âm thanh " + slotLabelName(soundSlot) + ": " + getSoundDisplayName(uri), false);
+        new Thread(() -> {
+            String storedSlot = copySoundToPrivateStorage(uri, soundSlot == SOUND_SLOT_CAPITAL ? "capital" : "space");
+            runOnUiThread(() -> {
+                slot.uri = storedSlot != null ? storedSlot : uri.toString();
+                slot.failedNotified = false;
+                savePhoneOptions();
+                updateSlotLabel(soundSlot);
+                playSlot(slot);
+                speak("Đã chọn âm thanh " + slotLabelName(soundSlot) + ": " + getSoundDisplayName(uri), false);
+            });
+        }, "braille-sound-copy").start();
     }
 
     private void previewSlotSound(int soundSlot) {
@@ -1561,16 +1554,35 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
     private boolean playSlot(SoundSlot slot) {
         if (slot == null || slot.uri == null || slot.uri.length() == 0) return false;
-        MediaPlayer newPlayer = null;
+        if (slot.preparing) return true;
         try {
             if (slot.player == null) {
-                newPlayer = new MediaPlayer();
+                MediaPlayer newPlayer = new MediaPlayer();
                 newPlayer.setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
                 newPlayer.setDataSource(this, Uri.parse(slot.uri));
-                newPlayer.prepare();
+                slot.preparing = true;
+                newPlayer.setOnPreparedListener(player -> {
+                    if (player == slot.player) {
+                        slot.preparing = false;
+                        try {
+                            player.start();
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                });
+                newPlayer.setOnErrorListener((player, what, extra) -> {
+                    if (player == slot.player) {
+                        slot.preparing = false;
+                        releaseSlot(slot);
+                        notifySlotFailed(slot, "lỗi MediaPlayer " + what);
+                    }
+                    return true;
+                });
                 slot.player = newPlayer;
+                newPlayer.prepareAsync();
+                return true;
             }
             if (slot.player.isPlaying()) {
                 slot.player.seekTo(0);
@@ -1579,23 +1591,24 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             }
             return true;
         } catch (Throwable t) {
-            if (newPlayer != null && newPlayer != slot.player) {
-                try {
-                    newPlayer.release();
-                } catch (Throwable ignored) {
-                }
-            }
+            slot.preparing = false;
             releaseSlot(slot);
-            if (!slot.failedNotified) {
-                slot.failedNotified = true;
-                Toast.makeText(this, "Không phát được âm thanh tùy chỉnh: " + t.getClass().getSimpleName()
-                        + " " + t.getMessage(), Toast.LENGTH_LONG).show();
-            }
+            notifySlotFailed(slot, t.getClass().getSimpleName() + " " + t.getMessage());
             return false;
         }
     }
 
+    private void notifySlotFailed(SoundSlot slot, String detail) {
+        if (slot == null || slot.failedNotified) return;
+        slot.failedNotified = true;
+        Toast.makeText(this, "Không phát được âm thanh tùy chỉnh: " + detail,
+                Toast.LENGTH_LONG).show();
+    }
+
     private void releaseSlot(SoundSlot slot) {
+        if (slot != null) {
+            slot.preparing = false;
+        }
         if (slot != null && slot.player != null) {
             try {
                 slot.player.release();
@@ -1682,15 +1695,19 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         } catch (Throwable ignored) {
         }
 
-        String storedTyping = copySoundToPrivateStorage(uri, "typing");
-        customSoundUri = storedTyping != null ? storedTyping : uri.toString();
-        customSoundFailedNotified = false;
-        useCustomSound = true;
-        releaseCustomSoundPlayer();
-        savePhoneOptions();
-        updateCustomSoundLabel();
-        playCustomSound();
-        speak("Đã chọn âm thanh " + getSoundDisplayName(uri), false);
+        new Thread(() -> {
+            String storedTyping = copySoundToPrivateStorage(uri, "typing");
+            runOnUiThread(() -> {
+                customSoundUri = storedTyping != null ? storedTyping : uri.toString();
+                customSoundFailedNotified = false;
+                useCustomSound = true;
+                releaseCustomSoundPlayer();
+                savePhoneOptions();
+                updateCustomSoundLabel();
+                playCustomSound();
+                speak("Đã chọn âm thanh " + getSoundDisplayName(uri), false);
+            });
+        }, "braille-sound-copy").start();
     }
 
     private void useSystemSoundAgain() {
@@ -1715,6 +1732,7 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
     private void playCustomSound() {
         if (customSoundUri == null || customSoundUri.length() == 0) return;
+        if (customSoundPreparing) return;
         MediaPlayer newPlayer = null;
         try {
             if (customSoundPlayer == null) {
@@ -1723,8 +1741,27 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                         .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
                 newPlayer.setDataSource(this, Uri.parse(customSoundUri));
-                newPlayer.prepare();
+                customSoundPreparing = true;
+                newPlayer.setOnPreparedListener(player -> {
+                    if (player == customSoundPlayer) {
+                        customSoundPreparing = false;
+                        try {
+                            player.start();
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                });
+                newPlayer.setOnErrorListener((player, what, extra) -> {
+                    if (player == customSoundPlayer) {
+                        customSoundPreparing = false;
+                        releaseCustomSoundPlayer();
+                        notifyCustomSoundFailed("lỗi MediaPlayer " + what);
+                    }
+                    return true;
+                });
                 customSoundPlayer = newPlayer;
+                newPlayer.prepareAsync();
+                return;
             }
             if (customSoundPlayer.isPlaying()) {
                 customSoundPlayer.seekTo(0);
@@ -1732,6 +1769,7 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 customSoundPlayer.start();
             }
         } catch (Throwable t) {
+            customSoundPreparing = false;
             if (newPlayer != null && newPlayer != customSoundPlayer) {
                 try {
                     newPlayer.release();
@@ -1739,21 +1777,26 @@ ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 }
             }
             releaseCustomSoundPlayer();
-            if (!customSoundFailedNotified) {
-                customSoundFailedNotified = true;
-                Toast.makeText(this, "Không phát được âm thanh tùy chỉnh: " + t.getClass().getSimpleName()
-                        + " " + t.getMessage(), Toast.LENGTH_LONG).show();
-            }
-            if (toneGenerator != null) {
-                try {
-                    toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 40);
-                } catch (Throwable ignored) {
-                }
+            notifyCustomSoundFailed(t.getClass().getSimpleName() + " " + t.getMessage());
+        }
+    }
+
+    private void notifyCustomSoundFailed(String detail) {
+        if (!customSoundFailedNotified) {
+            customSoundFailedNotified = true;
+            Toast.makeText(this, "Không phát được âm thanh tùy chỉnh: " + detail,
+                    Toast.LENGTH_LONG).show();
+        }
+        if (toneGenerator != null) {
+            try {
+                toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 40);
+            } catch (Throwable ignored) {
             }
         }
     }
 
     private void releaseCustomSoundPlayer() {
+        customSoundPreparing = false;
         if (customSoundPlayer != null) {
             try {
                 customSoundPlayer.release();
@@ -2577,9 +2620,6 @@ return scroll;
 
     private void processBrailleChord(String dotsKey) {
         String matched = dotsToCharMap.get(dotsKey);
-        if (matched == null && "3456".equals(dotsKey)) {
-            matched = "dấu báo số";
-        }
         if (matched == null) {
             triggerFeedback(brailleCanvasView, 70L, ToneGenerator.TONE_SUP_ERROR, 110);
             speak("Chưa có chấm " + dotsKey, true);
@@ -2942,7 +2982,7 @@ return scroll;
                 && !ACT_MOVE_LINE_BOUNDARY_NEXT.equals(actionCode)) {
             navigationState.reset();
         }
-        long now = System.currentTimeMillis();
+        long now = android.os.SystemClock.uptimeMillis();
         capitalSignCount = 0;
         carriedToneName = null;
         carriedToneCursor = -1;

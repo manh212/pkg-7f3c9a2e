@@ -20,4 +20,15 @@ public class StatisticsSnapshotTest {
     assertEquals(0, statistics.getMaximum());
     assertEquals(0, statistics.getCount());
   }
+
+  @Test
+  public void getPercentileRejectsOutOfRangeRanks() {
+    Statistics statistics = new Statistics();
+    for (int i = 1; i <= 10; i++) statistics.increment(i);
+    assertEquals(-1, statistics.getPercentile(0));
+    assertEquals(-1, statistics.getPercentile(101));
+    assertEquals(-1, statistics.getPercentile(-5));
+    assertEquals(1, statistics.getPercentile(1));
+    assertEquals(10, statistics.getPercentile(100));
+  }
 }

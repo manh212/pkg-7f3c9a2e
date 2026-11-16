@@ -15,7 +15,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils;
  */
 public final class SmartContextSetting implements SelectorController.ContextualSetting {
   private static final long MATCH_CACHE_MS = 250;
-  private String cachedPackage = "";
+  private String cachedKey = "";
   private long lastChecked;
   private boolean cachedMatch;
 
@@ -43,10 +43,15 @@ public final class SmartContextSetting implements SelectorController.ContextualS
     String packageName = node.getPackageName().toString();
     if (!packageName.equals(SmartContextGestures.currentPackage(service))) return false;
 
+    String uniqueId = node.getUniqueId();
+    if (uniqueId == null) {
+      return SmartContextGestures.hasMatchingContext(service);
+    }
+    String cacheKey = packageName + "|" + node.getWindowId() + "|" + uniqueId;
     long now = SystemClock.uptimeMillis();
-    if (packageName.equals(cachedPackage) && now >= lastChecked
+    if (cacheKey.equals(cachedKey) && now >= lastChecked
         && now - lastChecked < MATCH_CACHE_MS) return cachedMatch;
-    cachedPackage = packageName;
+    cachedKey = cacheKey;
     lastChecked = now;
     cachedMatch = SmartContextGestures.hasMatchingContext(service);
     return cachedMatch;

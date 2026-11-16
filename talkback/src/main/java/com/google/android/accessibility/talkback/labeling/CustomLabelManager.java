@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.labeling;
 
 import static androidx.core.content.ContextCompat.RECEIVER_EXPORTED;
+import static androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -213,7 +214,7 @@ public class CustomLabelManager extends TalkBackLabelManager {
     packageManager = context.getPackageManager();
     client = new LabelProviderClient(context, AUTHORITY);
     ContextCompat.registerReceiver(
-        this.context, refreshReceiver, REFRESH_INTENT_FILTER, RECEIVER_EXPORTED);
+        this.context, refreshReceiver, REFRESH_INTENT_FILTER, RECEIVER_NOT_EXPORTED);
     ContextCompat.registerReceiver(
         this.context,
         localeChangedReceiver,
@@ -382,6 +383,9 @@ public class CustomLabelManager extends TalkBackLabelManager {
 
     Label oldLabel = getLabelForViewIdFromCache(resourceName);
     if (oldLabel == null) {
+      if (userLabel == null) {
+        return false;
+      }
       addLabel(resourceName, userLabel);
     } else if (userLabel == null) {
       removeLabel(oldLabel);
@@ -530,6 +534,10 @@ public class CustomLabelManager extends TalkBackLabelManager {
       List<Label> labels,
       boolean overrideExistentLabels,
       final CustomLabelMigrationManager.OnLabelMigrationCallback callback) {
+    if (!isInitialized()) {
+      return;
+    }
+
     ImportLabelRequest request =
         new ImportLabelRequest(
             client,
@@ -550,6 +558,10 @@ public class CustomLabelManager extends TalkBackLabelManager {
 
   public void hasImportedLabels(
       HasImportedLabelsRequest.OnHasImportedLabelsCompleteListener listener) {
+    if (!isInitialized()) {
+      return;
+    }
+
     HasImportedLabelsRequest request = new HasImportedLabelsRequest(client, listener);
     LabelTask<Boolean> task = new LabelTask<>(request, taskCallback);
     task.execute();
@@ -557,6 +569,10 @@ public class CustomLabelManager extends TalkBackLabelManager {
 
   public void revertImportedLabels(
       final RevertImportedLabelsRequest.OnImportLabelsRevertedListener listener) {
+    if (!isInitialized()) {
+      return;
+    }
+
     RevertImportedLabelsRequest request =
         new RevertImportedLabelsRequest(
             client,
@@ -580,6 +596,9 @@ public class CustomLabelManager extends TalkBackLabelManager {
           @Override
           public void onLabelsFetched(List<Label> results) {
             labelCache.clear();
+            if (results == null) {
+              return;
+            }
             String currentLocale = LocaleUtils.getDefaultLocale();
             for (Label newLabel : results) {
               String locale = newLabel.getLocale();

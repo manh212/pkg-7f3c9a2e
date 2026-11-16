@@ -167,7 +167,10 @@ public final class HintFeedbackRule {
                 String.format(", hasReadingMenuActionSettings=%s", hasReadingMenuActionSettings))
             .append(String.format(", currentReadingMenu=%s", currentReadingMenu))
             .toString());
-    if (enableUsageHint && hasReadingMenuActionSettings) {
+    if (!enableUsageHint) {
+      return "";
+    }
+    if (hasReadingMenuActionSettings) {
       return currentReadingMenu == ACTIONS.ordinal()
           ? context.getString(
               R.string.template_hint_reading_menu_actions_for_spelling_suggestion,

@@ -297,12 +297,12 @@ class DirectTouchController(
       return
     }
     evaluating = true
+    val windows = service.windows.orEmpty()
     try {
         // Leaving a text field doesn't always send a focus event, such as when the keyboard closes.
       if (textFieldFocused) {
         textFieldFocused = service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isEditable == true
       }
-      val windows = service.windows.orEmpty()
       val mainPackage = windows.firstOrNull { it.id == mainWindowId }?.let { rootPackage(it) }
       val directTyping = mainPackage != null && DirectTouchSettings.isDirectTyping(prefs, mainPackage)
       val shouldBeActive = mainPackage != null && shouldBeActive(windows, mainPackage)
@@ -329,6 +329,7 @@ class DirectTouchController(
         announce(active)
       }
     } finally {
+      windows.forEach { it.recycle() }
       evaluating = false
     }
   }
@@ -356,42 +357,47 @@ class DirectTouchController(
       event.contentDescription?.takeIf { it.isNotEmpty() }
         ?: event.text.joinToString(" ").takeIf { it.isNotEmpty() }
         ?: return
-    val window = service.windows.orEmpty().firstOrNull { it.id == event.windowId } ?: return
-    if (window.type != AccessibilityWindowInfo.TYPE_SYSTEM) {
-      return
-    }
-    val bounds = Rect()
-    window.getBoundsInScreen(bounds)
-    val display = displayBounds()
-    if (
-      !DirectTouchRegions.isNavigationBar(
-        bounds.left,
-        bounds.top,
-        bounds.right,
-        bounds.bottom,
-        display.width(),
-        display.height(),
-      )
-    ) {
-      return
-    }
-    val now = SystemClock.uptimeMillis()
-    if (label.toString() == lastNavBarButton?.toString() && now - lastNavBarButtonTime < REPEAT_MS) {
-      return
-    }
-    lastNavBarButton = label
-    lastNavBarButtonTime = now
-    // The press opens another screen at once, and that screen's announcement would cut the button
-    // off, so the button can't be interrupted, and the announcement follows it. It is also said
-    // over media, as a press always is. No named queue mode both interrupts and ignores interrupts.
-    @SuppressLint("WrongConstant")
-    val options =
-      SpeakOptions.create()
-        .setQueueMode(
-          QUEUE_MODE_INTERRUPT or QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH_CAN_IGNORE_INTERRUPTS
+    val windows = service.windows.orEmpty()
+    try {
+      val window = windows.firstOrNull { it.id == event.windowId } ?: return
+      if (window.type != AccessibilityWindowInfo.TYPE_SYSTEM) {
+        return
+      }
+      val bounds = Rect()
+      window.getBoundsInScreen(bounds)
+      val display = displayBounds()
+      if (
+        !DirectTouchRegions.isNavigationBar(
+          bounds.left,
+          bounds.top,
+          bounds.right,
+          bounds.bottom,
+          display.width(),
+          display.height(),
         )
-        .setFlags(FLAG_FORCE_FEEDBACK_ALL)
-    feedback.returnFeedback(Performance.EVENT_ID_UNTRACKED, Feedback.speech(label, options))
+      ) {
+        return
+      }
+      val now = SystemClock.uptimeMillis()
+      if (label.toString() == lastNavBarButton?.toString() && now - lastNavBarButtonTime < REPEAT_MS) {
+        return
+      }
+      lastNavBarButton = label
+      lastNavBarButtonTime = now
+      // The press opens another screen at once, and that screen's announcement would cut the button
+      // off, so the button can't be interrupted, and the announcement follows it. It is also said
+      // over media, as a press always is. No named queue mode both interrupts and ignores interrupts.
+      @SuppressLint("WrongConstant")
+      val options =
+        SpeakOptions.create()
+          .setQueueMode(
+            QUEUE_MODE_INTERRUPT or QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH_CAN_IGNORE_INTERRUPTS
+          )
+          .setFlags(FLAG_FORCE_FEEDBACK_ALL)
+      feedback.returnFeedback(Performance.EVENT_ID_UNTRACKED, Feedback.speech(label, options))
+    } finally {
+      windows.forEach { it.recycle() }
+    }
   }
 
   /**

@@ -256,7 +256,7 @@ public class AccessibilityNode {
   // https://developer.android.com/reference/android/view/accessibility/AccessibilityNodeInfo
 
   /** Access bare node, which always exists. Extracts reference to bare node on demand. */
-  private AccessibilityNodeInfo getBare() {
+  private synchronized AccessibilityNodeInfo getBare() {
     if (nodeBare == null) {
       nodeBare = nodeCompat.unwrap(); // Available since compat library 26.1.0
     }
@@ -264,7 +264,7 @@ public class AccessibilityNode {
   }
 
   /** Create and use compat wrapper on demand. */
-  public AccessibilityNodeInfoCompat getCompat() {
+  public synchronized AccessibilityNodeInfoCompat getCompat() {
     if (nodeCompat == null) {
       nodeCompat = AccessibilityNodeInfoCompat.wrap(nodeBare); // Available since compat 26.1.0
     }
@@ -491,7 +491,7 @@ public class AccessibilityNode {
 
   public final boolean windowIsInPictureInPictureMode() {
     AccessibilityWindow window = getWindow();
-    return (window != null) && window.isInPictureInPictureMode();
+    return (window != null) && Boolean.TRUE.equals(window.isInPictureInPictureMode());
   }
 
   public final boolean windowIsActive() {

@@ -46,6 +46,18 @@ public final class LauncherPositionDescriptionFilter {
               + "|\\d+\\s*(?:hàng|rows?),\\s*\\d+\\s*(?:cột|columns?))"
               + "(?=\\s*(?:,|$))");
 
+  // The coordinate part of a grid segment (", 2 rows, 3 columns"), with or without the
+  // "in grid" head in front of it. Group 1 is the coordinate part only.
+  private static final Pattern GRID_COORDINATES =
+      Pattern.compile(
+          "(?iu)(?:,\\s*(?:trong lưới|in (?:a )?grid))?"
+              + "(,\\s*\\d+\\s*(?:hàng|rows?),\\s*\\d+\\s*(?:cột|columns?))"
+              + "(?=\\s*(?:,|$))");
+
+  // The "in grid" head of a grid segment, without any coordinates that follow it.
+  private static final Pattern GRID_CONTAINER_HEAD =
+      Pattern.compile("(?iu),\\s*(?:trong lưới|in (?:a )?grid)(?=\\s*(?:,|$))");
+
   private static final Pattern POSITION_SEGMENT =
       Pattern.compile(
           "(?iu),\\s*(?:(?:hàng|row)\\s*\\d+"
@@ -85,11 +97,23 @@ public final class LauncherPositionDescriptionFilter {
 
     // Samsung can insert coordinates before notification counts, not just at the end.
     // Delete only complete, comma-delimited metadata segments, preserving other text/spans.
+    // The grid segment bundles container info ("in grid") and coordinates ("2 rows,
+    // 3 columns"), so each verbosity setting strips only its own part of it.
     List<int[]> ranges = new ArrayList<>();
-    if (!speakContainerInfo || !speakCoordinates) {
+    if (!speakContainerInfo && !speakCoordinates) {
       Matcher grid = GRID_SEGMENT.matcher(description);
       while (grid.find()) {
         ranges.add(new int[] {grid.start(), grid.end()});
+      }
+    } else if (!speakCoordinates) {
+      Matcher gridCoords = GRID_COORDINATES.matcher(description);
+      while (gridCoords.find()) {
+        ranges.add(new int[] {gridCoords.start(1), gridCoords.end(1)});
+      }
+    } else if (!speakContainerInfo) {
+      Matcher gridHead = GRID_CONTAINER_HEAD.matcher(description);
+      while (gridHead.find()) {
+        ranges.add(new int[] {gridHead.start(), gridHead.end()});
       }
     }
     if (!speakCoordinates) {

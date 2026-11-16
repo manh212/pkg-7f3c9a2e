@@ -168,11 +168,7 @@ public class NewKeyComboModel implements KeyComboModel {
     if (key == null) {
       return new KeyCombo();
     }
-    KeyCombo keyCombo = defaultKeyCombos.get(key);
-    if (keyCombo != null) {
-      return keyCombo;
-    }
-    return adaptedDefaultKeyCombo(key);
+    return giveDefaultKeyCombo(key);
   }
 
   /** Returns the default shortcut of [key] as pressed with the chosen SandFly key. */

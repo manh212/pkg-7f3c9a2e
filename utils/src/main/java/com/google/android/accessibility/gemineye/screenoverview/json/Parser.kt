@@ -26,6 +26,7 @@ class Parser {
   fun parseScreenOverview(json: String): ScreenOverview {
     try {
       return gson.fromJson(json, ScreenOverview::class.java)
+        ?: throw ParseException(JsonParseException("Parsed ScreenOverview was null"))
     } catch (e: JsonParseException) {
       throw ParseException(e)
     }
@@ -35,6 +36,7 @@ class Parser {
   fun parseScreenQueryAnswer(json: String): ScreenQueryAnswer {
     try {
       return gson.fromJson(json, ScreenQueryAnswer::class.java)
+        ?: throw ParseException(JsonParseException("Parsed ScreenQueryAnswer was null"))
     } catch (e: JsonParseException) {
       throw ParseException(e)
     }

@@ -33,6 +33,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -208,7 +209,7 @@ public class WindowUtils {
   @NonNull
   public static List<Display> getAllDisplays(Context context) {
     List<Display> displays =
-        Arrays.asList(context.getSystemService(DisplayManager.class).getDisplays());
+        new ArrayList<>(Arrays.asList(context.getSystemService(DisplayManager.class).getDisplays()));
     displays.removeAll(Collections.singletonList(null));
     return displays;
   }

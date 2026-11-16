@@ -70,8 +70,9 @@ class StatusReader(private val context: Context, private val batteryMonitor: Bat
       return
     }
     val callback = DisplayInfoCallback()
+    val telephonyManager = telephonyManager ?: return
     try {
-      telephonyManager?.registerTelephonyCallback(context.mainExecutor, callback)
+      telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
       displayInfoCallback = callback
     } catch (e: SecurityException) {
       LogUtils.w(TAG, "Cannot follow the network type: %s", e)

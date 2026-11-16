@@ -780,7 +780,7 @@ public class SelectorController implements UserInputEventListener {
           if (TextUtils.equals(key, NavigationMode.PREF_KEY)
               && NavigationMode.isModeTwo(context)) {
             handler.removeCallbacks(switchAfterTouch);
-            lastFocusedNode = null;
+            recycleHeldNodes();
             settingToRestore = null;
             actionsSettingActivatedForEditText = false;
             setCurrentSetting(
@@ -1365,18 +1365,30 @@ public class SelectorController implements UserInputEventListener {
     FocusActionInfo focusActionInfo = axFocused.focusActionInfo();
     if (focusActionInfo == null) {
       LogUtils.w(TAG, "newItemFocused Return. FocusActionInfo is null");
+      if (nodeInfo != null) {
+        nodeInfo.recycle();
+      }
       return;
     }
 
     if (!allowSwitchSettingByFocusChange(focusActionInfo)) {
+      if (nodeInfo != null) {
+        nodeInfo.recycle();
+      }
       return;
     }
 
     if (nodeInfo == null || nodeInfo.equals(lastFocusedNode)) {
+      if (nodeInfo != null) {
+        nodeInfo.recycle();
+      }
       return;
     }
     if (touchActive) {
       handler.removeCallbacks(switchAfterTouch);
+      if (lastFocusedNode != null && lastFocusedNode != nodeInfo) {
+        lastFocusedNode.recycle();
+      }
       lastFocusedNode = nodeInfo;
     } else {
       handler.removeCallbacks(switchAfterTouch);
@@ -1433,16 +1445,28 @@ public class SelectorController implements UserInputEventListener {
   }
 
   private void switchCurrentSetting(AccessibilityNodeInfo nodeInfo) {
+    switchCurrentSettingInternal(nodeInfo);
+    if (nodeInfo != null && classifyingNode != nodeInfo) {
+      nodeInfo.recycle();
+    }
+  }
+
+  private void switchCurrentSettingInternal(AccessibilityNodeInfo nodeInfo) {
+    if (lastFocusedNode != null && lastFocusedNode != nodeInfo) {
+      lastFocusedNode.recycle();
+    }
+    lastFocusedNode = null;
+    if (classifyingNode != null && classifyingNode != nodeInfo) {
+      classifyingNode.recycle();
+    }
+    classifyingNode = null;
     if (NavigationMode.isModeTwo(context)) {
-      lastFocusedNode = null;
       return;
     }
     Setting currentSetting = getCurrentSetting(context, prefs);
     if (nodeInfo == null) {
       return;
     }
-    lastFocusedNode = null;
-    classifyingNode = null;
     if (keepsReadingControlInWebContent(context, prefs, nodeInfo)) {
       // The user's reading control is kept in web content: focus changes within a web page
       // must not replace it with a contextual setting, or restore a cached one, either.
@@ -1528,6 +1552,7 @@ public class SelectorController implements UserInputEventListener {
     AccessibilityNodeInfoCompat focus =
         accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
     if (focus == null || !node.equals(focus.unwrap())) {
+      node.recycle();
       classifyingNode = null;
       return;
     }
@@ -1557,8 +1582,21 @@ public class SelectorController implements UserInputEventListener {
     handler.removeCallbacks(switchAfterTouch);
     handler.removeCallbacks(switchAfterClassifying);
     TextEntityMenu.setClassifiedListener(null);
-    lastFocusedNode = null;
-    classifyingNode = null;
+    if (volumeMonitor != null) {
+      volumeMonitor.removeVolumeChangedListener(a11yVolumeChangedListener);
+    }
+    recycleHeldNodes();
+  }
+
+  private void recycleHeldNodes() {
+    if (lastFocusedNode != null) {
+      lastFocusedNode.recycle();
+      lastFocusedNode = null;
+    }
+    if (classifyingNode != null) {
+      classifyingNode.recycle();
+      classifyingNode = null;
+    }
   }
 
   /** Selects the previous or next setting. For selecting setting via gesture. */

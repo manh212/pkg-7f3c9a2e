@@ -29,6 +29,7 @@ public class SparseIterableArray<T> extends SparseArrayCompat<T> implements Iter
 
   private class SparseIterator implements Iterator<T> {
     private int mIndex = 0;
+    private boolean mCanRemove = false;
 
     @Override
     public boolean hasNext() {
@@ -41,16 +42,18 @@ public class SparseIterableArray<T> extends SparseArrayCompat<T> implements Iter
         throw new NoSuchElementException();
       }
 
+      mCanRemove = true;
       return valueAt(mIndex++);
     }
 
     @Override
     public void remove() {
-      if ((mIndex < 0) || (mIndex >= size())) {
+      if (!mCanRemove) {
         throw new IllegalStateException();
       }
 
-      removeAt(mIndex--);
+      mCanRemove = false;
+      removeAt(--mIndex);
     }
   }
 }

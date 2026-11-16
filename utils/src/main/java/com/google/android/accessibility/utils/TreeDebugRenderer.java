@@ -86,8 +86,18 @@ public class TreeDebugRenderer {
     Bitmap bitmapMutable;
     try (HardwareBuffer hardwareBuffer = screenshot.getHardwareBuffer()) {
       Bitmap bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.getColorSpace());
+      if (bitmap == null) {
+        LogUtils.e(TAG, "screenshot could not be converted to bitmap");
+        shutdown();
+        return;
+      }
       bitmapMutable = bitmap.copy(Config.ARGB_8888, /* isMutable= */ true);
       bitmap.recycle();
+      if (bitmapMutable == null) {
+        LogUtils.e(TAG, "screenshot could not be converted to bitmap");
+        shutdown();
+        return;
+      }
     } catch (IllegalArgumentException e) {
       LogUtils.e(TAG, "screenshot could not be converted to bitmap", e);
       shutdown();

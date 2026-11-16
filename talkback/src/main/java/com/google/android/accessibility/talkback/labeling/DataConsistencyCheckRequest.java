@@ -78,14 +78,16 @@ public class DataConsistencyCheckRequest extends LabelClientRequest<@Nullable Li
       }
 
       // Ensure the signature hash of the application matches
-      // the hash of the package when the label was stored.
+      // the hash of the package when the label was stored. Only a proven
+      // mismatch removes the label: an empty or unknown stored signature,
+      // or a signature that cannot be computed now, keeps it.
       final String expectedHash = l.getPackageSignature();
       final String actualHash = computePackageSignatureHash(packageInfo);
-      if (TextUtils.isEmpty(expectedHash)
-          || TextUtils.isEmpty(actualHash)
-          || !expectedHash.equals(actualHash)) {
-        // If the expected or actual signature hashes aren't
-        // valid, or they don't match, leave the label in the list
+      if (!TextUtils.isEmpty(expectedHash)
+          && !TextUtils.isEmpty(actualHash)
+          && !expectedHash.equals(actualHash)) {
+        // The expected and actual signature hashes are both valid
+        // and they don't match, so leave the label in the list
         // for removal.
         LogUtils.w(
             TAG,
@@ -113,6 +115,10 @@ public class DataConsistencyCheckRequest extends LabelClientRequest<@Nullable Li
     String signatureHash = "";
 
     final Signature[] sigs = packageInfo.signatures;
+    if (sigs == null) {
+      return "";
+    }
+
     try {
       final MessageDigest messageDigest = MessageDigest.getInstance("SHA-1");
       for (Signature s : sigs) {

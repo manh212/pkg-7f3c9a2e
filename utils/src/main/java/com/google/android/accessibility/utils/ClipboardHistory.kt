@@ -20,6 +20,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONException
 
@@ -87,20 +88,21 @@ object ClipboardHistory {
 
   /**
    * Puts the [current] text with [added] after it, on a new line, on the clipboard, in place of
-   * the current text at the top of the history. Returns the text put there.
+   * the current text at the top of the history. Returns the text put there, or null if the
+   * clipboard service is unavailable and nothing was put on the clipboard.
    */
   @JvmStatic
-  fun append(context: Context, added: CharSequence): String {
-    val before = current(context)
-    val combined = if (before.isNullOrEmpty()) added.toString() else before + "\n" + added
-    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return combined
-    clipboard.setPrimaryClip(ClipData.newPlainText(null, combined))
-    readClipTime = clipboard.primaryClipDescription?.timestamp ?: readClipTime
-    val entry = combined.take(MAX_LENGTH)
+  fun append(context: Context, added: CharSequence): String? {
+    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return null
     synchronized(this) {
+      val before = current(context)
+      val combined = if (before.isNullOrEmpty()) added.toString() else before + "\n" + added
+      clipboard.setPrimaryClip(ClipData.newPlainText(null, combined))
+      readClipTime = clipboard.primaryClipDescription?.timestamp ?: readClipTime
+      val entry = combined.take(MAX_LENGTH)
       write(context, (listOf(entry) + read(context).filter { it != entry && it != before }).take(MAX_ENTRIES))
+      return combined
     }
-    return combined
   }
 
   /** Adds the clipboard's text to the history, if SandFly may read it. */
@@ -155,8 +157,10 @@ object ClipboardHistory {
     synchronized(listeners) { listeners -= listener }
   }
 
-  private fun prefs(context: Context): SharedPreferences =
-    context.createDeviceProtectedStorageContext().getSharedPreferences(FILE, Context.MODE_PRIVATE)
+  private fun prefs(context: Context): SharedPreferences {
+    val deContext = ContextCompat.createDeviceProtectedStorageContext(context)
+    return (deContext ?: context).getSharedPreferences(FILE, Context.MODE_PRIVATE)
+  }
 
   private fun read(context: Context): List<String> {
     val storage = prefs(context)

@@ -90,6 +90,12 @@ public class CustomLabelMigrationManager {
     this.context = context;
   }
 
+  /** Releases the label manager and executor held by this instance. */
+  public void shutdown() {
+    executor.shutdown();
+    manager.shutdown();
+  }
+
   public void exportLabels(final OnLabelMigrationCallback callback) {
     manager.getLabelsFromDatabase(
         new LabelsFetchRequest.OnLabelsFetchedListener() {
@@ -106,6 +112,10 @@ public class CustomLabelMigrationManager {
 
   private void createLabelFileAsync(
       final List<Label> labels, final OnLabelMigrationCallback callback) {
+    if (executor.isShutdown()) {
+      notifyFailure(callback);
+      return;
+    }
     executor.execute(
         new Runnable() {
           @Override
@@ -178,42 +188,49 @@ public class CustomLabelMigrationManager {
   }
 
   private void writeToFile(String content, File file) throws IOException {
-    Writer writer = new BufferedWriter(new FileWriter(file));
-    writer.write(content);
-    writer.close();
+    try (Writer writer = new BufferedWriter(new FileWriter(file))) {
+      writer.write(content);
+    }
   }
 
   public void importLabels(
       Uri contentUri, boolean overrideExistingLabels, OnLabelMigrationCallback callback) {
-    try {
-      String text = readText(contentUri);
-      if (text == null) {
-        return;
-      }
-
-      List<Label> labels = parseLabels(text);
-      if (labels.isEmpty()) {
-        return;
-      }
-
-      manager.importLabels(labels, overrideExistingLabels, callback);
-    } catch (Exception e) {
+    if (executor.isShutdown()) {
       notifyFailure(callback);
-      LogUtils.e(TAG, "failed to import labels");
+      return;
     }
+    executor.execute(
+        () -> {
+          try {
+            String text = readText(contentUri);
+            List<Label> labels = parseLabels(text);
+            if (labels.isEmpty()) {
+              notifyFailure(callback);
+              return;
+            }
+
+            handler.post(() -> manager.importLabels(labels, overrideExistingLabels, callback));
+          } catch (Exception e) {
+            notifyFailure(callback);
+            LogUtils.e(TAG, "failed to import labels");
+          }
+        });
   }
 
   private String readText(Uri contentUri) throws IOException {
-    StringBuilder text = new StringBuilder();
     InputStream is = context.getContentResolver().openInputStream(contentUri);
-    BufferedReader br = new BufferedReader(new InputStreamReader(is));
-    String line;
-
-    while ((line = br.readLine()) != null) {
-      text.append(line);
-      text.append('\n');
+    if (is == null) {
+      throw new IOException("Cannot open input stream for " + contentUri);
     }
-    br.close();
+    StringBuilder text = new StringBuilder();
+    try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+      String line;
+
+      while ((line = br.readLine()) != null) {
+        text.append(line);
+        text.append('\n');
+      }
+    }
     return text.toString();
   }
 

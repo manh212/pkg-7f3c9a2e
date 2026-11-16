@@ -42,7 +42,7 @@ object DirectTouchPolicy {
    * direct touch goes off then and comes back when the active window returns to the game.
    */
   fun coversHalfScreen(active: Boolean, windowHeight: Int, displayHeight: Int): Boolean =
-    active && windowHeight > displayHeight / 2
+    active && windowHeight >= displayHeight / 2
 
   /** Whether touches should go straight to the app in front. */
   fun shouldBeActive(input: DirectTouchInput): Boolean =

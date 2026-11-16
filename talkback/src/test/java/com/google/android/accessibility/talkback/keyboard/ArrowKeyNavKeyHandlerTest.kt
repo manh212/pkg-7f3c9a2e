@@ -117,6 +117,19 @@ class ArrowKeyNavKeyHandlerTest {
   }
 
   @Test
+  fun on_overlappingArrows_bothFireOnRelease() {
+    ArrowKeyNav.setOn(context, true)
+    assertTrue(down(KEYCODE_DPAD_RIGHT))
+    assertTrue(down(KEYCODE_DPAD_DOWN))
+    assertTrue(up(KEYCODE_DPAD_DOWN))
+    assertTrue(up(KEYCODE_DPAD_RIGHT))
+    assertEquals(
+      listOf(ArrowKeyNavCommand.READING_CONTROL_DOWN, ArrowKeyNavCommand.NEXT_ITEM),
+      performed,
+    )
+  }
+
+  @Test
   fun on_rotorKeys_eitherOrder() {
     ArrowKeyNav.setOn(context, true)
     down(KEYCODE_DPAD_UP)

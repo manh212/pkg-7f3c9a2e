@@ -17,9 +17,12 @@
 package com.google.android.accessibility.talkback.labeling;
 
 import android.os.AsyncTask;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 /** LabelTask */
 public class LabelTask<T> extends AsyncTask<Void, Void, T> {
+
+  private static final String TAG = "LabelTask";
 
   /** TrackedTaskCallback */
   public interface TrackedTaskCallback {
@@ -30,6 +33,7 @@ public class LabelTask<T> extends AsyncTask<Void, Void, T> {
 
   private final LabelClientRequest<T> request;
   private final TrackedTaskCallback callback;
+  private volatile boolean backgroundFailed;
 
   public LabelTask(LabelClientRequest<T> request, TrackedTaskCallback callback) {
     this.callback = callback;
@@ -50,10 +54,16 @@ public class LabelTask<T> extends AsyncTask<Void, Void, T> {
    * <p>If overridden in a child class, this method should be invoked after any processing by the
    * child is complete. Failing to do so, or doing so out of order may result in failure to release
    * or premature release of resources.
+   *
+   * <p>When the background work throws, the request's own post-execute step is skipped: some
+   * requests cannot handle a null result. The tracked-task callback still runs, so the task is
+   * always accounted for and its resources released.
    */
   @Override
   protected void onPostExecute(T result) {
-    request.onPostExecute(result);
+    if (!backgroundFailed) {
+      request.onPostExecute(result);
+    }
     if (callback != null) {
       callback.onTaskPostExecute(request);
     }
@@ -62,6 +72,12 @@ public class LabelTask<T> extends AsyncTask<Void, Void, T> {
 
   @Override
   protected T doInBackground(Void... params) {
-    return request.doInBackground();
+    try {
+      return request.doInBackground();
+    } catch (RuntimeException e) {
+      backgroundFailed = true;
+      LogUtils.e(TAG, e, "LabelTask failed in doInBackground");
+      return null;
+    }
   }
 }

@@ -57,6 +57,23 @@ public class NavigationModeTest {
   }
 
   @Test
+  public void enteringModeTwoPreservesModeOneReadingControl() {
+    String selectorKey = context.getString(R.string.pref_current_selector_setting_key);
+    String wordsValue =
+        context.getString(SelectorController.Setting.GRANULARITY_WORDS.prefValueResId);
+    prefs.edit().putString(selectorKey, wordsValue).commit();
+    NavigationMode.setMode(context, "2");
+    assertTrue(NavigationMode.isModeTwo(context));
+    assertEquals(
+        context.getString(SelectorController.Setting.GRANULARITY_DEFAULT.prefValueResId),
+        prefs.getString(selectorKey, null));
+
+    NavigationMode.setMode(context, "1");
+    assertFalse(NavigationMode.isModeTwo(context));
+    assertEquals(wordsValue, prefs.getString(selectorKey, null));
+  }
+
+  @Test
   public void swipeDirectionsOnlyOverrideFourSingleSwipes() {
     assertEquals(NavigationMode.SwipeAction.SELECT_PREVIOUS,
         NavigationMode.swipeAction(AccessibilityService.GESTURE_SWIPE_UP));

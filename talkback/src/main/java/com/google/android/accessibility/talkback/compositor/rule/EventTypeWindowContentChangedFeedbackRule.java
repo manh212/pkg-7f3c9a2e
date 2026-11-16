@@ -422,9 +422,9 @@ public final class EventTypeWindowContentChangedFeedbackRule {
         return UTTERANCE_GROUP_SEEK_PROGRESS;
       }
       default -> {
-        if (contentChangeType == CONTENT_CHANGE_TYPE_CONTENT_DESCRIPTION
-            || contentChangeType == CONTENT_CHANGE_TYPE_TEXT
-            || contentChangeType == CONTENT_CHANGE_TYPE_STATE_DESCRIPTION) {
+        if ((contentChangeType & CONTENT_CHANGE_TYPE_CONTENT_DESCRIPTION) != 0
+            || (contentChangeType & CONTENT_CHANGE_TYPE_TEXT) != 0
+            || (contentChangeType & CONTENT_CHANGE_TYPE_STATE_DESCRIPTION) != 0) {
           return UTTERANCE_GROUP_CONTENT_CHANGE;
         } else {
           return UTTERANCE_GROUP_DEFAULT;

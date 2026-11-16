@@ -343,7 +343,7 @@ public enum TalkBackPhysicalKeyboardShortcut {
       R.string.keycombo_menu_other_copy_last_spoken_phrase),
   // SandFly: an ordinal well past Google's, which only analytics and performance logs use.
   TRANSLATE_LAST_SPOKEN_PHRASE(
-      /* KEYBOARD_SHORTCUT_TRANSLATE_LAST_SPOKEN_PHRASE */ 1002,
+      /* KEYBOARD_SHORTCUT_TRANSLATE_LAST_SPOKEN_PHRASE */ 1032,
       R.string.keycombo_shortcut_other_translate_last_spoken_phrase,
       R.string.keycombo_menu_other_translate_last_spoken_phrase),
   HIDE_OR_SHOW_SCREEN(

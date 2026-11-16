@@ -66,7 +66,8 @@ public class ProximitySensor {
    */
   public ProximitySensor(Context context) {
     mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-    mProxSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+    mProxSensor =
+        mSensorManager == null ? null : mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
     if (mProxSensor != null) {
       mFarValue = Math.min(mProxSensor.getMaximumRange(), TYPICAL_PROXIMITY_THRESHOLD);
     } else {
@@ -140,7 +141,9 @@ public class ProximitySensor {
           } else {
             LogUtils.v(TAG, "Processing onSensorChanged event at %d. ", System.currentTimeMillis());
           }
-          mCallback.onProximityChanged(mIsClose);
+          if (mCallback != null) {
+            mCallback.onProximityChanged(mIsClose);
+          }
         }
       };
 

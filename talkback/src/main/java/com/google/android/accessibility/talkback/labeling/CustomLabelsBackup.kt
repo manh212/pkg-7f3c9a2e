@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.labeling
 
+import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -98,18 +99,33 @@ object CustomLabelsBackup {
   /**
    * Replaces every custom label with the ones in a settings backup, and tells the label
    * manager to rebuild its cache. Every row is read first, so a bad backup changes
-   * nothing; the inserts themselves are not one transaction, so a database that fails
-   * halfway leaves the rows inserted so far.
+   * nothing. The label provider exposes no transaction, so a database that fails
+   * halfway is rolled back by restoring the rows read before the delete; that
+   * rollback is best-effort, and skipped when the current rows cannot be read.
    */
   fun restoreBackup(context: Context, json: String): Boolean {
+    val labels = parseLabels(json) ?: return false
+    val previous = backupJson(context)?.let { parseLabels(it) }
+    val resolver = context.contentResolver
+    if (!replaceAll(resolver, labels)) {
+      if (previous != null) {
+        replaceAll(resolver, previous)
+      }
+      return false
+    }
+    context.sendBroadcast(Intent(CustomLabelManager.ACTION_REFRESH_LABEL_CACHE))
+    return true
+  }
+
+  private fun parseLabels(json: String): ArrayList<ContentValues>? {
     val labels = ArrayList<ContentValues>()
     try {
       val array = JSONArray(json)
       for (i in 0 until array.length()) {
-        val entry = array.optJSONObject(i) ?: return false
+        val entry = array.optJSONObject(i) ?: return null
         val values = ContentValues()
         for (column in COLUMNS) {
-          if (!entry.has(column)) return false
+          if (!entry.has(column)) return null
           when (column) {
             LabelsTable.KEY_PACKAGE_VERSION,
             LabelsTable.KEY_TIMESTAMP -> values.put(column, entry.optLong(column))
@@ -121,9 +137,12 @@ object CustomLabelsBackup {
         labels += values
       }
     } catch (e: JSONException) {
-      return false
+      return null
     }
-    val resolver = context.contentResolver
+    return labels
+  }
+
+  private fun replaceAll(resolver: ContentResolver, labels: List<ContentValues>): Boolean {
     try {
       resolver.delete(LABELS_URI, null, null)
       for (values in labels) {
@@ -132,7 +151,6 @@ object CustomLabelsBackup {
     } catch (e: RuntimeException) {
       return false
     }
-    context.sendBroadcast(Intent(CustomLabelManager.ACTION_REFRESH_LABEL_CACHE))
     return true
   }
 }

@@ -25,6 +25,7 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceFragment;
+import android.text.TextUtils;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.annotation.XmlRes;
@@ -211,9 +212,15 @@ public final class PreferenceSettingsUtils {
     List<Fragment> fragments = activity.getSupportFragmentManager().getFragments();
     for (Fragment fragment : fragments) {
       if (fragment instanceof PreferenceFragmentCompat) {
-        return ((PreferenceFragmentCompat) fragment).findPreference(key);
+        Preference preference = ((PreferenceFragmentCompat) fragment).findPreference(key);
+        if (preference != null) {
+          return preference;
+        }
       } else if (fragment instanceof PreferenceDialogFragmentCompat) {
-        return ((PreferenceDialogFragmentCompat) fragment).getPreference();
+        Preference preference = ((PreferenceDialogFragmentCompat) fragment).getPreference();
+        if (preference != null && TextUtils.equals(key, preference.getKey())) {
+          return preference;
+        }
       }
     }
 

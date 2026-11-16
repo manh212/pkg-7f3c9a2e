@@ -52,6 +52,8 @@ class CurrentLocationReader(private val context: Context, private val announce: 
         if (request != generation || foundLocation || location.elapsedRealtimeNanos / 1_000_000 < started - 2_000) return
         foundLocation = true
         stopUpdates()
+        handler.removeCallbacks(timeout)
+        handler.postDelayed(timeout, GEOCODE_TIMEOUT_MS)
         if (!Geocoder.isPresent()) {
           finish(request, context.getString(R.string.location_address_unavailable))
           return
@@ -91,7 +93,7 @@ class CurrentLocationReader(private val context: Context, private val announce: 
       cancel()
       return unavailable(R.string.location_unavailable)
     }
-    handler.postDelayed(timeout, 15_000)
+    handler.postDelayed(timeout, LOCATION_TIMEOUT_MS)
     return true
   }
 
@@ -128,6 +130,9 @@ class CurrentLocationReader(private val context: Context, private val announce: 
   }
 
   companion object {
+    private const val LOCATION_TIMEOUT_MS = 15_000L
+    private const val GEOCODE_TIMEOUT_MS = 60_000L
+
     internal fun addressText(address: Address?): String {
       if (address == null) return ""
       val parts = listOf(address.thoroughfare, address.subLocality, address.locality, address.subAdminArea, address.adminArea)

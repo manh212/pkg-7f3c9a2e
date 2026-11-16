@@ -16,11 +16,13 @@
 package com.google.android.accessibility.utils.preference;
 
 import android.os.Bundle;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.preference.Preference;
+import androidx.preference.PreferenceDialogFragmentCompat;
 import androidx.preference.PreferenceFragmentCompat;
-import com.google.android.accessibility.utils.PreferenceSettingsUtils;
 import com.google.android.accessibility.utils.R;
+import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -78,11 +80,23 @@ public abstract class PreferencesActivity extends BasePreferencesActivity {
   }
 
   /**
-   * Finds preference from createPreferenceFragment() called only in onCreate(). gets non-updated
-   * preferences, because base class stores only 1 createPreferenceFragment() call.
+   * Finds the preference with the given key on the currently visible fragment, searching the most
+   * recently added fragment first so a sub-screen's preference wins over the root screen's.
    */
   public Preference findPreference(String key) {
-    return PreferenceSettingsUtils.findPreference(this, key);
+    List<Fragment> fragments = getSupportFragmentManager().getFragments();
+    for (int i = fragments.size() - 1; i >= 0; i--) {
+      Fragment fragment = fragments.get(i);
+      if (fragment instanceof PreferenceFragmentCompat) {
+        Preference preference = ((PreferenceFragmentCompat) fragment).findPreference(key);
+        if (preference != null) {
+          return preference;
+        }
+      } else if (fragment instanceof PreferenceDialogFragmentCompat) {
+        return ((PreferenceDialogFragmentCompat) fragment).getPreference();
+      }
+    }
+    return null;
   }
 
   /** The implementation of the activity should supports HaTS survey layout or not. */

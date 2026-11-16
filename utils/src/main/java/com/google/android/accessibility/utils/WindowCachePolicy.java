@@ -15,6 +15,9 @@ public final class WindowCachePolicy {
     int windowId = event.getWindowId();
     if (windowId < 0 || cachedWindowId < 0) return true;
     if (windowId != cachedWindowId) return false;
+    if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+      return !isNonStructuralContent(event);
+    }
     if (event.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED
         || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return true;
     int structural = AccessibilityEvent.WINDOWS_CHANGE_ADDED

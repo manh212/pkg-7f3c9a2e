@@ -124,13 +124,13 @@ public final class RideAppAccessibility {
 
     boolean hasActionable(AccessibilityNodeInfoCompat node, int depth) {
       if (!visited.add(node) || depth >= 12 || SystemClock.uptimeMillis() >= deadline) {
-        return true;
+        return false;
       }
       int count = node.getChildCount();
       for (int index = 0; index < count; index++) {
         TraversalBudget.check();
         if (queriesRemaining-- <= 0 || SystemClock.uptimeMillis() >= deadline) {
-          return true;
+          return false;
         }
         AccessibilityNodeInfoCompat child = node.getChild(index);
         if (child != null && child.isVisibleToUser()
@@ -140,7 +140,7 @@ public final class RideAppAccessibility {
           return true;
         }
       }
-      return SystemClock.uptimeMillis() >= deadline;
+      return false;
     }
   }
 }

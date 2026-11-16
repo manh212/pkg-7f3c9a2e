@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
+import java.util.regex.Matcher;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Utility methods for working with spannable objects. */
@@ -411,14 +412,20 @@ public final class SpannableUtils {
       }
     }
 
-    String formattedString = String.format(templateString, parameters);
+    String formattedString;
+    try {
+      formattedString = String.format(templateString, parameters);
+    } catch (IllegalArgumentException exception) {
+      LogUtils.e(TAG, "String.format failed, e=%s", exception);
+      return templateString;
+    }
     if (stringTypeList.isEmpty()) {
       LogUtils.v(TAG, "getSpannedFormattedString return original string");
       return formattedString;
     }
 
-    String expandableTemplate = toExpandableTemplate(templateString, parameters);
     try {
+      String expandableTemplate = toExpandableTemplate(templateString, parameters);
       // It will throw IllegalArgumentException if the template requests a value that was not
       // provided, or if more than 9 values are provided.
       return TextUtils.expandTemplate(
@@ -463,7 +470,9 @@ public final class SpannableUtils {
         spanTypeIndex++;
       } else {
         // keeps and assigns correct index to other type parameters
-        expandTemplateString = expandTemplateString.replace(("%" + i), ("%" + otherTypeIndex));
+        expandTemplateString =
+            expandTemplateString.replaceAll(
+                "%" + i + "\\$", Matcher.quoteReplacement("%" + otherTypeIndex + "$"));
         otherTypeList.add(param);
         otherTypeIndex++;
       }

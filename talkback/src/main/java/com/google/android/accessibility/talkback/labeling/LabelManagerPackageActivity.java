@@ -186,6 +186,9 @@ public class LabelManagerPackageActivity extends BasePreferencesActivity {
 
       final Map<String, Label> labelsMap =
           labelProviderClient.getLabelsForPackage(packageName, locale);
+      if (labelsMap == null) {
+        return new ArrayList<>();
+      }
       return new ArrayList<>(labelsMap.values());
     }
 

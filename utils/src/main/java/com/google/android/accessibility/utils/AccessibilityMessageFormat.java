@@ -11,6 +11,13 @@ import java.util.Map;
 public final class AccessibilityMessageFormat {
 
   public static String formatNamedArgs(Context context, String message, Object... nameValuePairs) {
+    if (nameValuePairs == null) {
+      throw new IllegalArgumentException("nameValuePairs must not be null");
+    }
+    if (nameValuePairs.length % 2 != 0) {
+      throw new IllegalArgumentException(
+          "nameValuePairs must contain an even number of arguments");
+    }
     Map<String, Object> nameValueMap = new HashMap<>();
     for(int i = 0; i < nameValuePairs.length; i+=2) {
       nameValueMap.put(String.valueOf(nameValuePairs[i]), nameValuePairs[i+1]);

@@ -93,4 +93,9 @@ class DirectTouchPolicyTest {
   fun activeShortSystemWindowIsNotTheShade() {
     assertFalse(DirectTouchPolicy.coversHalfScreen(active = true, windowHeight = 120, displayHeight = 1080))
   }
+
+  @Test
+  fun activeSystemWindowExactlyHalfTheScreenIsTheShade() {
+    assertTrue(DirectTouchPolicy.coversHalfScreen(active = true, windowHeight = 540, displayHeight = 1080))
+  }
 }

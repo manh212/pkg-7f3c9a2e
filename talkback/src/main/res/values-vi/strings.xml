@@ -696,6 +696,7 @@
   <string name="label_dialog_title_edit">Chỉnh sửa nhãn</string>
   <string name="label_dialog_title_remove">Xóa nhãn</string>
   <string name="label_dialog_confirm_label_remove">Đã xóa nhãn</string>
+  <string name="label_edit_failed">Nhãn này không còn nữa</string>
   <string name="label_dialog_text">Nhập văn bản sẽ được sử dụng làm nhãn cho thành phần này\nTên chế độ xem nội bộ: %1$s</string>
   <string name="label_dialog_edit_hint">Nội dung nhãn</string>
   <string name="label_import">Nhập nhãn tùy chỉnh</string>

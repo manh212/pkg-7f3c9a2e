@@ -93,16 +93,19 @@ public class AccessibilityEventUtils {
       return windowId;
     }
     // Try to get window id from event source.
-    AccessibilityNodeInfo source = event.getSource();
+    AccessibilityNodeInfo source = getSource(event);
     return (source == null) ? WINDOW_ID_NONE : source.getWindowId();
   }
 
   /** Returns the source display id from event. */
   public static int getDisplayId(AccessibilityEvent event) {
+    if (event == null) {
+      return Display.DEFAULT_DISPLAY;
+    }
     if (!FeatureSupport.supportMultiDisplay()) {
       return Display.DEFAULT_DISPLAY;
     }
-    AccessibilityNodeInfo source = event.getSource();
+    AccessibilityNodeInfo source = getSource(event);
     AccessibilityWindowInfo window = AccessibilityNodeInfoUtils.getWindow(source);
     return (window == null)
         ? Display.DEFAULT_DISPLAY
@@ -189,7 +192,7 @@ public class AccessibilityEventUtils {
       return WINDOW_TYPE_NONE;
     }
     // The event should have its view source or the event source window must be unavailable.
-    AccessibilityNodeInfoCompat nodeInfo = AccessibilityNodeInfoUtils.toCompat(event.getSource());
+    AccessibilityNodeInfoCompat nodeInfo = AccessibilityNodeInfoUtils.toCompat(getSource(event));
     return AccessibilityNodeInfoUtils.getWindowType(nodeInfo);
   }
 
@@ -258,6 +261,9 @@ public class AccessibilityEventUtils {
       return 0.0f;
     }
     final int maxProgress = event.getItemCount();
+    if (maxProgress <= 0) {
+      return 0.0f;
+    }
     final int progress = event.getCurrentItemIndex();
     final float percent = (progress / (float) maxProgress);
 
@@ -327,7 +333,7 @@ public class AccessibilityEventUtils {
     if (event == null) {
       return false;
     }
-    AccessibilityNodeInfo source = event.getSource();
+    AccessibilityNodeInfo source = getSource(event);
     return source != null;
   }
 

@@ -138,6 +138,7 @@ public class AudioPlaybackMonitor {
   }
 
   public void onSuspendInfrastructure() {
+    isPlaying = false;
     if (audioPlaybackCallback != null) {
       @Nullable AudioManager audioManagerNow = getAudioManager();
       if (audioManagerNow == null) {

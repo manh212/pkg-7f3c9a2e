@@ -268,6 +268,10 @@ final class NavigationLatency {
   synchronized void clearLinks() {
     events.clear();
     utterances.clear();
+    traces.clear();
+    statistics.clear();
+    violations.clear();
+    stalls.clear();
   }
 
   synchronized void reset() {

@@ -180,13 +180,21 @@ public class AccessibilityWindow {
   @Nullable
   public final CharSequence getTitle() {
     AccessibilityWindowInfoCompat compat = getCompat();
-    return (compat == null) ? null : compat.getTitle();
+    if (compat != null) {
+      return compat.getTitle();
+    }
+    AccessibilityWindowInfo bare = getBare();
+    return (bare == null) ? null : bare.getTitle();
   }
 
   @WindowType
   public final int getType() {
     AccessibilityWindowInfoCompat compat = getCompat();
-    return (compat == null) ? WINDOW_TYPE_NONE : compat.getType();
+    if (compat != null) {
+      return compat.getType();
+    }
+    AccessibilityWindowInfo bare = getBare();
+    return (bare == null) ? WINDOW_TYPE_NONE : bare.getType();
   }
 
   @Nullable

@@ -42,13 +42,20 @@ class StreamingPcmPlayer(
         val writtenBytes: Long,
     )
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val droppedChunks = AtomicLong(0L)
     private val pausedBacklogDroppedChunks = AtomicLong(0L)
     private val writtenBytes = AtomicLong(0L)
     private val usesOriginalDeadlineQueue = diagnosticName == "OriginalPlayer"
     private val originalDeadlineQueue = if (usesOriginalDeadlineQueue) OriginalPcmDeadlineQueue(sampleRate) else null
-    private val queue = Channel<ByteArray>(
+    private var queue = newQueue()
+    private val paused = AtomicBoolean(false)
+    private val pauseLock = Any()
+    private val trackLock = Any()
+    private val pausedBacklog = ArrayDeque<ByteArray>()
+    private var pausedBacklogBytes = 0L
+
+    private fun newQueue() = Channel<ByteArray>(
         capacity = queueCapacity.coerceAtLeast(2),
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
         onUndeliveredElement = {
@@ -58,10 +65,6 @@ class StreamingPcmPlayer(
             }
         },
     )
-    private val paused = AtomicBoolean(false)
-    private val pauseLock = Any()
-    private val pausedBacklog = ArrayDeque<ByteArray>()
-    private var pausedBacklogBytes = 0L
 
     @Volatile private var volume = 1f
     @Volatile private var playbackSpeed = 1f
@@ -70,12 +73,17 @@ class StreamingPcmPlayer(
 
     fun start() {
         if (worker?.isActive == true) return
+        if (!scope.isActive) {
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            queue = newQueue()
+        }
         val channelMask = AudioFormat.CHANNEL_OUT_MONO
         val minimum = AudioTrack.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
         require(minimum > 0) { "AudioTrack không hỗ trợ sampleRate=$sampleRate, minBuffer=$minimum" }
         val chosenBuffer = maxOf(minimum, bufferBytes).coerceAtLeast(sampleRate / 2)
         val resolvedUsage = resolveUsage()
-        track = AudioTrack.Builder()
+        synchronized(trackLock) {
+            track = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(resolvedUsage)
@@ -98,6 +106,7 @@ class StreamingPcmPlayer(
                 applyPlaybackSpeed(it, playbackSpeed)
                 logger?.log(2, diagnosticName, "Khởi tạo AudioTrack sampleRate=$sampleRate bufferBytes=$chosenBuffer sessionId=${it.audioSessionId} jitter=$initialJitterChunks speed=${formatSpeed(playbackSpeed)}x usage=$resolvedUsage deadlineQueue=$usesOriginalDeadlineQueue")
             }
+        }
         worker = scope.launch {
             runCatching {
                 if (usesOriginalDeadlineQueue) {
@@ -124,7 +133,7 @@ class StreamingPcmPlayer(
                 logger?.log(
                     3,
                     diagnosticName,
-                    "Xếp PCM gốc theo deadline dueInMs=${(dueAt - now).coerceAtLeast(0L)} queued=${stats.queuedChunks} bytes=${stats.queuedBytes} generation=${stats.generation}",
+                    "Xếp PCM gốc theo deadline dueInMs=${(dueAt - now).coerceAtLeast(0L)} queued=${stats.queuedChunks} bytes=${stats.queuedBytes} dropped=${stats.droppedChunks} generation=${stats.generation}",
                 )
             }
             return
@@ -280,15 +289,19 @@ class StreamingPcmPlayer(
         worker = null
         queue.close()
         originalDeadlineQueue?.clear()
+        paused.set(false)
         synchronized(pauseLock) {
             pausedBacklog.clear()
             pausedBacklogBytes = 0L
         }
-        runCatching { current?.pause() }
-        runCatching { current?.flush() }
-        runCatching { current?.stop() }
-        runCatching { current?.release() }
-        track = null
+        synchronized(trackLock) {
+            val releasing = track
+            runCatching { releasing?.pause() }
+            runCatching { releasing?.flush() }
+            runCatching { releasing?.stop() }
+            runCatching { releasing?.release() }
+            track = null
+        }
         scope.cancel()
     }
 
@@ -383,16 +396,19 @@ class StreamingPcmPlayer(
 
     private fun writeBlocking(data: ByteArray) {
         while (paused.get() && worker?.isActive == true) Thread.sleep(25)
-        val audioTrack = track ?: return
-        var offset = 0
-        while (offset < data.size) {
-            val written = audioTrack.write(data, offset, data.size - offset, AudioTrack.WRITE_BLOCKING)
-            if (written <= 0) {
-                logger?.log(0, diagnosticName, "AudioTrack.write thất bại code=$written remaining=${data.size - offset}")
-                return
+        if (worker?.isActive != true) return
+        synchronized(trackLock) {
+            val audioTrack = track ?: return
+            var offset = 0
+            while (offset < data.size) {
+                val written = audioTrack.write(data, offset, data.size - offset, AudioTrack.WRITE_BLOCKING)
+                if (written <= 0) {
+                    logger?.log(0, diagnosticName, "AudioTrack.write thất bại code=$written remaining=${data.size - offset}")
+                    return
+                }
+                offset += written
+                writtenBytes.addAndGet(written.toLong())
             }
-            offset += written
-            writtenBytes.addAndGet(written.toLong())
         }
     }
 

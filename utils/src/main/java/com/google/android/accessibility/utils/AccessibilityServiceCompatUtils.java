@@ -199,7 +199,7 @@ public class AccessibilityServiceCompatUtils {
   /** Returns the picture-in-picture window if open, or {@code null}. */
   public static @Nullable AccessibilityWindowInfo getPipWindow(AccessibilityService service) {
     for (AccessibilityWindowInfo window : getWindows(service)) {
-      if (window.isInPictureInPictureMode()) {
+      if (window != null && window.isInPictureInPictureMode()) {
         return window;
       }
     }
@@ -238,7 +238,7 @@ public class AccessibilityServiceCompatUtils {
   public static List<AccessibilityWindowInfo> getSystemWindows(AccessibilityService service) {
     List<AccessibilityWindowInfo> windows = new ArrayList<>();
     for (AccessibilityWindowInfo window : getWindows(service)) {
-      if (window.getType() == AccessibilityWindowInfo.TYPE_SYSTEM) {
+      if (window != null && window.getType() == AccessibilityWindowInfo.TYPE_SYSTEM) {
         windows.add(window);
       }
     }
@@ -337,6 +337,9 @@ public class AccessibilityServiceCompatUtils {
 
   /** Returns if accessibility service is enabled. */
   public static boolean isAccessibilityServiceEnabled(Context context, String packageName) {
+    if (packageName == null) {
+      return false;
+    }
     @Nullable AccessibilityManager manager =
         (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
     if (manager == null) {
@@ -346,11 +349,28 @@ public class AccessibilityServiceCompatUtils {
         manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
     if (list != null) {
       for (AccessibilityServiceInfo serviceInfo : list) {
-        if (serviceInfo.getId().contains(packageName)) {
+        if (isSameService(serviceInfo.getId(), packageName)) {
           return true;
         }
       }
     }
     return false;
+  }
+
+  /** Compares two service ids as whole ids, tolerating short and long flattened forms. */
+  private static boolean isSameService(@Nullable String serviceId, String packageName) {
+    if (serviceId == null) {
+      return false;
+    }
+    if (serviceId.equals(packageName)) {
+      return true;
+    }
+    ComponentName service = ComponentName.unflattenFromString(serviceId);
+    ComponentName wanted = ComponentName.unflattenFromString(packageName);
+    if (service != null && service.equals(wanted)) {
+      return true;
+    }
+    int separator = serviceId.indexOf('/');
+    return separator > 0 && packageName.equals(serviceId.substring(0, separator));
   }
 }

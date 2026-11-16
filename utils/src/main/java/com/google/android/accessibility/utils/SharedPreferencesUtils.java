@@ -233,6 +233,9 @@ public class SharedPreferencesUtils {
   public static void migrateSharedPreferences(Context context) {
     if (BuildVersionUtils.isAtLeastN()) {
       Context deContext = ContextCompat.createDeviceProtectedStorageContext(context);
+      if (deContext == null) {
+        return;
+      }
       deContext.moveSharedPreferencesFrom(
           context, PreferenceManager.getDefaultSharedPreferencesName(context));
     }

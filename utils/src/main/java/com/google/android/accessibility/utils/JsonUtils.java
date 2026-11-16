@@ -43,17 +43,31 @@ public class JsonUtils {
     }
   }
 
-  public static @Nullable String getString(JSONObject jsonObject, String key) throws JSONException {
-    if (jsonObject != null && jsonObject.has(key)) {
-      return jsonObject.getString(key);
+  public static @Nullable String getString(JSONObject jsonObject, String key)
+      throws JSONException {
+    if (jsonObject != null) {
+      Object value = jsonObject.opt(key);
+      if (value instanceof String) {
+        return (String) value;
+      }
     }
 
     return null;
   }
 
   public static int getInt(JSONObject jsonObject, String key) throws JSONException {
-    if (jsonObject != null && jsonObject.has(key)) {
-      return jsonObject.getInt(key);
+    if (jsonObject != null) {
+      Object value = jsonObject.opt(key);
+      if (value instanceof Number) {
+        return ((Number) value).intValue();
+      }
+      if (value instanceof String) {
+        try {
+          return Integer.parseInt((String) value);
+        } catch (NumberFormatException e) {
+          return -1;
+        }
+      }
     }
 
     return -1;
@@ -61,8 +75,11 @@ public class JsonUtils {
 
   public static @Nullable JSONArray getJsonArray(JSONObject jsonObject, String key)
       throws JSONException {
-    if (jsonObject != null && jsonObject.has(key)) {
-      return jsonObject.getJSONArray(key);
+    if (jsonObject != null) {
+      Object value = jsonObject.opt(key);
+      if (value instanceof JSONArray) {
+        return (JSONArray) value;
+      }
     }
 
     return null;
@@ -70,8 +87,11 @@ public class JsonUtils {
 
   public static @Nullable JSONObject getJsonObject(JSONObject jsonObject, String key)
       throws JSONException {
-    if (jsonObject != null && jsonObject.has(key)) {
-      return jsonObject.getJSONObject(key);
+    if (jsonObject != null) {
+      Object value = jsonObject.opt(key);
+      if (value instanceof JSONObject) {
+        return (JSONObject) value;
+      }
     }
 
     return null;

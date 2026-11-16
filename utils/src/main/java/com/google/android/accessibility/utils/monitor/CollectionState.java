@@ -511,6 +511,9 @@ public class CollectionState {
 
     CollectionInfoCompat collection = collectionRoot.getCollectionInfo();
     CollectionItemInfoCompat item = collectionItemNode.getCollectionItemInfo();
+    if (item == null) {
+      return null;
+    }
 
     boolean isHeading = AccessibilityNodeInfoUtils.isHeading(collectionItemNode);
     CharSequence roleDescription = collectionItemNode.getRoleDescription();
@@ -569,6 +572,9 @@ public class CollectionState {
 
     CollectionInfoCompat collection = collectionRoot.getCollectionInfo();
     CollectionItemInfoCompat item = collectionItemNode.getCollectionItemInfo();
+    if (item == null) {
+      return null;
+    }
 
     boolean heading = collectionItemNode.isHeading();
     int rowIndex = getRowIndex(item, collection);
@@ -612,6 +618,9 @@ public class CollectionState {
 
     CollectionInfoCompat collection = collectionRoot.getCollectionInfo();
     CollectionItemInfoCompat item = collectionItemNode.getCollectionItemInfo();
+    if (item == null) {
+      return null;
+    }
 
     @TableHeadingType int heading = getTableHeadingType(collectionItemNode, item, collection);
     int rowIndex = getRowIndex(item, collection);
@@ -822,6 +831,7 @@ public class CollectionState {
         {
           // We can clear the item state, but we need to keep the collection root.
           mRowColumnTransition = 0;
+          mCollectionLevel = -1;
           mLastAnnouncedNode = null;
           mItemState = null;
           break;
@@ -832,6 +842,7 @@ public class CollectionState {
           // Safe to clear everything.
           mRowColumnTransition = 0;
           mCollectionRoot = null;
+          mCollectionLevel = -1;
           mLastAnnouncedNode = null;
           mItemState = null;
           break;

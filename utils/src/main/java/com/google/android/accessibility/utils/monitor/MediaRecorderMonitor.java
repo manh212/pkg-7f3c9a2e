@@ -85,8 +85,14 @@ public class MediaRecorderMonitor {
       List<AudioRecordingConfiguration> audioRecordingConfigurations =
           audioManager.getActiveRecordingConfigurations();
       isVoiceRecognitionActive = containsAudioSourceVoiceRecognition(audioRecordingConfigurations);
+      final boolean wasRecording = isRecording;
       isRecording = containsAudioSources(audioRecordingConfigurations);
       LowLatencyAudio.setMicrophoneInUse(isRecording);
+      if (!wasRecording && isRecording && (listener != null)) {
+        listener.onMicrophoneActivated();
+      } else if (wasRecording && !isRecording && (listener != null)) {
+        listener.onMicrophoneDeactivated();
+      }
       audioManager.registerAudioRecordingCallback(audioRecordingCallback, null);
     }
   }
@@ -95,6 +101,11 @@ public class MediaRecorderMonitor {
     if (audioManager != null) {
       audioManager.unregisterAudioRecordingCallback(audioRecordingCallback);
     }
+    if (isRecording && (listener != null)) {
+      listener.onMicrophoneDeactivated();
+    }
+    isRecording = false;
+    isVoiceRecognitionActive = false;
     LowLatencyAudio.setMicrophoneInUse(false);
   }
 

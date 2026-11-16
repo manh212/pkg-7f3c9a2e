@@ -22,6 +22,12 @@ import android.content.Context;
  * Reader class for flags of experimental feature.
  *
  * <p>Order the functions alphabetically.
+ *
+ * <p>This is intentionally a static table of literals, not a live flag system: the fork has no
+ * remote flag backend, so every method returns a fixed value and ignores its {@link Context}.
+ * Call sites read these as if they were configuration, but no flag can vary by device, build,
+ * or rollout. Do not reintroduce a remote flag system here without an explicit decision; change
+ * a value here when a feature's rollout state changes.
  */
 public final class FeatureFlagReader {
   public static boolean allowAutomaticTurnOff(Context context) {

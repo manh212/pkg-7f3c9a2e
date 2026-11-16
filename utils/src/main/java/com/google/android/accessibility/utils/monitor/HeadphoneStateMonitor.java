@@ -40,6 +40,7 @@ public class HeadphoneStateMonitor {
   private @Nullable AudioDeviceCallback audioDeviceCallback;
   private Context mContext;
   private @Nullable Listener listener;
+  private boolean monitoring = false;
 
   public HeadphoneStateMonitor(Context context) {
     mContext = context;
@@ -81,6 +82,9 @@ public class HeadphoneStateMonitor {
 
   /** Initializes this HeadphoneStateMonitor to start listening to headphone state changes. */
   public void startMonitoring() {
+    if (monitoring) {
+      return;
+    }
     @Nullable AudioManager audioManager =
         (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
     // Initialize the active device count.
@@ -96,10 +100,15 @@ public class HeadphoneStateMonitor {
     }
     audioManager.registerAudioDeviceCallback(
         getAudioDeviceCallback(), /* use the main thread */ null);
+    monitoring = true;
   }
 
   /** Stop listening to headphone state changes. */
   public void stopMonitoring() {
+    if (!monitoring) {
+      return;
+    }
+    monitoring = false;
     @Nullable AudioManager audioManager =
         (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
     if (audioManager == null) {

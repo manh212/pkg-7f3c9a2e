@@ -12,6 +12,8 @@ public final class NavigationMode {
   private static final String MODE_TWO = "2";
   private static final String MODE_ONE_UP_DOWN = "pref_navigation_mode_one_up_down";
   private static final String MODE_TWO_UP_DOWN = "pref_navigation_mode_two_up_down";
+  private static final String MODE_ONE_SELECTOR_SETTING =
+      "pref_navigation_mode_one_selector_setting";
 
   public enum SwipeAction {
     NONE,
@@ -59,10 +61,15 @@ public final class NavigationMode {
         .putString(saveKey, activeAction)
         .putString(gestureKey, restoredAction)
         .putString(PREF_KEY, next);
+    String selectorKey = context.getString(R.string.pref_current_selector_setting_key);
+    String selectorDefault = context.getString(R.string.pref_selector_setting_default);
     if (MODE_TWO.equals(next)) {
+      editor.putString(MODE_ONE_SELECTOR_SETTING, prefs.getString(selectorKey, selectorDefault));
       editor.putString(
-          context.getString(R.string.pref_current_selector_setting_key),
+          selectorKey,
           context.getString(SelectorController.Setting.GRANULARITY_DEFAULT.prefValueResId));
+    } else {
+      editor.putString(selectorKey, prefs.getString(MODE_ONE_SELECTOR_SETTING, selectorDefault));
     }
     editor.apply();
   }

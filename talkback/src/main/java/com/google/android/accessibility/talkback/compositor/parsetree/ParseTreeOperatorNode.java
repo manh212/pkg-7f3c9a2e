@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.compositor.parsetree;
 
+import android.text.TextUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 class ParseTreeOperatorNode extends ParseTreeNode {
@@ -220,6 +221,10 @@ class ParseTreeOperatorNode extends ParseTreeNode {
     } else if (ltype == ParseTree.VARIABLE_NUMBER && rtype == ParseTree.VARIABLE_NUMBER) {
       return mLvalue.resolveToNumber(delegate, logIndent)
           == mRvalue.resolveToNumber(delegate, logIndent);
+    } else if (ltype == ParseTree.VARIABLE_STRING && rtype == ParseTree.VARIABLE_STRING) {
+      return TextUtils.equals(
+          mLvalue.resolveToString(delegate, logIndent),
+          mRvalue.resolveToString(delegate, logIndent));
     }
     LogUtils.e(TAG, "Incompatible types in compare: %d, %d", ltype, rtype);
     return false;

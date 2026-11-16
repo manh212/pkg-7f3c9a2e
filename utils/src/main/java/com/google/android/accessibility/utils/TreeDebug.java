@@ -74,16 +74,16 @@ public class TreeDebug {
       return;
     }
 
-    HashSet<AccessibilityNodeInfoCompat> seen = new HashSet<>();
-    logNodeTree(node, "", seen, treeDebugLogger);
+    HashSet<AccessibilityNodeInfoCompat> currentPath = new HashSet<>();
+    logNodeTree(node, "", currentPath, treeDebugLogger);
   }
 
   private static void logNodeTree(
       AccessibilityNodeInfoCompat node,
       String indent,
-      HashSet<AccessibilityNodeInfoCompat> seen,
+      HashSet<AccessibilityNodeInfoCompat> currentPath,
       @NonNull Logger looger) {
-    if (!seen.add(node)) {
+    if (!currentPath.add(node)) {
       looger.log("Cycle: %d", node.hashCode());
       return;
     }
@@ -101,17 +101,15 @@ public class TreeDebug {
         continue;
       }
 
-      logNodeTree(child, indent, seen, looger);
+      logNodeTree(child, indent, currentPath, looger);
     }
+    currentPath.remove(node);
   }
 
   private static void appendSimpleName(StringBuilder sb, CharSequence fullName) {
     int dotIndex = TextUtils.lastIndexOf(fullName, '.');
-    if (dotIndex < 0) {
-      dotIndex = 0;
-    }
 
-    sb.append(fullName, dotIndex, fullName.length());
+    sb.append(fullName, dotIndex + 1, fullName.length());
   }
 
   /** Gets a description of the properties of a node. */

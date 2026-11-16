@@ -53,7 +53,12 @@ class FixedKeyboardScheme @JvmOverloads constructor(
 
   fun reset() {
     recognizer.cancelPending()
-    if (consumedCaps.isEmpty()) caps.reset()
+    passedCaps.clear()
+    nativeCapsHeld.clear()
+    nativeCapsUsed.clear()
+    nativeCapsBefore.clear()
+    consumedCaps.clear()
+    caps.reset()
   }
 
   fun hasHeldCaps(deviceId: Int): Boolean = deviceId in consumedCaps

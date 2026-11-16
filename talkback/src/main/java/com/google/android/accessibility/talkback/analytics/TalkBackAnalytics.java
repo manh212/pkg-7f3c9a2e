@@ -190,6 +190,8 @@ public interface TalkBackAnalytics extends OnSharedPreferenceChangeListener {
     GESTURE_3FINGER_3TAP_HOLD,
     GESTURE_SPLIT_TAP,
     GESTURE_LIFT_TO_TYPE,
+    GESTURE_2FINGER_1TAP_HOLD,
+    GESTURE_SPLIT_TAP_HOLD,
   })
   @Retention(RetentionPolicy.SOURCE)
   @interface GestureId {}

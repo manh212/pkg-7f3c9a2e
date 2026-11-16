@@ -681,6 +681,14 @@ public class AccessibilityNodeInfoUtils {
       selectionEnd = selectionStart;
       selectionStart = newStart;
     }
+    CharSequence text = node.getText();
+    int textLength = (text == null) ? 0 : text.length();
+    if (selectionStart > textLength) {
+      selectionStart = textLength;
+    }
+    if (selectionEnd > textLength) {
+      selectionEnd = textLength;
+    }
     return Pair.create(selectionStart, selectionEnd);
   }
 
@@ -2239,7 +2247,7 @@ public class AccessibilityNodeInfoUtils {
       final int supportedActions = node.getActions();
 
       for (int action : actions) {
-        if ((supportedActions & action) == action) {
+        if ((supportedActions & action) != 0) {
           return true;
         }
       }
@@ -2354,7 +2362,10 @@ public class AccessibilityNodeInfoUtils {
    */
   public static @Nullable AccessibilityNodeInfoCompat refreshNode(
       AccessibilityNodeInfoCompat node) {
-    return ((node == null) || !node.refresh()) ? null : node;
+    if (node == null || !node.refresh()) {
+      return null;
+    }
+    return AccessibilityNodeInfoCompat.obtain(node);
   }
 
   /**
@@ -2422,11 +2433,12 @@ public class AccessibilityNodeInfoUtils {
     // available.
     String key = AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY;
     boolean isBoundsInWindow = false;
+    List<String> availableExtraData = info.getAvailableExtraData();
     if (useWindowBound
         && BuildVersionUtils.isAtLeastBaklava()
-        && info.getAvailableExtraData()
-            .contains(
-                AccessibilityNodeInfoCompat.EXTRA_DATA_TEXT_CHARACTER_LOCATION_IN_WINDOW_KEY)) {
+        && availableExtraData != null
+        && availableExtraData.contains(
+            AccessibilityNodeInfoCompat.EXTRA_DATA_TEXT_CHARACTER_LOCATION_IN_WINDOW_KEY)) {
       key = AccessibilityNodeInfoCompat.EXTRA_DATA_TEXT_CHARACTER_LOCATION_IN_WINDOW_KEY;
       isBoundsInWindow = true;
     }
@@ -2441,6 +2453,9 @@ public class AccessibilityNodeInfoUtils {
     }
 
     Bundle extras = info.getExtras();
+    if (extras == null) {
+      return null;
+    }
     Parcelable[] data = extras.getParcelableArray(key);
     if (data == null) {
       return null;
@@ -2449,11 +2464,14 @@ public class AccessibilityNodeInfoUtils {
     Rect windowBounds = new Rect();
     if (isBoundsInWindow) {
       AccessibilityWindowInfo windowInfo = info.getWindow();
+      if (windowInfo == null) {
+        return null;
+      }
       windowInfo.getBoundsInScreen(windowBounds);
     }
     List<Rect> result = new ArrayList<>(data.length);
     for (Parcelable item : data) {
-      if (item == null) {
+      if (!(item instanceof RectF)) {
         continue;
       }
       RectF rectF = (RectF) item;

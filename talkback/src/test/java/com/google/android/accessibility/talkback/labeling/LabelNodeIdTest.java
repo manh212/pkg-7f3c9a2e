@@ -5,8 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.robolectric.Shadows.shadowOf;
 
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -77,6 +79,51 @@ public class LabelNodeIdTest {
     node.setFocusable(false);
     node.setScreenReaderFocusable(true);
     assertTrue(LabelNodeId.resourceName(node).startsWith("com.zing.zalo:id/sandfly_unlabeled_"));
+  }
+
+  @Test
+  public void resourceName_withParentChain_isStable() {
+    AccessibilityNodeInfo parent = AccessibilityNodeInfo.obtain();
+    parent.setClassName(ViewGroup.class.getName());
+    parent.setPackageName("com.example.app");
+    AccessibilityNodeInfo child = AccessibilityNodeInfo.obtain();
+    child.setClassName(Button.class.getName());
+    child.setPackageName("com.example.app");
+    child.setClickable(true);
+    child.setEnabled(true);
+    shadowOf(parent).addChild(child);
+    AccessibilityNodeInfoCompat childCompat = AccessibilityNodeInfoCompat.wrap(child);
+    String id = LabelNodeId.resourceName(childCompat);
+    assertTrue(id.startsWith("com.example.app:id/sandfly_unlabeled_"));
+    assertEquals(id, LabelNodeId.resourceName(childCompat));
+  }
+
+  @Test
+  public void hasSpokenLabel_childWithText_returnsTrue() {
+    AccessibilityNodeInfo parent = AccessibilityNodeInfo.obtain();
+    parent.setClassName(ViewGroup.class.getName());
+    parent.setPackageName("com.example.app");
+    AccessibilityNodeInfo child = AccessibilityNodeInfo.obtain();
+    child.setClassName(TextView.class.getName());
+    child.setPackageName("com.example.app");
+    child.setText("Hello");
+    shadowOf(parent).addChild(child);
+    AccessibilityNodeInfoCompat parentCompat = AccessibilityNodeInfoCompat.wrap(parent);
+    assertTrue(LabelNodeId.hasSpokenLabel(parentCompat));
+  }
+
+  @Test
+  public void hasSpokenLabel_noTextAnywhere_returnsFalse() {
+    AccessibilityNodeInfo parent = AccessibilityNodeInfo.obtain();
+    parent.setClassName(ViewGroup.class.getName());
+    parent.setPackageName("com.example.app");
+    AccessibilityNodeInfo child = AccessibilityNodeInfo.obtain();
+    child.setClassName(Button.class.getName());
+    child.setPackageName("com.example.app");
+    child.setClickable(true);
+    shadowOf(parent).addChild(child);
+    AccessibilityNodeInfoCompat parentCompat = AccessibilityNodeInfoCompat.wrap(parent);
+    assertFalse(LabelNodeId.hasSpokenLabel(parentCompat));
   }
 
   @Test

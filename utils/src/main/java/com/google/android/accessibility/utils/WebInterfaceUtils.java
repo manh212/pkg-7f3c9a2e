@@ -310,6 +310,9 @@ public class WebInterfaceUtils {
         return false;
       }
       Bundle bundle = node.getExtras();
+      if (bundle == null) {
+        return false;
+      }
       CharSequence supportedHtmlElements =
           bundle.getCharSequence(ACTION_ARGUMENT_HTML_ELEMENT_STRING_VALUES);
 
@@ -406,6 +409,9 @@ public class WebInterfaceUtils {
         new Filter<AccessibilityNodeInfoCompat>() {
           @Override
           public boolean accept(AccessibilityNodeInfoCompat node) {
+            if (node == null || node.getPackageName() == null) {
+              return false;
+            }
             return URL_BAR_IDS
                 .getOrDefault(node.getPackageName().toString(), ImmutableList.of())
                 .contains(node.getViewIdResourceName());

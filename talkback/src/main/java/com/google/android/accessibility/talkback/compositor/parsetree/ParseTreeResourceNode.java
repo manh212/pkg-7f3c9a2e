@@ -77,6 +77,13 @@ class ParseTreeResourceNode extends ParseTreeNode {
   }
 
   void addParams(List<ParseTreeNode> params) {
+    for (ParseTreeNode param : params) {
+      int type = param.getType();
+      if (type == ParseTree.VARIABLE_ARRAY || type == ParseTree.VARIABLE_CHILD_ARRAY) {
+        throw new IllegalStateException(
+            "Cannot format string with array type: " + ParseTree.variableTypeToString(type));
+      }
+    }
     mParams.addAll(params);
   }
 
@@ -145,9 +152,11 @@ class ParseTreeResourceNode extends ParseTreeNode {
         result.add(node.resolveToInteger(delegate, logIndent));
       } else if (type == ParseTree.VARIABLE_NUMBER) {
         result.add(node.resolveToNumber(delegate, logIndent));
-      } else if (type == ParseTree.VARIABLE_ENUM || type == ParseTree.VARIABLE_ARRAY
-          || type == ParseTree.VARIABLE_CHILD_ARRAY) {
-        LogUtils.e(TAG, "Cannot format string with type: " + node.getType());
+      } else if (type == ParseTree.VARIABLE_ENUM) {
+        result.add(node.resolveToInteger(delegate, logIndent));
+      } else if (type == ParseTree.VARIABLE_ARRAY || type == ParseTree.VARIABLE_CHILD_ARRAY) {
+        throw new IllegalStateException(
+            "Cannot format string with array type: " + ParseTree.variableTypeToString(type));
       }
     }
     return result.toArray();

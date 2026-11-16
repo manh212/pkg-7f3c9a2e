@@ -155,6 +155,9 @@ public final class Statistics {
     if (rawData == null || rawData.isEmpty()) {
       return -1L;
     }
+    if (rank <= 0 || rank > 100) {
+      return -1L;
+    }
 
     List<Long> sortedData = new ArrayList<>(rawData);
     Collections.sort(sortedData);

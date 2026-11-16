@@ -146,10 +146,11 @@ public class ScrollableNodeInfo {
     supportsUpDownScrolling = false;
     supportsLeftRightScrolling = false;
     for (AccessibilityActionCompat action : node.getActionList()) {
-      if (action.equals(ACTION_SCROLL_UP) || action.equals(ACTION_SCROLL_DOWN)) {
+      int actionId = action.getId();
+      if (actionId == ACTION_SCROLL_UP.getId() || actionId == ACTION_SCROLL_DOWN.getId()) {
         supportsUpDownScrolling = true;
       }
-      if (action.equals(ACTION_SCROLL_LEFT) || action.equals(ACTION_SCROLL_RIGHT)) {
+      if (actionId == ACTION_SCROLL_LEFT.getId() || actionId == ACTION_SCROLL_RIGHT.getId()) {
         supportsLeftRightScrolling = true;
       }
     }

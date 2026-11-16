@@ -167,9 +167,10 @@ public class SpellChecker {
       return new SpannableString("");
     }
 
-    if (hasCachedResult(text)) {
+    CharSequence cachedResult = getCachedResult(text);
+    if (cachedResult != null) {
       LogUtils.v(TAG, "Get result from the cache.");
-      return getResultFromCache();
+      return cachedResult;
     }
 
     final SpellChecker spellChecker = new SpellChecker(context, text, listener);
@@ -185,6 +186,9 @@ public class SpellChecker {
                   LogUtils.e(TAG, "Fail to perform spell checker.");
                   return;
                 }
+                if (Thread.currentThread().isInterrupted()) {
+                  return;
+                }
                 Looper.loop();
               } finally {
                 spellChecker.close();
@@ -196,6 +200,7 @@ public class SpellChecker {
       thread.join(SPELL_CHECKING_MAX_WAITING_TIME_MS);
     } catch (InterruptedException e) {
       LogUtils.e(TAG, "Fail to wait for the thread of spell checking.");
+      Thread.currentThread().interrupt();
     }
 
     if (!spellChecker.listener.isFinished()) {
@@ -204,6 +209,8 @@ public class SpellChecker {
       Looper looper = threadLooper.get();
       if (looper != null) {
         looper.quitSafely();
+      } else {
+        thread.interrupt();
       }
       return text;
     }
@@ -327,6 +334,11 @@ public class SpellChecker {
         SuggestionsInfo suggestionsInfo = sentenceSuggestionsInfo.getSuggestionsInfoAt(i);
         int start = sentenceSuggestionsInfo.getOffsetAt(i);
         int end = start + sentenceSuggestionsInfo.getLengthAt(i);
+        start = Math.max(0, Math.min(start, spanned.length()));
+        end = Math.max(start, Math.min(end, spanned.length()));
+        if (start >= end) {
+          continue;
+        }
         @Nullable
         SpellingSuggestion spellingSuggestion =
             createSpellingSuggestion(
@@ -471,15 +483,21 @@ public class SpellChecker {
 
   @VisibleForTesting
   static void updateCachedResult(CharSequence textWithSuggestionSpans) {
-    resultCache.textWithSuggestionSpans = textWithSuggestionSpans;
+    synchronized (resultCache) {
+      resultCache.textWithSuggestionSpans = textWithSuggestionSpans;
+    }
   }
 
   private static boolean hasCachedResult(CharSequence text) {
-    return resultCache.isSameText(text);
+    synchronized (resultCache) {
+      return resultCache.isSameText(text);
+    }
   }
 
-  private static CharSequence getResultFromCache() {
-    return resultCache.textWithSuggestionSpans;
+  private static @Nullable CharSequence getCachedResult(CharSequence text) {
+    synchronized (resultCache) {
+      return resultCache.isSameText(text) ? resultCache.textWithSuggestionSpans : null;
+    }
   }
 
   /**

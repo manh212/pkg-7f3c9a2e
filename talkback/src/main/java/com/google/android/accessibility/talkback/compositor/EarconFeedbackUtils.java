@@ -19,6 +19,7 @@ import static android.view.View.ACCESSIBILITY_LIVE_REGION_NONE;
 import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED;
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
 
+import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.annotation.Nullable;
 import androidx.annotation.RawRes;
@@ -60,7 +61,7 @@ public final class EarconFeedbackUtils {
         || srcNode.isFocused()
         || srcNode.isAccessibilityFocused()
         || srcNode.getLiveRegion() != ACCESSIBILITY_LIVE_REGION_NONE)) {
-      return (!event.getText().isEmpty() && !srcNode.getText().equals(eventDescription))
+      return (!event.getText().isEmpty() && !TextUtils.equals(srcNode.getText(), eventDescription))
           ? -1
           : R.raw.scroll_tone;
     }

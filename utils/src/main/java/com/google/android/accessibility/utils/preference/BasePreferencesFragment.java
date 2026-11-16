@@ -15,8 +15,9 @@
  */
 package com.google.android.accessibility.utils.preference;
 
-import android.app.ActionBar;
 import android.os.Bundle;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentActivity;
 import androidx.preference.PreferenceFragmentCompat;
 import com.google.android.accessibility.utils.PreferenceSettingsUtils;
@@ -53,11 +54,14 @@ public abstract class BasePreferencesFragment extends PreferenceFragmentCompat {
     super.onResume();
 
     FragmentActivity activity = getActivity();
+    if (activity == null) {
+      return;
+    }
     activity.setTitle(getTitle());
 
     @Nullable CharSequence subTitle = getSubTitle();
-    if (subTitle != null) {
-      ActionBar actionBar = activity.getActionBar();
+    if (subTitle != null && activity instanceof AppCompatActivity) {
+      ActionBar actionBar = ((AppCompatActivity) activity).getSupportActionBar();
       if (actionBar != null) {
         actionBar.setSubtitle(subTitle);
       }

@@ -65,6 +65,7 @@ public class LabelManagerSummaryActivity extends BasePreferencesActivity
   private RecyclerView packageList;
   private PackageLabelInfoAdapter packageLabelInfoAdapter;
   private CustomLabelManager labelManager;
+  private CustomLabelMigrationManager labelMigrationManager;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -77,6 +78,7 @@ public class LabelManagerSummaryActivity extends BasePreferencesActivity
     packageList = (RecyclerView) findViewById(R.id.package_list);
 
     labelManager = new CustomLabelManager(this);
+    labelMigrationManager = new CustomLabelMigrationManager(getApplicationContext());
 
     packageList.setLayoutManager(new LinearLayoutManager(getApplicationContext()));
     packageLabelInfoAdapter = new PackageLabelInfoAdapter(this, this, labelManager);
@@ -94,6 +96,7 @@ public class LabelManagerSummaryActivity extends BasePreferencesActivity
   protected void onDestroy() {
     super.onDestroy();
     labelManager.shutdown();
+    labelMigrationManager.shutdown();
   }
 
   /** Finishes the activity when the up button is pressed on the action bar. */
@@ -141,7 +144,7 @@ public class LabelManagerSummaryActivity extends BasePreferencesActivity
   }
 
   private void onExportLabelButtonClicked() {
-    new CustomLabelMigrationManager(getApplicationContext()).exportLabels(exportLabelsCallBack);
+    labelMigrationManager.exportLabels(exportLabelsCallBack);
   }
 
   private void onRevertImportButtonClicked() {

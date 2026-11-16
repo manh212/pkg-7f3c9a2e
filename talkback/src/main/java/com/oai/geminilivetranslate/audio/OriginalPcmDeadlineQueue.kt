@@ -17,6 +17,7 @@ class OriginalPcmDeadlineQueue(
         val queuedBytes: Long,
         val generation: Long,
         val paused: Boolean,
+        val droppedChunks: Long = 0L,
     )
 
     private data class PendingChunk(
@@ -28,6 +29,7 @@ class OriginalPcmDeadlineQueue(
     private val queue = ArrayDeque<PendingChunk>()
     private var queuedBytes = 0L
     private var generation = 0L
+    private var droppedChunks = 0L
     private var nextDueAtMs = Double.NaN
     private var pausedAtMs: Long? = null
 
@@ -43,6 +45,11 @@ class OriginalPcmDeadlineQueue(
             nowMs.toDouble()
         } else {
             maxOf(nowMs.toDouble(), nextDueAtMs)
+        }
+        while (queue.isNotEmpty() && queuedBytes + data.size > maxQueuedBytes) {
+            val dropped = queue.removeFirst()
+            queuedBytes -= dropped.data.size.toLong()
+            droppedChunks++
         }
         queue.addLast(
             PendingChunk(
@@ -133,7 +140,11 @@ class OriginalPcmDeadlineQueue(
         queuedBytes = queuedBytes,
         generation = generation,
         paused = pausedAtMs != null,
+        droppedChunks = droppedChunks,
     )
+
+    private val maxQueuedBytes: Long
+        get() = sampleRate.toLong() * BYTES_PER_SAMPLE.toLong() * MAX_QUEUED_MS / 1_000L
 
     private fun pcmDurationMs(byteCount: Int, playbackSpeed: Float): Double =
         byteCount.toDouble() * 1_000.0 / (sampleRate.toDouble() * BYTES_PER_SAMPLE * playbackSpeed)
@@ -149,5 +160,6 @@ class OriginalPcmDeadlineQueue(
 
     companion object {
         private const val BYTES_PER_SAMPLE = 2.0
+        private const val MAX_QUEUED_MS = 10_000L
     }
 }

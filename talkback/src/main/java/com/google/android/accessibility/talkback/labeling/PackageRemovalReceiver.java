@@ -67,7 +67,11 @@ public class PackageRemovalReceiver extends BroadcastReceiver {
               }
             };
 
-        labelManager.getLabelsForPackageFromDatabase(packageName, callback);
+        if (!labelManager.isInitialized()) {
+          labelManager.shutdown();
+        } else {
+          labelManager.getLabelsForPackageFromDatabase(packageName, callback);
+        }
       }
     }
   }

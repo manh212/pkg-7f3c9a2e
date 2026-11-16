@@ -145,14 +145,17 @@ public class OcrController {
         .start();
   }
 
-  private static void filterTextBlocks(OcrInfo ocrInfo, Rect selectionBounds) {
-    Rect nodeBounds = new Rect();
-    ocrInfo.getBoundsInScreenForOcr(nodeBounds);
-
+  private static void filterTextBlocks(
+      OcrInfo ocrInfo, Rect selectionBounds, boolean cropped) {
     List<TextBlock> textBlocks = ocrInfo.getTextBlocks();
     if (textBlocks == null) {
       return;
     }
+    Rect nodeBounds = new Rect();
+    if (cropped) {
+      ocrInfo.getBoundsInScreenForOcr(nodeBounds);
+    }
+
     Set<TextBlock> toBeRemoved = new HashSet<>();
     for (int i = textBlocks.size() - 1; i >= 0; i--) {
       TextBlock block = textBlocks.get(i);
@@ -162,7 +165,9 @@ public class OcrController {
         continue;
       }
 
-      textBlockBox.offset(nodeBounds.left, nodeBounds.top);
+      if (cropped) {
+        textBlockBox.offset(nodeBounds.left, nodeBounds.top);
+      }
 
       if (!Rect.intersects(textBlockBox, selectionBounds)) {
         toBeRemoved.add(block);
@@ -323,7 +328,8 @@ public class OcrController {
       // Add recognized text to HashMap instead of mutating the nodes inside the thread.
       ConcurrentHashMap<OcrInfo, List<TextBlock>> textBlocksMap = new ConcurrentHashMap<>();
       ParserResultRunnable runnable =
-          new ParserResultRunnable(handler, ocrInfos, textBlocksMap, selectionBounds, ocrListener);
+          new ParserResultRunnable(
+              handler, ocrInfos, textBlocksMap, selectionBounds, ocrListener, needCropScreenshot);
 
       for (OcrInfo ocrInfo : ocrInfos) {
         AccessibilityNodeInfoCompat node = ocrInfo.getNode();
@@ -350,13 +356,24 @@ public class OcrController {
           }
 
           runnable.addRecognitionCount();
+          final Bitmap bitmapToRecycle = croppedBitmap;
+          final boolean recycleBitmap = needCropScreenshot;
           recognizer
               .process(InputImage.fromBitmap(croppedBitmap, /* rotationDegrees= */ 0))
-              .addOnSuccessListener(text -> textBlocksMap.put(ocrInfo, text.getTextBlocks()))
+              .addOnSuccessListener(
+                  text -> {
+                    textBlocksMap.put(ocrInfo, text.getTextBlocks());
+                    if (recycleBitmap) {
+                      bitmapToRecycle.recycle();
+                    }
+                  })
               .addOnFailureListener(
                   exception -> {
                     LogUtils.w(TAG, "Fail to recognize text. errMsg=" + exception.getMessage());
                     textBlocksMap.put(ocrInfo, ImmutableList.of());
+                    if (recycleBitmap) {
+                      bitmapToRecycle.recycle();
+                    }
                   });
         }
       }
@@ -373,6 +390,7 @@ public class OcrController {
     @Nullable private final Rect selectionBounds;
     private final ConcurrentHashMap<OcrInfo, List<TextBlock>> textBlocksMap;
     private final OcrListener ocrListener;
+    private final boolean cropped;
     private long waitingTimeMs;
     private int recognitionNumber = 0;
 
@@ -381,12 +399,14 @@ public class OcrController {
         List<OcrInfo> ocrInfos,
         ConcurrentHashMap<OcrInfo, List<TextBlock>> textBlocksMap,
         @Nullable Rect selectionBounds,
-        OcrListener ocrListener) {
+        OcrListener ocrListener,
+        boolean cropped) {
       this.handler = handler;
       this.ocrInfos = ocrInfos;
       this.textBlocksMap = textBlocksMap;
       this.selectionBounds = selectionBounds;
       this.ocrListener = ocrListener;
+      this.cropped = cropped;
       this.waitingTimeMs = 0;
     }
 
@@ -434,7 +454,7 @@ public class OcrController {
       if (selectionBounds != null
           && ocrInfos.size() == 1
           && ocrInfos.get(0).getTextBlocks() != null) {
-        filterTextBlocks(ocrInfos.get(0), selectionBounds);
+        filterTextBlocks(ocrInfos.get(0), selectionBounds, cropped);
       }
 
       ocrListener.onOcrFinished(ocrInfos);

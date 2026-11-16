@@ -59,6 +59,9 @@ public final class FeatureSupport {
    * <p>The flag will be cached for further query.
    */
   public static boolean isWatch(Context context) {
+    if (context == null) {
+      return false;
+    }
     if (isWatch == null) {
       isWatch =
           context
@@ -205,6 +208,7 @@ public final class FeatureSupport {
    */
   public static boolean supportWindowMagnification(Context context) {
     return BuildVersionUtils.isAtLeastT()
+        && context != null
         && context
             .getPackageManager()
             .hasSystemFeature(PackageManager.FEATURE_WINDOW_MAGNIFICATION);
@@ -385,9 +389,12 @@ public final class FeatureSupport {
 
   /** Returns {@code true} if the device has proximity sensor built-in. */
   public static boolean supportProximitySensor(Context context) {
-    return ((SensorManager) context.getSystemService(SENSOR_SERVICE))
-            .getDefaultSensor(Sensor.TYPE_PROXIMITY)
-        != null;
+    if (context == null) {
+      return false;
+    }
+    SensorManager sensorManager = (SensorManager) context.getSystemService(SENSOR_SERVICE);
+    return sensorManager != null
+        && sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY) != null;
   }
 
   /**
@@ -433,6 +440,9 @@ public final class FeatureSupport {
 
   /** Returns {@code true} if the device is the Automotive */
   public static boolean isAuto(Context context) {
+    if (context == null) {
+      return false;
+    }
     return context
         .getApplicationContext()
         .getPackageManager()

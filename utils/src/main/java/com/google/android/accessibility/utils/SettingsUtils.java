@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.utils;
 
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -53,11 +54,30 @@ public class SettingsUtils {
    * @return {@code true} of the service is enabled.
    */
   public static boolean isAccessibilityServiceEnabled(Context context, String packageName) {
+    if (packageName == null) {
+      return false;
+    }
     final ContentResolver resolver = context.getContentResolver();
     final String enabledServices =
         Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-
-    return enabledServices.contains(packageName);
+    if (enabledServices == null) {
+      return false;
+    }
+    ComponentName wantedService = ComponentName.unflattenFromString(packageName);
+    for (String service : enabledServices.split(":")) {
+      if (service.equals(packageName)) {
+        return true;
+      }
+      if (wantedService != null
+          && wantedService.equals(ComponentName.unflattenFromString(service))) {
+        return true;
+      }
+      int separator = service.indexOf('/');
+      if (separator > 0 && packageName.equals(service.substring(0, separator))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

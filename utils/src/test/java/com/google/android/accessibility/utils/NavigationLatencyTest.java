@@ -87,6 +87,19 @@ public class NavigationLatencyTest {
   }
 
   @Test
+  public void clearLinksDropsTracesAndStatistics() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TRACE, true);
+    latency.start(gesture);
+    latency.queued(gesture, "speech");
+    latency.audio("speech", NavigationLatency.Stage.FIRST_PCM, 1050);
+    assertTrue(report().contains("gesture_uptime="));
+    latency.clearLinks();
+    String output = report();
+    assertFalse(output.contains("gesture_uptime="));
+    assertFalse(output.contains("FIRST_PCM"));
+  }
+
+  @Test
   public void deliberateGateWaitIsProcessingTimeNotFrameworkDeliveryTime() {
     now.set(1500);
     Performance performance = new Performance() {

@@ -61,4 +61,22 @@ public class WindowCachePolicyTest {
     assertFalse(WindowCachePolicy.isNonStructuralContent(event));
     event.recycle();
   }
+
+  @Test
+  public void sameWindowTextOnlyContentChangeDoesNotAffectOrderOrRoot() {
+    AccessibilityEvent event =
+        AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+    shadowOf(event).setWindowId(7);
+    event.setContentChangeTypes(AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
+        | AccessibilityEvent.CONTENT_CHANGE_TYPE_CONTENT_DESCRIPTION);
+    assertFalse(WindowCachePolicy.affectsOrder(event, 7));
+    assertFalse(WindowCachePolicy.affectsRoot(event, 7));
+    event.setContentChangeTypes(AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE);
+    assertTrue(WindowCachePolicy.affectsOrder(event, 7));
+    assertTrue(WindowCachePolicy.affectsRoot(event, 7));
+    event.setContentChangeTypes(0);
+    assertTrue(WindowCachePolicy.affectsOrder(event, 7));
+    assertTrue(WindowCachePolicy.affectsRoot(event, 7));
+    event.recycle();
+  }
 }

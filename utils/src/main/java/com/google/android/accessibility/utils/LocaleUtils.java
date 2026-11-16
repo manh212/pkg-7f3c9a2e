@@ -19,6 +19,7 @@ package com.google.android.accessibility.utils;
 import android.text.SpannableString;
 import android.text.TextUtils;
 import android.text.style.LocaleSpan;
+import java.util.IllformedLocaleException;
 import java.util.Locale;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -27,20 +28,15 @@ public class LocaleUtils {
 
   public static final String LANGUAGE_EN = "en";
 
-  // Extracts the locale. Keeps language and country but drops the variant.
+  // Extracts the locale from a BCP 47 language tag.
   // Returns null on failure.
   public static @Nullable Locale parseLocaleString(String localeString) {
     if (TextUtils.isEmpty(localeString)) {
       return null;
     }
-    String[] localeParts = localeString.split("-", 3);
-
-    if (localeParts.length >= 2) {
-      // TODO: b/455704867 second parts could be script.
-      return new Locale(localeParts[0], localeParts[1]);
-    } else if (localeParts.length == 1) {
-      return new Locale.Builder().setLanguage(localeParts[0]).build();
-    } else {
+    try {
+      return new Locale.Builder().setLanguageTag(localeString).build();
+    } catch (IllformedLocaleException e) {
       return null;
     }
   }

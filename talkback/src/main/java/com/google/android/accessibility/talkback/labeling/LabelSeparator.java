@@ -103,14 +103,15 @@ public class LabelSeparator {
     @Override
     public int hashCode() {
       int hash = 17;
-      hash += label.getPackageName() != null ? label.getPackageName().hashCode() : 0;
-      hash +=
-          31 * hash + label.getPackageSignature() != null
-              ? label.getPackageSignature().hashCode()
-              : 0;
-      hash += 31 * hash + label.getViewName() != null ? label.getViewName().hashCode() : 0;
-      hash += 31 * hash + label.getLocale() != null ? label.getLocale().hashCode() : 0;
-      hash += 31 * hash + label.getPackageVersion();
+      hash = 31 * hash + (label.getPackageName() != null ? label.getPackageName().hashCode() : 0);
+      hash =
+          31 * hash
+              + (label.getPackageSignature() != null
+                  ? label.getPackageSignature().hashCode()
+                  : 0);
+      hash = 31 * hash + (label.getViewName() != null ? label.getViewName().hashCode() : 0);
+      hash = 31 * hash + (label.getLocale() != null ? label.getLocale().hashCode() : 0);
+      hash = 31 * hash + label.getPackageVersion();
       return hash;
     }
 

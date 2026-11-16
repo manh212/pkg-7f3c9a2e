@@ -42,7 +42,6 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1097,7 +1096,7 @@ public class Performance {
       if (latencyTrackers.isEmpty()) {
         return;
       }
-      trackers = Collections.unmodifiableList(latencyTrackers);
+      trackers = new ArrayList<>(latencyTrackers);
     }
 
     for (LatencyTracker tracker : trackers) {
@@ -1842,6 +1841,9 @@ public class Performance {
       return;
     }
     GestureEventData gestureEventData = eventData.gestureEventData;
+    if (gestureEventData == null) {
+      return;
+    }
     gestureEventData.lastMotionEventTime = eventTime;
     gestureEventData.gestureDecisionTime = getUptime();
   }
@@ -1857,6 +1859,9 @@ public class Performance {
       return;
     }
     GestureEventData gestureEventData = eventData.gestureEventData;
+    if (gestureEventData == null) {
+      return;
+    }
     gestureEventData.gestureId = gestureId;
     gestureEventData.gestureDetectedTime = getUptime();
     if (gestureEventData.lastMotionEventTime != -1

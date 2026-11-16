@@ -638,19 +638,22 @@ public class ParseTree {
 
   public void addFunction(String name, Object delegate) {
     Method method = null;
-    for (Method currentMethod : delegate.getClass().getDeclaredMethods()) {
-      if (currentMethod.getName().equals(name)) {
-        if (method != null) {
-          throw new IllegalStateException(
-              "Function name '" + name + "' is ambiguous for delegate: " + delegate);
+    Class<?> clazz = delegate.getClass();
+    while (clazz != null && method == null) {
+      for (Method currentMethod : clazz.getDeclaredMethods()) {
+        if (currentMethod.getName().equals(name)) {
+          if (method != null) {
+            throw new IllegalStateException(
+                "Function name '" + name + "' is ambiguous for delegate: " + delegate);
+          }
+          method = currentMethod;
         }
-        method = currentMethod;
       }
+      clazz = clazz.getSuperclass();
     }
 
     if (method == null) {
-      throw new IllegalStateException(
-          "No matching method name, or method wasn't annotated with @UsedByReflection(): " + name);
+      throw new IllegalStateException("No matching method name: " + name);
     }
 
     addFunction(name, delegate, method);
@@ -1039,6 +1042,12 @@ public class ParseTree {
     @Operator int operator = OPERATOR_PLUS;
     while (offset < end) {
       offset = skipWhitespace(value, offset);
+      if (offset >= end) {
+        if (lvalue == null) {
+          break;
+        }
+        throw new IllegalStateException("Invalid statement: " + value);
+      }
       char current = value.charAt(offset);
 
       if (lvalue == null) {
@@ -1131,6 +1140,16 @@ public class ParseTree {
         if (!isValidRvalueType(rvalue.getType())) {
           throw new IllegalStateException(
               "Invalid rvalue type: " + variableTypeToString(rvalue.getType()));
+        }
+
+        if ((operator == OPERATOR_PLUS
+                || operator == OPERATOR_MINUS
+                || operator == OPERATOR_MULTIPLY
+                || operator == OPERATOR_DIVIDE
+                || operator == OPERATOR_POW)
+            && (lvalue.getType() == VARIABLE_STRING || rvalue.getType() == VARIABLE_STRING)) {
+          throw new IllegalStateException(
+              "Arithmetic on string operands is not supported: " + value);
         }
 
         lvalue = new ParseTreeOperatorNode(operator, lvalue, rvalue);
@@ -1479,7 +1498,8 @@ public class ParseTree {
 
   private static ParseTreeNode getOrCreateNamedNode(
       TreeInfo treeInfo, String name, VariableInfo hint) {
-    ParseTreeNode node = treeInfo.mNamedNodes.get(name);
+    String cacheKey = name + "|" + hint.variableType + "|" + hint.enumType;
+    ParseTreeNode node = treeInfo.mNamedNodes.get(cacheKey);
     if (node != null) {
       return node;
     }
@@ -1495,7 +1515,7 @@ public class ParseTree {
     treeInfo.mPendingNamedNodes.add(name);
     node = createParseTreeFromObject(treeInfo, nodeDefinition, hint);
     node = new ParseTreeCommentNode(node, NAMED_NODE_FORMAT, new Object[] {name}); // Wrap in trace.
-    treeInfo.mNamedNodes.put(name, node);
+    treeInfo.mNamedNodes.put(cacheKey, node);
     treeInfo.mPendingNamedNodes.remove(name);
     return node;
   }
@@ -1559,6 +1579,9 @@ public class ParseTree {
 
       offset = skipWhitespace(value, offset);
 
+      if (offset >= value.length()) {
+        throw new IllegalStateException("Invalid param list: " + value);
+      }
       if (value.charAt(offset) == ')') {
         break;
       } else if (value.charAt(offset) != ',') {
@@ -1580,7 +1603,7 @@ public class ParseTree {
 
   /** Returns the offset to the character after the ')' that matches the current '(' */
   private static int findMatchingParen(String value, int offset) {
-    if (value.charAt(offset) != '(') {
+    if (offset >= value.length() || value.charAt(offset) != '(') {
       throw new IllegalStateException("Expected '(' (" + offset + "): " + value);
     }
     offset++;
@@ -1663,8 +1686,15 @@ public class ParseTree {
     }
 
     while (true) {
+      if (offset >= valueLength) {
+        throw new IllegalStateException("Invalid statement(" + offset + "): " + value);
+      }
+
       if (value.charAt(offset) == '!') {
         offset++;
+        if (offset >= valueLength) {
+          throw new IllegalStateException("Invalid statement(" + offset + "): " + value);
+        }
       }
 
       if (value.charAt(offset) == '(') {
@@ -1775,6 +1805,10 @@ public class ParseTree {
 
     // Move past the initial "'"
     offset++;
+
+    if (offset >= value.length()) {
+      throw new IllegalStateException("String missing end \"'\": " + value);
+    }
 
     // Find the matching "'".  Skip any escaped characters.
     char current = value.charAt(offset);

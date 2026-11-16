@@ -160,22 +160,26 @@ object ControlSounds {
     CHROME_ITEMS[chromeRole(node)]?.let { return it }
     val className = className(node)
     val parent = node.parent
-    val parentClassName = parent?.let { className(it) } ?: ""
-    val parentRole = Role.getRole(parent)
-    return when {
-      Role.getRole(node) == Role.ROLE_ACTION_BAR_TAB ||
-        className.contains("TabView") ||
-        parentRole == Role.ROLE_TAB_BAR ||
-        parentClassName.contains("TabLayout") ||
-        // Compose describes its tabs only by this role description.
-        node.roleDescription?.toString().equals("tab", ignoreCase = true) -> R.id.control_tab
-      className.contains("ListMenuItemView") ||
-        parentClassName.contains("MenuDropDownListView") -> R.id.control_menu_item
-      node.collectionItemInfo != null ||
-        parentRole == Role.ROLE_LIST ||
-        parentRole == Role.ROLE_GRID ||
-        parentRole == Role.ROLE_STAGGERED_GRID -> R.id.control_list_item
-      else -> 0
+    try {
+      val parentClassName = parent?.let { className(it) } ?: ""
+      val parentRole = Role.getRole(parent)
+      return when {
+        Role.getRole(node) == Role.ROLE_ACTION_BAR_TAB ||
+          className.contains("TabView") ||
+          parentRole == Role.ROLE_TAB_BAR ||
+          parentClassName.contains("TabLayout") ||
+          // Compose describes its tabs only by this role description.
+          node.roleDescription?.toString().equals("tab", ignoreCase = true) -> R.id.control_tab
+        className.contains("ListMenuItemView") ||
+          parentClassName.contains("MenuDropDownListView") -> R.id.control_menu_item
+        node.collectionItemInfo != null ||
+          parentRole == Role.ROLE_LIST ||
+          parentRole == Role.ROLE_GRID ||
+          parentRole == Role.ROLE_STAGGERED_GRID -> R.id.control_list_item
+        else -> 0
+      }
+    } finally {
+      parent?.recycle()
     }
   }
 

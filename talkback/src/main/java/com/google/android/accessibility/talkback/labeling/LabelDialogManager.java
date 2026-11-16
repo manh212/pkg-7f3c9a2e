@@ -35,6 +35,7 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.Nullable;
 import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.Pipeline;
@@ -231,6 +232,18 @@ public class LabelDialogManager {
             editLabelDialog.setRestoreFocus(needToRestoreFocus);
             editLabelDialog.setNeutralButtonStringRes(R.string.label_dialog_title_remove);
             editLabelDialog.showDialog();
+          } else if (pipeline != null) {
+            pipeline.returnFeedback(
+                EVENT_ID_UNTRACKED,
+                Feedback.speech(
+                    context.getString(R.string.label_edit_failed),
+                    SpeakOptions.create()
+                        .setFlags(
+                            FeedbackItem.FLAG_NO_HISTORY
+                                | FeedbackItem.FLAG_FORCE_FEEDBACK_ALL
+                                | FeedbackItem.FLAG_SKIP_DUPLICATE)));
+          } else {
+            Toast.makeText(context, R.string.label_edit_failed, Toast.LENGTH_SHORT).show();
           }
         });
   }

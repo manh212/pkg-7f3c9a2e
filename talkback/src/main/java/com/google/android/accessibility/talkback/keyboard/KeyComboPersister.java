@@ -42,9 +42,6 @@ public class KeyComboPersister {
         .putLong(
             TalkBackSharedPreferencesUtils.getKeyForKeyComboCode(this.keyPrefix, key),
             keyCombo.getKeyComboCode())
-        .apply();
-    prefs
-        .edit()
         .putBoolean(
             TalkBackSharedPreferencesUtils.getKeyForTriggerModifierUsed(
                 this.keyPrefix, key, FeatureFlagReader.enableBrowseMode(context)),
@@ -56,9 +53,6 @@ public class KeyComboPersister {
     prefs
         .edit()
         .remove(TalkBackSharedPreferencesUtils.getKeyForKeyComboCode(this.keyPrefix, key))
-        .apply();
-    prefs
-        .edit()
         .remove(
             TalkBackSharedPreferencesUtils.getKeyForTriggerModifierUsed(
                 this.keyPrefix, key, FeatureFlagReader.enableBrowseMode(context)))

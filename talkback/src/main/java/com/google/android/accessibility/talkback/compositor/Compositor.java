@@ -780,8 +780,7 @@ public class Compositor {
   private void speak(CharSequence ttsOutput, @Nullable EventId eventId, SpeakOptions speakOptions) {
     if (speechController != null) {
       speechController.speak(ttsOutput, eventId, speakOptions);
-    }
-    if (speaker != null) {
+    } else if (speaker != null) {
       speaker.speak(ttsOutput, eventId, speakOptions);
     }
   }
@@ -807,6 +806,9 @@ public class Compositor {
       case EVENT_INPUT_DESCRIBE_NODE -> "EVENT_INPUT_DESCRIBE_NODE";
       case EVENT_SYNTHESIZE_SPEECH -> "EVENT_SYNTHESIZE_SPEECH";
       case EVENT_MAGNIFICATION_CHANGED -> "EVENT_MAGNIFICATION_CHANGED";
+      case EVENT_HEADS_UP_NOTIFICATION_APPEARED -> "EVENT_HEADS_UP_NOTIFICATION_APPEARED";
+      case EVENT_ACTIONABLE_NONMODAL_ALERT_APPEARED ->
+          "EVENT_ACTIONABLE_NONMODAL_ALERT_APPEARED";
       case EVENT_TYPE_INPUT_TEXT_CLEAR -> "EVENT_TYPE_INPUT_TEXT_CLEAR";
       case EVENT_TYPE_INPUT_TEXT_REMOVE -> "EVENT_TYPE_INPUT_TEXT_REMOVE";
       case EVENT_TYPE_INPUT_TEXT_ADD -> "EVENT_TYPE_INPUT_TEXT_ADD";

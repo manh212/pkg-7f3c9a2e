@@ -21,15 +21,10 @@ public final class BrailleInputWriter {
             KeyEvent[] events = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
                     .getEvents(text.toCharArray());
             if (events != null && events.length > 0) {
-                boolean acceptedKeyDown = false;
                 for (KeyEvent event : events) {
-                    boolean accepted = connection.sendKeyEvent(event);
-                    if (accepted && event.getAction() == KeyEvent.ACTION_DOWN) {
-                        acceptedKeyDown = true;
-                    }
-                    if (!accepted) return acceptedKeyDown;
+                    if (!connection.sendKeyEvent(event)) return false;
                 }
-                return acceptedKeyDown;
+                return true;
             }
             return connection.sendKeyEvent(new KeyEvent(SystemClock.uptimeMillis(),
                     text, KeyCharacterMap.VIRTUAL_KEYBOARD, 0));

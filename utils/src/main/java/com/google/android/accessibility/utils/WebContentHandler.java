@@ -52,6 +52,8 @@ public class WebContentHandler extends DefaultHandler {
     mInputTypeToDesc = htmlInputMap;
     mAriaRoleToDesc = htmlRoleMap;
     mTagToDesc = htmlTagMap;
+    mOutputBuilder = new StringBuilder();
+    mPostorderTextStack = new Stack<>();
   }
 
   @Override
@@ -137,6 +139,9 @@ public class WebContentHandler extends DefaultHandler {
    */
   @Override
   public void endElement(String uri, String localName, String name) {
+    if (mPostorderTextStack.isEmpty()) {
+      return;
+    }
     final String postorderText = mPostorderTextStack.pop();
 
     if (postorderText.length() > 0) {

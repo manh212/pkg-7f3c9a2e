@@ -32,13 +32,12 @@ class ArrowKeyNavKeyHandler(private val context: Context, private val callbacks:
 
   private val consumedKeys = HashSet<Int>()
 
-  private var pendingKey = KeyEvent.KEYCODE_UNKNOWN
-  private var pendingCommand: ArrowKeyNavCommand? = null
+  private val pendingCommands = ArrayDeque<Pair<Int, ArrowKeyNavCommand>>()
 
   fun reset() {
     heldKeys.clear()
     consumedKeys.clear()
-    clearPending()
+    pendingCommands.clear()
   }
 
   fun onKeyEvent(event: KeyEvent, canAct: Boolean): Boolean {
@@ -57,9 +56,7 @@ class ArrowKeyNavKeyHandler(private val context: Context, private val callbacks:
     if (event.action == KeyEvent.ACTION_UP) {
       heldKeys.remove(event.keyCode)
       consumedKeys.remove(event.keyCode)
-      if (pendingKey == event.keyCode) {
-        clearPending()
-      }
+      pendingCommands.removeAll { it.first == event.keyCode }
     }
   }
 
@@ -82,7 +79,7 @@ class ArrowKeyNavKeyHandler(private val context: Context, private val callbacks:
       val command = ArrowKeyNav.commandFor(context, ArrowKeyNav.keys(modifiers, otherKey, keyCode))
       if (command != null && (on || command == ArrowKeyNavCommand.TOGGLE)) {
 
-        clearPending()
+        pendingCommands.clear()
         consumedKeys += keyCode
         callbacks.perform(command)
         return true
@@ -96,8 +93,8 @@ class ArrowKeyNavKeyHandler(private val context: Context, private val callbacks:
     }
     consumedKeys += keyCode
     if (on && startsTwoKeyCommand(modifiers, keyCode)) {
-      pendingKey = keyCode
-      pendingCommand = command
+      pendingCommands.removeAll { it.first == keyCode }
+      pendingCommands.addLast(keyCode to command)
     } else {
       callbacks.perform(command)
     }
@@ -109,12 +106,9 @@ class ArrowKeyNavKeyHandler(private val context: Context, private val callbacks:
     if (!consumedKeys.remove(keyCode)) {
       return false
     }
-    if (pendingKey == keyCode) {
-      val command = pendingCommand
-      clearPending()
-      if (command != null) {
-        callbacks.perform(command)
-      }
+    pendingCommands.firstOrNull { it.first == keyCode }?.let {
+      pendingCommands.remove(it)
+      callbacks.perform(it.second)
     }
     return true
   }
@@ -128,11 +122,6 @@ class ArrowKeyNavKeyHandler(private val context: Context, private val callbacks:
         KeyCombo.extractModifiers(keys) == modifiers &&
         (prefix == keyCode || KeyCombo.extractKeyCode(keys) == keyCode)
     }
-
-  private fun clearPending() {
-    pendingKey = KeyEvent.KEYCODE_UNKNOWN
-    pendingCommand = null
-  }
 
   private companion object {
     const val STALE_KEY_MILLIS = 30_000L

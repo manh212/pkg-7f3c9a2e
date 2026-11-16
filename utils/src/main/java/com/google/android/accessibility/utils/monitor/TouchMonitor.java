@@ -21,7 +21,7 @@ import static android.view.accessibility.AccessibilityEvent.TYPE_TOUCH_INTERACTI
 
 import android.view.accessibility.AccessibilityEvent;
 import com.google.android.accessibility.utils.Consumer;
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 /** Monitors touch-events, and can report changes or current touch state. */
@@ -35,13 +35,18 @@ public class TouchMonitor {
   private long touchEndTime = -1;
   private long previousTouchStartTime = -1;
   private long previousTouchEndTime = -1;
-  private final @NonNull ArrayList<@NonNull Consumer<Boolean>> listeners = new ArrayList<>();
+  private final @NonNull CopyOnWriteArrayList<@NonNull Consumer<Boolean>> listeners =
+      new CopyOnWriteArrayList<>();
 
   ///////////////////////////////////////////////////////////////////////////////////
   // Construction
 
   public void addListener(@NonNull Consumer<Boolean> listener) {
     listeners.add(listener);
+  }
+
+  public void removeListener(@NonNull Consumer<Boolean> listener) {
+    listeners.remove(listener);
   }
 
   ///////////////////////////////////////////////////////////////////////////////////

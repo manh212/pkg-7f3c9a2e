@@ -17,11 +17,9 @@
 package com.google.android.accessibility.talkback.labeling;
 
 import android.content.Context;
-import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.AccessibilityEventListener;
-import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Role;
@@ -31,22 +29,15 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Abstract controller for detecting unlabeled views and managing custom labels for them.
- *
- * <p>The former requires to keep track of the most recent accessibility focus event.
  */
 public abstract class TalkBackLabelManager implements LabelManager, AccessibilityEventListener {
-  private boolean hasFocusedEventText = false;
-
   @Override
   public int getEventTypes() {
     return AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED;
   }
 
   @Override
-  public void onAccessibilityEvent(AccessibilityEvent event, EventId eventId) {
-    hasFocusedEventText =
-        !TextUtils.isEmpty(AccessibilityEventUtils.getEventTextOrDescription(event));
-  }
+  public void onAccessibilityEvent(AccessibilityEvent event, EventId eventId) {}
 
   /**
    * Returns whether the given node is missing a label.
@@ -55,15 +46,6 @@ public abstract class TalkBackLabelManager implements LabelManager, Accessibilit
    */
   protected boolean needsLabel(@Nullable AccessibilityNodeInfoCompat node) {
     if (node == null) {
-      return false;
-    }
-
-    // Spoken words can come from accessibility event text or content description, like the focus is
-    // on ViewGroup that includes several non-focusable views.
-    if (hasFocusedEventText
-        && (Role.getRole(node) == Role.ROLE_VIEW_GROUP
-            || Role.getRole(node) == Role.ROLE_SCROLL_VIEW
-            || Role.getRole(node) == Role.ROLE_HORIZONTAL_SCROLL_VIEW)) {
       return false;
     }
 

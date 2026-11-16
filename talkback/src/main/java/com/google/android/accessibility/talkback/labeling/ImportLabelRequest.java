@@ -58,8 +58,9 @@ public class ImportLabelRequest extends LabelClientRequest<Integer> {
     int labelCount = newLabels.size();
     for (int index = 0; index < labelCount; index++) {
       Label label = newLabels.get(index);
-      mClient.insertLabel(label, CustomLabelManager.SOURCE_TYPE_IMPORT);
-      updateCount++;
+      if (mClient.insertLabel(label, CustomLabelManager.SOURCE_TYPE_IMPORT) != null) {
+        updateCount++;
+      }
     }
 
     if (overrideExistingLabels) {
@@ -74,8 +75,9 @@ public class ImportLabelRequest extends LabelClientRequest<Integer> {
       int importedLabelCount = importedConflictLabels.size();
       for (int index = 0; index < importedLabelCount; index++) {
         Label label = importedConflictLabels.get(index);
-        mClient.insertLabel(label, CustomLabelManager.SOURCE_TYPE_IMPORT);
-        updateCount++;
+        if (mClient.insertLabel(label, CustomLabelManager.SOURCE_TYPE_IMPORT) != null) {
+          updateCount++;
+        }
       }
     }
 

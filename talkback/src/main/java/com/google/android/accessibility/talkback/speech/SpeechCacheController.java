@@ -270,7 +270,14 @@ public class SpeechCacheController
       return false;
     }
     AccessibilityNodeInfo root = window.getRoot();
-    return root != null && TextUtils.equals(ttsPackageName, root.getPackageName());
+    if (root == null) {
+      return false;
+    }
+    try {
+      return TextUtils.equals(ttsPackageName, root.getPackageName());
+    } finally {
+      root.recycle();
+    }
   }
 
   @WorkerThread
@@ -340,7 +347,9 @@ public class SpeechCacheController
   }
 
   public void destroy() {
-    mainHandler.removeCallbacksAndMessages(/* token= */ null);
+    reset();
+    speechController.removeObserver(speechParametsObserver);
+    speechController.getFailoverTts().removeListener(this);
     workerHandler.getLooper().quit();
   }
 
@@ -357,8 +366,13 @@ public class SpeechCacheController
       LogUtils.d(TAG, "root node is null");
       return;
     }
-    cacheSpeechesForTextEntryKeyIfNeeded(
-        eventId, AccessibilityNodeInfoCompat.wrap(rootNode), windowKey);
+    AccessibilityNodeInfoCompat rootNodeCompat = AccessibilityNodeInfoCompat.wrap(rootNode);
+    try {
+      cacheSpeechesForTextEntryKeyIfNeeded(
+          eventId, rootNodeCompat, windowKey);
+    } finally {
+      rootNodeCompat.recycle();
+    }
   }
 
   @Nullable
@@ -474,32 +488,36 @@ public class SpeechCacheController
     }
     AccessibilityNodeInfoCompat rootNodeCompat = AccessibilityNodeInfoCompat.wrap(rootNode);
 
-    AccessibilityNodeInfoCompat firstTextEntryKey =
-        AccessibilityNodeInfoUtils.getSelfOrMatchingDescendant(
-            rootNodeCompat,
-            new Filter<>() {
-              @Override
-              public boolean accept(AccessibilityNodeInfoCompat node) {
-                if (node == null) {
-                  return false;
+    try {
+      AccessibilityNodeInfoCompat firstTextEntryKey =
+          AccessibilityNodeInfoUtils.getSelfOrMatchingDescendant(
+              rootNodeCompat,
+              new Filter<>() {
+                @Override
+                public boolean accept(AccessibilityNodeInfoCompat node) {
+                  if (node == null) {
+                    return false;
+                  }
+                  if (!node.isTextEntryKey() || node.getViewIdResourceName() == null) {
+                    return false;
+                  }
+                  return node.getText() != null || node.getContentDescription() != null;
                 }
-                if (!node.isTextEntryKey() || node.getViewIdResourceName() == null) {
-                  return false;
-                }
-                return node.getText() != null || node.getContentDescription() != null;
-              }
-            });
-    if (firstTextEntryKey == null) {
-      return "";
-    }
-    if (!TextUtils.isEmpty(firstTextEntryKey.getContentDescription())) {
-      return firstTextEntryKey.getContentDescription().toString();
-    }
+              });
+      if (firstTextEntryKey == null) {
+        return "";
+      }
+      if (!TextUtils.isEmpty(firstTextEntryKey.getContentDescription())) {
+        return firstTextEntryKey.getContentDescription().toString();
+      }
 
-    if (!TextUtils.isEmpty(firstTextEntryKey.getText())) {
-      return firstTextEntryKey.getText().toString();
+      if (!TextUtils.isEmpty(firstTextEntryKey.getText())) {
+        return firstTextEntryKey.getText().toString();
+      }
+      return "";
+    } finally {
+      rootNodeCompat.recycle();
     }
-    return "";
   }
 
   @WorkerThread

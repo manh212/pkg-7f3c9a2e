@@ -70,7 +70,7 @@ public final class ScreenMonitor extends BroadcastReceiver {
   }
 
   public IntentFilter getFilter() {
-    return SCREEN_CHANGE_FILTER;
+    return new IntentFilter(SCREEN_CHANGE_FILTER);
   }
 
   public void updateScreenState() {

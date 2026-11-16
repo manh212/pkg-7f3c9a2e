@@ -2943,6 +2943,7 @@
     <string name="label_dialog_title_remove">Remove label</string>
     <!-- Confirmation when a user removes a custom label for an unlabeled view. [CHAR_LIMIT=70] -->
     <string name="label_dialog_confirm_label_remove">Label removed</string>
+    <string name="label_edit_failed">This label no longer exists</string>
     <!-- Text that appears in the alert shown when a user adds or edits a custom label for an unlabeled view. -->
     <string name="label_dialog_text">Enter the text to be used as a label for this element\nInternal view name: <xliff:g id="view_resource_name">%1$s</xliff:g></string>
     <!-- Hint text that appears in the edit box within the alert shown when a user adds or edits a custom label for an unlabeled view. [CHAR_LIMIT=80] -->

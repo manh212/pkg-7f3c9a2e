@@ -39,7 +39,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @TargetApi(33)
 public class SpeechStateMonitor {
   /** The possible states from the other applications which SpeechStateMonitor keeps. */
-  @IntDef({SPEECH_STATE_SPEAKING_START, SPEECH_STATE_LISTENING_START})
+  @IntDef(
+      value = {SPEECH_STATE_SPEAKING_START, SPEECH_STATE_LISTENING_START},
+      flag = true)
   @Retention(RetentionPolicy.SOURCE)
   public @interface ReadSpeechState {}
 
@@ -61,26 +63,38 @@ public class SpeechStateMonitor {
     if (event.getEventType() != TYPE_SPEECH_STATE_CHANGE) {
       return;
     }
-    String senderPackage = event.getPackageName().toString();
+    CharSequence packageName = event.getPackageName();
+    if (packageName == null) {
+      return;
+    }
+    String senderPackage = packageName.toString();
     if (TextUtils.isEmpty(senderPackage)) {
       return;
     }
     int changeTypes = event.getSpeechStateChangeTypes();
 
     @Nullable StateTimeStamp oldState = packageToLastState.get(senderPackage);
+    int oldStateValue = oldState != null ? oldState.getState() : 0;
+    int state = oldStateValue;
 
-    if ((oldState != null)
-        && (((changeTypes == SPEECH_STATE_SPEAKING_END)
-                && (oldState.getState() == SPEECH_STATE_SPEAKING_START))
-            || ((changeTypes == SPEECH_STATE_LISTENING_END)
-                && (oldState.getState() == SPEECH_STATE_LISTENING_START)))) {
-      packageToLastState.remove(senderPackage);
+    if ((changeTypes & SPEECH_STATE_SPEAKING_END) != 0) {
+      state &= ~SPEECH_STATE_SPEAKING_START;
     }
-    if ((changeTypes == SPEECH_STATE_SPEAKING_START)
-        || (changeTypes == SPEECH_STATE_LISTENING_START)) {
-      lastSpeechUptimeMillisec = SystemClock.uptimeMillis();
-      packageToLastState.put(
-          senderPackage, new StateTimeStamp(changeTypes, lastSpeechUptimeMillisec));
+    if ((changeTypes & SPEECH_STATE_LISTENING_END) != 0) {
+      state &= ~SPEECH_STATE_LISTENING_START;
+    }
+    int startTypes = changeTypes & (SPEECH_STATE_SPEAKING_START | SPEECH_STATE_LISTENING_START);
+    state |= startTypes;
+
+    if (state == 0) {
+      packageToLastState.remove(senderPackage);
+    } else if (startTypes != 0 || state != oldStateValue) {
+      long timestamp = oldState != null ? oldState.getTimestamp() : 0L;
+      if (startTypes != 0) {
+        timestamp = SystemClock.uptimeMillis();
+        lastSpeechUptimeMillisec = timestamp;
+      }
+      packageToLastState.put(senderPackage, new StateTimeStamp(state, timestamp));
     }
   }
 
@@ -108,7 +122,7 @@ public class SpeechStateMonitor {
     for (Map.Entry<String, StateTimeStamp> s : packageToLastState.entrySet()) {
       currentTimeGapMillisec = SystemClock.uptimeMillis() - s.getValue().getTimestamp();
       if ((currentTimeGapMillisec < MAX_CHECK_STATE_MILLISEC)
-          && (s.getValue().getState() == state)) {
+          && ((s.getValue().getState() & state) != 0)) {
         return true;
       }
     }

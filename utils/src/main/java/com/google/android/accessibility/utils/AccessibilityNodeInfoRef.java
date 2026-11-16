@@ -79,10 +79,13 @@ public class AccessibilityNodeInfoRef {
     return node != null ? new AccessibilityNodeInfoRef(node) : null;
   }
 
-  /** Creates a new instance of this class taking ownership of {@code node}. */
+  /** Creates a new instance of this class taking ownership of a copy of {@code node}. */
   @Nullable
   public static AccessibilityNodeInfoRef owned(AccessibilityNodeInfoCompat node) {
-    return node != null ? new AccessibilityNodeInfoRef(node) : null;
+    if (node == null) {
+      return null;
+    }
+    return new AccessibilityNodeInfoRef(AccessibilityNodeInfoCompat.obtain(node));
   }
 
   /**
@@ -90,7 +93,8 @@ public class AccessibilityNodeInfoRef {
    * ownership of the copy. If {@code node} is {@code null}, {@code null} is returned.
    */
   public static AccessibilityNodeInfoRef refreshed(AccessibilityNodeInfoCompat node) {
-    return owned(AccessibilityNodeInfoUtils.refreshNode(node));
+    AccessibilityNodeInfoCompat refreshedNode = AccessibilityNodeInfoUtils.refreshNode(node);
+    return refreshedNode != null ? new AccessibilityNodeInfoRef(refreshedNode) : null;
   }
 
   /**
@@ -99,7 +103,9 @@ public class AccessibilityNodeInfoRef {
    */
   @CanIgnoreReturnValue
   public AccessibilityNodeInfoRef makeOwned() {
-    reset(mNode);
+    if (mNode != null) {
+      reset(AccessibilityNodeInfoCompat.obtain(mNode));
+    }
     return this;
   }
 

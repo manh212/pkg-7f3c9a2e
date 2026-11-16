@@ -28,8 +28,15 @@ public class ClassLoadingCache {
 
   private static final String TAG = "ClassLoadingCache";
 
-  // TODO: Use a LRU map instead?
-  private static final HashMap<String, @Nullable Class<?>> mCachedClasses = new HashMap<>();
+  private static final int MAX_CACHED_CLASSES = 512;
+
+  private static final Map<String, @Nullable Class<?>> mCachedClasses =
+      new LinkedHashMap<String, @Nullable Class<?>>(64, 0.75f, /* accessOrder= */ true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, @Nullable Class<?>> eldest) {
+          return size() > MAX_CACHED_CLASSES;
+        }
+      };
 
   /**
    * Returns a class by given <code>className</code>. It tries to load from the current class loader
@@ -38,7 +45,7 @@ public class ClassLoadingCache {
    * @param className The name of the class to load.
    * @return The class if loaded successfully, null otherwise.
    */
-  public static @Nullable Class<?> loadOrGetCachedClass(String className) {
+  public static synchronized @Nullable Class<?> loadOrGetCachedClass(String className) {
     if (TextUtils.isEmpty(className)) {
       LogUtils.d(TAG, "Missing class name. Failed to load class.");
       return null;

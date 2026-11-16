@@ -8,6 +8,7 @@ package com.google.android.accessibility.talkback.labeling;
 
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import androidx.core.view.accessibility.AccessibilityWindowInfoCompat;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Role;
 import java.nio.charset.StandardCharsets;
@@ -64,19 +65,27 @@ public final class LabelNodeId {
       return null;
     }
     StringBuilder identity = new StringBuilder(packageName);
-    if (node.getWindow() != null && node.getWindow().getTitle() != null) {
-      identity.append("|window:").append(node.getWindow().getTitle());
+    AccessibilityWindowInfoCompat window = node.getWindow();
+    if (window != null) {
+      if (window.getTitle() != null) {
+        identity.append("|window:").append(window.getTitle());
+      }
+      window.recycle();
     }
     List<String> path = new ArrayList<>();
     AccessibilityNodeInfoCompat child = node;
+    AccessibilityNodeInfoCompat ownedChild = null;
     for (int depth = 0; depth < 32; depth++) {
       AccessibilityNodeInfoCompat parent = child.getParent();
       int position = -1;
       if (parent != null) {
         for (int index = 0; index < parent.getChildCount(); index++) {
-          if (child.equals(parent.getChild(index))) {
-            position = index;
-            break;
+          AccessibilityNodeInfoCompat sibling = parent.getChild(index);
+          if (sibling != null) {
+            if (position == -1 && child.equals(sibling)) {
+              position = index;
+            }
+            sibling.recycle();
           }
         }
       }
@@ -85,7 +94,14 @@ public final class LabelNodeId {
       if (parent == null) {
         break;
       }
+      if (ownedChild != null) {
+        ownedChild.recycle();
+      }
       child = parent;
+      ownedChild = parent;
+    }
+    if (ownedChild != null) {
+      ownedChild.recycle();
     }
     for (int index = path.size() - 1; index >= 0; index--) {
       identity.append('/').append(path.get(index));
@@ -110,7 +126,13 @@ public final class LabelNodeId {
       return false;
     }
     for (int index = 0; index < node.getChildCount(); index++) {
-      if (hasSpokenLabel(node.getChild(index), depth + 1)) {
+      AccessibilityNodeInfoCompat child = node.getChild(index);
+      if (child == null) {
+        continue;
+      }
+      boolean found = hasSpokenLabel(child, depth + 1);
+      child.recycle();
+      if (found) {
         return true;
       }
     }

@@ -63,6 +63,7 @@ internal object SoundModeControl {
   @JvmStatic
   fun change(context: Context, next: Boolean): String {
     val audio = context.getSystemService(AudioManager::class.java)
+      ?: return needsAccess(context)
     val modes =
       SoundMode.entries.filter {
         it != SoundMode.VIBRATE ||
@@ -73,7 +74,8 @@ internal object SoundModeControl {
     val togglesMute =
       mode == SoundMode.MUTE || audio.ringerMode == AudioManager.RINGER_MODE_SILENT
     val hasAccess =
-      context.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted
+      context.getSystemService(NotificationManager::class.java)
+        ?.isNotificationPolicyAccessGranted == true
     if (togglesMute && !hasAccess) {
       return needsAccess(context)
     }

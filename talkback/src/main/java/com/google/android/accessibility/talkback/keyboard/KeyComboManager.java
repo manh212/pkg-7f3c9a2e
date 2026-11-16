@@ -345,6 +345,13 @@ public class KeyComboManager
     }
     dismissUpdateModifierKeysDialog();
     if (keyComboMapper != null) keyComboMapper.getScreenReview().shutdown();
+    if (scheduleToOpenSearchApp != null) {
+      scheduleToOpenSearchApp.cancel(false);
+      scheduleToOpenSearchApp = null;
+    }
+    if (scheduler != null) {
+      scheduler.shutdownNow();
+    }
   }
 
   @Override
@@ -1060,6 +1067,12 @@ public class KeyComboManager
       return false;
     }
 
+    // Any key other than the search key itself cancels a search-app open scheduled by a
+    // single search-key press: the user is doing something else instead.
+    if (!isMetaKey(event.getKeyCode())) {
+      cancelOpenSearchAppExecutor();
+    }
+
     currentKeysDown.add(event.getKeyCode());
     currentKeyComboTime = event.getDownTime();
 
@@ -1091,12 +1104,15 @@ public class KeyComboManager
                 KeyComboModel.NO_PREFIX_KEY_CODE,
                 event.getKeyCode(),
                 /* triggerModifierUsed= */ true);
-        if (isBrowseModeSupported()
-            && isBrowseModeToggleAssigned()
-            && isEqualToLastKeyComboAndDurationLessThanThreshold()) {
-          setBrowseModeEnabled(!browseModeEnabled);
-          if (!browseModeEnabled) {
-            recordBrowseModeStateWhenOff(BROWSE_MODE_TURNED_OFF_BY_USER);
+        if (isEqualToLastKeyComboAndDurationLessThanThreshold()) {
+          // A second press within the double-tap window: the search-app open scheduled by
+          // the first press must not fire, whether or not a browse-mode toggle is assigned.
+          cancelOpenSearchAppExecutor();
+          if (isBrowseModeSupported() && isBrowseModeToggleAssigned()) {
+            setBrowseModeEnabled(!browseModeEnabled);
+            if (!browseModeEnabled) {
+              recordBrowseModeStateWhenOff(BROWSE_MODE_TURNED_OFF_BY_USER);
+            }
           }
         }
       }
@@ -1237,6 +1253,7 @@ public class KeyComboManager
         // If not `isBrowseModeSupported()`, do not handle key event if user has pressed search key
         // (meta key) twice to open search app. Reset `currentKeyCombo` to not open search app again
         // with following search key event.
+        cancelOpenSearchAppExecutor();
         currentKeyCombo = new KeyCombo();
         passedKeys.addAll(currentKeysDown);
         return false;
@@ -1634,16 +1651,19 @@ public class KeyComboManager
       }
     }
 
-    if (currentKeysDown.isEmpty()
-        && previousKeyCombo.getPrefixKeyCode() == KeyComboModel.KEY_COMBO_CODE_UNASSIGNED) {
+    if (currentKeysDown.isEmpty()) {
       if (!performedCombo) {
         interrupt(TalkBackPhysicalKeyboardShortcut.ACTION_UNKNOWN);
       }
       // The interaction is over, reset the state.
       performedCombo = false;
       hasPartialMatch = false;
-      previousKeyCombo = currentKeyCombo;
-      previousKeyComboTime = currentKeyComboTime;
+      // A pending sequence prefix stays armed: only the interaction state is reset, so the
+      // next key still completes the sequence.
+      if (previousKeyCombo.getPrefixKeyCode() == KeyComboModel.KEY_COMBO_CODE_UNASSIGNED) {
+        previousKeyCombo = currentKeyCombo;
+        previousKeyComboTime = currentKeyComboTime;
+      }
       currentKeyCombo = new KeyCombo();
       currentKeyComboTime = 0;
       maxKeysDown = 0;
@@ -1727,7 +1747,7 @@ public class KeyComboManager
       }
     } else {
       inputEditingAnnounced = false;
-      if (browseModePausedForInput && arrowsNavigate() && isBrowseModeSupported()) {
+      if (browseModePausedForInput && isBrowseModeSupported()) {
         browseModeEnabled = true;
         browseModeEnabledTimeMills = SystemClock.uptimeMillis();
       }

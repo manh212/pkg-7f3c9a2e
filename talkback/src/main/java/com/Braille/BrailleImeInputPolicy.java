@@ -46,11 +46,14 @@ public final class BrailleImeInputPolicy {
 
     public void onUserDismissed(SharedPreferences prefs) {
         preferences = prefs;
+        if (currentEditor == null) {
+            return;
+        }
         dismissed = true;
         dismissedEditor = currentEditor;
         prefs.edit()
                 .putBoolean(PREF_USER_DISMISSED, true)
-                .putString(PREF_DISMISSED_EDITOR, dismissedEditor == null ? "" : dismissedEditor)
+                .putString(PREF_DISMISSED_EDITOR, dismissedEditor)
                 .apply();
     }
 
@@ -238,6 +241,6 @@ public final class BrailleImeInputPolicy {
     private static String identifyEditor(EditorInfo info) {
         if (info == null) return null;
         return String.valueOf(info.packageName) + ":" + info.fieldId + ":"
-                + String.valueOf(info.fieldName) + ":" + info.inputType;
+                + String.valueOf(info.fieldName);
     }
 }

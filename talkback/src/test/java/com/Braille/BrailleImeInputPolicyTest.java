@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethod;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -136,6 +137,49 @@ public class BrailleImeInputPolicyTest {
 
         assertTrue(policy.shouldShow(editor, 0));
         assertFalse(prefs.getBoolean(BrailleImeInputPolicy.PREF_USER_DISMISSED, false));
+    }
+
+    @Test
+    public void dismissalWithNoCurrentEditorIsNotRecorded() {
+        SharedPreferences prefs = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("test_ime_no_editor_dismiss", Context.MODE_PRIVATE);
+        prefs.edit().clear().commit();
+        BrailleImeInputPolicy policy = new BrailleImeInputPolicy();
+        policy.reloadFromPreferences(prefs);
+
+        EditorInfo editor = new EditorInfo();
+        editor.packageName = "app";
+        editor.fieldId = 7;
+        policy.onStartInput(editor);
+        policy.onFinishInput();
+        policy.onUserDismissed(prefs);
+
+        assertFalse(prefs.getBoolean(BrailleImeInputPolicy.PREF_USER_DISMISSED, false));
+        assertTrue(policy.shouldShow(editor, 0));
+    }
+
+    @Test
+    public void dismissalSurvivesInputTypeChangeOnSameEditor() {
+        SharedPreferences prefs = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("test_ime_input_type_dismiss", Context.MODE_PRIVATE);
+        prefs.edit().clear().commit();
+        BrailleImeInputPolicy policy = new BrailleImeInputPolicy();
+        policy.reloadFromPreferences(prefs);
+
+        EditorInfo editor = new EditorInfo();
+        editor.packageName = "app";
+        editor.fieldId = 9;
+        editor.inputType = InputType.TYPE_CLASS_TEXT;
+        policy.onStartInput(editor);
+        policy.onUserDismissed(prefs);
+
+        EditorInfo sameFieldAsNumber = new EditorInfo();
+        sameFieldAsNumber.packageName = "app";
+        sameFieldAsNumber.fieldId = 9;
+        sameFieldAsNumber.inputType = InputType.TYPE_CLASS_NUMBER;
+        policy.onFinishInput();
+        policy.onStartInput(sameFieldAsNumber);
+        assertFalse(policy.shouldShow(sameFieldAsNumber, 0));
     }
 
     @Test

@@ -24,6 +24,7 @@ import android.os.Looper;
 import android.view.Display;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Listens to display state change. */
 public class DisplayMonitor implements DisplayListener {
@@ -50,13 +51,13 @@ public class DisplayMonitor implements DisplayListener {
   }
 
   /** Starts monitoring display listener by registering itself to {@link DisplayManager}. */
-  // incompatible argument for parameter arg0 of Handler.
-  @SuppressWarnings("nullness:argument")
   public void startMonitoring() {
     if (!monitoring) {
-      displayManager.registerDisplayListener(this, new Handler(Looper.myLooper()));
-      defaultDisplayOn =
-          (displayManager.getDisplay(Display.DEFAULT_DISPLAY).getState() == Display.STATE_ON);
+      displayManager.registerDisplayListener(this, new Handler(Looper.getMainLooper()));
+      Display display = getDefaultDisplay();
+      if (display != null) {
+        defaultDisplayOn = (display.getState() == Display.STATE_ON);
+      }
       monitoring = true;
     }
   }
@@ -95,8 +96,11 @@ public class DisplayMonitor implements DisplayListener {
   @Override
   public void onDisplayAdded(int displayId) {
     if (displayId == Display.DEFAULT_DISPLAY) {
-      final boolean displayOn =
-          displayManager.getDisplay(Display.DEFAULT_DISPLAY).getState() == Display.STATE_ON;
+      Display display = getDefaultDisplay();
+      if (display == null) {
+        return;
+      }
+      final boolean displayOn = display.getState() == Display.STATE_ON;
       for (DisplayStateChangedListener listener : displayStateChangedListeners) {
         listener.onDisplayStateChanged(displayOn);
       }
@@ -115,8 +119,11 @@ public class DisplayMonitor implements DisplayListener {
   @Override
   public void onDisplayChanged(int displayId) {
     if (displayId == Display.DEFAULT_DISPLAY) {
-      final boolean displayOn =
-          displayManager.getDisplay(Display.DEFAULT_DISPLAY).getState() == Display.STATE_ON;
+      Display display = getDefaultDisplay();
+      if (display == null) {
+        return;
+      }
+      final boolean displayOn = display.getState() == Display.STATE_ON;
       if (defaultDisplayOn != displayOn) {
         // We only invoke the callback when the display state has been changed.
         defaultDisplayOn = displayOn;
@@ -125,5 +132,9 @@ public class DisplayMonitor implements DisplayListener {
         }
       }
     }
+  }
+
+  private @Nullable Display getDefaultDisplay() {
+    return displayManager.getDisplay(Display.DEFAULT_DISPLAY);
   }
 }

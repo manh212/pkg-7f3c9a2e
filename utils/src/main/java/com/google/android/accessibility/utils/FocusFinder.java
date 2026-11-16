@@ -124,8 +124,14 @@ public class FocusFinder {
     if (ret != null) {
       AccessibilityNodeInfoCompat node = AccessibilityNodeInfoUtils.toCompat(ret);
       // When AccessibilityNodeProvider is used, the returned node may be stale.
-      if ((isCurrent == null || !isCurrent.accept(node)) && !ret.refresh()) {
-        return null;
+      if (isCurrent == null) {
+        if (!ret.refresh()) {
+          return null;
+        }
+      } else if (!isCurrent.accept(node)) {
+        if (!ret.refresh() || !isCurrent.accept(node)) {
+          return null;
+        }
       }
       return node;
     }
