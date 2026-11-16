@@ -56,4 +56,13 @@ class NotificationSettingsTest {
     prefs.edit().putString("pref_notification_while_reading", "AFTER").commit()
     assertEquals(BusyBehavior.AFTER, NotificationSettings.read(prefs).busyBehavior)
   }
+
+  @Test
+  fun apps_skipsABadEntryInsteadOfDroppingThemAll() {
+    val apps =
+      NotificationSettings.apps(
+        """{"com.example.good": {"mode": "PRIVATE"}, "com.example.bad": "not an object"}"""
+      )
+    assertEquals(mapOf("com.example.good" to AppSettings(AppMode.PRIVATE)), apps)
+  }
 }

@@ -16,6 +16,8 @@
 
 package com.google.android.accessibility.utils.output
 
+import android.content.SharedPreferences
+import java.lang.reflect.Proxy
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.log10
@@ -108,6 +110,20 @@ class SpeechEqualizerTest {
     val stereo = FloatArray(left.size * 2) { if (it % 2 == 0) left[it / 2] else 0f }
     SpeechEqualizer.Filter(gains, rate, 2).process(stereo)
     assertTrue((0 until rate).all { stereo[it * 2 + 1] == 0f })
+  }
+
+  @Test
+  fun damagedOnPreferenceFallsBackToOff() {
+    val prefs =
+      Proxy.newProxyInstance(
+          javaClass.classLoader, arrayOf(SharedPreferences::class.java)) { _, method, _ ->
+        if (method.name == "getBoolean") {
+          throw ClassCastException("damaged")
+        }
+        throw UnsupportedOperationException(method.name)
+      }
+        as SharedPreferences
+    assertFalse(SpeechEqualizer.isOn(prefs, ""))
   }
 
   @Test

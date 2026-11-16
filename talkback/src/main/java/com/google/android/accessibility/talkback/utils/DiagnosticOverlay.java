@@ -68,7 +68,7 @@ public class DiagnosticOverlay extends SimpleOverlay {
 
     show();
 
-    final long displayTime = Math.max(4000, text.length() * 2000);
+    final long displayTime = Math.min(15000, Math.max(4000, text.length() * 200L));
     mText.setText(text);
     mHandler.sendEmptyMessageDelayed(MSG_CLEAR_TEXT, displayTime);
   }

@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import com.google.android.accessibility.talkback.PrimesController;
+import com.google.android.accessibility.talkback.PrimesController.TimerAction;
 import com.google.android.accessibility.utils.LatencyTracker;
 import com.google.android.accessibility.utils.Performance.EventData;
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech.FailoverTtsListener;
@@ -48,16 +49,48 @@ public class EventLatencyLogger implements LatencyTracker, FailoverTtsListener {
           | TYPE_VIEW_TEXT_CHANGED;
 
   private final Executor executor;
+  private final PrimesController primesController;
 
   public EventLatencyLogger(
       PrimesController primesController, Context context, SharedPreferences prefs) {
+    this.primesController = primesController;
     executor = new HandlerExecutor(new Handler(context.getMainLooper()));
   }
 
   public void destroy() {}
 
   @Override
-  public void onFeedbackOutput(EventData eventData) {}
+  public void onFeedbackOutput(EventData eventData) {
+    if (eventData == null) {
+      return;
+    }
+    long startMs = eventData.timeReceivedAtTalkback;
+    long endMs = eventData.getTimeFeedbackOutput();
+    if (startMs <= 0 || endMs <= startMs) {
+      return;
+    }
+    primesController.recordDuration(TimerAction.EVENT_BASED_HEARING_FEEDBACK, startMs, endMs);
+  }
+
+  @Override
+  public void onAccessibilityActionPerformed(EventData eventData) {
+    if (eventData == null || eventData.getActionDetails() == null) {
+      return;
+    }
+    long processingTime = eventData.getActionDetails().getProcessingTime();
+    if (processingTime < 0) {
+      return;
+    }
+    primesController.recordDuration(TimerAction.EVENT_BASED_PERFORMING_ACTION, processingTime);
+  }
+
+  @Override
+  public void onUtteranceStarted(String utteranceId, long delay) {
+    if (delay < 0) {
+      return;
+    }
+    primesController.recordDuration(TimerAction.TTS_DELAY, delay);
+  }
 
   @Override
   public Executor getExecutor() {

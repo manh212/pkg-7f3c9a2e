@@ -255,7 +255,7 @@ public class LogUtils {
       @Nullable Throwable throwable,
       @Nullable String format,
       @Nullable Object... args) {
-    if (!debugLogEnabled) {
+    if (!shouldLog(priority)) {
       return;
     }
     if (priority <= Log.DEBUG && LatencyExperiments.inputIsActive(250)
@@ -320,7 +320,7 @@ public class LogUtils {
   }
 
   public static boolean shouldLog(int logLevel) {
-    return debugLogEnabled;
+    return debugLogEnabled || logLevel >= Log.WARN;
   }
 
   public static void setLogFile(@Nullable File file) {

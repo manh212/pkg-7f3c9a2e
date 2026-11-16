@@ -593,7 +593,8 @@ public class LabelProviderClient {
    */
   @Nullable
   private Label getLabelFromCursorAtCurrentPosition(Cursor cursor) {
-    if (cursor == null || cursor.isClosed() || cursor.isAfterLast()) {
+    if (cursor == null || cursor.isClosed() || cursor.getCount() == 0 || cursor.isBeforeFirst() ||
+        cursor.isAfterLast()) {
       LogUtils.w(TAG, "Failed to get label from cursor.");
       return null;
     }
@@ -630,7 +631,8 @@ public class LabelProviderClient {
    */
   @Nullable
   private PackageLabelInfo getPackageLabelInfoFromCursor(Cursor cursor) {
-    if (cursor == null || cursor.isClosed() || cursor.isAfterLast()) {
+    if (cursor == null || cursor.isClosed() || cursor.getCount() == 0 || cursor.isBeforeFirst() ||
+        cursor.isAfterLast()) {
       LogUtils.w(TAG, "Failed to get PackageLabelInfo from cursor.");
       return null;
     }
@@ -653,7 +655,9 @@ public class LabelProviderClient {
       return null;
     }
 
-    cursor.moveToFirst();
+    if (!cursor.moveToFirst()) {
+      return null;
+    }
     final Label result = getLabelFromCursorAtCurrentPosition(cursor);
 
     logResult(result);

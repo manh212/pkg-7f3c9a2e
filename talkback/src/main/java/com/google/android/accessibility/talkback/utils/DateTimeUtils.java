@@ -110,9 +110,13 @@ public final class DateTimeUtils {
 
   private static String formatCurrentTime(
       Context context, long millis, int timeFlags, @TimeFeedbackFormat int timeFormat) {
-    int currentTimeFlags = timeFlags & DateUtils.FORMAT_SHOW_TIME;
+    int currentTimeFlags =
+        timeFlags
+            & ~(DateUtils.FORMAT_SHOW_DATE
+                | DateUtils.FORMAT_SHOW_WEEKDAY
+                | DateUtils.FORMAT_SHOW_YEAR);
     String timeString = "";
-    if (currentTimeFlags != 0) {
+    if ((currentTimeFlags & DateUtils.FORMAT_SHOW_TIME) != 0) {
       currentTimeFlags |=
           switch (timeFormat) {
             case DateTimeUtils.TIME_FEEDBACK_FORMAT_12_HOURS -> DateUtils.FORMAT_12HOUR;

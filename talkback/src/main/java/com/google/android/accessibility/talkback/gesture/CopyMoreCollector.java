@@ -69,6 +69,9 @@ public class CopyMoreCollector {
       }
     }
     String contentSnapshot = root == null ? "" : createContentSnapshot(root);
+    if (root != null && root != focusNode && root != scrollableNode) {
+      root.recycle();
+    }
     boolean progressed = items.size() > before || !contentSnapshot.equals(lastContentSnapshot);
     if (progressed) {
       passesWithoutProgress = 0;
@@ -108,11 +111,27 @@ public class CopyMoreCollector {
     markTextAsSeen(node);
     int childCount = node.getChildCount();
     for (int i = 0; i < childCount; i++) {
-      if (collectFrom(node.getChild(i))) {
-        for (int next = i + 1; next < childCount && items.size() < MAX_ITEMS; next++) {
-          collectSubtree(node.getChild(next));
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      try {
+        if (collectFrom(child)) {
+          for (int next = i + 1; next < childCount && items.size() < MAX_ITEMS; next++) {
+            AccessibilityNodeInfoCompat sibling = node.getChild(next);
+            if (sibling == null) {
+              continue;
+            }
+            try {
+              collectSubtree(sibling);
+            } finally {
+              sibling.recycle();
+            }
+          }
+          return true;
         }
-        return true;
+      } finally {
+        child.recycle();
       }
     }
     return false;
@@ -124,7 +143,15 @@ public class CopyMoreCollector {
     }
     addText(node);
     for (int i = 0; i < node.getChildCount(); i++) {
-      collectSubtree(node.getChild(i));
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      try {
+        collectSubtree(child);
+      } finally {
+        child.recycle();
+      }
       if (items.size() >= MAX_ITEMS) {
         return;
       }
@@ -176,7 +203,15 @@ public class CopyMoreCollector {
           .append(';');
     }
     for (int i = 0; i < node.getChildCount(); i++) {
-      appendContentSnapshot(node.getChild(i), snapshot);
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      try {
+        appendContentSnapshot(child, snapshot);
+      } finally {
+        child.recycle();
+      }
     }
   }
 
@@ -189,13 +224,21 @@ public class CopyMoreCollector {
               current, AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD)) {
         return current;
       }
-      current = current.getParent();
+      AccessibilityNodeInfoCompat parent = current.getParent();
+      if (current != node) {
+        current.recycle();
+      }
+      current = parent;
     }
     return null;
   }
 
   private void finish() {
     handler.removeCallbacksAndMessages(null);
+    if (scrollableNode != null && scrollableNode != focusNode) {
+      scrollableNode.recycle();
+      scrollableNode = null;
+    }
     if (items.isEmpty()) {
       callback.onNothing();
       return;

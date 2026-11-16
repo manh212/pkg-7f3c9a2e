@@ -45,8 +45,7 @@ public class DebugProperties {
     if ("eng".equals(Build.TYPE) || "userdebug".equals(Build.TYPE)) {
       File file = new File(context.getFilesDir(), "debug.properties");
       if (file.exists()) {
-        try {
-          FileInputStream fos = new FileInputStream(file);
+        try (FileInputStream fos = new FileInputStream(file)) {
           properties.load(fos);
         } catch (IOException e) {
           e.printStackTrace();

@@ -193,16 +193,19 @@ public class TextFormattingInfo {
     result.addAll(tempSelfInfos);
     if (previousEndInfos != null && !previousEndInfos.isEmpty()) {
       List<FormattingInfo> tempPreviousEndInfos = new ArrayList<>();
-      tempPreviousEndInfos.addAll(previousEndInfos);
+      for (FormattingInfo previousEndInfo : previousEndInfos) {
+        tempPreviousEndInfos.add(previousEndInfo.newInstance());
+      }
       // Remove span start info same as previous info.
       for (FormattingInfo info : tempSelfInfos) {
         if (info.range.first == sourceTextBegin) {
-          for (FormattingInfo previousEndInfo : previousEndInfos) {
+          for (int index = 0; index < tempPreviousEndInfos.size(); index++) {
+            FormattingInfo previousEndInfo = tempPreviousEndInfos.get(index);
             if (previousEndInfo instanceof StyleFormattingInfo preInfo
                 && info instanceof StyleFormattingInfo curInfo) {
               dedupStyleInfo(preInfo, curInfo);
               if (preInfo.style == 0) {
-                tempPreviousEndInfos.remove(previousEndInfo);
+                tempPreviousEndInfos.remove(index);
               }
               if (curInfo.style == 0) {
                 info.setIsPreviousStart(true);
@@ -210,7 +213,7 @@ public class TextFormattingInfo {
               break;
             } else if (previousEndInfo.equals(info)) {
               info.setIsPreviousStart(true);
-              tempPreviousEndInfos.remove(previousEndInfo);
+              tempPreviousEndInfos.remove(index);
               break;
             }
           }

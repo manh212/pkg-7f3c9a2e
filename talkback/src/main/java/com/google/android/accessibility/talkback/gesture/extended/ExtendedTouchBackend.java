@@ -277,8 +277,11 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
           detector.clear();
           gestureStarted = completedInteraction = false;
         }
-        downY[event.getPointerId(0)] = event.getY();
-        downX[event.getPointerId(0)] = event.getX();
+        int downId = event.getPointerId(0);
+        if (downId >= 0 && downId < downY.length) {
+          downY[downId] = event.getY();
+          downX[downId] = event.getX();
+        }
         if (edgeInput != null && canDetectGesture()) {
           edgeInput.down(event);
         }
@@ -291,8 +294,11 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         int index = event.getActionIndex();
         handler.removeCallbacks(explore);
         cancelStationaryTouchExploration();
-        downY[event.getPointerId(index)] = event.getY(index);
-        downX[event.getPointerId(index)] = event.getX(index);
+        int downId = event.getPointerId(index);
+        if (downId >= 0 && downId < downY.length) {
+          downY[downId] = event.getY(index);
+          downX[downId] = event.getX(index);
+        }
         if (state == TouchInteractionController.STATE_TOUCH_EXPLORING) detector.clear();
         if (event.getPointerCount() == 2) beginTwoFingerTracking(event);
         else resetTwoFingerTracking();
@@ -398,6 +404,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       return true;
     }
     int pointerId = event.getPointerId(0);
+    if (pointerId < 0 || pointerId >= downX.length) {
+      return true;
+    }
     float startX = downX[pointerId];
     float startY = downY[pointerId];
     for (int i = 0; i < event.getHistorySize(); i++) {
@@ -617,6 +626,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
 
   private boolean distorted(MotionEvent event) {
     int a = event.getPointerId(0), b = event.getPointerId(1);
+    if (a < 0 || a >= downX.length || b < 0 || b >= downX.length) {
+      return false;
+    }
     float dx = downX[b] - downX[a], dy = downY[b] - downY[a];
     float currentX = event.getX(1) - event.getX(0), currentY = event.getY(1) - event.getY(0);
     float initial = (float) Math.hypot(dx, dy), current = (float) Math.hypot(currentX, currentY);

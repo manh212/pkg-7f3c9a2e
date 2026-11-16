@@ -93,7 +93,11 @@ public final class FirebaseRest {
       return;
     }
     if (!config.enabled()) throw new IllegalStateException("Chưa cấu hình dịch vụ đăng ký Firebase.");
-    identity = new JSONObject(storage.read());
+    JSONObject stored = new JSONObject(storage.read());
+    identity =
+        stored.length() == 0 && session.identity != null && session.identity.length() > 0
+            ? session.identity
+            : stored;
     JSONObject result;
     String nextToken;
     if (identity.length() == 0) {
@@ -102,6 +106,7 @@ public final class FirebaseRest {
       identity.put("uid", result.getString("localId"));
       identity.put("refresh", result.getString("refreshToken"));
       nextToken = result.getString("idToken");
+      session.identity = identity;
     } else {
       result = new JSONObject(transport.request("https://securetoken.googleapis.com/v1/token?key=" + config.apiKey,
           "POST", "grant_type=refresh_token&refresh_token="

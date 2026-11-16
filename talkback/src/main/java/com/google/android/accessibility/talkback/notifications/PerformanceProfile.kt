@@ -21,8 +21,9 @@ import com.google.android.accessibility.utils.LatencyExperiments
 
 /**
  * The initial setup's performance configuration: speed keeps every Developer performance option
- * as it is, energy turns them all off. Both directions write every key, so switching profiles
- * leaves no stale value behind. The marker records which profile was picked.
+ * as it is, energy turns them all off. Speed writes only the marker, so it never touches a
+ * value the user set; energy writes every key, so switching to energy leaves no stale value
+ * behind. The marker records which profile was picked.
  */
 object PerformanceProfile {
   const val KEY = "pref_performance_profile"
@@ -48,23 +49,29 @@ object PerformanceProfile {
 
   /** Writes the profile's values in one edit. Anything other than [ENERGY] applies speed. */
   fun apply(preferences: SharedPreferences, profile: String) {
-    val energy = profile == ENERGY
+    if (profile != ENERGY) {
+      preferences.edit().apply {
+        putString(KEY, SPEED)
+        putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
+      }.apply()
+      return
+    }
     preferences.edit().apply {
-      putBoolean(DISABLE_LATENCY_EXTRAS_KEY, energy)
-      putBoolean(DISABLE_LATENCY_PINNED_KEY, energy)
-      putBoolean(PREPARE_ADJACENT_KEY, !energy)
-      putBoolean(PREPARE_SECOND_AHEAD_KEY, !energy)
-      putBoolean(ORDER_CACHE_KEY, !energy)
+      putBoolean(DISABLE_LATENCY_EXTRAS_KEY, true)
+      putBoolean(DISABLE_LATENCY_PINNED_KEY, true)
+      putBoolean(PREPARE_ADJACENT_KEY, false)
+      putBoolean(PREPARE_SECOND_AHEAD_KEY, false)
+      putBoolean(ORDER_CACHE_KEY, false)
       putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
       for (feature in LatencyExperiments.Feature.values()) {
-        putBoolean(feature.key, if (energy) false else feature.defaultEnabled)
+        putBoolean(feature.key, false)
       }
       putString(EVENT_PROCESSING_LEVEL_KEY, EVENT_PROCESSING_LEVEL_LOW)
       putInt(
         LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY,
         LatencyExperiments.defaultStationaryTouchDelayMs(),
       )
-      putString(KEY, if (energy) ENERGY else SPEED)
+      putString(KEY, ENERGY)
       putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
     }.apply()
   }

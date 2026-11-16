@@ -721,11 +721,12 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
         loadGestureIdToActionKeyMap();
         if (context.getResources().getString(R.string.pref_gesture_set_key).equals(key)) {
           currentGestureSet =
-              SharedPreferencesUtils.getIntFromStringPref(
-                  prefs,
-                  context.getResources(),
-                  R.string.pref_gesture_set_key,
-                  R.string.pref_gesture_set_value_default);
+              clampGestureSet(
+                  SharedPreferencesUtils.getIntFromStringPref(
+                      prefs,
+                      context.getResources(),
+                      R.string.pref_gesture_set_key,
+                      R.string.pref_gesture_set_value_default));
         } else if (context
             .getResources()
             .getString(R.string.pref_multiple_gesture_set_key)
@@ -763,13 +764,14 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
             R.string.pref_multiple_gesture_set_key,
             R.bool.pref_multiple_gesture_set_default);
     currentGestureSet =
-        gestureSetEnabled
-            ? SharedPreferencesUtils.getIntFromStringPref(
-                prefs,
-                context.getResources(),
-                R.string.pref_gesture_set_key,
-                R.string.pref_gesture_set_value_default)
-            : 0;
+        clampGestureSet(
+            gestureSetEnabled
+                ? SharedPreferencesUtils.getIntFromStringPref(
+                    prefs,
+                    context.getResources(),
+                    R.string.pref_gesture_set_key,
+                    R.string.pref_gesture_set_value_default)
+                : 0);
   }
 
   public void onConfigurationChanged(Configuration newConfig) {
@@ -797,11 +799,12 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
       return 0;
     }
     int gestureSet =
-        SharedPreferencesUtils.getIntFromStringPref(
-            prefs,
-            context.getResources(),
-            R.string.pref_gesture_set_key,
-            R.string.pref_gesture_set_value_default);
+        clampGestureSet(
+            SharedPreferencesUtils.getIntFromStringPref(
+                prefs,
+                context.getResources(),
+                R.string.pref_gesture_set_key,
+                R.string.pref_gesture_set_value_default));
     gestureSet =
         isNext
             ? (gestureSet + 1) % NUMBER_OF_GESTURE_SET
@@ -933,6 +936,14 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
       keys.put(gesture.gestureId, context.getString(gesture.keyId));
     }
     gestureIdToKey = keys;
+  }
+
+  private static int clampGestureSet(int gestureSet) {
+    if (gestureSet < 0 || gestureSet >= NUMBER_OF_GESTURE_SET) {
+      LogUtils.w(TAG, "Gesture set is not allowed; fallback to 0.");
+      return 0;
+    }
+    return gestureSet;
   }
 
   private String getActionKeyFromGestureId(int index, int gestureId) {

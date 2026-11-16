@@ -84,7 +84,8 @@ final class AsyncLogFileWriter {
       if (!enabled || configuredFile == null) {
         return;
       }
-      executor.execute(() -> write(timestamp, priority, tag, message));
+      File target = configuredFile;
+      executor.execute(() -> write(target, timestamp, priority, tag, message));
     }
   }
 
@@ -120,9 +121,14 @@ final class AsyncLogFileWriter {
     return failureValue;
   }
 
-  private void write(long timestamp, char priority, String tag, String message) {
-    if (file == null) {
+  private void write(File target, long timestamp, char priority, String tag, String message) {
+    if (target == null) {
       return;
+    }
+    if (file == null || !target.equals(file)) {
+      closeStream();
+      file = target;
+      oldFile = oldFileFor(target);
     }
     try {
       if (stream == null) {

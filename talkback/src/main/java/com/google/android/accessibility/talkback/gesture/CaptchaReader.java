@@ -101,7 +101,7 @@ final class CaptchaReader {
 
   static @Nullable String extractCode(@Nullable String result) {
     if (result == null) return null;
-    String code = result.trim().replaceAll("[ \t]", "");
+    String code = result.trim().replaceAll("\\s", "");
     return CODE.matcher(code).matches() ? code : null;
   }
 

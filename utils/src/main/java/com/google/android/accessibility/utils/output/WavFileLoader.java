@@ -1,8 +1,8 @@
 package com.google.android.accessibility.utils.output;
 
 import static android.media.AudioFormat.ENCODING_PCM_16BIT;
+import static android.media.AudioFormat.ENCODING_PCM_32BIT;
 import static android.media.AudioFormat.ENCODING_PCM_8BIT;
-import static android.media.AudioFormat.ENCODING_PCM_FLOAT;
 
 import android.media.AudioFormat;
 import android.util.Log;
@@ -22,21 +22,14 @@ public class WavFileLoader {
   private static final String TAG = "WavFileLoader";
 
   // WAV header constants
-  private static final int RIFF_CHUNK_ID_OFFSET = 0;
-  private static final int RIFF_CHUNK_ID_LENGTH = 4;
+  private static final int RIFF_HEADER_SIZE = 12;
   private static final String RIFF_CHUNK_ID = "RIFF";
-  private static final int WAVE_FORMAT_OFFSET = 8;
-  private static final int WAVE_FORMAT_LENGTH = 4;
   private static final String WAVE_FORMAT = "WAVE";
-  private static final int FMT_SUBCHUNK_ID_OFFSET = 12;
-  private static final int FMT_SUBCHUNK_ID_LENGTH = 4;
+  private static final int CHUNK_HEADER_SIZE = 8;
   private static final String FMT_SUBCHUNK_ID = "fmt ";
-  private static final int AUDIO_FORMAT_OFFSET = 20;
+  private static final int FMT_BODY_MIN_SIZE = 16;
+  private static final String DATA_SUBCHUNK_ID = "data";
   private static final short PCM_AUDIO_FORMAT = 1;
-  private static final int NUM_CHANNELS_OFFSET = 22;
-  private static final int SAMPLE_RATE_OFFSET = 24;
-  private static final int BITS_PER_SAMPLE_OFFSET = 34;
-  private static final int DATA_SUBCHUNK_SIZE_OFFSET = 40;
 
   public static final int HEADER_SIZE = 44;
 
@@ -74,29 +67,67 @@ public class WavFileLoader {
     try (InputStream inputStream = new FileInputStream(wavFile);
         ByteArrayOutputStream pcmOutputStream = new ByteArrayOutputStream()) {
 
-      // --- WAV Header Parsing ---
-      byte[] header = new byte[HEADER_SIZE];
-      int bytesReadInHeader = inputStream.read(header, 0, header.length);
-      if (bytesReadInHeader < HEADER_SIZE) {
-        Log.e(TAG, "Could not read full WAV header from: " + wavFile.getName());
+      // --- WAV Header Parsing: walk the RIFF chunks, so files with extra chunks before the
+      // data chunk and oversized fmt chunks are handled. ---
+      byte[] riffHeader = new byte[RIFF_HEADER_SIZE];
+      if (!readFully(inputStream, riffHeader)) {
+        Log.e(TAG, "Could not read RIFF header from: " + wavFile.getName());
         return null;
       }
-
-      ByteBuffer buffer = ByteBuffer.wrap(header);
-      buffer.order(ByteOrder.LITTLE_ENDIAN);
-
-      if (!(new String(header, RIFF_CHUNK_ID_OFFSET, RIFF_CHUNK_ID_LENGTH).equals(RIFF_CHUNK_ID)
-          && new String(header, WAVE_FORMAT_OFFSET, WAVE_FORMAT_LENGTH).equals(WAVE_FORMAT))) {
+      if (!(new String(riffHeader, 0, 4).equals(RIFF_CHUNK_ID)
+          && new String(riffHeader, 8, 4).equals(WAVE_FORMAT))) {
         Log.e(TAG, wavFile.getName() + " is not a valid WAV file (RIFF/WAVE tags missing).");
         return null;
       }
-      if (!new String(header, FMT_SUBCHUNK_ID_OFFSET, FMT_SUBCHUNK_ID_LENGTH)
-          .equals(FMT_SUBCHUNK_ID)) {
-        Log.e(TAG, wavFile.getName() + ": WAV 'fmt ' chunk not found at expected offset.");
+
+      short audioFormatCode = -1;
+      short numChannels = 0;
+      int currentSampleRate = 0;
+      short bitsPerSample = 0;
+      int dataChunkSize = -1;
+      byte[] chunkHeader = new byte[CHUNK_HEADER_SIZE];
+      while (readFully(inputStream, chunkHeader)) {
+        int chunkSize =
+            ByteBuffer.wrap(chunkHeader, 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+        String chunkId = new String(chunkHeader, 0, 4);
+        if (chunkId.equals(FMT_SUBCHUNK_ID)) {
+          if (chunkSize < FMT_BODY_MIN_SIZE) {
+            Log.e(TAG, wavFile.getName() + ": WAV 'fmt ' chunk too small.");
+            return null;
+          }
+          byte[] fmtBody = new byte[FMT_BODY_MIN_SIZE];
+          if (!readFully(inputStream, fmtBody)) {
+            Log.e(TAG, wavFile.getName() + ": truncated WAV 'fmt ' chunk.");
+            return null;
+          }
+          ByteBuffer fmtBuffer = ByteBuffer.wrap(fmtBody).order(ByteOrder.LITTLE_ENDIAN);
+          audioFormatCode = fmtBuffer.getShort(0);
+          numChannels = fmtBuffer.getShort(2);
+          currentSampleRate = fmtBuffer.getInt(4);
+          bitsPerSample = fmtBuffer.getShort(14);
+          if (!skipFully(inputStream, chunkSize - FMT_BODY_MIN_SIZE + (chunkSize % 2))) {
+            Log.e(TAG, wavFile.getName() + ": truncated WAV 'fmt ' chunk.");
+            return null;
+          }
+        } else if (chunkId.equals(DATA_SUBCHUNK_ID)) {
+          if (audioFormatCode == -1) {
+            Log.e(TAG, wavFile.getName() + ": WAV 'data' chunk before 'fmt ' chunk.");
+            return null;
+          }
+          dataChunkSize = chunkSize;
+          break;
+        } else {
+          if (!skipFully(inputStream, chunkSize + (chunkSize % 2))) {
+            Log.e(TAG, wavFile.getName() + ": truncated WAV chunk.");
+            return null;
+          }
+        }
+      }
+      if (dataChunkSize < 0) {
+        Log.e(TAG, wavFile.getName() + ": WAV 'data' chunk not found.");
         return null;
       }
 
-      short audioFormatCode = buffer.getShort(AUDIO_FORMAT_OFFSET);
       if (audioFormatCode != PCM_AUDIO_FORMAT) {
         Log.e(
             TAG,
@@ -107,11 +138,6 @@ public class WavFileLoader {
                 + ". Only PCM is supported.");
         return null;
       }
-
-      short numChannels = buffer.getShort(NUM_CHANNELS_OFFSET);
-      int currentSampleRate = buffer.getInt(SAMPLE_RATE_OFFSET);
-      short bitsPerSample = buffer.getShort(BITS_PER_SAMPLE_OFFSET);
-      int dataChunkSize = buffer.getInt(DATA_SUBCHUNK_SIZE_OFFSET);
 
       int currentChannelConfig;
       switch (numChannels) {
@@ -127,7 +153,7 @@ public class WavFileLoader {
       switch (bitsPerSample) {
         case 8 -> currentAudioFormatEncoding = ENCODING_PCM_8BIT;
         case 16 -> currentAudioFormatEncoding = ENCODING_PCM_16BIT;
-        case 32 -> currentAudioFormatEncoding = ENCODING_PCM_FLOAT;
+        case 32 -> currentAudioFormatEncoding = ENCODING_PCM_32BIT;
         default -> {
           Log.e(TAG, "Unsupported bits per sample: " + bitsPerSample + " in " + wavFile.getName());
           return null;
@@ -167,5 +193,29 @@ public class WavFileLoader {
       Log.e(TAG, "Unexpected error loading WAV: " + wavFile.getAbsolutePath(), e);
     }
     return null;
+  }
+
+  private static boolean readFully(InputStream inputStream, byte[] buffer) throws IOException {
+    int offset = 0;
+    while (offset < buffer.length) {
+      int bytesRead = inputStream.read(buffer, offset, buffer.length - offset);
+      if (bytesRead == -1) {
+        return false;
+      }
+      offset += bytesRead;
+    }
+    return true;
+  }
+
+  private static boolean skipFully(InputStream inputStream, long bytesToSkip) throws IOException {
+    long remaining = bytesToSkip;
+    while (remaining > 0) {
+      long skipped = inputStream.skip(remaining);
+      if (skipped <= 0) {
+        return false;
+      }
+      remaining -= skipped;
+    }
+    return true;
   }
 }

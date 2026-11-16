@@ -152,6 +152,29 @@ public final class CatalogPublisherTest {
         () -> publisher.publish(request, legacy, publicKey));
   }
 
+  @Test public void damagedPreviousRecordIsReplacedInsteadOfBlockingPublish() throws Exception {
+    FakeClient client = new FakeClient();
+    KeyPair issuer = keyPair();
+    String publicKey = RecoveryProtocol.publicKey(issuer.getPublic());
+    CatalogPublisher publisher = new CatalogPublisher(client);
+    String damagedValue = RecoveryProtocol.request("meridian", "123456789abcdef0");
+    client.files.put(RecoveryProtocol.recordPath(damagedValue),
+        new CatalogPublisher.RemoteFile("{\"format\":3,\"value\":\"garbage\"}", "sha-damaged"));
+    String license = RecoveryProtocol.issue(damagedValue, issuer.getPrivate(), 1700000000L);
+    publisher.publish(damagedValue, license, publicKey);
+    assertEquals(license,
+        new JSONObject(client.files.get(RecoveryProtocol.recordPath(damagedValue)).content)
+            .getString("value"));
+    String unparseable = RecoveryProtocol.request("meridian", "223456789abcdef0");
+    client.files.put(RecoveryProtocol.recordPath(unparseable),
+        new CatalogPublisher.RemoteFile("not json", "sha-unparseable"));
+    String secondLicense = RecoveryProtocol.issue(unparseable, issuer.getPrivate(), 1700000001L);
+    publisher.publish(unparseable, secondLicense, publicKey);
+    assertEquals(secondLicense,
+        new JSONObject(client.files.get(RecoveryProtocol.recordPath(unparseable)).content)
+            .getString("value"));
+  }
+
   @Test public void signedStateRevisionsRejectRollbackAndLegacyDowngrades() throws Exception {
     FakeClient client = new FakeClient();
     CatalogPublisher publisher = new CatalogPublisher(client);

@@ -96,8 +96,15 @@ object NotificationReader {
   private val DND_TOKEN = Any()
   private const val DND_CHECK_MS = 200L
   private const val DND_CHECKS = 5
+  /** Marks the callbacks that record a notification the listener never delivered. */
+  private val LISTENER_TOKEN = Any()
   /** How long the notification listener waits for a notification's accessibility event. */
   private const val EVENT_WAIT_MS = 1_500L
+  /**
+   * How long to wait for the listener to deliver a notification left to it, before recording it
+   * unread: twice the listener's own wait, so its delivery is not mistaken for a miss.
+   */
+  private const val LISTENER_WAIT_MS = 2 * EVENT_WAIT_MS
   /** How long a notification's accessibility event is remembered, and how many. */
   private const val EVENT_MEMORY_MS = 10_000L
   private const val MAX_RECENT_EVENTS = 50
@@ -407,6 +414,10 @@ object NotificationReader {
   @JvmStatic val isReading: Boolean
     get() = reading?.started == true
 
+  /** Whether SandFly is running and reading notifications. */
+  @JvmStatic val isAttached: Boolean
+    get() = context != null
+
   /**
    * Reads [notification], posted by [event]'s app, as the settings say, including what happens
    * while the screen is [touching] and while Do Not Disturb, [dnd], is on. Returns
@@ -420,6 +431,17 @@ object NotificationReader {
     if (readsFromListener() && notification.category != Notification.CATEGORY_CALL) {
       // The listener has the whole notification; the event may have only its public version.
       LogUtils.d(TAG, "Leaving a notification of %s to the listener", packageName)
+      handler.postAtTime(
+        {
+          val delivered =
+            NotificationHistory.all().any {
+              it.info.packageName == packageName && it.info.postedAtMillis == notification.`when`
+            }
+          if (!delivered) noteUnread(packageName, notification, Outcome.WAITING)
+        },
+        LISTENER_TOKEN,
+        SystemClock.uptimeMillis() + LISTENER_WAIT_MS,
+      )
       return true
     }
     noteEvent(packageName, notification)
@@ -477,9 +499,13 @@ object NotificationReader {
         DndMode.ALLOWED -> {
           // The event is used after it is handled.
           @Suppress("DEPRECATION") val copy = event?.let { AccessibilityEvent.obtain(it) }
+          val pending = PendingDnd(packageName, notification, copy)
+          pendingDnd += pending
           whenDndDecided(packageName, notification, 1) { allowed ->
+            pendingDnd.remove(pending)
             if (allowed) read(packageName, copy, notification, hold)
             else noteUnread(packageName, notification, Outcome.DO_NOT_DISTURB)
+            copy?.recycle()
           }
           return true
         }
@@ -492,8 +518,19 @@ object NotificationReader {
   /** Notifications that came as accessibility events lately, as [eventKey]s, and when. */
   private val recentEvents = ArrayDeque<Pair<String, Long>>()
 
+  /** A notification waiting for the listener's Do Not Disturb ranking, with its event copy. */
+  private class PendingDnd(
+    val packageName: String,
+    val notification: Notification,
+    val eventCopy: AccessibilityEvent?,
+  )
+
+  private val pendingDnd = mutableListOf<PendingDnd>()
+
   private fun eventKey(packageName: String, notification: Notification): String =
-    "$packageName|${notification.`when`}|${notification.extras?.getCharSequence(Notification.EXTRA_TITLE)}"
+    "$packageName|${notification.`when`}|${notification.extras?.getCharSequence(Notification.EXTRA_TITLE)}|" +
+      "${notification.extras?.getCharSequence(Notification.EXTRA_TEXT)}|" +
+      notification.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)
 
   private fun noteEvent(packageName: String, notification: Notification) {
     val now = SystemClock.uptimeMillis()
@@ -587,7 +624,13 @@ object NotificationReader {
     val context = context ?: return
     val stateReader = stateReader ?: return
     val settings = settings(context)
-    val info = NotificationInfo.from(packageName, appName(context, packageName), notification)
+    val info =
+      NotificationInfo.from(
+        packageName,
+        appName(context, packageName),
+        notification,
+        channelImportance(packageName, notification),
+      )
     val categoryName =
       EventTypeNotificationStateChangedFeedbackRule.getNotificationCategoryStateText(context, notification)
         .toString()
@@ -686,7 +729,13 @@ object NotificationReader {
   private fun noteUnread(packageName: String, notification: Notification, outcome: Outcome) {
     val context = context ?: return
     if (notification.category == Notification.CATEGORY_CALL || !settings(context).history) return
-    val info = NotificationInfo.from(packageName, appName(context, packageName), notification)
+    val info =
+      NotificationInfo.from(
+        packageName,
+        appName(context, packageName),
+        notification,
+        channelImportance(packageName, notification),
+      )
     NotificationHistory.add(NotificationHistory.Entry(info, System.currentTimeMillis(), outcome, info.content, emptyList()))
   }
 
@@ -765,9 +814,14 @@ object NotificationReader {
   @MainThread
   fun onVoiceInputStarted() {
     translationEpoch++
-    val handed = listOfNotNull(reading) + queued
+    val handed = listOfNotNull(reading) + queued + waiting + heldForVoice + heldForSpeech + heldForTouch
     if (handed.isEmpty()) return
     LogUtils.d(TAG, "Voice input started; silencing %d notifications", handed.size)
+    waiting.toList().forEach { handler.removeCallbacks(it.speak) }
+    waiting.clear()
+    heldForVoice.clear()
+    heldForSpeech.clear()
+    heldForTouch.clear()
     handed.forEach {
       it.silenced = true
       it.cancelled = true
@@ -828,6 +882,7 @@ object NotificationReader {
   /** Stops [readout] alone, waiting in speech or being read, and goes on with the others. */
   private fun stopOne(readout: Readout) {
     readout.cancelled = true
+    queued.remove(readout)
     heldForSpeech.remove(readout)
     if (readout.voiceKey.isEmpty()) {
       readout.speechAction?.let { stopSpeechItem?.invoke(it) }
@@ -1322,6 +1377,12 @@ object NotificationReader {
   }
 
   private fun cancelAll() {
+    pendingDnd.toList().forEach {
+      noteUnread(it.packageName, it.notification, Outcome.DO_NOT_DISTURB)
+      it.eventCopy?.recycle()
+    }
+    pendingDnd.clear()
+    handler.removeCallbacksAndMessages(LISTENER_TOKEN)
     waiting.toList().forEach { cancel(it) }
     queued.forEach { it.cancelled = true }
     queued.clear()
@@ -1426,6 +1487,28 @@ object NotificationReader {
       }
     appNames.put(packageName, name)
     return name
+  }
+
+  /**
+   * The importance of [notification]'s channel, from the listener's ranking when it has one,
+   * or [NotificationManager.IMPORTANCE_DEFAULT] when the listener has no ranking for it. The
+   * ranking's own importance is used, so a channel the user turned down in the system settings
+   * counts as low priority too.
+   */
+  @JvmStatic
+  fun channelImportance(packageName: String, notification: Notification): Int {
+    val listener = NotificationListService.instance ?: return NotificationManager.IMPORTANCE_DEFAULT
+    val posted =
+      runCatching { listener.activeNotifications }.getOrNull()?.lastOrNull {
+        it.packageName == packageName &&
+          it.notification.`when` == notification.`when` &&
+          it.notification.channelId == notification.channelId
+      } ?: return NotificationManager.IMPORTANCE_DEFAULT
+    val ranking = NotificationListenerService.Ranking()
+    val map = listener.currentRanking ?: return NotificationManager.IMPORTANCE_DEFAULT
+    if (!map.getRanking(posted.key, ranking)) return NotificationManager.IMPORTANCE_DEFAULT
+    return ranking.importance.takeIf { it != NotificationManager.IMPORTANCE_UNSPECIFIED }
+      ?: NotificationManager.IMPORTANCE_DEFAULT
   }
 
   /** Whether the screen is on. */

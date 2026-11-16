@@ -520,7 +520,11 @@ data class NotificationSettings(
       json ?: return emptyMap()
       return try {
         val obj = JSONObject(json)
-        obj.keys().asSequence().associateWith { AppSettings.fromJson(obj.getJSONObject(it)) }
+        obj.keys().asSequence().mapNotNull { key ->
+          obj.optJSONObject(key)?.let { entry ->
+            runCatching { AppSettings.fromJson(entry) }.getOrNull()?.let { key to it }
+          }
+        }.toMap()
       } catch (e: JSONException) {
         emptyMap()
       }

@@ -95,6 +95,7 @@ class TutorialActivity : AppCompatActivity() {
   private var keyboard = false
 
   private var lessonIndex = -1
+  private var lessonGeneration = 0
   private var stepIndex = 0
   private val hits = ArrayList<String>()
   private var lessonDone = false
@@ -152,7 +153,7 @@ class TutorialActivity : AppCompatActivity() {
             )
           step?.systemKey == keyCode -> {
             speakNow(name)
-            handler.post { onInput(TutorialInput.SystemKey(keyCode)) }
+            postInput(TutorialInput.SystemKey(keyCode))
           }
           keyCode == KeyEvent.KEYCODE_ESCAPE ->
             speakNow(getString(R.string.sandfly_tutorial_back_in_lesson))
@@ -162,7 +163,7 @@ class TutorialActivity : AppCompatActivity() {
       }
 
       override fun onBrowseMode(enabled: Boolean) {
-        handler.post { onInput(TutorialInput.BrowseMode(enabled)) }
+        postInput(TutorialInput.BrowseMode(enabled))
       }
 
       /** A gesture or keys ran [action]: [inputName] names them, for practice. */
@@ -181,7 +182,7 @@ class TutorialActivity : AppCompatActivity() {
         if (taken && lesson?.id != TutorialLessons.PRACTICE_LESSON) {
           speakNow(actionName(action))
         }
-        handler.post { onInput(TutorialInput.Command(action)) }
+        postInput(TutorialInput.Command(action))
         if (!taken && focused && action == getString(R.string.shortcut_value_back) && keepsBack()) {
           speakNow(getString(R.string.sandfly_tutorial_back_in_lesson))
           return true
@@ -206,7 +207,8 @@ class TutorialActivity : AppCompatActivity() {
         } else {
           afterReading?.let {
             afterReading = null
-            handler.postDelayed(it, SPEECH_DELAY_MS)
+            val generation = lessonGeneration
+            handler.postDelayed({ if (generation == lessonGeneration) it() }, SPEECH_DELAY_MS)
           }
         }
       }
@@ -328,13 +330,24 @@ class TutorialActivity : AppCompatActivity() {
     } else if (lostWindowFocus) {
       lostWindowFocus = false
       // Lets the window's focus settle before the next instruction is said.
-      handler.postDelayed({ onInput(TutorialInput.WindowFocusReturned) }, SPEECH_DELAY_MS)
+      postDelayedInput(TutorialInput.WindowFocusReturned, SPEECH_DELAY_MS)
     }
   }
 
   // Lessons
 
+  private fun postInput(input: TutorialInput) {
+    val generation = lessonGeneration
+    handler.post { if (generation == lessonGeneration) onInput(input) }
+  }
+
+  private fun postDelayedInput(input: TutorialInput, delayMs: Long) {
+    val generation = lessonGeneration
+    handler.postDelayed({ if (generation == lessonGeneration) onInput(input) }, delayMs)
+  }
+
   private fun openLesson(index: Int) {
+    lessonGeneration++
     val lesson = lessons[index]
     lessonIndex = index
     stepIndex = 0
@@ -959,7 +972,7 @@ class TutorialActivity : AppCompatActivity() {
           lessonText?.let { speakLater(it) }
           lessonText = null
         }
-        if (target.isNotEmpty()) handler.post { onInput(TutorialInput.Focused(target)) }
+        if (target.isNotEmpty()) postInput(TutorialInput.Focused(target))
       } else if (
         action == AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS &&
           target == Targets.INSTRUCTION
@@ -969,7 +982,7 @@ class TutorialActivity : AppCompatActivity() {
       actions
         .firstOrNull { actionId(it) == action }
         ?.let {
-          handler.post { onInput(TutorialInput.CustomAction(target, it)) }
+          postInput(TutorialInput.CustomAction(target, it))
           return true
         }
       return super.performAccessibilityAction(host, action, args)
@@ -1003,7 +1016,7 @@ class TutorialActivity : AppCompatActivity() {
       ItemHolder(
         ListItemView(parent.context) { target ->
             instructionFocused = false
-            handler.post { onInput(TutorialInput.Focused(target)) }
+            postInput(TutorialInput.Focused(target))
           }
           .apply {
             setPadding(dp(16), dp(14), dp(16), dp(14))
@@ -1027,7 +1040,12 @@ class TutorialActivity : AppCompatActivity() {
   /** Says [text] after what SandFly says about the gesture or focus that led to it. */
   private fun speakLater(text: CharSequence, then: (() -> Unit)? = null) {
     val say = { speak(text, SpeechController.QUEUE_MODE_QUEUE, then) }
-    if (reading) afterReading = say else handler.postDelayed(say, speechDelay)
+    if (reading) {
+      afterReading = say
+    } else {
+      val generation = lessonGeneration
+      handler.postDelayed({ if (generation == lessonGeneration) say() }, speechDelay)
+    }
   }
 
   private fun speakNow(text: CharSequence) {

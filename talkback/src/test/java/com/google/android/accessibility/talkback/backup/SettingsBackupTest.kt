@@ -732,14 +732,14 @@ class SettingsBackupTest {
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("actions", prefs.getString("pref_a11y_hints", null))
-    assertEquals("off", prefs.getString(customKey, null))
+    assertEquals("actions", prefs.getString(customKey, null))
     assertTrue(state.getBoolean("usage_hints_reset_2", false))
 
     prefs.edit().putString("pref_a11y_hints", "off").commit()
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("off", prefs.getString("pref_a11y_hints", null))
-    assertEquals("off", prefs.getString(customKey, null))
+    assertEquals("actions", prefs.getString(customKey, null))
   }
 
   @Test
@@ -754,7 +754,7 @@ class SettingsBackupTest {
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("actions", prefs.getString("pref_a11y_hints", null))
-    assertEquals("off", prefs.getString(customKey, null))
+    assertEquals("actions", prefs.getString(customKey, null))
     assertTrue(state.getBoolean("usage_hints_reset_2", false))
   }
 

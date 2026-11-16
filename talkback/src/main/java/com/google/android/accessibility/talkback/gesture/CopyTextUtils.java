@@ -51,7 +51,15 @@ public final class CopyTextUtils {
     }
     LinkedHashSet<String> items = new LinkedHashSet<>();
     for (int i = 0; i < node.getChildCount(); i++) {
-      collectText(node.getChild(i), items);
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      try {
+        collectText(child, items);
+      } finally {
+        child.recycle();
+      }
     }
     return new ArrayList<>(items);
   }
@@ -101,7 +109,15 @@ public final class CopyTextUtils {
     }
 
     for (int i = 0; i < node.getChildCount(); i++) {
-      collectText(node.getChild(i), items);
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      try {
+        collectText(child, items);
+      } finally {
+        child.recycle();
+      }
     }
   }
 }

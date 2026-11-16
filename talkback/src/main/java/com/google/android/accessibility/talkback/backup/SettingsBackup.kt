@@ -209,6 +209,8 @@ object SettingsBackup {
           false
         } catch (e: SecurityException) {
           false
+        } catch (e: Throwable) {
+          false
         }
       mainHandler.post {
         toast(appContext, if (written) R.string.settings_export_done else R.string.settings_export_failed)
@@ -237,6 +239,8 @@ object SettingsBackup {
         } catch (e: IOException) {
           false
         } catch (e: SecurityException) {
+          false
+        } catch (e: Throwable) {
           false
         }
       mainHandler.post {
@@ -328,7 +332,7 @@ object SettingsBackup {
       } catch (e: JSONException) {
         return false
       }
-    val edits = mutableListOf<Pair<SharedPreferences, Map<String, Any>>>()
+    val edits = mutableListOf<Triple<SharedPreferences, String, Map<String, Any>>>()
     for ((storage, storageContext) in storages(context)) {
       val storageFiles = files.optJSONObject(storage) ?: continue
       for (file in storageFiles.keys()) {
@@ -348,34 +352,10 @@ object SettingsBackup {
             prefs.all[key]?.let { decoded[key] = it }
           }
         }
-        edits += prefs to decoded
+        edits += Triple(prefs, name, decoded)
       }
     }
-    if (documents != null && !EditorDocuments.restoreBackup(context, documents.toString())) {
-      return false
-    }
-    if (labels != null && !CustomLabelsBackup.restoreBackup(context, labels.toString())) {
-      return false
-    }
-    if (clipboardHistory != null && !ClipboardHistory.restoreBackup(context, clipboardHistory.toString())) {
-      return false
-    }
-    if (favorites != null && !FavoriteTexts.restoreBackup(context, favorites.toString())) {
-      return false
-    }
-    if (timerSounds != null && !TimerSounds.restoreBackup(context, timerSounds.toString())) {
-      return false
-    }
-    if (keySounds != null && !KeyboardKeySounds.restoreBackup(context, keySounds.toString())) {
-      return false
-    }
-    if (soundThemes != null && !SoundThemes.restoreBackup(context, soundThemes.toString())) {
-      return false
-    }
-    if (scripts != null && !restoreScriptsBackup(context, scripts)) {
-      return false
-    }
-    for ((prefs, values) in edits) {
+    for ((prefs, name, values) in edits) {
       val editor = prefs.edit()
       for (key in prefs.all.keys) {
         if (replaceMissing && key !in values && !isSecretKey(key) && !isSkipped(context, null, key)) {
@@ -394,7 +374,42 @@ object SettingsBackup {
           is Set<*> -> editor.putStringSet(key, value as Set<String>)
         }
       }
-      if (!editor.commit()) return false
+      if (!editor.commit()) {
+        LogUtils.e(TAG, "Cannot save the imported settings in %s", name)
+        return false
+      }
+    }
+    if (documents != null && !EditorDocuments.restoreBackup(context, documents.toString())) {
+      LogUtils.e(TAG, "Cannot restore the editor documents")
+      return false
+    }
+    if (labels != null && !CustomLabelsBackup.restoreBackup(context, labels.toString())) {
+      LogUtils.e(TAG, "Cannot restore the custom labels")
+      return false
+    }
+    if (clipboardHistory != null && !ClipboardHistory.restoreBackup(context, clipboardHistory.toString())) {
+      LogUtils.e(TAG, "Cannot restore the clipboard history")
+      return false
+    }
+    if (favorites != null && !FavoriteTexts.restoreBackup(context, favorites.toString())) {
+      LogUtils.e(TAG, "Cannot restore the favorite texts")
+      return false
+    }
+    if (timerSounds != null && !TimerSounds.restoreBackup(context, timerSounds.toString())) {
+      LogUtils.e(TAG, "Cannot restore the timer sounds")
+      return false
+    }
+    if (keySounds != null && !KeyboardKeySounds.restoreBackup(context, keySounds.toString())) {
+      LogUtils.e(TAG, "Cannot restore the key sounds")
+      return false
+    }
+    if (soundThemes != null && !SoundThemes.restoreBackup(context, soundThemes.toString())) {
+      LogUtils.e(TAG, "Cannot restore the sound themes")
+      return false
+    }
+    if (scripts != null && !restoreScriptsBackup(context, scripts)) {
+      LogUtils.e(TAG, "Cannot restore the scripts")
+      return false
     }
     return true
   }
@@ -419,14 +434,14 @@ object SettingsBackup {
       wanted[id] = files
     }
     val scriptsDir = File(context.filesDir, MigrationFiles.SCRIPTS_DIR)
+    for ((id, files) in wanted) {
+      if (!FileTreeBackup.write(File(scriptsDir, id), files)) return false
+    }
     for (dir in scriptsDir
       .listFiles()
       .orEmpty()
       .filter { it.isDirectory && MigrationFiles.isSafeScriptId(it.name) }) {
       if (dir.name !in wanted) dir.deleteRecursively()
-    }
-    for ((id, files) in wanted) {
-      if (!FileTreeBackup.write(File(scriptsDir, id), files)) return false
     }
     return true
   }
@@ -501,7 +516,7 @@ object SettingsBackup {
         context.getString(R.string.pref_verbosity_preset_value_custom), key)
     if (!prefs.edit()
         .putString(key, UsageHintMode.ACTIONS_ONLY)
-        .putString(customKey, UsageHintMode.OFF)
+        .putString(customKey, UsageHintMode.ACTIONS_ONLY)
         .commit()) {
       LogUtils.e(TAG, "Cannot set usage hints to actions only")
       return
@@ -591,7 +606,7 @@ object SettingsBackup {
           is Set<*> -> editor.putStringSet(key, value as Set<String>)
         }
       }
-      editor.commit()
+      if (!editor.commit()) return false
     }
     return true
   }

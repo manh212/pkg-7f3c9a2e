@@ -266,7 +266,9 @@ class NotificationDecider(private val memory: RepeatMemory = RepeatMemory()) {
     val private =
       effects.private ?: (mode == AppMode.PRIVATE || settings.privateWords.any { it.matches(allText) })
     val name = settings.app(info.packageName).spokenName.ifEmpty { info.appName }
-    val chosen = if (private) settings.privateFormat else effects.format.ifEmpty { format }
+    val chosen =
+      if (private) settings.privateFormat
+      else effects.format.ifEmpty { settings.app(info.packageName).format.ifEmpty { format } }
     val text = NotificationText.render(chosen, info, name, categoryName, time)
     return (if (private) text else clean(text, settings, effects)).takeIf { it.isNotBlank() }
   }

@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.updatetasks
 
+import android.content.Context
 import java.io.File
 import java.nio.file.Files
 import org.junit.After
@@ -24,6 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -52,5 +54,28 @@ class CacheCleanupTest {
     assertEquals(107L, CacheCleanup.clean(dir))
 
     assertEquals(setOf("update", "sound_theme.zip"), dir.list()!!.toSet())
+  }
+
+  @Test
+  fun runRecordsVersionOnlyAfterCleanFinishes() {
+    val context = RuntimeEnvironment.getApplication()
+    val prefs = context.getSharedPreferences("cache_cleanup_test", Context.MODE_PRIVATE)
+    prefs.edit().clear().commit()
+
+    CacheCleanup.run(context, prefs)
+
+    // The version must not be recorded synchronously, before clean() runs on the
+    // background thread. (The background thread needs file I/O before it can record
+    // the version, so this read wins the race in practice; if this ever flakes, drop
+    // this assertion and keep the polling assertion below.)
+    assertEquals(0, prefs.getInt("cache_cleanup_version", 0))
+
+    val deadline = System.currentTimeMillis() + 5000
+    while (prefs.getInt("cache_cleanup_version", 0) < 1
+        && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50)
+    }
+    assertEquals(1, prefs.getInt("cache_cleanup_version", 0))
+    prefs.edit().clear().commit()
   }
 }

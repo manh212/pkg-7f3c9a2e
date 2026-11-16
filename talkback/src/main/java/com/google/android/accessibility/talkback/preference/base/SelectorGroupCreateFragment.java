@@ -108,6 +108,9 @@ public final class SelectorGroupCreateFragment extends TalkbackBaseFragment {
 
   @Override
   public void onDestroyView() {
+    if (nameField != null) {
+      savedName = nameField.getText().toString();
+    }
     nameField = null;
     super.onDestroyView();
   }

@@ -34,10 +34,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 final class DiagnosticsPreferenceActions {
-  private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
   private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
   private DiagnosticsPreferenceActions() {}
+
+  private static void executeOnBackgroundThread(Runnable task) {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.execute(
+        () -> {
+          try {
+            task.run();
+          } finally {
+            executor.shutdown();
+          }
+        });
+  }
 
   static void bind(PreferenceFragmentCompat fragment) {
     Preference export =
@@ -71,7 +82,7 @@ final class DiagnosticsPreferenceActions {
   }
 
   private static void exportToDownloads(Context context) {
-    EXECUTOR.execute(
+    executeOnBackgroundThread(
         () -> {
           String text = DiagnosticsExport.INSTANCE.buildForExport(context);
           boolean saved = DiagnosticsExport.INSTANCE.saveToDownloads(context, text);
@@ -88,7 +99,7 @@ final class DiagnosticsPreferenceActions {
   }
 
   private static void copyToClipboard(Context context) {
-    EXECUTOR.execute(
+    executeOnBackgroundThread(
         () -> {
           String text = DiagnosticsExport.INSTANCE.build(context);
           MAIN_HANDLER.post(
@@ -98,15 +109,18 @@ final class DiagnosticsPreferenceActions {
                   clipboard.setPrimaryClip(
                       ClipData.newPlainText(
                           context.getString(R.string.title_pref_export_diagnostics), text));
+                  Toast.makeText(context, R.string.message_diagnostics_copied, Toast.LENGTH_LONG)
+                      .show();
+                } else {
+                  Toast.makeText(context, R.string.gemini_error_message, Toast.LENGTH_LONG)
+                      .show();
                 }
-                Toast.makeText(context, R.string.message_diagnostics_copied, Toast.LENGTH_LONG)
-                    .show();
               });
         });
   }
 
   private static void deleteDebugLog(Context context) {
-    EXECUTOR.execute(
+    executeOnBackgroundThread(
         () -> {
           boolean deleted = LogUtils.clearLogFiles();
           if (SharedPreferencesUtils.getSharedPreferences(context)

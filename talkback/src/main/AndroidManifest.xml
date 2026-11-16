@@ -311,6 +311,17 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name="com.google.android.accessibility.talkback.notifications.AlarmClockReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="${applicationId}.notifications.action.SPOKEN_CLOCK" />
+                <action android:name="${applicationId}.notifications.action.SPOKEN_SUMMARY" />
+                <action android:name="${applicationId}.timer.action.COUNTDOWN_ALARM" />
+                <action android:name="${applicationId}.timer.action.STOPWATCH_REMINDER" />
+            </intent-filter>
+        </receiver>
+
         <!-- TalkBack Preferences -->
         <activity
             android:name="com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity"

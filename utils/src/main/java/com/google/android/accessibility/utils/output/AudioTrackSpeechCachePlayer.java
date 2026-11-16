@@ -43,6 +43,15 @@ public class AudioTrackSpeechCachePlayer extends SpeechCachePlayer {
   private volatile int speechDataLength = 0;
   private volatile SpeechPlaybackItem speechPlaybackItem;
 
+  // The cached PCM data is capped so a large set of pre-loaded speech files cannot grow the
+  // cache without bound.
+  private static final int MAX_CACHE_BYTES = 8 * 1024 * 1024;
+  private static final int MAX_CACHE_ENTRIES = 256;
+
+  // Records the last time speech was stopped, so the playback loop can drop an item that was
+  // already taken from the queue when the stop arrived.
+  private volatile long lastStopNanos = 0;
+
   // These parameters MUST be the same for all pre-loaded WAV files
   // They will be set when the first successfully parsed WAV is added.
 
@@ -104,6 +113,7 @@ public class AudioTrackSpeechCachePlayer extends SpeechCachePlayer {
         if (newAudioTrack == null) {
           LogUtils.e(
               TAG, "Failed to initialize AudioTrack with format from %s ", wavFile.getName());
+          audioTrackFormatDetermined = false;
           return false;
         }
         audioTrack = newAudioTrack;
@@ -114,16 +124,43 @@ public class AudioTrackSpeechCachePlayer extends SpeechCachePlayer {
     }
 
     byte[] pcmData = wavData.pcmData;
-    speechInfoPcmDataMap.put(speechInfo, pcmData);
-    int dataLength;
+    if (pcmData.length > MAX_CACHE_BYTES) {
+      LogUtils.w(TAG, "WAV file too large to cache: %s", wavFile.getName());
+      return false;
+    }
     synchronized (lock) {
-      // Use temp variable to ensure atomic operation.
-      dataLength = pcmData.length + speechDataLength;
-      speechDataLength = dataLength;
+      byte[] previous = speechInfoPcmDataMap.put(speechInfo, pcmData);
+      speechDataLength += pcmData.length - (previous == null ? 0 : previous.length);
+      evictExcessLocked(speechInfo);
     }
     LogUtils.i(
-        TAG, "Successfully loaded PCM data for %s, stored data size=%s", speechInfo, dataLength);
+        TAG,
+        "Successfully loaded PCM data for %s, stored data size=%s",
+        speechInfo,
+        speechDataLength);
     return true;
+  }
+
+  @GuardedBy("lock")
+  private void evictExcessLocked(SpeechInfo keep) {
+    while ((speechDataLength > MAX_CACHE_BYTES
+            || speechInfoPcmDataMap.size() > MAX_CACHE_ENTRIES)
+        && speechInfoPcmDataMap.size() > 1) {
+      boolean removed = false;
+      Iterator<Map.Entry<SpeechInfo, byte[]>> it = speechInfoPcmDataMap.entrySet().iterator();
+      while (it.hasNext()) {
+        Map.Entry<SpeechInfo, byte[]> entry = it.next();
+        if (!entry.getKey().equals(keep)) {
+          speechDataLength -= entry.getValue().length;
+          it.remove();
+          removed = true;
+          break;
+        }
+      }
+      if (!removed) {
+        break;
+      }
+    }
   }
 
   @GuardedBy("lock")
@@ -240,6 +277,7 @@ public class AudioTrackSpeechCachePlayer extends SpeechCachePlayer {
   }
 
   private void stopSpeechInternal(@Nullable AudioTrack audioTrack) {
+    lastStopNanos = System.nanoTime();
     Iterator<SpeechPlaybackItem> it = playbackQueue.iterator();
     while (it.hasNext()) {
       final SpeechPlaybackItem item = it.next();
@@ -279,7 +317,10 @@ public class AudioTrackSpeechCachePlayer extends SpeechCachePlayer {
   @SuppressWarnings("Interruption")
   public void release() {
     stopSpeech();
-    speechInfoPcmDataMap.clear();
+    synchronized (lock) {
+      speechInfoPcmDataMap.clear();
+      speechDataLength = 0;
+    }
     // Release the AudioTrack and reset the audio format information.
     releaseAudioTrack(/* resetAudioFormat= */ true);
     thread.interrupt();
@@ -625,10 +666,13 @@ public class AudioTrackSpeechCachePlayer extends SpeechCachePlayer {
           LogUtils.d(TAG, "MessageLoop : Shutting down (interrupted)");
           return;
         }
-        // If stopSpeech() is called between playbackQueue.take()
-        // returning and speechPlaybackItem being set, the current item
-        // will be run anyway.
+        long takeNanos = System.nanoTime();
         speechPlaybackItem = item;
+        if (lastStopNanos >= takeNanos) {
+          speechPlaybackItem = null;
+          dispatchPlaybackState(item, STATE_STOPPED);
+          continue;
+        }
         item.run();
         speechPlaybackItem = null;
       }

@@ -100,7 +100,12 @@ public final class FirebaseEvents implements Closeable {
           throw new IOException("Kết nối cập nhật hỗ trợ cần được xác thực lại.");
         }
         if ((event.equals("put") || event.equals("patch")) && data.length() > 0) {
-          listener.changed(event, new JSONObject(data.toString()));
+          String payload = data.toString().trim();
+          listener.changed(
+              event,
+              payload.equals("null")
+                  ? new JSONObject().put("path", "/").put("data", JSONObject.NULL)
+                  : new JSONObject(payload));
         }
         event = "";
         data.setLength(0);

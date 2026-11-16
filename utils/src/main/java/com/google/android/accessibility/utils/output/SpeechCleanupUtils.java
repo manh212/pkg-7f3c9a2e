@@ -61,20 +61,20 @@ public final class SpeechCleanupUtils {
   public @interface PunctuationVerbosity {}
 
   /**
-   * Verbosity level of the punctuation and symbol that the user always hear. If the level is lower
-   * than TalkBack verbosity preference, the punctuation and symbol will not be announced.
+   * Verbosity level of the punctuation and symbol that the user always hear. A symbol at this
+   * level is announced at every TalkBack verbosity preference.
    */
   public static final int ALL = 0;
 
   /**
-   * Verbosity level of the punctuation and symbol that user usually hears. If the level is lower
-   * than TalkBack verbosity preference, the punctuation and symbol will not be announced.
+   * Verbosity level of the punctuation and symbol that user usually hears. A symbol at this level
+   * is announced unless the TalkBack verbosity preference is Some.
    */
   public static final int MOST = 1;
 
   /**
-   * Verbosity level of the punctuation and symbol that user sometimes hears. If the level is lower
-   * than TalkBack verbosity preference, the punctuation and symbol will not be announced.
+   * Verbosity level of the punctuation and symbol that user sometimes hears. A symbol at this
+   * level is announced only when the TalkBack verbosity preference is All.
    *
    * <p>Note: TalkBack speak punctuation verbosity preference in Some level will let TTS engine
    * handle speaking punctuation in SOME level.
@@ -387,7 +387,7 @@ public final class SpeechCleanupUtils {
     if (pair == null) {
       return null;
     } else if (key != ' ') {
-      if (pair.second < punctuationVerbosity) {
+      if (pair.second > SOME - punctuationVerbosity) {
         return null;
       }
     }

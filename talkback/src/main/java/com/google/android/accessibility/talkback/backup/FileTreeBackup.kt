@@ -58,6 +58,7 @@ internal object FileTreeBackup {
       }
       if (!file.isFile) continue
       if (files.size >= maxFiles) throw IOException("$root holds more than $maxFiles files")
+      if (total + file.length() > maxBytes) throw IOException("$root is larger than $maxBytes bytes")
       val bytes = file.readBytes()
       total += bytes.size
       if (total > maxBytes) throw IOException("$root is larger than $maxBytes bytes")
@@ -107,20 +108,36 @@ internal object FileTreeBackup {
   }
 
   /**
-   * Replaces the files under [root] with [files]. Returns false when a file cannot be
-   * written, and then the files already written stay written.
+   * Replaces the files under [root] with [files]. The files are written to a temporary tree
+   * first and swapped in only when every file is written, so a failure leaves the files
+   * already there untouched. Returns false when a file cannot be written.
    */
   fun write(root: File, files: List<Pair<String, ByteArray>>): Boolean {
-    root.deleteRecursively()
-    for ((path, bytes) in files) {
-      val file = File(root, path)
-      try {
+    val parent = root.parentFile ?: return false
+    val stamp = System.nanoTime()
+    val temp = File(parent, "${root.name}.tmp-$stamp")
+    try {
+      temp.mkdirs()
+      for ((path, bytes) in files) {
+        val file = File(temp, path)
         file.parentFile?.mkdirs()
         file.writeBytes(bytes)
-      } catch (e: IOException) {
-        return false
       }
+    } catch (e: IOException) {
+      temp.deleteRecursively()
+      return false
     }
+    val backup = File(parent, "${root.name}.old-$stamp")
+    if (root.exists() && !root.renameTo(backup)) {
+      temp.deleteRecursively()
+      return false
+    }
+    if (!temp.renameTo(root)) {
+      backup.renameTo(root)
+      temp.deleteRecursively()
+      return false
+    }
+    backup.deleteRecursively()
     return true
   }
 }

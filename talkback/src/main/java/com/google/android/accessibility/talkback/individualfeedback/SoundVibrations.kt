@@ -25,7 +25,7 @@ import com.google.android.accessibility.talkback.controlsounds.ControlSounds
  * vibration_backtalk.xml.
  */
 object SoundVibrations {
-  /** Sounds that play without a vibration: screen on. */
+  /** Sounds that play without a vibration: the clock announcement. */
   val WITHOUT_VIBRATION: Set<String> = setOf("lib_new_clock")
 
   /**

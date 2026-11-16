@@ -280,6 +280,7 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
         .setItems(items, (dialog, index) ->
             editRule(context, packageName, down,
                 index < rules.size() ? rules.get(index) : null,
+                index < rules.size() ? index : -1,
                 () -> { refresh.run(); showRules(context, packageName, down, refresh); },
                 "")));
   }
@@ -294,12 +295,30 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
     display(service, MaterialComponentUtils.alertDialogBuilder(service)
         .setTitle(R.string.smart_context_add)
         .setItems(choices, (dialog, choice) ->
-            editRule(service, choice == 0 ? "" : originalApp, true, null, () -> {}, text)));
+            editRule(service, choice == 0 ? "" : originalApp, true, null, -1, () -> {}, text)));
+  }
+
+  private static void removeRule(
+      Context context, String packageName, boolean down, Rule previous, int previousIndex) {
+    List<Rule> rules = SmartContextGestures.getRules(context, packageName, down);
+    if (previousIndex >= 0
+        && previousIndex < rules.size()
+        && rules.get(previousIndex).toJson().toString().equals(previous.toJson().toString())) {
+      rules.remove(previousIndex);
+    } else {
+      for (int i = 0; i < rules.size(); i++) {
+        if (rules.get(i).toJson().toString().equals(previous.toJson().toString())) {
+          rules.remove(i);
+          break;
+        }
+      }
+    }
+    SmartContextGestures.saveRules(context, packageName, down, rules);
   }
 
   public static void editRule(
       Context context, String packageName, boolean defaultDown, Rule previous,
-      Runnable saved, String initialText) {
+      int previousIndex, Runnable saved, String initialText) {
     LinearLayout layout = new LinearLayout(context);
     layout.setOrientation(LinearLayout.VERTICAL);
     int pad = (int) (context.getResources().getDisplayMetrics().density * 16);
@@ -361,9 +380,7 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
         .setNegativeButton(android.R.string.cancel, null);
     if (previous != null) {
       builder.setNeutralButton(R.string.smart_context_delete, (dialog, which) -> {
-        List<Rule> rules = SmartContextGestures.getRules(context, packageName, defaultDown);
-        rules.removeIf(rule -> rule == previous || rule.toJson().toString().equals(previous.toJson().toString()));
-        SmartContextGestures.saveRules(context, packageName, defaultDown, rules);
+        removeRule(context, packageName, defaultDown, previous, previousIndex);
         saved.run();
       });
     }
@@ -382,9 +399,7 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
       }
       boolean down = direction.getSelectedItemPosition() == 1;
       if (previous != null) {
-        List<Rule> rules = SmartContextGestures.getRules(context, packageName, defaultDown);
-        rules.removeIf(rule -> rule.toJson().toString().equals(previous.toJson().toString()));
-        SmartContextGestures.saveRules(context, packageName, defaultDown, rules);
+        removeRule(context, packageName, defaultDown, previous, previousIndex);
       }
       SmartContextGestures.addRule(context, packageName, down,
           new Rule(value, MATCH_TYPES[Math.max(0, selected)], comparison,

@@ -118,6 +118,17 @@ public final class SupportProtocolTest {
     FirebaseEvents.parse(new StringReader(stream), (event, body) -> fail("Stopped streams must not deliver"), () -> true);
   }
 
+  @Test public void streamingDeletionEventDeliversNullDataAndContinues() throws Exception {
+    List<JSONObject> bodies = new ArrayList<>();
+    String stream = "event: put\ndata: null\n\n"
+        + "event: put\ndata: {\"path\":\"/ticket\",\"data\":{\"status\":\"new\"}}\n\n";
+    FirebaseEvents.parse(new StringReader(stream), (event, body) -> bodies.add(body), () -> false);
+    assertEquals(2, bodies.size());
+    assertEquals("/", bodies.get(0).getString("path"));
+    assertTrue(bodies.get(0).isNull("data"));
+    assertEquals("/ticket", bodies.get(1).getString("path"));
+  }
+
   @Test public void repliesAndActualStatusTransitionsNotifyOnceAcrossReconnects() throws Exception {
     String ticket = key(1);
     JSONObject item = new JSONObject().put("subject", "Lỗi").put("lastReplyId", key(2))

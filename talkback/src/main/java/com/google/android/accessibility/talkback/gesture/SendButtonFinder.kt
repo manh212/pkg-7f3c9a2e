@@ -39,7 +39,11 @@ object SendButtonFinder {
     sendWords: Collection<String>,
   ): AccessibilityNodeInfoCompat? {
     var root = field.parent ?: return null
-    repeat(2) { root.parent?.let { parent -> root = parent } }
+    for (ignored in 0 until 2) {
+      val parent = root.parent ?: break
+      root.recycle()
+      root = parent
+    }
     val fieldBounds = Rect().also { field.getBoundsInScreen(it) }
     var best: Candidate? = null
     var ambiguous = false
@@ -51,31 +55,72 @@ object SendButtonFinder {
       for (i in 0 until node.childCount) {
         node.getChild(i)?.let { queue.add(it) }
       }
-      val strength = matchStrength(node, sendWords)
-      if (strength != Strength.STRONG || node.isEditable || !node.isVisibleToUser) {
-        continue
+      val candidate = candidateFor(node, sendWords, field, fieldBounds)
+      if (candidate != null) {
+        val previous = best
+        if (previous == null || candidate.isBetterThan(previous)) {
+          if (previous != null && previous.node !== candidate.node) {
+            previous.node.recycle()
+          }
+          best = candidate
+          ambiguous = false
+        } else {
+          if (!previous.isBetterThan(candidate) && previous.node != candidate.node) {
+            ambiguous = true
+          }
+          if (candidate.node !== previous.node && candidate.node !== node) {
+            candidate.node.recycle()
+          }
+        }
       }
-      val target = clickTarget(node) ?: continue
-      if (!target.isEnabled || target == field) {
-        continue
-      }
-      val bounds = Rect().also { target.getBoundsInScreen(it) }
-
-      if (bounds.contains(fieldBounds)) {
-        continue
-      }
-      val sameRow = bounds.top < fieldBounds.bottom && bounds.bottom > fieldBounds.top
-      if (!sameRow || bounds.isEmpty || fieldBounds.isEmpty) continue
-      val candidate = Candidate(target, sameRow, strength, distance(bounds, fieldBounds))
-      val previous = best
-      if (previous == null || candidate.isBetterThan(previous)) {
-        best = candidate
-        ambiguous = false
-      } else if (!previous.isBetterThan(candidate) && previous.node != candidate.node) {
-        ambiguous = true
+      if (node !== best?.node) {
+        node.recycle()
       }
     }
-    return if (ambiguous) null else best?.node
+    val result = if (ambiguous) null else best?.node
+    if (ambiguous) {
+      best?.node?.recycle()
+    }
+    for (leftover in queue) {
+      if (leftover !== result && leftover !== best?.node) {
+        leftover.recycle()
+      }
+    }
+    return result
+  }
+
+  private fun candidateFor(
+    node: AccessibilityNodeInfoCompat,
+    sendWords: Collection<String>,
+    field: AccessibilityNodeInfoCompat,
+    fieldBounds: Rect,
+  ): Candidate? {
+    val strength = matchStrength(node, sendWords)
+    if (strength != Strength.STRONG || node.isEditable || !node.isVisibleToUser) {
+      return null
+    }
+    val target = clickTarget(node) ?: return null
+    if (!target.isEnabled || target == field) {
+      if (target !== node && target !== field) {
+        target.recycle()
+      }
+      return null
+    }
+    val bounds = Rect().also { target.getBoundsInScreen(it) }
+    if (bounds.contains(fieldBounds)) {
+      if (target !== node && target !== field) {
+        target.recycle()
+      }
+      return null
+    }
+    val sameRow = bounds.top < fieldBounds.bottom && bounds.bottom > fieldBounds.top
+    if (!sameRow || bounds.isEmpty || fieldBounds.isEmpty) {
+      if (target !== node && target !== field) {
+        target.recycle()
+      }
+      return null
+    }
+    return Candidate(target, sameRow, strength, distance(bounds, fieldBounds))
   }
 
   @JvmStatic
@@ -140,7 +185,14 @@ object SendButtonFinder {
       if (candidate.isClickable) {
         return candidate
       }
-      current = candidate.parent
+      val parent = candidate.parent
+      if (candidate !== node) {
+        candidate.recycle()
+      }
+      current = parent
+    }
+    if (current != null && current !== node) {
+      current.recycle()
     }
     return null
   }

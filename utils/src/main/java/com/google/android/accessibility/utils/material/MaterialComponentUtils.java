@@ -69,7 +69,7 @@ public class MaterialComponentUtils {
   public static AlertDialog.Builder alertDialogBuilder(
       Context context, @StyleRes int materialThemeResId) {
     return AlertDialogAdaptiveContrastUtil.v7AlertDialogAdaptiveContrastBuilder(
-        context, R.style.A11yAlertDialogTheme);
+        context, materialThemeResId);
   }
 
   /**

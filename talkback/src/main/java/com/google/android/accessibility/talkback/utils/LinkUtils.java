@@ -26,6 +26,7 @@ import android.text.SpannableString;
 import android.text.TextUtils;
 import android.text.style.ClickableSpan;
 import android.text.style.URLSpan;
+import android.view.View;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.SpannableUtils.SpannableWithOffset;
 import com.google.android.accessibility.utils.traversal.SpannableTraversalUtils;
@@ -85,7 +86,7 @@ public final class LinkUtils {
   /** Activates the link span. */
   public static boolean activateLinkSpan(Context context, LinkSpan linkSpan) {
     try {
-      linkSpan.span.onClick(null);
+      linkSpan.span.onClick(new View(context));
       return true;
     } catch (RuntimeException e) {
       LogUtils.e(TAG, "Failed to invoke LinkSpan: %s\n%s", linkSpan.span, e);

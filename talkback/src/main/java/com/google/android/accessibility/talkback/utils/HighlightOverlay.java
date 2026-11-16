@@ -46,13 +46,14 @@ import java.util.HashSet;
 /** Highlights for clickability of nodes and for nodes that were traversed but not focused */
 public class HighlightOverlay extends SimpleOverlay {
   private static final float HIGHLIGHT_ALPHA = 0.25f;
-  static View highlightView;
+  private View highlightView;
 
-  // Nodes passed over during sequential navigation
-  private HashMap<Integer, ArrayList<AccessibilityNodeInfoCompat>> skippedNodes = null;
+  // Bounds of the nodes passed over during sequential navigation, copied while the nodes
+  // are alive
+  private HashMap<Integer, ArrayList<Rect>> skippedRects = null;
 
-  // Nodes on refocus node path
-  private HashSet<AccessibilityNode> refocusNodePath = null;
+  // Bounds of the nodes on refocus node path, copied while the nodes are alive
+  private ArrayList<Rect> refocusRects = null;
 
   // Node currently focused
   private AccessibilityNodeInfoCompat focusedNode;
@@ -84,31 +85,25 @@ public class HighlightOverlay extends SimpleOverlay {
 
     @Override
     public void onDraw(Canvas canvas) {
-      if (skippedNodes != null) {
+      if (skippedRects != null) {
         skippedNodePaint.setColor(Color.RED);
         processUnfocusableNodes(FOCUS_FAIL_FAIL_ALL_FOCUS_TESTS, canvas);
         processUnfocusableNodes(FOCUS_FAIL_NOT_SPEAKABLE, canvas);
         processUnfocusableNodes(FOCUS_FAIL_NOT_VISIBLE, canvas);
         processUnfocusableNodes(FOCUS_FAIL_SAME_WINDOW_BOUNDS_CHILDREN, canvas);
       }
-      if (refocusNodePath != null) {
-        for (AccessibilityNode node : refocusNodePath) {
-          Rect nodeBounds = new Rect();
-          node.getBoundsInScreen(nodeBounds);
-          drawRectangle(canvas, nodeBounds, refocusPaint);
+      if (refocusRects != null) {
+        for (Rect rect : refocusRects) {
+          drawRectangle(canvas, rect, refocusPaint);
         }
       }
     }
 
     private void processUnfocusableNodes(@DiagnosticType Integer type, Canvas canvas) {
-      ArrayList<AccessibilityNodeInfoCompat> currentNodes =
-          new ArrayList<AccessibilityNodeInfoCompat>();
-      currentNodes = skippedNodes.get(type);
-      if (currentNodes != null) {
-        for (AccessibilityNodeInfoCompat node : currentNodes) {
-          Rect r = new Rect();
-          node.getBoundsInScreen(r);
-          drawRectangle(canvas, r, skippedNodePaint);
+      ArrayList<Rect> currentRects = skippedRects.get(type);
+      if (currentRects != null) {
+        for (Rect rect : currentRects) {
+          drawRectangle(canvas, rect, skippedNodePaint);
         }
       }
     }
@@ -161,9 +156,23 @@ public class HighlightOverlay extends SimpleOverlay {
       HashSet<AccessibilityNode> refocusNodePath) {
     highlightView.setVisibility(View.VISIBLE);
     show();
-    this.skippedNodes = skippedNodes;
-    this.refocusNodePath = refocusNodePath;
     this.focusedNode = focusedNode;
+    skippedRects = new HashMap<>();
+    for (Integer type : skippedNodes.keySet()) {
+      ArrayList<Rect> rects = new ArrayList<>();
+      for (AccessibilityNodeInfoCompat node : skippedNodes.get(type)) {
+        Rect rect = new Rect();
+        node.getBoundsInScreen(rect);
+        rects.add(rect);
+      }
+      skippedRects.put(type, rects);
+    }
+    refocusRects = new ArrayList<>();
+    for (AccessibilityNode node : refocusNodePath) {
+      Rect rect = new Rect();
+      node.getBoundsInScreen(rect);
+      refocusRects.add(rect);
+    }
     // calling invalidate will update highlightView
     highlightView.invalidate();
   }
@@ -171,5 +180,7 @@ public class HighlightOverlay extends SimpleOverlay {
   public void clearHighlight() {
     highlightView.setVisibility(View.INVISIBLE);
     hide();
+    skippedRects = null;
+    refocusRects = null;
   }
 }

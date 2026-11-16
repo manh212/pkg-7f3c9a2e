@@ -27,15 +27,14 @@ public class DiagnosticOverlayControllerImpl implements DiagnosticOverlayControl
   private @Nullable DiagnosticOverlay diagnosticOverlay;
   private @Nullable HighlightOverlay highlightOverlay;
 
-  private static @NonNull HashMap<Integer, AccessibilityNodeInfoCompat> traversedIdToNode =
-      new HashMap<>();
+  private @NonNull HashSet<AccessibilityNodeInfoCompat> traversedNodes = new HashSet<>();
 
-  private static @NonNull HashMap<Integer, ArrayList<AccessibilityNodeInfoCompat>>
+  private @NonNull HashMap<Integer, ArrayList<AccessibilityNodeInfoCompat>>
       unfocusedIdToNode = new HashMap<>();
 
-  private static @NonNull HashSet<AccessibilityNode> refocusNodePath = new HashSet<>();
+  private @NonNull HashSet<AccessibilityNode> refocusNodePath = new HashSet<>();
 
-  private static boolean collectNodes;
+  private boolean collectNodes;
 
   public DiagnosticOverlayControllerImpl(Context context) {
     this.context = context;
@@ -58,30 +57,30 @@ public class DiagnosticOverlayControllerImpl implements DiagnosticOverlayControl
       return;
     }
 
-      /**
-       * If node is appended from {@link TraversalStrategyUtils#searchFocus} then simply add to a
-       * hashmap
-       */
-      if (diagnosticInfo == DiagnosticOverlayUtils.SEARCH_FOCUS_FAIL) {
-        traversedIdToNode.put(node.hashCode(), node);
-        return;
-      }
+    /**
+     * If node is appended from {@link TraversalStrategyUtils#searchFocus} then simply add to a
+     * hashmap
+     */
+    if (diagnosticInfo == DiagnosticOverlayUtils.SEARCH_FOCUS_FAIL) {
+      traversedNodes.add(AccessibilityNodeInfoCompat.obtain(node));
+      return;
+    }
 
-      /**
-       * If node is appended from {@link AccessibilityNodeInfoUtils#shouldFocusNode} then check to
-       * see if node is also in {@code traversedNodes}. If so, add the node to collection to be
-       * highlighted. If not, ignore the node since it wasn't a node affected by gesture swipe.
-       */
-      if (traversedIdToNode.get(node.hashCode()) == null) {
-        return;
-      }
-      if (unfocusedIdToNode.get(diagnosticInfo) == null) {
-        ArrayList<AccessibilityNodeInfoCompat> currentNodes = new ArrayList<>();
-        currentNodes.add(node);
-        unfocusedIdToNode.put(diagnosticInfo, currentNodes);
-      } else {
-        unfocusedIdToNode.get(diagnosticInfo).add(node);
-      }
+    /**
+     * If node is appended from {@link AccessibilityNodeInfoUtils#shouldFocusNode} then check to
+     * see if node is also in {@code traversedNodes}. If so, add the node to collection to be
+     * highlighted. If not, ignore the node since it wasn't a node affected by gesture swipe.
+     */
+    if (!traversedNodes.contains(node)) {
+      return;
+    }
+    if (unfocusedIdToNode.get(diagnosticInfo) == null) {
+      ArrayList<AccessibilityNodeInfoCompat> currentNodes = new ArrayList<>();
+      currentNodes.add(AccessibilityNodeInfoCompat.obtain(node));
+      unfocusedIdToNode.put(diagnosticInfo, currentNodes);
+    } else {
+      unfocusedIdToNode.get(diagnosticInfo).add(AccessibilityNodeInfoCompat.obtain(node));
+    }
   }
 
   @Override
@@ -128,8 +127,10 @@ public class DiagnosticOverlayControllerImpl implements DiagnosticOverlayControl
      * {@link TraversalStrategyUtils#searchFocus} will append focusedNode to list of unfocused nodes
      * since it is the last node to get traversed, so we must remove
      */
-    traversedIdToNode.remove(focusedNode.hashCode());
-    unfocusedIdToNode.remove(focusedNode.hashCode());
+    traversedNodes.remove(focusedNode);
+    for (ArrayList<AccessibilityNodeInfoCompat> nodes : unfocusedIdToNode.values()) {
+      nodes.remove(focusedNode);
+    }
     highlightOverlay.highlightNodesOnScreen(focusedNode, unfocusedIdToNode, refocusNodePath);
     clearCollectionNodes();
   }
@@ -180,7 +181,7 @@ public class DiagnosticOverlayControllerImpl implements DiagnosticOverlayControl
     this.enabled = enabled;
   }
 
-  public static void setNodeCollectionEnabled(boolean collect) {
+  public void setNodeCollectionEnabled(boolean collect) {
     if (collect) {
       clearCollectionNodes();
     }
@@ -188,10 +189,18 @@ public class DiagnosticOverlayControllerImpl implements DiagnosticOverlayControl
   }
 
   /** Clear nodes in collections. */
-  private static void clearCollectionNodes() {
-    unfocusedIdToNode = new HashMap<>(); // HiglightOverlay may still be using the old map.
-    refocusNodePath = new HashSet<>();
-    traversedIdToNode.clear();
+  private void clearCollectionNodes() {
+    for (AccessibilityNodeInfoCompat node : traversedNodes) {
+      node.recycle();
+    }
+    traversedNodes.clear();
+    for (ArrayList<AccessibilityNodeInfoCompat> nodes : unfocusedIdToNode.values()) {
+      for (AccessibilityNodeInfoCompat node : nodes) {
+        node.recycle();
+      }
+    }
+    unfocusedIdToNode.clear();
+    refocusNodePath.clear();
   }
 
   @VisibleForTesting

@@ -124,6 +124,8 @@ object TimerPermissionChecks {
       return
     } catch (e: ActivityNotFoundException) {
       // Fall through to the list.
+    } catch (_: SecurityException) {
+      // The direct ask is refused; fall through to the list.
     }
     try {
       context.startActivity(
@@ -131,6 +133,8 @@ object TimerPermissionChecks {
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (e: ActivityNotFoundException) {
+      // Nowhere to ask; the initial setup will say the state it found.
+    } catch (_: SecurityException) {
       // Nowhere to ask; the initial setup will say the state it found.
     }
   }
@@ -178,6 +182,8 @@ object TimerPermissionChecks {
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (_: ActivityNotFoundException) {
+      // No page to open on this phone.
+    } catch (_: SecurityException) {
       // No page to open on this phone.
     }
   }
@@ -283,6 +289,8 @@ object TimerPermissionChecks {
       )
     } catch (e: ActivityNotFoundException) {
       // No page to open on this phone.
+    } catch (_: SecurityException) {
+      // No page to open on this phone.
     }
   }
 
@@ -296,6 +304,8 @@ object TimerPermissionChecks {
       ScreenBrightness.requestWritePermission(context)
     } catch (e: ActivityNotFoundException) {
       // No page to open on this phone.
+    } catch (_: SecurityException) {
+      // No page to open on this phone.
     }
   }
 
@@ -307,6 +317,8 @@ object TimerPermissionChecks {
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (_: ActivityNotFoundException) {
+      return
+    } catch (_: SecurityException) {
       return
     }
   }
@@ -321,6 +333,8 @@ object TimerPermissionChecks {
       )
     } catch (e: ActivityNotFoundException) {
       // No page to open on this phone.
+    } catch (_: SecurityException) {
+      // No page to open on this phone.
     }
   }
 
@@ -331,6 +345,8 @@ object TimerPermissionChecks {
         Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (e: ActivityNotFoundException) {
+      // No page to open on this phone.
+    } catch (_: SecurityException) {
       // No page to open on this phone.
     }
   }
@@ -418,6 +434,7 @@ object TimerPermissionChecks {
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (_: ActivityNotFoundException) {
+    } catch (_: SecurityException) {
     }
   }
 
@@ -444,6 +461,7 @@ object TimerPermissionChecks {
         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     } catch (_: ActivityNotFoundException) {
+    } catch (_: SecurityException) {
     }
   }
 

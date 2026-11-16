@@ -323,4 +323,15 @@ class NotificationDeciderTest {
     // A summary is not a repeat.
     assertEquals("Chat, Ann, See you at 5", decider.describe(message, NotificationSettings(repeatSeconds = 60), format))
   }
+
+  @Test
+  fun summariesUseTheAppsFormat() {
+    val decider = NotificationDecider()
+    val format = "{app}, {title}, {text}"
+    val settings =
+      NotificationSettings(
+        apps = mapOf("com.example.chat" to AppSettings(format = "{title} says {text}"))
+      )
+    assertEquals("Ann says See you at 5", decider.describe(message, settings, format))
+  }
 }

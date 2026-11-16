@@ -34,6 +34,7 @@ public class OfflineTranslationSettingsFragment extends TalkbackBaseFragment {
 
   private OfflineTranslator translator;
   private boolean lastDownloadFailed;
+  private boolean downloadPending;
 
   public OfflineTranslationSettingsFragment() {
     super(R.xml.offline_translation_preferences);
@@ -121,16 +122,35 @@ public class OfflineTranslationSettingsFragment extends TalkbackBaseFragment {
   }
 
   private void startDownload() {
+    if (translator == null) {
+      return;
+    }
+    if (translator.isDownloadInProgress()) {
+      downloadPending = true;
+      setPackStatusSummary(R.string.offline_translation_pack_downloading);
+      return;
+    }
     setPackStatusSummary(R.string.offline_translation_pack_downloading);
     translator.downloadModelIfNeeded(
         new OfflineTranslator.DownloadCallback() {
           @Override
           public void onSuccess() {
+            if (downloadPending) {
+              downloadPending = false;
+              startDownload();
+              return;
+            }
             refreshPackStatus();
           }
 
           @Override
           public void onFailure() {
+            if (downloadPending) {
+              downloadPending = false;
+              lastDownloadFailed = false;
+              startDownload();
+              return;
+            }
             lastDownloadFailed = true;
             if (getContext() != null) {
               setPackStatusSummary(R.string.offline_translation_pack_download_failed);

@@ -12,8 +12,9 @@ public final class CaptchaReaderTest {
   }
 
   @Test
-  public void rejectsMultipleLinesAndNonCodeCharacters() {
-    assertNull(CaptchaReader.extractCode("AB12\nCD34"));
+  public void joinsOcrLinesAndRejectsNonCodeCharacters() {
+    assertEquals("AB12CD34", CaptchaReader.extractCode("AB12\nCD34"));
+    assertEquals("AB12CD34", CaptchaReader.extractCode("AB12\r\nCD34"));
     assertNull(CaptchaReader.extractCode("AB?12"));
   }
 }

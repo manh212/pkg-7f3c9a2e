@@ -130,6 +130,9 @@ public class FeedbackFragment {
         fragment.getHaptics(),
         fragment.getSpeechParams(),
         fragment.getNonSpeechParams());
+    mLocale = fragment.getLocale();
+    startIndexInFeedbackItem = fragment.getStartIndexInFeedbackItem();
+    fragmentStartIndex = fragment.fragmentStartIndex;
   }
 
   /** @return The text of this fragment */

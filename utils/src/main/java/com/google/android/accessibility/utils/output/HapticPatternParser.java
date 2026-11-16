@@ -131,7 +131,7 @@ public class HapticPatternParser {
   @Nullable
   private VibrationEffect parseComposition(int[] pattern, int splitIndex) {
     Composition effect = VibrationEffect.startComposition();
-    for (int i = splitIndex; i < pattern.length; i += 3) {
+    for (int i = splitIndex; i + 2 < pattern.length; i += 3) {
       int primitive = pattern[i];
       if (!isPrimitiveSupported.test(primitive)) {
         return null;

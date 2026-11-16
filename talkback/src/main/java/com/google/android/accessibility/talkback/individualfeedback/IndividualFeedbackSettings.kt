@@ -30,7 +30,8 @@ data class FeedbackItem(val key: String, val title: Int, val resourceNames: List
 
 /**
  * Settings for turning single sounds and vibrations off while sound feedback and vibration feedback
- * stay on. Everything is on by default, and only the items the user turned off are stored.
+ * stay on. Everything is on by default except the screen on and screen off sounds, which are
+ * muted until the user turns them on, and only the items the user turned off are stored.
  */
 object IndividualFeedbackSettings {
   const val PREF_MUTED_SOUNDS = "pref_individual_muted_sounds"
@@ -248,18 +249,17 @@ object IndividualFeedbackSettings {
         .apply()
     }
     if (!prefs.getBoolean(PREF_EDGE_GESTURE_POSITIONS, false)) {
-      // Only switches set while they had the old names are renamed. Before that, the split below
-      // gives the new names.
-      val renamed = prefs.getBoolean(PREF_EDGE_GESTURE_SPLIT, false)
+      // The stored names are still the old ones: the new names only arise from the split below,
+      // which runs after this block, or from switches set after this migration.
       prefs
         .edit()
         .putStringSet(
           PREF_MUTED_SOUNDS,
-          renameEdgeGestureSwitches(stringSet(prefs, PREF_MUTED_SOUNDS), renamed, ""),
+          renameEdgeGestureSwitches(stringSet(prefs, PREF_MUTED_SOUNDS), ""),
         )
         .putStringSet(
           PREF_MUTED_VIBRATIONS,
-          renameEdgeGestureSwitches(stringSet(prefs, PREF_MUTED_VIBRATIONS), renamed, "_pattern"),
+          renameEdgeGestureSwitches(stringSet(prefs, PREF_MUTED_VIBRATIONS), "_pattern"),
         )
         .putBoolean(PREF_EDGE_GESTURE_POSITIONS, true)
         .apply()
@@ -281,14 +281,7 @@ object IndividualFeedbackSettings {
     }
   }
 
-  private fun renameEdgeGestureSwitches(
-    muted: Set<String>,
-    rename: Boolean,
-    suffix: String,
-  ): Set<String> {
-    if (!rename) {
-      return muted
-    }
+  private fun renameEdgeGestureSwitches(muted: Set<String>, suffix: String): Set<String> {
     val old = OLD_EDGE_GESTURE_SWITCHES.mapKeys { it.key + suffix }
     return muted.filter { it !in old }.toSet() +
       muted.mapNotNull { name -> old[name]?.let { it + suffix } }

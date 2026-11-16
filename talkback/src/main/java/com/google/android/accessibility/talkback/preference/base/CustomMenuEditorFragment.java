@@ -38,12 +38,35 @@ public final class CustomMenuEditorFragment extends TalkbackBaseFragment {
     refresh();
   }
 
+  @Override
+  public void onResume() {
+    super.onResume();
+    if (CustomMenus.find(requireContext(), menuId) == null) {
+      requireView().post(() -> {
+        if (isAdded()) {
+          getParentFragmentManager().popBackStack();
+        }
+      });
+    } else {
+      refresh();
+    }
+  }
+
   private void refresh() {
     Context context = requireContext();
     CustomMenus.Menu menu = CustomMenus.find(context, menuId);
     PreferenceScreen screen = getPreferenceScreen();
     screen.removeAll();
-    if (menu == null) return;
+    if (menu == null) {
+      if (getView() != null) {
+        getView().post(() -> {
+          if (isAdded()) {
+            getParentFragmentManager().popBackStack();
+          }
+        });
+      }
+      return;
+    }
     for (int i = 0; i < menu.items.size(); i++) {
       CustomMenus.Item item = menu.items.get(i);
       int index = i;

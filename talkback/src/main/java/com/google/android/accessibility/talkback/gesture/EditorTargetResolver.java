@@ -44,6 +44,9 @@ public final class EditorTargetResolver {
         long dy = (long) bounds.centerY() - origin.centerY();
         long distance = focused == null ? 0 : dx * dx + dy * dy;
         if (nearest == null || distance < bestDistance) {
+          if (nearest != null && nearest != current && nearest != root) {
+            nearest.recycle();
+          }
           nearest = current;
           bestDistance = distance;
         }
@@ -53,6 +56,15 @@ public final class EditorTargetResolver {
         if (child != null) {
           nodes.addLast(child);
         }
+      }
+      if (current != nearest && current != root) {
+        current.recycle();
+      }
+    }
+    while (!nodes.isEmpty()) {
+      AccessibilityNodeInfoCompat leftover = nodes.removeFirst();
+      if (leftover != root) {
+        leftover.recycle();
       }
     }
     return nearest;

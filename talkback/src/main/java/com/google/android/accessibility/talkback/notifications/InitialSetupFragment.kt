@@ -76,7 +76,6 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     val status: (Context) -> Status,
     val open: (Context) -> Unit = {},
     val applicable: (Context) -> Boolean = { true },
-    val automatic: Boolean = true,
     val unverifiable: Boolean = false,
     val choice: Boolean = false,
     val choiceKind: ChoiceKind = ChoiceKind.LANGUAGE,
@@ -102,7 +101,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   override fun build(screen: PreferenceGroup) {
     val context = requireContext()
     val steps = steps().filter { it.applicable(context) }
-    flow.settle(steps.map { if (it.automatic) it.status(context) else Status.GRANTED })
+    flow.settle(steps.map { it.status(context) })
     if (flow.atSummary(steps.size)) {
       buildSummary(screen, steps)
       return
@@ -150,7 +149,11 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         if (current.title == R.string.call_permission_manage_title) {
           CallPermissions.requestManagement(context) {
             if (isAdded) {
-              flow.completeOpen(steps.size)
+              // Granting managed access makes the legacy step inapplicable, so the
+              // steps after it move one place earlier. Advancing the walk here would
+              // skip the notification-access step that follows it; rebuilding lets
+              // settle() find the walk's place again from the fresh steps.
+              if (flow.reviewing) flow.completeOpen(steps.size)
               rebuild()
             }
           }
@@ -512,7 +515,6 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { CallPermissions.managementStatus(it) },
         {},
         { TimerPermissionChecks.hasTelephony(it) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S },
-        automatic = false,
       ),
       Step(
         R.string.timer_setup_access_title,
@@ -623,7 +625,6 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { TimerPermissionChecks.dumpStatus(it) },
         {},
         { true },
-        automatic = false,
       ),
       Step(
         R.string.timer_setup_secure_title,
@@ -633,7 +634,6 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         { TimerPermissionChecks.secureSettingsStatus(it) },
         {},
         { true },
-        automatic = false,
       ),
     )
 

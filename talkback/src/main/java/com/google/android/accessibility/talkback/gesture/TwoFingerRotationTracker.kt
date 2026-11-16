@@ -122,8 +122,10 @@ class TwoFingerRotationTracker @JvmOverloads constructor(
           State.TRACKING -> state = State.REJECTED
           State.ROTATING -> {
             val id = event.getPointerId(event.actionIndex)
-            if (id == firstId || id == secondId) rotatingFingersDown = false
-            return true
+            if (id == firstId || id == secondId) {
+              clear()
+              return false
+            }
           }
           else -> {}
         }

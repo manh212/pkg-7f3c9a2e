@@ -23,6 +23,7 @@ import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Toast;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
@@ -248,7 +249,7 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
         && (keyEvent.getAction() == KeyEvent.ACTION_UP)
         && (hatsSurveyRequester != null)
         && (hatsSurveyRequester.handleBackKeyPress())) {
-      return false;
+      return true;
     }
     return super.dispatchKeyEvent(keyEvent);
   }
@@ -262,10 +263,22 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
   @Override
   protected void onNewIntent(Intent intent) {
     super.onNewIntent(intent);
-    assignSearchFragment(getIntent());
+    setIntent(intent);
+    assignSearchFragment(intent);
 
     String fragmentName = intent.getStringExtra(FRAGMENT_NAME);
-    PreferenceFragmentCompat fragment = getFragmentByName(fragmentName);
+    if (TextUtils.isEmpty(fragmentName)) {
+      return;
+    }
+    Fragment current = getSupportFragmentManager().findFragmentById(getContainerId());
+    if (current != null && TextUtils.equals(current.getClass().getName(), fragmentName)) {
+      return;
+    }
+    PreferenceFragmentCompat fragment = instantiateFragment(fragmentName);
+    if (fragment == null) {
+      Toast.makeText(this, R.string.gemini_error_message, Toast.LENGTH_LONG).show();
+      fragment = new TalkBackPreferenceFragment();
+    }
     fragment.setArguments(argumentsOf(intent));
     LogUtils.e(TAG, "onNewIntent/getContainerId()= %s", getContainerId());
     getSupportFragmentManager()
@@ -283,7 +296,13 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
     if (intent != null) {
       fragmentName = intent.getStringExtra(FRAGMENT_NAME);
     }
-    PreferenceFragmentCompat fragment = getFragmentByName(fragmentName);
+    PreferenceFragmentCompat fragment = instantiateFragment(fragmentName);
+    if (fragment == null) {
+      if (!TextUtils.isEmpty(fragmentName)) {
+        Toast.makeText(this, R.string.gemini_error_message, Toast.LENGTH_LONG).show();
+      }
+      fragment = new TalkBackPreferenceFragment();
+    }
     fragment.setArguments(argumentsOf(intent));
     return fragment;
   }
@@ -306,8 +325,14 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
   }
 
   private static PreferenceFragmentCompat getFragmentByName(@Nullable String fragmentName) {
+    PreferenceFragmentCompat fragment = instantiateFragment(fragmentName);
+    return fragment == null ? new TalkBackPreferenceFragment() : fragment;
+  }
+
+  private static @Nullable PreferenceFragmentCompat instantiateFragment(
+      @Nullable String fragmentName) {
     if (TextUtils.isEmpty(fragmentName)) {
-      return new TalkBackPreferenceFragment();
+      return null;
     }
 
     try {
@@ -323,7 +348,7 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
     } catch (ReflectiveOperationException | LinkageError | RuntimeException ex) {
       LogUtils.w(TAG, "Failed to load class: %s", fragmentName);
     }
-    return new TalkBackPreferenceFragment();
+    return null;
   }
 
   // We try to fill the default fragment name for WearPreferenceActivity to initiate it for Wear.

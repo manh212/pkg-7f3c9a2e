@@ -73,13 +73,20 @@ public final class CatalogPublisher {
     for (int attempt = 0; attempt < 3; attempt++) {
       RemoteFile existing = client.get(path);
       if (existing != null) {
-        JSONObject value = new JSONObject(existing.content);
-        if (license.equals(value.optString("value"))) return;
-        if (value.optInt("format") == 3) {
-          LicensePolicy previous = LicensePolicy.verify(request, value.getString("value"), issuer);
-          if (policy == null || policy.revision <= previous.revision) {
-            throw new SyncException("Giấy phép trên GitHub mới hơn. Mở thiết bị, tải trạng thái mới rồi ký lại thay đổi.", false, false);
+        LicensePolicy previous = null;
+        boolean previousReadable = true;
+        try {
+          JSONObject value = new JSONObject(existing.content);
+          if (license.equals(value.optString("value"))) return;
+          if (value.optInt("format") == 3) {
+            previous = LicensePolicy.verify(request, value.getString("value"), issuer);
           }
+        } catch (Exception e) {
+          previousReadable = false;
+        }
+        if (previousReadable && previous != null
+            && (policy == null || policy.revision <= previous.revision)) {
+          throw new SyncException("Giấy phép trên GitHub mới hơn. Mở thiết bị, tải trạng thái mới rồi ký lại thay đổi.", false, false);
         }
       }
       try {

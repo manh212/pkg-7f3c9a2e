@@ -109,7 +109,12 @@ object ColumnWrap {
     if (SystemClock.uptimeMillis() - webRequestTime > WEB_FOCUS_TIMEOUT_MS) {
       return NONE
     }
-    return detect(pivot, AccessibilityNodeInfoUtils.toCompat(event.source), webForward, webRtl)
+    val target = AccessibilityNodeInfoUtils.toCompat(event.source) ?: return NONE
+    try {
+      return detect(pivot, target, webForward, webRtl)
+    } finally {
+      target.recycle()
+    }
   }
 
   private fun bounds(node: AccessibilityNodeInfoCompat): Rect =

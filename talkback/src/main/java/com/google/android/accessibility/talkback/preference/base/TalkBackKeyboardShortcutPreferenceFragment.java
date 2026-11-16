@@ -231,9 +231,27 @@ public class TalkBackKeyboardShortcutPreferenceFragment extends TalkbackBaseFrag
   }
 
   @Override
+  public void onResume() {
+    super.onResume();
+    if (prefs != null) {
+      prefs.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
+    }
+  }
+
+  @Override
+  public void onPause() {
+    super.onPause();
+    if (prefs != null) {
+      prefs.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
+    }
+  }
+
+  @Override
   public void onDestroy() {
     super.onDestroy();
-    prefs.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
+    if (prefs != null) {
+      prefs.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
+    }
     TalkBackService.TalkbackServiceStateNotifier.getInstance()
         .unregisterTalkBackServiceStateChangeListener(serviceStateChangeListener);
   }
@@ -251,7 +269,6 @@ public class TalkBackKeyboardShortcutPreferenceFragment extends TalkbackBaseFrag
     setPreferencesFromResource(preferenceResourceId, rootKey);
 
     prefs = SharedPreferencesUtils.getSharedPreferences(getContext());
-    prefs.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
 
     updatePreference();
   }
@@ -338,6 +355,12 @@ public class TalkBackKeyboardShortcutPreferenceFragment extends TalkbackBaseFrag
     for (SandFlyKey sandFlyKey : sandFlyKeys) {
       entries.add(getString(sandFlyKey.getNameRes()));
       entryValues.add(getString(sandFlyKey.getValueRes()));
+    }
+    // Include the key in use even when this keymap does not offer it, so the chooser shows
+    // the stored value instead of a blank selection.
+    if (!sandFlyKeys.contains(used)) {
+      entries.add(getString(used.getNameRes()));
+      entryValues.add(getString(used.getValueRes()));
     }
     // Choose a keymap first, then this, then the rest in their order.
     for (int i = 0; i < category.getPreferenceCount(); i++) {

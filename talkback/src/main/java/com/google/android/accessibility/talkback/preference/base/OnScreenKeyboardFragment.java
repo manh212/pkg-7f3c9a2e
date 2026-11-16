@@ -20,7 +20,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Bundle;
-import android.speech.tts.TextToSpeech;
+import android.provider.Settings;
 import android.text.TextUtils;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -138,14 +138,17 @@ public class OnScreenKeyboardFragment extends TalkBackPreferenceFragment {
     String verbosityPrefKey =
         VerbosityPreferences.toVerbosityPrefKey(
             verbosityValue, getString(R.string.pref_phonetic_letters_mode_key));
-    ListPreference preference = findPreference(verbosityPrefKey);
+    ListPreference preference = findPreference(getString(R.string.pref_phonetic_letters_mode_key));
     if (preference == null) {
-      preference = findPreference(getString(R.string.pref_phonetic_letters_mode_key));
-      if (preference == null) {
-        return;
-      }
-      preference.setKey(verbosityPrefKey);
+      return;
     }
+    preference.setOnPreferenceChangeListener(
+        (changedPreference, newValue) -> {
+          if (newValue instanceof String value) {
+            prefs.edit().putString(verbosityPrefKey, value).apply();
+          }
+          return true;
+        });
 
     preference.setValue(PhoneticLetterMode.read(prefs, getResources()));
     // Disable default verbosity preference details if it is high or low.
@@ -157,10 +160,11 @@ public class OnScreenKeyboardFragment extends TalkBackPreferenceFragment {
     if (!(preference instanceof TwoStatePreference cache)) {
       return;
     }
-    TextToSpeech engine = new TextToSpeech(context.getApplicationContext(), status -> {});
-    boolean supported = TextUtils.equals(
-        SpeechCacheController.DEFAULT_CACHE_SUPPORT_TTS_ENGINE, engine.getDefaultEngine());
-    engine.shutdown();
+    String defaultEngine =
+        Settings.Secure.getString(
+            context.getContentResolver(), Settings.Secure.TTS_DEFAULT_SYNTH);
+    boolean supported =
+        TextUtils.equals(SpeechCacheController.DEFAULT_CACHE_SUPPORT_TTS_ENGINE, defaultEngine);
     cache.setEnabled(supported);
     cache.setSummary(supported
         ? R.string.summary_cache_keyboard_keys : R.string.summary_cache_keyboard_keys_disabled);

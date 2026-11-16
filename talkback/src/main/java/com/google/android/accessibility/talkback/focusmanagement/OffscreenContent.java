@@ -23,6 +23,7 @@ import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.Role;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 
 /**
@@ -54,39 +55,53 @@ final class OffscreenContent {
       AccessibilityNodeInfoCompat scrollable, AccessibilityNodeInfoCompat pivot, boolean forward) {
     Search search = new Search(forward);
     Deque<AccessibilityNodeInfoCompat> path = new ArrayDeque<>();
+    ArrayList<AccessibilityNodeInfoCompat> owned = new ArrayList<>();
     AccessibilityNodeInfoCompat node = pivot;
-    while (node != null && !node.equals(scrollable) && search.canQuery()) {
-      path.push(node);
-      node = node.getParent();
-    }
-    if (!scrollable.equals(node) || path.isEmpty()) {
-      return null;
-    }
-
-    AccessibilityNodeInfoCompat parent = scrollable;
-    Deque<ParentPosition> positions = new ArrayDeque<>();
-    while (!path.isEmpty()) {
-      AccessibilityNodeInfoCompat child = path.pop();
-      int index = search.indexOf(parent, child);
-      if (index < 0) {
+    try {
+      while (node != null && !node.equals(scrollable) && search.canQuery()) {
+        path.push(node);
+        node = node.getParent();
+        if (node != null) {
+          owned.add(node);
+        }
+      }
+      if (!scrollable.equals(node) || path.isEmpty()) {
         return null;
       }
-      positions.push(new ParentPosition(parent, index));
-      if (!path.isEmpty() && hidesChildren(child)) {
-        break;
-      }
-      parent = child;
-    }
 
-    while (!positions.isEmpty() && search.hasTime() && search.queriesRemaining >= 0) {
-      ParentPosition position = positions.pop();
-      AccessibilityNodeInfoCompat next = search.findInChildren(
-          position.parent(), position.index() + search.step);
-      if (next != null) {
-        return search.hasTime() ? next : null;
+      AccessibilityNodeInfoCompat parent = scrollable;
+      Deque<ParentPosition> positions = new ArrayDeque<>();
+      while (!path.isEmpty()) {
+        AccessibilityNodeInfoCompat child = path.pop();
+        int index = search.indexOf(parent, child);
+        if (index < 0) {
+          return null;
+        }
+        positions.push(new ParentPosition(parent, index));
+        if (!path.isEmpty() && hidesChildren(child)) {
+          break;
+        }
+        parent = child;
+      }
+
+      while (!positions.isEmpty() && search.hasTime() && search.queriesRemaining >= 0) {
+        ParentPosition position = positions.pop();
+        AccessibilityNodeInfoCompat next = search.findInChildren(
+            position.parent(), position.index() + search.step);
+        if (next != null) {
+          if (search.hasTime()) {
+            return next;
+          }
+          next.recycle();
+          return null;
+        }
+      }
+      return null;
+    } finally {
+      for (AccessibilityNodeInfoCompat ownedNode : owned) {
+        ownedNode.recycle();
       }
     }
-    return null;
   }
 
   private record ParentPosition(AccessibilityNodeInfoCompat parent, int index) {}
@@ -113,8 +128,18 @@ final class OffscreenContent {
       for (int index = step > 0 ? 0 : count - 1;
           index >= 0 && index < count && canQuery();
           index += step) {
-        if (child.equals(parent.getChild(index))) {
-          return index;
+        AccessibilityNodeInfoCompat candidate = parent.getChild(index);
+        if (candidate == null) {
+          continue;
+        }
+        try {
+          if (child.equals(candidate)) {
+            return index;
+          }
+        } finally {
+          if (candidate != child) {
+            candidate.recycle();
+          }
         }
       }
       return -1;
@@ -126,6 +151,9 @@ final class OffscreenContent {
       for (int index = start; index >= 0 && index < count && canQuery(); index += step) {
         AccessibilityNodeInfoCompat child = parent.getChild(index);
         if (child == null || !hasTime()) {
+          if (child != null) {
+            child.recycle();
+          }
           continue;
         }
         if (step > 0 && isCandidate(child)) {
@@ -135,12 +163,14 @@ final class OffscreenContent {
           AccessibilityNodeInfoCompat nested =
               findInChildren(child, step > 0 ? 0 : child.getChildCount() - 1);
           if (nested != null) {
+            child.recycle();
             return nested;
           }
         }
         if (step < 0 && queriesRemaining >= 0 && hasTime() && isCandidate(child)) {
           return child;
         }
+        child.recycle();
       }
       return null;
     }

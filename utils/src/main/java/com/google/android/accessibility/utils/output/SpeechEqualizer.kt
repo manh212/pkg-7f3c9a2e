@@ -82,7 +82,7 @@ object SpeechEqualizer {
     try {
       prefs.getBoolean(onKey(profileId), false)
     } catch (e: ClassCastException) {
-      true
+      false
     }
 
   @JvmStatic

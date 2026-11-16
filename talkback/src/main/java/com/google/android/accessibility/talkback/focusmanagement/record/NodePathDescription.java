@@ -176,12 +176,16 @@ public final class NodePathDescription {
       if (ancestor == null) {
         continue;
       }
-      int role = Role.getRole(ancestor);
-      if (role == Role.ROLE_LIST
-          || role == Role.ROLE_GRID
-          || ancestor.getCollectionInfo() != null
-          || AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL.accept(ancestor)) {
-        return true;
+      try {
+        int role = Role.getRole(ancestor);
+        if (role == Role.ROLE_LIST
+            || role == Role.ROLE_GRID
+            || ancestor.getCollectionInfo() != null
+            || AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL.accept(ancestor)) {
+          return true;
+        }
+      } finally {
+        ancestor.recycle();
       }
     }
     return false;
@@ -847,14 +851,18 @@ public final class NodePathDescription {
         AccessibilityNodeInfoCompat accessibilityNodeInfoCompat =
             description.savedNode.obtainCopyCompat();
         if (accessibilityNodeInfoCompat != null) {
-          String uniQueueId =
-              (String)
-                  CompatUtils.invoke(
-                      accessibilityNodeInfoCompat.unwrap(),
-                      /* defaultValue= */ null,
-                      CompatUtils.getMethod(AccessibilityNodeInfo.class, "getUniqueId"));
-          if (uniQueueId != null && uniQueueId.equals(targetUniqueId)) {
-            return true;
+          try {
+            String uniQueueId =
+                (String)
+                    CompatUtils.invoke(
+                        accessibilityNodeInfoCompat.unwrap(),
+                        /* defaultValue= */ null,
+                        CompatUtils.getMethod(AccessibilityNodeInfo.class, "getUniqueId"));
+            if (uniQueueId != null && uniQueueId.equals(targetUniqueId)) {
+              return true;
+            }
+          } finally {
+            accessibilityNodeInfoCompat.recycle();
           }
         }
       }

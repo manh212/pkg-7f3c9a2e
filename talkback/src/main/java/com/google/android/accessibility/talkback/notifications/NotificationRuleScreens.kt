@@ -94,7 +94,7 @@ class NotificationRulesFragment : NotificationCodeFragment(R.string.notification
       ),
       NotificationRule(
         name = context.getString(R.string.notification_template_screen_off),
-        conditions = listOf(RuleCondition(RuleCondition.Type.SCREEN_ON)),
+        conditions = listOf(RuleCondition(RuleCondition.Type.SCREEN_ON, negate = true)),
         actions = listOf(RuleAction(RuleAction.Type.SKIP)),
       ),
       NotificationRule(

@@ -94,21 +94,28 @@ public final class ExtendedGesturesController {
       return;
     }
     boolean fastDoubleTap = activeFastDoubleTap;
-    boolean rotationFailed = activeRotation
-        || TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
+    boolean rotation = activeRotation;
+    boolean extended = activeExtendedGestures;
     stop();
-    if (fastDoubleTap) {
-      SharedPreferencesUtils.getSharedPreferences(service).edit()
-          .putBoolean(LatencyExperiments.Feature.FAST_DOUBLE_TAP.key, false)
-          .apply();
-      Toast.makeText(service, R.string.fast_double_tap_failed, Toast.LENGTH_LONG).show();
+    if (!fastDoubleTap && !rotation && !extended) {
       return;
     }
-    SharedPreferencesUtils.getSharedPreferences(service).edit()
-        .putBoolean(ExtendedGestures.ENABLED, false)
-        .putBoolean(TwoFingerRotationSettings.ENABLED, false)
-        .apply();
-    Toast.makeText(service, rotationFailed ? R.string.two_finger_rotation_failed :
-        R.string.extended_gestures_failed, Toast.LENGTH_LONG).show();
+    SharedPreferences.Editor editor =
+        SharedPreferencesUtils.getSharedPreferences(service).edit();
+    if (fastDoubleTap) {
+      editor.putBoolean(LatencyExperiments.Feature.FAST_DOUBLE_TAP.key, false);
+    }
+    if (rotation) {
+      editor.putBoolean(TwoFingerRotationSettings.ENABLED, false);
+    }
+    if (extended) {
+      editor.putBoolean(ExtendedGestures.ENABLED, false);
+    }
+    editor.apply();
+    Toast.makeText(service,
+        fastDoubleTap ? R.string.fast_double_tap_failed
+            : rotation ? R.string.two_finger_rotation_failed
+                : R.string.extended_gestures_failed,
+        Toast.LENGTH_LONG).show();
   }
 }

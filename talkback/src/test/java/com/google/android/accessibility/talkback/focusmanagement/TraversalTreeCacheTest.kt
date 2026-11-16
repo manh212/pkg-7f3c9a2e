@@ -200,12 +200,13 @@ class TraversalTreeCacheTest {
   @Test
   fun nodeActionClear_reportsTheWindowToTheListener() {
     val (root, child) = savedOrder()
+    val windowId = root.windowId
     val reported = recordingListener()
 
     TraversalTreeCache.onNodeAction(AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD)
 
     assertFalse(TraversalTreeCache.holds(child))
-    assertEquals(listOf(root.windowId), reported)
+    assertEquals(listOf(windowId), reported)
   }
 
   @Test
@@ -222,12 +223,13 @@ class TraversalTreeCacheTest {
   @Test
   fun operationClear_reportsTheWindowToTheListener() {
     val (root, _) = savedOrder()
+    val windowId = root.windowId
     val reported = recordingListener()
 
     // The clear a resume and a focus retry perform: a direct call, not an event.
     TraversalTreeCache.clear("resume")
 
-    assertEquals(listOf(root.windowId), reported)
+    assertEquals(listOf(windowId), reported)
   }
 
   @Test

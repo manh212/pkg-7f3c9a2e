@@ -25,6 +25,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.annotation.Nullable;
 import com.google.android.accessibility.utils.FeatureSupport;
+import java.util.List;
 
 /**
  * Keeps the keyboard window in a gesture-detection passthrough region while the {@link
@@ -82,22 +83,49 @@ public class SingleTapTypingController {
       case AccessibilityEvent.TYPE_WINDOWS_CHANGED -> updateRegion();
       case AccessibilityEvent.TYPE_VIEW_HOVER_ENTER -> {
         AccessibilityNodeInfo source = event.getSource();
-        AccessibilityWindowInfo window = source == null ? null : source.getWindow();
-        if (window == null) {
+        if (source == null) {
           return;
         }
-        if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
-          setRegion(window);
-        } else {
-          // Restore gesture detection as soon as a non-keyboard element is touched.
-          clearRegion();
+        try {
+          AccessibilityWindowInfo window = source.getWindow();
+          if (window == null) {
+            return;
+          }
+          try {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+              setRegion(window);
+            } else {
+              // Restore gesture detection as soon as a non-keyboard element is touched.
+              clearRegion();
+            }
+          } finally {
+            window.recycle();
+          }
+        } finally {
+          source.recycle();
         }
       }
       case AccessibilityEvent.TYPE_TOUCH_INTERACTION_END -> {
         AccessibilityNodeInfo focus = service.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
-        AccessibilityWindowInfo window = focus == null ? null : focus.getWindow();
-        if (window == null || window.getType() != AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+        if (focus == null) {
           clearRegion();
+          return;
+        }
+        try {
+          AccessibilityWindowInfo window = focus.getWindow();
+          if (window == null) {
+            clearRegion();
+            return;
+          }
+          try {
+            if (window.getType() != AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+              clearRegion();
+            }
+          } finally {
+            window.recycle();
+          }
+        } finally {
+          focus.recycle();
         }
       }
       default -> {}
@@ -109,18 +137,27 @@ public class SingleTapTypingController {
       return;
     }
     AccessibilityWindowInfo keyboardWindow = null;
-    if (service.getWindows() != null) {
-      for (AccessibilityWindowInfo window : service.getWindows()) {
-        if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+    List<AccessibilityWindowInfo> windows = service.getWindows();
+    if (windows != null) {
+      for (AccessibilityWindowInfo window : windows) {
+        if (keyboardWindow == null
+            && window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
           keyboardWindow = window;
-          break;
+        } else {
+          window.recycle();
         }
       }
     }
-    if (keyboardWindow == null) {
-      clearRegion();
-    } else {
-      setRegion(keyboardWindow);
+    try {
+      if (keyboardWindow == null) {
+        clearRegion();
+      } else {
+        setRegion(keyboardWindow);
+      }
+    } finally {
+      if (keyboardWindow != null) {
+        keyboardWindow.recycle();
+      }
     }
   }
 

@@ -62,7 +62,7 @@ public class LastSpokenTextHolderTest {
     LastSpokenTextHolder.setLastSpokenText("before menu");
     LastSpokenTextHolder.setMenuSpeechSuppressed(true);
     LastSpokenTextHolder.setLastSpokenText("Menu item");
-    assertEquals("Menu item", LastSpokenTextHolder.getLastSpokenText());
+    assertEquals("before menu", LastSpokenTextHolder.getLastSpokenText());
     assertEquals(List.of("before menu"), LastSpokenTextHolder.getSpokenHistory());
     LastSpokenTextHolder.setMenuSpeechSuppressed(false);
     LastSpokenTextHolder.setLastSpokenText("after menu");

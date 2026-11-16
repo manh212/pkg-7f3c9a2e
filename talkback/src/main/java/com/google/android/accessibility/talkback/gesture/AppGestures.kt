@@ -107,21 +107,29 @@ object AppGestures {
 
   fun fromJson(json: String?): Map<String, App> {
     if (json.isNullOrEmpty()) return emptyMap()
-    return try {
-      val root = JSONObject(json)
-      root.keys().asSequence().associateWith { packageName ->
+    val root =
+      try {
+        JSONObject(json)
+      } catch (e: JSONException) {
+        return emptyMap()
+      }
+    val apps = mutableMapOf<String, App>()
+    for (packageName in root.keys()) {
+      try {
         val app = root.getJSONObject(packageName)
         val gestures = app.optJSONObject("gestures") ?: JSONObject()
         val keys = app.optJSONObject("keys") ?: JSONObject()
-        App(
-          app.optString("name", packageName),
-          gestures.keys().asSequence().associateWith { gestures.getString(it) },
-          keys.keys().asSequence().associateWith { keys.getString(it) },
-        )
+        apps[packageName] =
+          App(
+            app.optString("name", packageName),
+            gestures.keys().asSequence().associateWith { gestures.getString(it) },
+            keys.keys().asSequence().associateWith { keys.getString(it) },
+          )
+      } catch (e: JSONException) {
+        continue
       }
-    } catch (e: JSONException) {
-      emptyMap()
     }
+    return apps
   }
 
   fun toJson(apps: Map<String, App>): String {

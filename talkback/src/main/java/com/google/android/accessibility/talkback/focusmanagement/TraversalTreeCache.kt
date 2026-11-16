@@ -391,24 +391,40 @@ object TraversalTreeCache {
         ?: runCatching { OrderedTraversalStrategy(root) }.getOrNull()
         ?: return null
     val bounds = Rect()
+    val nodes = order.dumpTree()
     var above: AccessibilityNodeInfoCompat? = null
-    for (node in order.dumpTree()) {
+    for (node in nodes) {
       if (node.windowId != lastPivotWindowId) {
         continue
       }
       node.getBoundsInScreen(bounds)
       if (bounds.top >= lastPivotTop) {
-        return above ?: node
+        val result = above ?: node
+        for (other in nodes) {
+          if (other !== result) {
+            other.recycle()
+          }
+        }
+        return result
       }
       above = node
     }
-    return above
+    val result = above
+    for (other in nodes) {
+      if (other !== result) {
+        other.recycle()
+      }
+    }
+    return result
   }
 
   /** Saves the order of [root], replacing any saved order. */
   @JvmStatic
   fun put(root: AccessibilityNodeInfoCompat, strategy: OrderedTraversalStrategy) {
     if (!enabled) return
+    if (this.root !== root) {
+      this.root?.recycle()
+    }
     this.root = root
     this.strategy = strategy
     firstIgnoredChangeTime = 0L
@@ -448,6 +464,7 @@ object TraversalTreeCache {
     }
     val windowId = root?.windowId ?: NO_WINDOW_ID
     clearedWindowId = windowId
+    root?.recycle()
     root = null
     strategy = null
     firstIgnoredChangeTime = 0L

@@ -66,7 +66,8 @@ class AlertDialogAdaptiveContrastUtil {
       adjustTextColorViaFocus(
           context,
           dialog.getButton(DialogInterface.BUTTON_POSITIVE),
-          dialog.getButton(DialogInterface.BUTTON_NEGATIVE));
+          dialog.getButton(DialogInterface.BUTTON_NEGATIVE),
+          dialog.getButton(DialogInterface.BUTTON_NEUTRAL));
       return dialog;
     }
   }
@@ -96,7 +97,8 @@ class AlertDialogAdaptiveContrastUtil {
       adjustTextColorViaFocus(
           context,
           dialog.getButton(DialogInterface.BUTTON_POSITIVE),
-          dialog.getButton(DialogInterface.BUTTON_NEGATIVE));
+          dialog.getButton(DialogInterface.BUTTON_NEGATIVE),
+          dialog.getButton(DialogInterface.BUTTON_NEUTRAL));
       return dialog;
     }
   }
@@ -107,7 +109,10 @@ class AlertDialogAdaptiveContrastUtil {
    * foreground text according to the applied theme (day/night).
    */
   private static void adjustTextColorViaFocus(
-      Context context, @Nullable Button buttonPositive, @Nullable Button buttonNegative) {
+      Context context,
+      @Nullable Button buttonPositive,
+      @Nullable Button buttonNegative,
+      @Nullable Button buttonNeutral) {
     View.OnFocusChangeListener focusChangeListener =
         (v, hasFocus) ->
             ((Button) v)
@@ -124,6 +129,10 @@ class AlertDialogAdaptiveContrastUtil {
 
     if (buttonNegative != null) {
       buttonNegative.setOnFocusChangeListener(focusChangeListener);
+    }
+
+    if (buttonNeutral != null) {
+      buttonNeutral.setOnFocusChangeListener(focusChangeListener);
     }
   }
 }

@@ -20,6 +20,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceGroup;
+import androidx.preference.PreferenceScreen;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils;
@@ -52,6 +54,7 @@ public final class GestureSettingsReset {
                   R.string.reset_button_in_reset_gesture_settings_confirm_dialog,
                   (dialog, which) -> {
                     reset(context, prefs);
+                    refreshGestureRows(fragment);
                     PreferencesActivityUtils.announceText(
                         fragment.getString(R.string.gestures_announce_reset_gesture_settings),
                         context);
@@ -61,6 +64,25 @@ public final class GestureSettingsReset {
               .show();
           return true;
         });
+  }
+
+  private static void refreshGestureRows(PreferenceFragmentCompat fragment) {
+    PreferenceScreen screen = fragment.getPreferenceScreen();
+    if (screen == null) {
+      return;
+    }
+    refreshGestureRows(screen);
+  }
+
+  private static void refreshGestureRows(PreferenceGroup group) {
+    for (int i = 0; i < group.getPreferenceCount(); i++) {
+      Preference preference = group.getPreference(i);
+      if (preference instanceof GestureListPreference gesture) {
+        gesture.notifyChanged();
+      } else if (preference instanceof PreferenceGroup nested) {
+        refreshGestureRows(nested);
+      }
+    }
   }
 
   private static void reset(Context context, SharedPreferences prefs) {

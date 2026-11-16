@@ -26,6 +26,7 @@ import android.util.AttributeSet;
 import androidx.preference.ListPreference;
 import androidx.preference.ListPreferenceDialogFragmentCompat;
 import com.google.android.accessibility.talkback.R;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Speak punctuation verbosity preference. The user can single-select the verbosity level by all,
@@ -64,8 +65,6 @@ public class PunctuationListPreference extends ListPreference {
   public static class CustomListPreferenceDialogFragment
       extends ListPreferenceDialogFragmentCompat {
 
-    private static String keyClickedEntryIndex;
-
     private int clickedDialogEntryIndex;
 
     /**
@@ -74,7 +73,6 @@ public class PunctuationListPreference extends ListPreference {
      * @param key preference key for storing data
      */
     public static ListPreferenceDialogFragmentCompat newInstance(String key) {
-      keyClickedEntryIndex = key;
       final ListPreferenceDialogFragmentCompat fragment =
           new PunctuationListPreference.CustomListPreferenceDialogFragment();
       final Bundle b = new Bundle(1);
@@ -85,6 +83,11 @@ public class PunctuationListPreference extends ListPreference {
 
     private PunctuationListPreference getCustomizablePreference() {
       return (PunctuationListPreference) getPreference();
+    }
+
+    private @Nullable String getClickedEntryIndexKey() {
+      Bundle arguments = getArguments();
+      return arguments == null ? null : arguments.getString(ARG_KEY);
     }
 
     @Override
@@ -99,8 +102,10 @@ public class PunctuationListPreference extends ListPreference {
     public Dialog onCreateDialog(Bundle savedInstanceState) {
       Dialog dialog = super.onCreateDialog(savedInstanceState);
       if (savedInstanceState != null) {
-        clickedDialogEntryIndex =
-            savedInstanceState.getInt(keyClickedEntryIndex, clickedDialogEntryIndex);
+        String key = getClickedEntryIndexKey();
+        if (key != null) {
+          clickedDialogEntryIndex = savedInstanceState.getInt(key, clickedDialogEntryIndex);
+        }
       }
       return dialog;
     }
@@ -108,16 +113,19 @@ public class PunctuationListPreference extends ListPreference {
     @Override
     public void onSaveInstanceState(Bundle outState) {
       super.onSaveInstanceState(outState);
-      outState.putInt(keyClickedEntryIndex, clickedDialogEntryIndex);
+      String key = getClickedEntryIndexKey();
+      if (key != null) {
+        outState.putInt(key, clickedDialogEntryIndex);
+      }
     }
 
     private DialogInterface.OnClickListener getOnItemClickListener() {
       return (dialog, which) -> {
         setClickedDialogEntryIndex(which);
-        getCustomizablePreference()
-            .setValue(
-                String.valueOf(
-                    getCustomizablePreference().getEntryValues()[clickedDialogEntryIndex]));
+        String value = getValue();
+        if (value != null && getCustomizablePreference().callChangeListener(value)) {
+          getCustomizablePreference().setValue(value);
+        }
         // Dismiss dialog when the item clicked.
         dismiss();
       };

@@ -255,6 +255,8 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
           return
         } catch (e: ActivityNotFoundException) {
           // Try the next.
+        } catch (_: SecurityException) {
+          // Try the next.
         }
       }
     }

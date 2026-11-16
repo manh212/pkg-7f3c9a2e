@@ -31,13 +31,13 @@ object CacheCleanup {
 
   fun run(context: Context, prefs: SharedPreferences) {
     if (prefs.getInt(PREF_VERSION, 0) >= VERSION) return
-    prefs.edit().putInt(PREF_VERSION, VERSION).apply()
     val app = context.applicationContext
     Thread(
         {
           try {
             val freed = clean(app.cacheDir)
             Log.i(TAG, "Freed $freed bytes")
+            prefs.edit().putInt(PREF_VERSION, VERSION).apply()
           } catch (e: Throwable) {
             Log.w(TAG, "Cache cleanup failed", e)
           }

@@ -40,11 +40,11 @@ public final class LastSpokenTextHolder {
     if (TextUtils.isEmpty(text) || TextUtils.getTrimmedLength(text) == 0) {
       return;
     }
+    if (menuSpeechSuppressed) {
+      return;
+    }
     lastSpokenText.set(text.toString());
     synchronized (spokenHistory) {
-      if (menuSpeechSuppressed) {
-        return;
-      }
       spokenHistory.addFirst(text.toString());
       while (spokenHistory.size() > MAX_SPOKEN_HISTORY_SIZE) {
         spokenHistory.removeLast();

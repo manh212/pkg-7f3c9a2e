@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.os.Bundle;
 import android.os.Looper;
 import android.widget.LinearLayout;
 import androidx.fragment.app.Fragment;
@@ -94,6 +95,33 @@ public class SelectorGroupScreensTest {
       assertNotNull(items.findPreference("sgm_present"));
       assertNotNull(items.findPreference("sgm_available"));
       assertEquals(2, items.getPreferenceScreen().getPreferenceCount());
+    } finally {
+      controller.pause().stop().destroy();
+    }
+  }
+
+  @Test
+  public void draftNameSurvivesViewDestroyedBeforeStateSave() {
+    ActivityController<TestActivity> controller = createActivity();
+    try {
+      TestActivity activity = controller.get();
+      SelectorGroupsFragment groups = showGroups(activity);
+      groups.getPreferenceScreen().getPreference(0).performClick();
+      activity.getSupportFragmentManager().executePendingTransactions();
+      shadowOf(Looper.getMainLooper()).idle();
+
+      SelectorGroupCreateFragment createScreen =
+          (SelectorGroupCreateFragment)
+              activity.getSupportFragmentManager().findFragmentById(android.R.id.content);
+      LinearLayout layout = (LinearLayout) createScreen.requireView();
+      KeyboardSafeEditText nameField = (KeyboardSafeEditText) layout.getChildAt(0);
+      nameField.setText("Nhóm thử");
+
+      activity.getSupportFragmentManager().beginTransaction().detach(createScreen).commitNow();
+      Bundle state = new Bundle();
+      createScreen.onSaveInstanceState(state);
+
+      assertEquals("Nhóm thử", state.getString("sgm_draft_name"));
     } finally {
       controller.pause().stop().destroy();
     }

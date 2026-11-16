@@ -141,13 +141,15 @@ public class ScreenCaptureController {
       activeProjection.stop();
       activeProjection = null;
     }
-    if (virtualDisplay != null) {
-      virtualDisplay.release();
-      virtualDisplay = null;
-    }
-    if (imageReader != null) {
-      imageReader.close();
-      imageReader = null;
+    synchronized (this) {
+      if (virtualDisplay != null) {
+        virtualDisplay.release();
+        virtualDisplay = null;
+      }
+      if (imageReader != null) {
+        imageReader.close();
+        imageReader = null;
+      }
     }
   }
 
@@ -181,9 +183,18 @@ public class ScreenCaptureController {
     DisplayMetrics metrics = new DisplayMetrics();
     WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
     windowManager.getDefaultDisplay().getRealMetrics(metrics);
-    imageReader = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels,
-        PixelFormat.RGBA_8888, 1);
-    imageReader.setOnImageAvailableListener(new ScreenCaptureImageProcessor(listener), handler);
+    ImageReader reader;
+    synchronized (this) {
+      if (imageReader != null) {
+        imageReader.setOnImageAvailableListener(null, null);
+        imageReader.close();
+        imageReader = null;
+      }
+      imageReader = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels,
+          PixelFormat.RGBA_8888, 1);
+      reader = imageReader;
+    }
+    reader.setOnImageAvailableListener(new ScreenCaptureImageProcessor(listener), handler);
 
     // Create a virtual display to hold captured frames and implicitly start projection
     if (virtualDisplay != null) {
@@ -196,7 +207,7 @@ public class ScreenCaptureController {
           metrics.heightPixels,
           metrics.densityDpi,
           DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-          imageReader.getSurface(),
+          reader.getSurface(),
           null,
           null);
     } catch (SecurityException se) {
@@ -205,7 +216,7 @@ public class ScreenCaptureController {
       handler.post(
           () -> {
             if (listener != null) {
-              listener.onScreenCaptureFinished(null, true);
+              listener.onScreenCaptureFinished(null, false);
             }
           });
     }
@@ -240,9 +251,9 @@ public class ScreenCaptureController {
             if (success) {
               requestScreenCaptureAsync(managedCaptureListener);
             } else {
-              // Authorization was not granted so pass the user a null Bitmap and truthy format
-              // boolean.
-              managedCaptureListener.onScreenCaptureFinished(null, true);
+              // Authorization was not granted so pass the user a null Bitmap and a false
+              // format boolean.
+              managedCaptureListener.onScreenCaptureFinished(null, false);
             }
           }
         };
@@ -348,9 +359,12 @@ public class ScreenCaptureController {
                   result = getBitmapFromImageReader(reader);
                 } catch (UnsupportedOperationException e) {
                   isFormatSupported = false;
+                } catch (RuntimeException e) {
+                  LogUtils.e(TAG, e, "Could not convert the captured frame to a bitmap");
+                  isFormatSupported = false;
                 }
 
-                deliverResult(result, isFormatSupported);
+                deliverResult(reader, result, isFormatSupported);
               })
           .start();
     }
@@ -366,35 +380,50 @@ public class ScreenCaptureController {
       if (frame == null) {
         return null;
       }
+      try {
+        Image.Plane[] planes = frame.getPlanes();
+        if ((planes == null) || (planes.length < 1)) {
+          return null;
+        }
 
-      Image.Plane[] planes = frame.getPlanes();
-      if ((planes == null) || (planes.length < 1)) {
-        return null;
+        // We only capture data from the first Plane of the Image, as the MediaProjection Surface uses
+        // only a single plane.
+        Plane imagePlane = planes[0];
+
+        // Create a bitmap with a format matching that expected from the ImageReader and copy the
+        // capture data.
+        Bitmap bitmap = Bitmap.createBitmap(imagePlane.getRowStride() / imagePlane.getPixelStride(),
+            frame.getHeight(), Bitmap.Config.ARGB_8888);
+        ByteBuffer buffer = planes[0].getBuffer();
+        bitmap.copyPixelsFromBuffer(buffer);
+        Bitmap croppedBitmap = BitmapUtils.cropBitmap(bitmap, frame.getCropRect());
+        bitmap.recycle();
+
+        return croppedBitmap;
+      } finally {
+        frame.close();
       }
-
-      // We only capture data from the first Plane of the Image, as the MediaProjection Surface uses
-      // only a single plane.
-      Plane imagePlane = planes[0];
-
-      // Create a bitmap with a format matching that expected from the ImageReader and copy the
-      // capture data.
-      Bitmap bitmap = Bitmap.createBitmap(imagePlane.getRowStride() / imagePlane.getPixelStride(),
-          frame.getHeight(), Bitmap.Config.ARGB_8888);
-      ByteBuffer buffer = planes[0].getBuffer();
-      bitmap.copyPixelsFromBuffer(buffer);
-      Bitmap croppedBitmap = BitmapUtils.cropBitmap(bitmap, frame.getCropRect());
-      bitmap.recycle();
-      frame.close();
-
-      return croppedBitmap;
     }
 
     private void deliverResult(
+        ImageReader reader,
         @Nullable final Bitmap screenCapture, final boolean isFormatSupported) {
-      virtualDisplay.release();
-      virtualDisplay = null;
-      imageReader.close();
-      imageReader = null;
+      VirtualDisplay display = null;
+      boolean ownsReader;
+      synchronized (ScreenCaptureController.this) {
+        ownsReader = imageReader == reader;
+        if (ownsReader) {
+          imageReader = null;
+          display = virtualDisplay;
+          virtualDisplay = null;
+        }
+      }
+      if (display != null) {
+        display.release();
+      }
+      if (ownsReader) {
+        reader.close();
+      }
       if (listener != null) {
         handler.post(() -> listener.onScreenCaptureFinished(screenCapture, isFormatSupported));
       }

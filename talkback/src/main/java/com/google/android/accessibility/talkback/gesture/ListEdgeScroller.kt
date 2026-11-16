@@ -107,12 +107,16 @@ class ListEdgeScroller(
       .setNegativeButton(android.R.string.cancel, null)
       .create()
     dialog.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
-    dialog.setOnDismissListener { if (directionDialog === dialog) directionDialog = null }
+    dialog.setOnDismissListener {
+      if (directionDialog === dialog) directionDialog = null
+      root.recycle()
+    }
     directionDialog = dialog
     try {
       dialog.show()
     } catch (e: WindowManager.BadTokenException) {
       directionDialog = null
+      root.recycle()
       return false
     }
     return true
@@ -202,11 +206,15 @@ class ListEdgeScroller(
     }
     val root = service.rootInActiveWindow?.let(AccessibilityNodeInfoCompat::wrap)
     if (root == null || root.windowId != current.windowId) {
+      root?.recycle()
       cancel()
       return
     }
     val target = if (current.refresh() && current.isVisibleToUser) current
       else automaticTarget(root, null)
+    if (target !== root) {
+      root.recycle()
+    }
     if (target != null) {
       list = target
       automaticAction(target)?.let { action ->
@@ -277,12 +285,16 @@ class ListEdgeScroller(
       focus?.let { AccessibilityNodeInfoUtils.getRoot(it) }
         ?: service.rootInActiveWindow?.let { AccessibilityNodeInfoCompat.wrap(it) }
         ?: return null
-    return AccessibilityNodeInfoUtils.searchFromBfs(
+    val result = AccessibilityNodeInfoUtils.searchFromBfs(
       root,
       filter {
         it != null && isList(it) && AccessibilityNodeInfoUtils.supportsAction(it, scrollAction())
       },
     )
+    if (result !== root) {
+      root.recycle()
+    }
+    return result
   }
 
   private fun isList(node: AccessibilityNodeInfoCompat?): Boolean =

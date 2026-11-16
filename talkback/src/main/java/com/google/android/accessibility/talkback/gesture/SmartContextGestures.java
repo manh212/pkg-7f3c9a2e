@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -260,25 +261,38 @@ public final class SmartContextGestures {
   public static boolean hasMatchingContext(TalkBackService service) {
     if (service == null) return false;
     AccessibilityNodeInfo root = service.getRootInActiveWindow();
-    if (root == null || root.getPackageName() == null) return false;
-    String packageName = root.getPackageName().toString();
-    if (isNearestSliderEnabled(service) && findNearestSlider(root) != null) return true;
-    if (findMatch(root, getEffectiveRules(service, packageName, false)) != null
-        || findMatch(root, getEffectiveRules(service, packageName, true)) != null) return true;
+    if (root == null || root.getPackageName() == null) {
+      if (root != null) root.recycle();
+      return false;
+    }
+    try {
+      String packageName = root.getPackageName().toString();
+      if (isNearestSliderEnabled(service)) {
+        AccessibilityNodeInfo slider = findNearestSlider(root);
+        if (slider != null) {
+          slider.recycle();
+          return true;
+        }
+      }
+      if (hasRuleMatch(root, getEffectiveRules(service, packageName, false))
+          || hasRuleMatch(root, getEffectiveRules(service, packageName, true))) return true;
 
-    boolean callUi = isCallUiPackage(packageName);
-    if (isBuiltinEnabled(service, "call_incoming") && callUi
-        && (findBuiltinMatch(root, CALL_ANSWER) != null
-            || findBuiltinMatch(root, CALL_DECLINE) != null)) return true;
-    if (isBuiltinEnabled(service, "call_active") && callUi
-        && (findBuiltinMatch(root, CALL_END) != null
-            || findBuiltinMatch(root, CALL_MUTE) != null)) return true;
-    if (isBuiltinEnabled(service, "call_speaker") && callUi
-        && findBuiltinMatch(root, CALL_SPEAKER) != null) return true;
-    if (isBuiltinEnabled(service, "short_video") && isShortVideoContext(packageName, root)) return true;
-    if (isBuiltinEnabled(service, "dialog") && isDialogContext(root)) return true;
-    return isBuiltinEnabled(service, "media")
-        && findBuiltinMatch(root, new String[]{"Tạm dừng", "Phát", "Pause", "Play", "Tiếp tục"}) != null;
+      boolean callUi = isCallUiPackage(packageName);
+      if (isBuiltinEnabled(service, "call_incoming") && callUi
+          && (hasBuiltinMatch(root, CALL_ANSWER)
+              || hasBuiltinMatch(root, CALL_DECLINE))) return true;
+      if (isBuiltinEnabled(service, "call_active") && callUi
+          && (hasBuiltinMatch(root, CALL_END)
+              || hasBuiltinMatch(root, CALL_MUTE))) return true;
+      if (isBuiltinEnabled(service, "call_speaker") && callUi
+          && hasBuiltinMatch(root, CALL_SPEAKER)) return true;
+      if (isBuiltinEnabled(service, "short_video") && isShortVideoContext(packageName, root)) return true;
+      if (isBuiltinEnabled(service, "dialog") && isDialogContext(root)) return true;
+      return isBuiltinEnabled(service, "media")
+          && hasBuiltinMatch(root, new String[]{"Tạm dừng", "Phát", "Pause", "Play", "Tiếp tục"});
+    } finally {
+      root.recycle();
+    }
   }
 
   private static boolean isShortVideoContext(String packageName, AccessibilityNodeInfo root) {
@@ -286,25 +300,28 @@ public final class SmartContextGestures {
     if (lower.contains("musically") || lower.contains("ugc.trill") || lower.contains("tiktok")) {
       return true;
     }
-    for (AccessibilityNodeInfo node : visibleNodes(root)) {
+    List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+    for (AccessibilityNodeInfo node : nodes) {
       String label = asText(node.getContentDescription()).toLowerCase(Locale.ROOT);
       if (label.equals("shorts") || label.equals("reels") || label.equals("video ngắn")) {
+        recycleNodes(nodes, root, null);
         return true;
       }
     }
+    recycleNodes(nodes, root, null);
     return false;
   }
 
   private static boolean isDialogContext(AccessibilityNodeInfo root) {
-    return findMatch(root, Arrays.asList(
+    return hasRuleMatch(root, Arrays.asList(
         new Rule("OK", "exact", "", false, true),
         new Rule("Đồng ý", "exact", "", false, true),
-        new Rule("Có", "exact", "", false, true))) != null
-        && findMatch(root, Arrays.asList(
+        new Rule("Có", "exact", "", false, true)))
+        && hasRuleMatch(root, Arrays.asList(
             new Rule("Hủy", "exact", "", false, true),
             new Rule("Huỷ", "exact", "", false, true),
             new Rule("Cancel", "exact", "", false, true),
-            new Rule("Không", "exact", "", false, true))) != null;
+            new Rule("Không", "exact", "", false, true)));
   }
 
   public static void perform(TalkBackService service, boolean down) {
@@ -317,7 +334,13 @@ public final class SmartContextGestures {
     boolean nearestSliderEnabled = isNearestSliderEnabled(service);
     if (nearestSliderEnabled) {
       AccessibilityNodeInfo root = service.getRootInActiveWindow();
-      if (root != null && adjustNearestSlider(service, root, down)) return;
+      if (root != null) {
+        try {
+          if (adjustNearestSlider(service, root, down)) return;
+        } finally {
+          root.recycle();
+        }
+      }
     }
     boolean builtin = false;
     for (String name : BUILTINS) builtin |= isBuiltinEnabled(service, name);
@@ -380,14 +403,56 @@ public final class SmartContextGestures {
     int count = 0;
     while (!stack.isEmpty() && count++ < 2500) {
       AccessibilityNodeInfo node = stack.removeFirst();
-      if (!node.isVisibleToUser()) continue;
+      if (!node.isVisibleToUser()) {
+        if (node != root) {
+          node.recycle();
+        }
+        continue;
+      }
       nodes.add(node);
       for (int i = node.getChildCount() - 1; i >= 0; i--) {
         AccessibilityNodeInfo child = node.getChild(i);
         if (child != null) stack.addFirst(child);
       }
     }
+    while (!stack.isEmpty()) {
+      AccessibilityNodeInfo leftover = stack.removeFirst();
+      if (leftover != root) {
+        leftover.recycle();
+      }
+    }
     return nodes;
+  }
+
+  /**
+   * Recycles every node in {@code nodes} except the two kept ones. The kept nodes are the
+   * caller-owned root and the node returned to the caller, if any.
+   */
+  private static void recycleNodes(
+      List<AccessibilityNodeInfo> nodes,
+      @Nullable AccessibilityNodeInfo keepFirst,
+      @Nullable AccessibilityNodeInfo keepSecond) {
+    for (AccessibilityNodeInfo node : nodes) {
+      if (node != keepFirst && node != keepSecond) {
+        node.recycle();
+      }
+    }
+  }
+
+  /** Whether any rule matches a visible node, without keeping the matched node. */
+  private static boolean hasRuleMatch(AccessibilityNodeInfo root, List<Rule> rules) {
+    Candidate match = findMatch(root, rules);
+    if (match == null) return false;
+    match.node.recycle();
+    return true;
+  }
+
+  /** Whether any built-in label matches a visible node, without keeping the matched node. */
+  private static boolean hasBuiltinMatch(AccessibilityNodeInfo root, String[] names) {
+    Candidate match = findBuiltinMatch(root, names);
+    if (match == null) return false;
+    match.node.recycle();
+    return true;
   }
 
 
@@ -396,10 +461,14 @@ public final class SmartContextGestures {
     if (root == null) return null;
     AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
     Rect focusBounds = new Rect();
-    if (focus != null) focus.getBoundsInScreen(focusBounds);
+    if (focus != null) {
+      focus.getBoundsInScreen(focusBounds);
+      focus.recycle();
+    }
     Candidate best = null;
     int order = 0;
-    for (AccessibilityNodeInfo node : visibleNodes(root)) {
+    List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+    for (AccessibilityNodeInfo node : nodes) {
       if (!isAdjustableSlider(node)) {
         order++;
         continue;
@@ -416,7 +485,9 @@ public final class SmartContextGestures {
       }
       order++;
     }
-    return best == null ? null : best.node;
+    AccessibilityNodeInfo result = best == null ? null : best.node;
+    recycleNodes(nodes, root, result);
+    return result;
   }
 
   /** A progress indicator is not a slider unless accessibility reports adjustment actions. */
@@ -457,7 +528,12 @@ public final class SmartContextGestures {
     boolean adjusted = hasAction(target, scroll) && target.performAction(scroll);
     if (!adjusted) adjusted = setSliderProgress(target, increase);
     // Even at an end stop, report its current value instead of invoking another action.
-    MAIN.postDelayed(() -> announceSliderValue(service, target), adjusted ? 130 : 30);
+    MAIN.postDelayed(
+        () -> {
+          announceSliderValue(service, target);
+          target.recycle();
+        },
+        adjusted ? 130 : 30);
     return true;
   }
 
@@ -485,17 +561,27 @@ public final class SmartContextGestures {
   /** Reads the refreshed value, not the value cached before the adjustment gesture. */
   private static void announceSliderValue(TalkBackService service, AccessibilityNodeInfo target) {
     AccessibilityNodeInfo activeRoot = service.getRootInActiveWindow();
-    AccessibilityNodeInfo node = target.refresh() ? target
-        : activeRoot == null ? null
-            : activeRoot.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
-    String value = sliderValue(node);
-    String message = value.isEmpty()
-        ? service.getString(R.string.smart_context_slider_value_unknown)
-        : service.getString(R.string.smart_context_slider_value, value);
-    if (service.getSpeechController() != null) {
-      service.getSpeechController().speak(message, Performance.EVENT_ID_UNTRACKED,
-          SpeechController.SpeakOptions.create()
-              .setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT));
+    AccessibilityNodeInfo node = null;
+    try {
+      node = target.refresh() ? target
+          : activeRoot == null ? null
+              : activeRoot.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+      String value = sliderValue(node);
+      String message = value.isEmpty()
+          ? service.getString(R.string.smart_context_slider_value_unknown)
+          : service.getString(R.string.smart_context_slider_value, value);
+      if (service.getSpeechController() != null) {
+        service.getSpeechController().speak(message, Performance.EVENT_ID_UNTRACKED,
+            SpeechController.SpeakOptions.create()
+                .setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT));
+      }
+    } finally {
+      if (node != null && node != target) {
+        node.recycle();
+      }
+      if (activeRoot != null) {
+        activeRoot.recycle();
+      }
     }
   }
 
@@ -519,10 +605,14 @@ public final class SmartContextGestures {
   private static Candidate findMatch(AccessibilityNodeInfo root, List<Rule> rules) {
     AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
     Rect focusBounds = new Rect();
-    if (focus != null) focus.getBoundsInScreen(focusBounds);
+    if (focus != null) {
+      focus.getBoundsInScreen(focusBounds);
+      focus.recycle();
+    }
     List<Candidate> choices = new ArrayList<>();
     int order = 0;
-    for (AccessibilityNodeInfo node : visibleNodes(root)) {
+    List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+    for (AccessibilityNodeInfo node : nodes) {
       if (!node.isEnabled() || node.isEditable() || node.isPassword()) {
         order++;
         continue;
@@ -547,9 +637,14 @@ public final class SmartContextGestures {
       }
       order++;
     }
-    if (choices.isEmpty()) return null;
+    if (choices.isEmpty()) {
+      recycleNodes(nodes, root, null);
+      return null;
+    }
     choices.sort(Comparator.comparingLong((Candidate c) -> c.distance).thenComparingInt(c -> c.order));
-    return choices.get(0);
+    Candidate result = choices.get(0);
+    recycleNodes(nodes, root, result.node);
+    return result;
   }
 
   static boolean isCallUiPackage(String packageName) {
@@ -578,10 +673,14 @@ public final class SmartContextGestures {
   private static Candidate findBuiltinMatch(AccessibilityNodeInfo root, String[] names) {
     AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
     Rect focusBounds = new Rect();
-    if (focus != null) focus.getBoundsInScreen(focusBounds);
+    if (focus != null) {
+      focus.getBoundsInScreen(focusBounds);
+      focus.recycle();
+    }
     List<Candidate> choices = new ArrayList<>();
     int order = 0;
-    for (AccessibilityNodeInfo node : visibleNodes(root)) {
+    List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+    for (AccessibilityNodeInfo node : nodes) {
       if (!node.isEnabled() || node.isEditable() || node.isPassword()) {
         order++;
         continue;
@@ -601,9 +700,14 @@ public final class SmartContextGestures {
       }
       order++;
     }
-    if (choices.isEmpty()) return null;
+    if (choices.isEmpty()) {
+      recycleNodes(nodes, root, null);
+      return null;
+    }
     choices.sort(Comparator.comparingLong((Candidate c) -> c.distance).thenComparingInt(c -> c.order));
-    return choices.get(0);
+    Candidate result = choices.get(0);
+    recycleNodes(nodes, root, result.node);
+    return result;
   }
 
   private static String asText(CharSequence text) {
@@ -620,8 +724,20 @@ public final class SmartContextGestures {
     AccessibilityNodeInfo current = target;
     for (int depth = 0; current != null && depth < 12; depth++) {
       if (current.isEnabled() && current.isClickable()
-          && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
-      current = current.getParent();
+          && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+        if (current != target) {
+          current.recycle();
+        }
+        return true;
+      }
+      AccessibilityNodeInfo parent = current.getParent();
+      if (current != target) {
+        current.recycle();
+      }
+      current = parent;
+    }
+    if (current != null && current != target) {
+      current.recycle();
     }
     Rect rect = new Rect();
     target.getBoundsInScreen(rect);
@@ -635,43 +751,65 @@ public final class SmartContextGestures {
 
   private static AccessibilityNodeInfo scroller(AccessibilityNodeInfo root) {
     AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
-    for (AccessibilityNodeInfo node = focus; node != null; node = node.getParent()) {
-      if (node.isScrollable()) return node;
+    AccessibilityNodeInfo node = focus;
+    while (node != null) {
+      if (node.isScrollable()) {
+        return node;
+      }
+      AccessibilityNodeInfo parent = node.getParent();
+      if (node != root) {
+        node.recycle();
+      }
+      node = parent;
     }
     AccessibilityNodeInfo best = null;
     long area = -1;
-    for (AccessibilityNodeInfo node : visibleNodes(root)) {
-      if (!node.isScrollable()) continue;
+    List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+    for (AccessibilityNodeInfo visible : nodes) {
+      if (!visible.isScrollable()) continue;
       Rect rect = new Rect();
-      node.getBoundsInScreen(rect);
+      visible.getBoundsInScreen(rect);
       long candidate = (long) rect.width() * rect.height();
       if (candidate > area) {
         area = candidate;
-        best = node;
+        best = visible;
       }
     }
+    recycleNodes(nodes, root, best);
     return best;
   }
 
   private static boolean scroll(AccessibilityNodeInfo root, boolean forward) {
     AccessibilityNodeInfo node = scroller(root);
-    return node != null && node.performAction(
-        forward ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-            : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
+    if (node == null) return false;
+    try {
+      return node.performAction(
+          forward ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+              : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
+    } finally {
+      if (node != root) {
+        node.recycle();
+      }
+    }
   }
 
   private static String visibleSignature(AccessibilityNodeInfo root) {
     StringBuilder signature = new StringBuilder();
     int count = 0;
-    for (AccessibilityNodeInfo node : visibleNodes(root)) {
-      CharSequence text = !TextUtils.isEmpty(node.getText())
-          ? node.getText() : node.getContentDescription();
-      if (!TextUtils.isEmpty(text)) {
-        Rect bounds = new Rect();
-        node.getBoundsInScreen(bounds);
-        signature.append(text).append(bounds.top).append(';');
-        if (++count >= 35) break;
+    List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+    try {
+      for (AccessibilityNodeInfo node : nodes) {
+        CharSequence text = !TextUtils.isEmpty(node.getText())
+            ? node.getText() : node.getContentDescription();
+        if (!TextUtils.isEmpty(text)) {
+          Rect bounds = new Rect();
+          node.getBoundsInScreen(bounds);
+          signature.append(text).append(bounds.top).append(';');
+          if (++count >= 35) break;
+        }
       }
+    } finally {
+      recycleNodes(nodes, root, null);
     }
     return signature.toString();
   }
@@ -707,70 +845,83 @@ public final class SmartContextGestures {
       AccessibilityNodeInfo root = service.getRootInActiveWindow();
       if (root == null || root.getPackageName() == null
           || !packageName.contentEquals(root.getPackageName())) {
+        if (root != null) {
+          root.recycle();
+        }
         cancel();
         return;
       }
-      if (restoring) {
-        if (displacement == 0 || restoreSteps++ >= Math.max(50, scrollCount + 5)) {
-          finishFailure();
+      try {
+        if (restoring) {
+          if (displacement == 0 || restoreSteps++ >= Math.max(50, scrollCount + 5)) {
+            finishFailure();
+            return;
+          }
+          boolean forward = displacement < 0;
+          if (!scroll(root, forward)) {
+            finishFailure();
+            return;
+          }
+          displacement += forward ? 1 : -1;
+          MAIN.postDelayed(this::step, 180);
           return;
         }
-        boolean forward = displacement < 0;
+        if (rules.isEmpty() && performBuiltins(root, false)) {
+          activeSearch = null;
+          return;
+        }
+        Candidate match = findMatch(root, rules);
+        if (match != null) {
+          try {
+            if (activate(service, match.node)) {
+              activeSearch = null;
+              return;
+            }
+          } finally {
+            match.node.recycle();
+          }
+        }
+        // Video and phone controls must work even when a general text rule is configured.
+        // Do not fall back to unrelated media/dialog actions from an unmatched text rule.
+        if (!rules.isEmpty() && performBuiltins(root, true)) {
+          activeSearch = null;
+          return;
+        }
+        if (rules.isEmpty() || scrollCount >= limit) {
+          beginRestore();
+          return;
+        }
+        String signature = visibleSignature(root);
+        unchanged = signature.equals(lastSignature) ? unchanged + 1 : 0;
+        lastSignature = signature;
+        if (unchanged >= 2) {
+          if (!backwards) {
+            backwards = true;
+            unchanged = 0;
+            lastSignature = "";
+          } else {
+            beginRestore();
+            return;
+          }
+        }
+        boolean forward = !backwards;
         if (!scroll(root, forward)) {
-          finishFailure();
+          if (!backwards) {
+            backwards = true;
+            unchanged = 0;
+            lastSignature = "";
+            MAIN.post(this::step);
+          } else {
+            beginRestore();
+          }
           return;
         }
+        scrollCount++;
         displacement += forward ? 1 : -1;
         MAIN.postDelayed(this::step, 180);
-        return;
+      } finally {
+        root.recycle();
       }
-      if (rules.isEmpty() && performBuiltins(root, false)) {
-        activeSearch = null;
-        return;
-      }
-      Candidate match = findMatch(root, rules);
-      if (match != null && activate(service, match.node)) {
-        activeSearch = null;
-        return;
-      }
-      // Video and phone controls must work even when a general text rule is configured.
-      // Do not fall back to unrelated media/dialog actions from an unmatched text rule.
-      if (!rules.isEmpty() && performBuiltins(root, true)) {
-        activeSearch = null;
-        return;
-      }
-      if (rules.isEmpty() || scrollCount >= limit) {
-        beginRestore();
-        return;
-      }
-      String signature = visibleSignature(root);
-      unchanged = signature.equals(lastSignature) ? unchanged + 1 : 0;
-      lastSignature = signature;
-      if (unchanged >= 2) {
-        if (!backwards) {
-          backwards = true;
-          unchanged = 0;
-          lastSignature = "";
-        } else {
-          beginRestore();
-          return;
-        }
-      }
-      boolean forward = !backwards;
-      if (!scroll(root, forward)) {
-        if (!backwards) {
-          backwards = true;
-          unchanged = 0;
-          lastSignature = "";
-          MAIN.post(this::step);
-        } else {
-          beginRestore();
-        }
-        return;
-      }
-      scrollCount++;
-      displacement += forward ? 1 : -1;
-      MAIN.postDelayed(this::step, 180);
     }
 
     boolean performBuiltins(AccessibilityNodeInfo root, boolean essentialOnly) {
@@ -786,8 +937,8 @@ public final class SmartContextGestures {
         }
         if ("call_incoming".equals(name)) {
           boolean incomingUi = isCallUiPackage(packageName)
-              && (findBuiltinMatch(root, CALL_ANSWER) != null
-                  || findBuiltinMatch(root, CALL_DECLINE) != null);
+              && (hasBuiltinMatch(root, CALL_ANSWER)
+                  || hasBuiltinMatch(root, CALL_DECLINE));
           if ((phoneState() == TelephonyManager.CALL_STATE_RINGING || incomingUi)
               && activateByNames(root, down ? CALL_ANSWER : CALL_DECLINE)) {
             return true;
@@ -795,14 +946,14 @@ public final class SmartContextGestures {
         }
         if ("call_speaker".equals(name) && !down) {
           boolean activeUi = isCallUiPackage(packageName)
-              && findBuiltinMatch(root, CALL_SPEAKER) != null;
+              && hasBuiltinMatch(root, CALL_SPEAKER);
           if ((phoneState() == TelephonyManager.CALL_STATE_OFFHOOK || activeUi)
               && activateByNames(root, CALL_SPEAKER)) return true;
         }
         if ("call_active".equals(name)) {
           boolean activeUi = isCallUiPackage(packageName)
-              && (findBuiltinMatch(root, CALL_END) != null
-                  || findBuiltinMatch(root, CALL_MUTE) != null);
+              && (hasBuiltinMatch(root, CALL_END)
+                  || hasBuiltinMatch(root, CALL_MUTE));
           if ((phoneState() == TelephonyManager.CALL_STATE_OFFHOOK || activeUi)
               && activateByNames(root, down ? CALL_END : CALL_MUTE)) {
             return true;
@@ -827,13 +978,18 @@ public final class SmartContextGestures {
       int scrollAction = next
           ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
           : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD;
-      for (AccessibilityNodeInfo node : visibleNodes(root)) {
-        CharSequence className = node.getClassName();
-        if (className == null || !className.toString().contains("ViewPager")) continue;
-        if (pageAction != 0 && runIfSupported(node, pageAction)) return true;
-        if (runIfSupported(node, scrollAction)) return true;
+      List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+      try {
+        for (AccessibilityNodeInfo node : nodes) {
+          CharSequence className = node.getClassName();
+          if (className == null || !className.toString().contains("ViewPager")) continue;
+          if (pageAction != 0 && runIfSupported(node, pageAction)) return true;
+          if (runIfSupported(node, scrollAction)) return true;
+        }
+        return false;
+      } finally {
+        recycleNodes(nodes, root, null);
       }
-      return false;
     }
 
     static boolean runIfSupported(AccessibilityNodeInfo node, int action) {
@@ -846,7 +1002,8 @@ public final class SmartContextGestures {
     static boolean swipeVideo(TalkBackService service, AccessibilityNodeInfo root, boolean next) {
       Rect bounds = new Rect();
       root.getBoundsInScreen(bounds);
-      for (AccessibilityNodeInfo node : visibleNodes(root)) {
+      List<AccessibilityNodeInfo> nodes = visibleNodes(root);
+      for (AccessibilityNodeInfo node : nodes) {
         CharSequence className = node.getClassName();
         if (className == null || !className.toString().contains("ViewPager")) continue;
         Rect pager = new Rect();
@@ -856,6 +1013,7 @@ public final class SmartContextGestures {
           break;
         }
       }
+      recycleNodes(nodes, root, null);
       if (bounds.height() < 240 || bounds.width() < 160) {
         bounds.set(0, 0, service.getResources().getDisplayMetrics().widthPixels,
             service.getResources().getDisplayMetrics().heightPixels);
@@ -895,15 +1053,15 @@ public final class SmartContextGestures {
     }
 
     boolean isDialog(AccessibilityNodeInfo root) {
-      boolean positive = findMatch(root, Arrays.asList(
+      boolean positive = hasRuleMatch(root, Arrays.asList(
           new Rule("OK", "exact", "", false, true),
           new Rule("Đồng ý", "exact", "", false, true),
-          new Rule("Có", "exact", "", false, true))) != null;
-      boolean negative = findMatch(root, Arrays.asList(
+          new Rule("Có", "exact", "", false, true)));
+      boolean negative = hasRuleMatch(root, Arrays.asList(
           new Rule("Hủy", "exact", "", false, true),
           new Rule("Huỷ", "exact", "", false, true),
           new Rule("Cancel", "exact", "", false, true),
-          new Rule("Không", "exact", "", false, true))) != null;
+          new Rule("Không", "exact", "", false, true)));
       return positive && negative;
     }
 
@@ -913,7 +1071,14 @@ public final class SmartContextGestures {
 
     boolean activateByNames(AccessibilityNodeInfo root, String[] names) {
       Candidate match = findBuiltinMatch(root, names);
-      boolean clicked = match != null && activate(service, match.node);
+      boolean clicked = false;
+      if (match != null) {
+        try {
+          clicked = activate(service, match.node);
+        } finally {
+          match.node.recycle();
+        }
+      }
       Log.d(LOG_TAG, "Built-in target found=" + (match != null) + " activated=" + clicked);
       return clicked;
     }

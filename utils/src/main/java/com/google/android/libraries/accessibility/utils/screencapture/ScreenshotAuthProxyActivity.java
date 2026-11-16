@@ -47,6 +47,7 @@ public class ScreenshotAuthProxyActivity extends Activity {
       // this activity.
       LogUtils.e(TAG, "Could not start authorization as no MediaProjection intent was provided.");
       finish();
+      return;
     }
     startActivityForResult(systemIntent, INTENT_REQUEST_CODE_SCREEN_CAPTURE_AUTH);
   }
@@ -56,6 +57,9 @@ public class ScreenshotAuthProxyActivity extends Activity {
     super.onActivityResult(requestCode, resultCode, data);
     if (requestCode != INTENT_REQUEST_CODE_SCREEN_CAPTURE_AUTH) {
       LogUtils.e(TAG, "Incorrect request code for activity result");
+      broadcastManager.sendBroadcast(
+          new Intent(ScreenshotAuthorizationReceiver.ACTION_SCREEN_CAPTURE_NOT_AUTHORIZED));
+      finish();
       return;
     }
 

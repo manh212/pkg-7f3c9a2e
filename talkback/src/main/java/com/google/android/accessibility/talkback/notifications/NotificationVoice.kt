@@ -263,8 +263,18 @@ class NotificationVoice(
   }
 
   private fun onFailed(utteranceId: String, errorCode: Int) {
-    val request = pieces[utteranceId]?.request?.let { unstarted[it] }
+    val requestId = pieces[utteranceId]?.request
+    val request = requestId?.let { unstarted[it] }
     if (request == null) {
+      if (requestId != null && requestId in speaking) {
+        LogUtils.e(TAG, "%s failed to say %s, said in SandFly's voice: %d", profile?.engine, requestId, errorCode)
+        val listener = listeners[requestId]
+        forget(requestId)
+        listener?.onUnavailable()
+        watchStart()
+        releaseWhenIdle()
+        return
+      }
       LogUtils.e(TAG, "%s failed to say %s: %d", profile?.engine, utteranceId, errorCode)
       endRequest(utteranceId)
       return

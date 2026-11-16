@@ -245,6 +245,8 @@ class SpokenSchedules(
     private const val MIN_CLOCK_GAP_MS = 60_000L
     private const val KEEP_FOR_SUMMARY_MS = 60_000L
     private const val RETRY_MS = 1_500L
+    /** How often the summary waits for the listener to connect before saying it has no access. */
+    private const val MAX_SUMMARY_RETRIES = 6
     private const val CLOCK_PREFIX = "pref_notification_clock"
     private const val SUMMARY_PREFIX = "pref_notification_summary"
     /** Runs the summary's later lines, so that stopping notification speech drops them. */
@@ -346,18 +348,18 @@ class SpokenSchedules(
     @MainThread
     fun readSummary(context: Context, speak: (CharSequence, Boolean) -> Unit) {
       cancelSummary()
-      readSummary(context, speak, retry = true)
+      readSummary(context, speak, retriesLeft = MAX_SUMMARY_RETRIES)
     }
 
-    private fun readSummary(context: Context, speak: (CharSequence, Boolean) -> Unit, retry: Boolean) {
+    private fun readSummary(context: Context, speak: (CharSequence, Boolean) -> Unit, retriesLeft: Int) {
       val prefs = SharedPreferencesUtils.getSharedPreferences(context)
       val listener = NotificationListService.instance
       fun say(text: CharSequence, interrupt: Boolean = false) = speak(text, interrupt)
       if (listener == null) {
         // The listener connects only while something needs it; it is needed now for a minute.
-        if (retry && NotificationListService.isAccessGranted(context)) {
+        if (retriesLeft > 0 && NotificationListService.isAccessGranted(context)) {
           NotificationListService.keepConnected(context, KEEP_FOR_SUMMARY_MS)
-          summaryHandler.postDelayed({ readSummary(context, speak, retry = false) }, RETRY_MS)
+          summaryHandler.postDelayed({ readSummary(context, speak, retriesLeft - 1) }, RETRY_MS)
           return
         }
         say(context.getString(R.string.notification_summary_no_access), interrupt = true)
@@ -367,7 +369,7 @@ class SpokenSchedules(
       val decider = NotificationDecider()
       val notifications =
         runCatching { listener.activeNotifications }.getOrNull().orEmpty()
-          .filter { it.packageName != context.packageName || it.notification.channelId != null }
+          .filter { it.packageName != context.packageName }
           .sortedBy { it.postTime }
           .let { if (prefs.getBoolean(KEY_SUMMARY_NEWEST_FIRST, true)) it.reversed() else it }
       val format = context.getString(R.string.notification_summary_item_format)
@@ -375,7 +377,12 @@ class SpokenSchedules(
       val lines =
         notifications.mapNotNull { sbn ->
           val info =
-            NotificationInfo.from(sbn.packageName, NotificationReader.appName(context, sbn.packageName), sbn.notification)
+            NotificationInfo.from(
+              sbn.packageName,
+              NotificationReader.appName(context, sbn.packageName),
+              sbn.notification,
+              NotificationReader.channelImportance(sbn.packageName, sbn.notification),
+            )
           if (info.groupSummary || info.ongoing) return@mapNotNull null
           val category =
             EventTypeNotificationStateChangedFeedbackRule.getNotificationCategoryStateText(context, sbn.notification)

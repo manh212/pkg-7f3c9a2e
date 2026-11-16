@@ -274,9 +274,13 @@ class NavigationPcmCache(context: Context) {
       return
     }
     queue.removeFirst()
-    if (engine?.setVoice(request.voice) != TextToSpeech.SUCCESS) { schedule(0); return }
+    if (engine?.setVoice(request.voice) != TextToSpeech.SUCCESS) {
+      failures.incrementAndGet()
+      schedule(RETRY_MS)
+      return
+    }
     val file = try { File.createTempFile("nav-pcm-", ".wav", appContext.cacheDir) }
-      catch (failure: java.io.IOException) { schedule(0); return }
+      catch (failure: java.io.IOException) { failures.incrementAndGet(); schedule(RETRY_MS); return }
     request.file = file
     active = request
     if (closed || request.epoch != epoch.get() || shouldYield()) {

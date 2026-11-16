@@ -141,6 +141,7 @@ class IndividualFeedbackSettingsTest {
   fun edgeGestureSwitchesSetUnderTheNewNamesStay() {
     prefs
       .edit()
+      .putBoolean("pref_individual_edge_gesture_positions", true)
       .putStringSet(
         IndividualFeedbackSettings.PREF_MUTED_VIBRATIONS,
         setOf("edge_gesture_middle_pattern"),
@@ -149,6 +150,30 @@ class IndividualFeedbackSettingsTest {
     IndividualFeedbackSettings.migrate(prefs)
     assertEquals(
       setOf("edge_gesture_middle_pattern"),
+      IndividualFeedbackSettings.mutedVibrationResources(prefs),
+    )
+  }
+
+  @Test
+  fun edgeGestureSwitchesFromBeforeTheRenameAreRenamedOnUpgrade() {
+    prefs
+      .edit()
+      .putStringSet(
+        IndividualFeedbackSettings.PREF_MUTED_SOUNDS,
+        setOf("edge_gesture_start", "tick"),
+      )
+      .putStringSet(
+        IndividualFeedbackSettings.PREF_MUTED_VIBRATIONS,
+        setOf("edge_gesture_middle_pattern"),
+      )
+      .apply()
+    IndividualFeedbackSettings.migrate(prefs)
+    assertEquals(
+      setOf("edge_gesture_middle", "tick"),
+      IndividualFeedbackSettings.mutedSoundResources(prefs),
+    )
+    assertEquals(
+      setOf("edge_gesture_top_pattern"),
       IndividualFeedbackSettings.mutedVibrationResources(prefs),
     )
   }

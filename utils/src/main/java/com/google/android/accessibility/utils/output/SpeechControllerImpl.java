@@ -852,7 +852,7 @@ public class SpeechControllerImpl implements SpeechController {
       return null;
     }
     return voices.stream()
-        .filter(voice -> voice.getFeatures().contains(ttsSubAppId))
+        .filter(voice -> voice.getFeatures() != null && voice.getFeatures().contains(ttsSubAppId))
         .collect(toCollection(HashSet::new));
   }
 
@@ -881,7 +881,9 @@ public class SpeechControllerImpl implements SpeechController {
     // If caller specified a ttsSubAppId, we should filter the voices by that id. If no voice is
     // found, return null.
     if (!ttsSubAppId.isEmpty()) {
-      if (voices.stream().noneMatch(voice -> voice.getFeatures().contains(ttsSubAppId))) {
+      if (voices.stream()
+          .noneMatch(
+              voice -> voice.getFeatures() != null && voice.getFeatures().contains(ttsSubAppId))) {
         return null;
       }
     }

@@ -92,4 +92,20 @@ class AppGesturesTest {
   fun brokenSettingIsNoApps() {
     assertEquals(emptyMap<String, AppGestures.App>(), AppGestures.fromJson("{"))
   }
+
+  @Test
+  fun oneBrokenAppKeepsTheOtherApps() {
+    val json =
+      """{"com.example.good":{"name":"Good","gestures":{"a":"B"},"keys":{}},
+         "com.example.bad":"not an app",
+         "com.example.also.good":{"name":"Also good","gestures":{"c":"D"},"keys":{}}}"""
+    val apps = AppGestures.fromJson(json)
+    assertEquals(
+      mapOf(
+        "com.example.good" to AppGestures.App("Good", mapOf("a" to "B")),
+        "com.example.also.good" to AppGestures.App("Also good", mapOf("c" to "D")),
+      ),
+      apps,
+    )
+  }
 }

@@ -143,9 +143,17 @@ class FeedbackFragmentsIterator {
 
     Iterators.addAll(list, currentFragmentIterator);
 
+    ArrayList<FeedbackFragment> copiedList = new ArrayList<>(list.size());
+    for (FeedbackFragment fragment : list) {
+      copiedList.add(new FeedbackFragment(fragment));
+    }
+
     FeedbackFragmentsIterator clone =
-        new FeedbackFragmentsIterator(list.iterator(), feedBackItemUtteranceId);
-    clone.currentFeedbackFragment.set(currentFeedbackFragment.get());
+        new FeedbackFragmentsIterator(copiedList.iterator(), feedBackItemUtteranceId);
+    FeedbackFragment currentFragment = currentFeedbackFragment.get();
+    clone.currentFeedbackFragment.set(
+        currentFragment == null ? null : new FeedbackFragment(currentFragment));
+    clone.nextIsContinuation = nextIsContinuation;
 
     currentFragmentIterator = ((ArrayList<FeedbackFragment>) list.clone()).iterator();
 

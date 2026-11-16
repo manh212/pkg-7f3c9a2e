@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.notifications
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
@@ -73,13 +74,24 @@ data class NotificationInfo(
     /** The most of any one text that is kept. Android cuts texts at 5,120 characters itself. */
     const val MAX_TEXT = 5120
 
-    /** Reads [notification], posted by [packageName], whose app is called [appName]. */
+    /**
+     * Reads [notification], posted by [packageName], whose app is called [appName].
+     * [channelImportance] is the importance of the notification's channel, from the listener's
+     * ranking when it has it, or [NotificationManager.IMPORTANCE_DEFAULT] when it does not.
+     * The deprecated [Notification.priority] is not used: it stays
+     * [Notification.PRIORITY_DEFAULT] on API 26 and later, where the importance lives in the
+     * channel instead.
+     */
     @JvmStatic
-    fun from(packageName: String, appName: String, notification: Notification): NotificationInfo {
+    fun from(
+      packageName: String,
+      appName: String,
+      notification: Notification,
+      channelImportance: Int,
+    ): NotificationInfo {
       val extras = notification.extras ?: Bundle.EMPTY
       fun text(key: String) = extras.getCharSequence(key)?.toString()?.trim()?.take(MAX_TEXT).orEmpty()
       val flags = notification.flags
-      @Suppress("DEPRECATION") val priority = notification.priority
       return NotificationInfo(
         packageName = packageName,
         appName = appName,
@@ -91,11 +103,10 @@ data class NotificationInfo(
         ticker = notification.tickerText?.toString()?.trim()?.take(MAX_TEXT).orEmpty(),
         lines = lines(extras),
         postedAtMillis = notification.`when`,
-        ongoing = flags and Notification.FLAG_ONGOING_EVENT != 0 ||
-          flags and Notification.FLAG_NO_CLEAR != 0,
+        ongoing = flags and Notification.FLAG_ONGOING_EVENT != 0,
         foregroundService = flags and Notification.FLAG_FOREGROUND_SERVICE != 0,
         groupSummary = flags and Notification.FLAG_GROUP_SUMMARY != 0,
-        lowPriority = priority < Notification.PRIORITY_DEFAULT,
+        lowPriority = channelImportance <= NotificationManager.IMPORTANCE_LOW,
         media = extras.containsKey(Notification.EXTRA_MEDIA_SESSION) ||
           notification.category == Notification.CATEGORY_TRANSPORT ||
           isSamsungMediaActivity(extras, notification.channelId),

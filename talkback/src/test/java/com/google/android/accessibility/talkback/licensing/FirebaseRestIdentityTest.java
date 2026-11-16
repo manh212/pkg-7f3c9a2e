@@ -51,6 +51,34 @@ public final class FirebaseRestIdentityTest {
     assertTrue(storage.read().contains("alice"));
   }
 
+  @Test public void failedIdentityWriteDoesNotOrphanTheCreatedAccount() throws Exception {
+    AtomicInteger signUps = new AtomicInteger();
+    FirebaseRest.Storage storage = new FirebaseRest.Storage() {
+      String value = "{}";
+      boolean failNextWrite = true;
+      @Override public synchronized String read() { return value; }
+      @Override public synchronized void write(String next) {
+        if (failNextWrite) {
+          failNextWrite = false;
+          throw new IllegalStateException("keystore unavailable");
+        }
+        value = next;
+      }
+    };
+    FirebaseRest.Transport network = (address, method, body, contentType) -> {
+      if (address.contains("accounts:signUp")) {
+        signUps.incrementAndGet();
+        return "{\"localId\":\"uid1\",\"refreshToken\":\"refresh\",\"idToken\":\"token\"}";
+      }
+      return "{\"user_id\":\"uid1\",\"refresh_token\":\"rotated\",\"id_token\":\"token\"}";
+    };
+    FirebaseRest service = new FirebaseRest(config(), storage, network);
+    assertThrows(IllegalStateException.class, service::uid);
+    assertEquals("uid1", service.uid());
+    assertEquals(1, signUps.get());
+    assertTrue(storage.read().contains("uid1"));
+  }
+
   @Test public void encodedServiceProfilePreservesIdentityAndValidatesDecodedAddresses() throws Exception {
     String packed = "{\"seed\":137,\"payload\":\"8oqmlmxvJhujmp2_n39fPx__37-ff18_H__fv59_Xz8fqovkgWVXIwPh7NuIjncYY1r_wqGEYAh-X-vLoIMlTCAa4sSkl2ZLLk4c8dD-hg\"}";
     FirebaseRest.Config encoded = new FirebaseRest.Config(packed);

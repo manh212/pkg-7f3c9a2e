@@ -76,6 +76,7 @@ public class SpeechRecognizerPerformer {
   private final Context context;
   private SpeechRecognitionDelayedSender speechRecognitionDelayedSender;
   private boolean hasMicPermission;
+  private boolean micPermissionReceiverRegistered;
 
   /** Wait between/after command words, before executing command. */
   private final Handler executeCommandDelayHandler = new Handler();
@@ -547,7 +548,10 @@ public class SpeechRecognizerPerformer {
     // Creates an intent filter for broadcast receiver.
     IntentFilter filter = new IntentFilter();
     filter.addAction(ACTION_DONE);
-    ContextCompat.registerReceiver(context, receiver, filter, RECEIVER_EXPORTED);
+    if (!micPermissionReceiverRegistered) {
+      ContextCompat.registerReceiver(context, receiver, filter, RECEIVER_EXPORTED);
+      micPermissionReceiverRegistered = true;
+    }
     PermissionUtils.requestPermissions(context, permission.RECORD_AUDIO);
     speechRecognizerRequester.onFeedbackEvent(
         SpeechRecognizerRequester.EVENT_MIC_PERMISSION_REQUESTED);
@@ -558,7 +562,10 @@ public class SpeechRecognizerPerformer {
         /** Broadcast to start speech recognition if the user accepts. */
         @Override
         public void onReceive(Context context, Intent intent) {
-          context.unregisterReceiver(receiver);
+          if (micPermissionReceiverRegistered) {
+            micPermissionReceiverRegistered = false;
+            context.unregisterReceiver(receiver);
+          }
           if (speechRecognizerRequester == null) {
             LogUtils.e(TAG, "onReceive:Speech listener's not set.");
             return;
