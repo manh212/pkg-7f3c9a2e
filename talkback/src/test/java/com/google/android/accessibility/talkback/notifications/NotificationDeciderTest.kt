@@ -259,7 +259,7 @@ class NotificationDeciderTest {
         conditions = listOf(RuleCondition(RuleCondition.Type.BLUETOOTH_DEVICE, negate = true, value = "AA:BB")),
         actions = listOf(RuleAction(RuleAction.Type.SKIP)),
       )
-    val settings = NotificationSettings(rules = listOf(headphonesOnly))
+    val settings = NotificationSettings(headphones = HeadphoneMode.ALWAYS, rules = listOf(headphonesOnly))
     assertEquals(Outcome.RULE, decide(settings).outcome)
     assertTrue(decide(settings, state = DeviceState(bluetoothDevices = setOf("aa:bb"))).read)
 
