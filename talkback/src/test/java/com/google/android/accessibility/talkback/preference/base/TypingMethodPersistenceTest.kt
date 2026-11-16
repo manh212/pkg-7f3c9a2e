@@ -5,6 +5,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import com.google.android.accessibility.material.preference.AccessibilitySuiteRadioButtonPreference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import org.junit.Assert.*
@@ -33,6 +34,7 @@ class TypingMethodPersistenceTest {
       val chooser = TypingMethodPrefFragment()
       open(chooser)
       val key = activity.getString(R.string.pref_typing_confirmation_key)
+      prefs.edit().putString(key, DOUBLE_TAP.toString()).commit()
       val category = requireNotNull(chooser.findPreference<PreferenceCategory>(key))
       val row = (0 until category.preferenceCount).map { category.getPreference(it) }
         .first { it.title == activity.getString(R.string.value_type_confirmation_direct_silent) }

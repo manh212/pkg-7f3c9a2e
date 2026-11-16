@@ -195,6 +195,7 @@ class OrganizedSettingsTest {
     val row = (0 until category.preferenceCount).map { category.getPreference(it) }
       .single { it.title == activity.getString(R.string.value_type_confirmation_direct_silent) }
     assertTrue(row.isEnabled)
+    prefs.edit().putString(key, DOUBLE_TAP.toString()).commit()
     assertFalse(prefs.getString(key, null) == DIRECT_SILENT_TYPING.toString())
     fragment.onPreferenceTreeClick(row)
     assertEquals(DIRECT_SILENT_TYPING.toString(), prefs.getString(key, null))
