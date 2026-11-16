@@ -136,6 +136,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -1486,6 +1487,58 @@ public class FocusProcessorForLogicalNavigation {
   }
 
   private static final int MAX_ORDERED_NODES = 2000;
+  private boolean requestAsyncOrder(
+      @NonNull AccessibilityNodeInfoCompat rootNode,
+      @NonNull AccessibilityNodeInfoCompat pivot,
+      boolean ignoreDescendantsOfPivot,
+      NavigationAction navigationAction,
+      boolean htmlActionFailed,
+      EventId eventId) {
+    boolean attemptedWebAction = htmlActionFailed;
+    AccessibilityNodeInfoCompat savedPivot;
+    try {
+      savedPivot = AccessibilityNodeInfoCompat.obtain(pivot);
+    } catch (RuntimeException e) {
+      LogUtils.w(TAG, "Cannot perform navigation action: unable to copy pivot node.");
+      return false;
+    }
+    AtomicBoolean callbackRan = new AtomicBoolean(false);
+    try {
+      AsyncTraversalOrder.request(rootNode, eventId, result -> {
+        callbackRan.set(true);
+        orderPending = false;
+        if (result == AsyncTraversalOrder.Result.CANCELLED) {
+          Performance.getInstance().onNavigationDetail(eventId, "order_async_cancelled_fallback", 1);
+        }
+        resumingOrder = true;
+        try {
+          Performance.getInstance().onNavigationDetail(eventId, "order_async_fallback",
+              result == AsyncTraversalOrder.Result.READY ? 0 : 1);
+          AccessibilityNodeInfoCompat resumePivot = result == AsyncTraversalOrder.Result.READY
+              ? savedPivot : getPivotNodeForNavigationAction(navigationAction);
+          if (resumePivot == null || !navigateToDefaultOrMacroGranularityTarget(
+              resumePivot, ignoreDescendantsOfPivot, navigationAction,
+              attemptedWebAction && resumePivot.equals(savedPivot), eventId)) {
+            Performance.getInstance().onNavigationFailed(eventId, "no_target_after_order");
+          }
+        } finally {
+          resumingOrder = false;
+          savedPivot.recycle();
+          earlyScrollCheckHandler.post(this::drainOrderQueue);
+        }
+      });
+    } catch (RuntimeException e) {
+      LogUtils.w(TAG, "Cannot perform navigation action: unable to request traversal order.");
+      savedPivot.recycle();
+      return false;
+    }
+    if (callbackRan.get()) {
+      return true;
+    }
+    orderPending = true;
+    return true;
+  }
+
   private boolean navigateToDefaultOrMacroGranularityTarget(
       @NonNull AccessibilityNodeInfoCompat pivot,
       boolean ignoreDescendantsOfPivot,
@@ -1570,32 +1623,11 @@ public class FocusProcessorForLogicalNavigation {
     if (traversalStrategy == null && LatencyExperiments.Feature.ASYNC_ORDER.enabled()
         && TraversalTreeCache.getEnabled() && !NodeOverrides.hasSource()
         && TraversalStrategyUtils.isLogicalDirection(searchDirection) && !resumingOrder) {
-      orderPending = true;
-      boolean attemptedWebAction = htmlActionFailed;
-      AccessibilityNodeInfoCompat savedPivot = AccessibilityNodeInfoCompat.obtain(pivot);
-      AsyncTraversalOrder.request(rootNode, eventId, result -> {
-        orderPending = false;
-        if (result == AsyncTraversalOrder.Result.CANCELLED) {
-          Performance.getInstance().onNavigationDetail(eventId, "order_async_cancelled_fallback", 1);
-        }
-        resumingOrder = true;
-        try {
-          Performance.getInstance().onNavigationDetail(eventId, "order_async_fallback",
-              result == AsyncTraversalOrder.Result.READY ? 0 : 1);
-          AccessibilityNodeInfoCompat resumePivot = result == AsyncTraversalOrder.Result.READY
-              ? savedPivot : getPivotNodeForNavigationAction(navigationAction);
-          if (resumePivot == null || !navigateToDefaultOrMacroGranularityTarget(
-              resumePivot, ignoreDescendantsOfPivot, navigationAction,
-              attemptedWebAction && resumePivot.equals(savedPivot), eventId)) {
-            Performance.getInstance().onNavigationFailed(eventId, "no_target_after_order");
-          }
-        } finally {
-          resumingOrder = false;
-          savedPivot.recycle();
-          earlyScrollCheckHandler.post(this::drainOrderQueue);
-        }
-      });
-      return true;
+      if (requestAsyncOrder(
+          rootNode, pivot, ignoreDescendantsOfPivot, navigationAction, htmlActionFailed,
+          eventId)) {
+        return true;
+      }
     }
     if (traversalStrategy == null) {
       if (TraversalTreeCache.getBurstLiveAnswerEnabled() && TraversalTreeCache.inNavigationBurst()) {

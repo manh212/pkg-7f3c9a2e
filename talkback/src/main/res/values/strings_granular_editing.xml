@@ -57,6 +57,7 @@
     <string name="granular_editing_copied">Copied</string>
     <string name="granular_editing_deleted">Deleted</string>
     <string name="granular_editing_not_found">Not found</string>
+    <string name="granular_editing_no_focus">No piece in focus</string>
     <plurals name="granular_editing_replaced">
         <item quantity="one"><xliff:g id="count" example="1">%d</xliff:g> replaced</item>
         <item quantity="other"><xliff:g id="count" example="3">%d</xliff:g> replaced</item>

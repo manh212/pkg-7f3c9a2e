@@ -24,10 +24,11 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * An AI service with an OpenAI-compatible chat completions API, such as Claude, OpenAI, Mistral,
- * Groq, OpenRouter or Ollama, that Describe image and Describe screen use instead of Gemini when
- * the user chooses one in Automatic descriptions settings; see [AiProvider]. Requests are built for Gemini, so they are turned
- * into chat requests, and the answers back into Gemini's.
+ * An AI service with an OpenAI-compatible chat completions API, such as OpenAI, Mistral, Groq,
+ * OpenRouter or Ollama, or the Anthropic Messages API, that Describe image and Describe screen use
+ * instead of Gemini when the user chooses one in Automatic descriptions settings; see
+ * [AiProvider]. Requests are built for Gemini, so they are turned into chat requests, and the
+ * answers back into Gemini's.
  */
 object AiService {
   private const val FINISH_STOP = "stop"
@@ -69,6 +70,83 @@ object AiService {
   fun chatUrl(address: String): String {
     val base = address.trim().trimEnd('/')
     return if (base.endsWith("/chat/completions")) base else "$base/chat/completions"
+  }
+
+  /** Whether [address] is Anthropic's API, which speaks the Messages API, not chat completions. */
+  fun isAnthropic(address: String): Boolean =
+    try {
+      "api.anthropic.com".equals(URI(address.trim()).host, ignoreCase = true)
+    } catch (e: URISyntaxException) {
+      false
+    }
+
+  /** The request address of the service at [address]: /v1/messages for Anthropic, chat completions otherwise. */
+  fun requestUrl(address: String): String {
+    val base = address.trim().trimEnd('/')
+    if (!isAnthropic(address)) return chatUrl(address)
+    return if (base.endsWith("/messages")) base else "$base/messages"
+  }
+
+  /**
+   * Turns a Gemini request, a text part and an image part in one user message, into an Anthropic
+   * Messages request for [model].
+   */
+  @Throws(JSONException::class)
+  fun toAnthropicRequest(geminiRequest: JSONObject, model: String): JSONObject {
+    val content = JSONArray()
+    val parts = geminiRequest.getJSONArray("contents").getJSONObject(0).getJSONArray("parts")
+    for (i in 0 until parts.length()) {
+      val part = parts.getJSONObject(i)
+      if (part.has("text")) {
+        content.put(JSONObject().put("type", "text").put("text", part.getString("text")))
+      } else if (part.has("inlineData")) {
+        val data = part.getJSONObject("inlineData")
+        content.put(
+          JSONObject()
+            .put("type", "image")
+            .put(
+              "source",
+              JSONObject()
+                .put("type", "base64")
+                .put("media_type", data.optString("mimeType", "image/jpeg"))
+                .put("data", data.getString("data"))))
+      }
+    }
+    return JSONObject()
+      .put("model", model)
+      .put("max_tokens", 4096)
+      .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", content)))
+  }
+
+  /**
+   * Reads an Anthropic Messages answer as a Gemini answer. An answer cut off at the service's
+   * length limit is still an answer. Returns a response without text when there was none.
+   */
+  @Throws(JSONException::class)
+  fun parseAnthropicResponse(response: JSONObject, wantsJson: Boolean): DataFieldUtils.GeminiResponse {
+    val raw =
+      response.optJSONArray("content")?.let { content ->
+        (0 until content.length())
+          .mapNotNull { content.optJSONObject(it)?.takeIf { it.optString("type") == "text" }?.optString("text")?.ifEmpty { null } }
+          .joinToString("")
+      }.orEmpty()
+    val text = if (wantsJson) LocalGemmaRunner.extractJson(raw) else raw.trim()
+    val finish =
+      when (response.optString("stop_reason")) {
+        "end_turn", "stop_sequence" -> FINISH_STOP
+        "max_tokens" -> FINISH_LENGTH
+        else -> response.optString("stop_reason", FINISH_STOP).uppercase()
+      }
+    val builder = DataFieldUtils.GeminiResponse.builder()
+    if (text.isNotEmpty()) builder.setText(text)
+    val finished = finish == FINISH_STOP || finish == FINISH_LENGTH
+    builder.setFinishReason(
+      when {
+        finished && text.isNotEmpty() -> DataFieldUtils.FINISH_REASON_STOP
+        finished -> FINISH_EMPTY
+        else -> finish
+      })
+    return builder.build()
   }
 
   /**

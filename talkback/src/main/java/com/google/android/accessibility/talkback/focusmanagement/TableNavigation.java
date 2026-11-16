@@ -21,6 +21,7 @@ import android.graphics.Rect;
 import android.util.Pair;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.CollectionInfoCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.CollectionItemInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget.TargetType;
 import com.google.android.accessibility.talkback.focusmanagement.action.NavigationAction;
@@ -171,8 +172,12 @@ public final class TableNavigation {
       return true;
     }
 
-    int rowCount = tableRoot.getCollectionInfo().getRowCount();
-    int colCount = tableRoot.getCollectionInfo().getColumnCount();
+    @Nullable CollectionInfoCompat collectionInfo = tableRoot.getCollectionInfo();
+    if (collectionInfo == null) {
+      return true;
+    }
+    int rowCount = collectionInfo.getRowCount();
+    int colCount = collectionInfo.getColumnCount();
 
     return targetPosition.first < 0
         || (strict ? targetPosition.first >= rowCount : targetPosition.first > rowCount)

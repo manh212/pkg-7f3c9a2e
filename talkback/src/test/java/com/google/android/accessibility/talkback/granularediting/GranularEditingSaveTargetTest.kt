@@ -99,9 +99,11 @@ class GranularEditingSaveTargetTest {
     node(root, true, "other", 100)
     assertNull(GranularEditing.findMatchingField(root, original))
 
-    node(root, true, "message", 100)
-    node(root, true, "message", 200)
-    assertNull(GranularEditing.findMatchingField(root, original))
+    // The search recycles the nodes it visits, so a fresh tree is needed for the next search.
+    val secondRoot = node(null, false, null, 0)
+    node(secondRoot, true, "message", 100)
+    node(secondRoot, true, "message", 200)
+    assertNull(GranularEditing.findMatchingField(secondRoot, original))
   }
 
   private fun node(

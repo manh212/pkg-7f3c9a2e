@@ -21,6 +21,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import com.google.android.accessibility.talkback.ScrollTickCounter.Companion.UNKNOWN
 import com.google.android.accessibility.utils.AccessibilityEventUtils
 import com.google.android.accessibility.utils.Performance.EventId
@@ -203,6 +204,9 @@ class ScrollTickCounter(private val itemPx: Float) {
     lastTime = time
     lastWindowId = windowId
     lastClassName = className
+    if (source !== lastSource) {
+      (lastSource as? AccessibilityNodeInfo)?.recycle()
+    }
     lastSource = source
     lastFromIndex = fromIndex
     lastScrollX = scrollX

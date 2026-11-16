@@ -237,6 +237,18 @@ class SubtitleControllerTest {
     }
   }
 
+  @Test fun nestedCaptionLinesInsideACaptionContainerAreFound() {
+    val inner = node(Rect(100, 100, 900, 150), type = "android.widget.TextView", text = "Dòng trong")
+    val outer = node(Rect(100, 10, 900, 200), id = "jw-captions", text = "Dòng ngoài", children = listOf(inner))
+    val source = node(service.foregroundBounds, children = listOf(outer))
+    try {
+      val lines = SubtitleAccessibility.findPlayerGroups(source, service.foregroundBounds, service.foregroundBounds)
+      assertEquals(listOf("Dòng ngoài", "Dòng trong"), lines.flatMap { group -> group.lines.map { it.text } })
+    } finally {
+      source.recycle()
+    }
+  }
+
   private fun restartWithRegion(region: String) {
     controller.stop(false)
     SharedPreferencesUtils.getSharedPreferences(service).edit()

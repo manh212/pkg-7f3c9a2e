@@ -402,12 +402,6 @@ public class FocusProcessorForTapAndTouchExploration {
             /* event= */ null,
             new Interpretation.CompositorID(EVENT_INPUT_DESCRIBE_NODE),
             touchedFocusableNode);
-
-      } else {
-        mayBeRefocusAction = true;
-        if (AccessibilityNodeInfoUtils.isLongClickable(touchedFocusableNode)) {
-          postDelayHandler.longPressAfterTimeout();
-        }
       }
       return false;
     }

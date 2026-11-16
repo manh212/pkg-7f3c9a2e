@@ -42,7 +42,10 @@ final class LicenseRecovery {
 
   static synchronized void start(Context context, boolean force, Callback callback) {
     Context app = context.getApplicationContext();
-    if (!UserManagerCompat.isUserUnlocked(app) || !ApkSignatureVerifier.isOfficial(app)) return;
+    if (!UserManagerCompat.isUserUnlocked(app) || !ApkSignatureVerifier.isOfficial(app)) {
+      if (callback != null) callback.completed(Result.OFFLINE);
+      return;
+    }
     if (!DeviceLicenseManager.recoveryConfigured()) {
       if (callback != null) callback.completed(Result.NOT_CONFIGURED);
       return;
@@ -86,11 +89,11 @@ final class LicenseRecovery {
 
 private static Result recover(Context context) {
   Result result = recoverFrom(context,
-        io.meridian.licensing.DistributionEndpoints.dataCatalogRoot());
-      if (result == Result.NOT_FOUND) {
-        result = recoverFrom(context, io.meridian.licensing.DistributionEndpoints.catalogRoot());
-      }
-      return result;
+      io.meridian.licensing.DistributionEndpoints.dataCatalogRoot());
+  if (result == Result.NOT_FOUND || result == Result.INVALID || result == Result.OFFLINE) {
+    result = recoverFrom(context, io.meridian.licensing.DistributionEndpoints.catalogRoot());
+  }
+  return result;
 }
   
     private static Result recoverFrom(Context context, String catalogRoot) {

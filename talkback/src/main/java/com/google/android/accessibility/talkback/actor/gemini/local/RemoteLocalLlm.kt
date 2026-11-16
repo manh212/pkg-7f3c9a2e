@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -126,7 +127,7 @@ class RemoteLocalLlm(
       if (!pending.sent(id, sentOn)) throw stopped()
       messenger.send(request)
       if (cancelRequested) cancel()
-      val reply = future.get()
+      val reply = future.get(GENERATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
       return when (reply.what) {
         LocalModelService.MSG_ANSWER -> reply.text.orEmpty()
         LocalModelService.MSG_CANCELLED -> throw LocalLlmCancelledException()
@@ -136,6 +137,8 @@ class RemoteLocalLlm(
       }
     } catch (_: RemoteException) {
       throw stopped()
+    } catch (e: TimeoutException) {
+      throw LocalLlmException("The on-device model took too long to answer", e)
     } catch (e: IOException) {
       throw LocalLlmException("Could not pass the image to the model", e)
     } catch (e: ExecutionException) {
@@ -241,6 +244,7 @@ class RemoteLocalLlm(
   companion object {
     private const val TAG = "RemoteLocalLlm"
     private const val CONNECT_TIMEOUT_SECONDS = 10L
+    private const val GENERATE_TIMEOUT_MS = 600_000L
 
     /** A reply that never comes from the service: its process stopped. */
     private const val MSG_STOPPED = -1

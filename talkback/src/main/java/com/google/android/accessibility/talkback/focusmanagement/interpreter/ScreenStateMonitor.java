@@ -78,7 +78,10 @@ public class ScreenStateMonitor implements WindowEventHandler {
       if (areMainWindowsStable()) {
         ScreenState stableScreenState = getStableScreenState();
         if (stableScreenState != null) {
-          return stableScreenState.getWindowTitle(stableScreenState.getActiveWindow().getId());
+          AccessibilityWindowInfo activeWindow = stableScreenState.getActiveWindow();
+          if (activeWindow != null) {
+            return stableScreenState.getWindowTitle(activeWindow.getId());
+          }
         }
       }
       return null;

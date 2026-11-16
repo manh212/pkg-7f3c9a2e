@@ -62,7 +62,7 @@ public abstract class IpcClient implements ServiceConnection {
     this.context = context;
     clientMessenger =
         new Messenger(
-            new Handler(Looper.myLooper()) {
+            new Handler(Looper.getMainLooper()) {
               @Override
               public void handleMessage(@NonNull Message msg) {
                 handleMessageFromService(msg);
@@ -89,9 +89,9 @@ public abstract class IpcClient implements ServiceConnection {
       return;
     }
 
+    sendMessage(Message.obtain(/* h= */ null, MSG_ON_CLIENT_DISCONNECTED));
     context.unbindService(this);
     // The method of unbindService won't necessarily trigger onServiceDisconnected.
-    sendMessage(Message.obtain(/* h= */ null, MSG_ON_CLIENT_DISCONNECTED));
     serviceMessenger = null;
   }
 

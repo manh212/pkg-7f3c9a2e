@@ -193,6 +193,20 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  fun cancelledDirectInputDoesNotTypeAfterItsDelay() {
+    prepareKeyboard()
+    keyboard.timing = VietnameseKeyboardTiming(directInputMs = 15)
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
+    assertTrue(typed.isEmpty())
+    touch(MotionEvent.ACTION_CANCEL, 20f, 60f, 180)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
+
+    assertTrue(typed.isEmpty())
+  }
+
+  @Test
   fun singleTapDoesNotActivateOnDown() {
     keyboard.typingMethod = SINGLE_TAP_TO_TYPE
     keyboard.showKeys(false, false, true, "Gửi")

@@ -57,7 +57,6 @@ internal object SubtitleAccessibility {
             text.any { it.isLetterOrDigit() } &&
             (group.marked || !SubtitleTracker.isControlTime(text))) {
             groups.getOrPut(group) { mutableListOf() }.add(SubtitleLine(text, bounds))
-            continue
           }
           val limit = minOf(node.childCount, MAX_NODES - visited - queue.size)
           for (index in 0 until limit) {

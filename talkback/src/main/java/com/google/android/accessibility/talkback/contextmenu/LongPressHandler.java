@@ -64,7 +64,11 @@ class LongPressHandler extends Handler implements View.OnTouchListener {
       case MotionEvent.ACTION_DOWN:
       case MotionEvent.ACTION_HOVER_ENTER:
         this.moved = 0;
-        //$FALL-THROUGH$
+        recyclePreviousEvent();
+        previousEvent = MotionEvent.obtain(event);
+        removeMessages(MSG_LONG_PRESS);
+        sendMessageDelayed(obtainMessage(MSG_LONG_PRESS), LONG_PRESS_TIMEOUT);
+        break;
       case MotionEvent.ACTION_MOVE:
       case MotionEvent.ACTION_HOVER_MOVE:
         if (previousEvent != null) {
@@ -76,14 +80,12 @@ class LongPressHandler extends Handler implements View.OnTouchListener {
         }
 
         if (this.moved > touchSlopSquared) {
+          // The finger is moving, so this is not a long press.
           this.moved = 0;
-
           removeMessages(MSG_LONG_PRESS);
-
-          final Message msg = obtainMessage(MSG_LONG_PRESS, previousEvent);
-          sendMessageDelayed(msg, LONG_PRESS_TIMEOUT);
         }
 
+        recyclePreviousEvent();
         previousEvent = MotionEvent.obtain(event);
 
         break;
@@ -91,11 +93,18 @@ class LongPressHandler extends Handler implements View.OnTouchListener {
       case MotionEvent.ACTION_CANCEL:
       case MotionEvent.ACTION_HOVER_EXIT:
         removeMessages(MSG_LONG_PRESS);
-        previousEvent = null;
+        recyclePreviousEvent();
         break;
     }
 
     return false;
+  }
+
+  private void recyclePreviousEvent() {
+    if (previousEvent != null) {
+      previousEvent.recycle();
+      previousEvent = null;
+    }
   }
 
   @Override

@@ -44,12 +44,13 @@ class RecognitionAnnouncementsTest {
     assertTrue(results.shouldSpeak("text", "Hello world", 31000))
   }
 
-  @Test fun changedResultsAreRateLimitedButSourcesDoNotSuppressEachOther() {
+  @Test fun changedResultsSpeakImmediatelyWhileRepeatsStaySuppressed() {
     val results = RecognitionAnnouncements()
     assertTrue(results.shouldSpeak("text", "First label", 1000))
-    assertFalse(results.shouldSpeak("text", "New label", 2000))
+    assertTrue(results.shouldSpeak("text", "New label", 2000))
     assertTrue(results.shouldSpeak("gemini", "A door", 2000))
-    assertTrue(results.shouldSpeak("text", "New label", 5000))
+    assertFalse(results.shouldSpeak("text", "New label", 5000))
+    assertTrue(results.shouldSpeak("text", "New label", 32000))
   }
 
   @Test fun currencyCanRepeatEverySecondWithoutChangingOtherRecognitionModes() {

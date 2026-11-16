@@ -44,6 +44,7 @@
     <string name="granular_editing_copied">Đã sao chép</string>
     <string name="granular_editing_deleted">Đã xóa</string>
     <string name="granular_editing_not_found">Không tìm thấy</string>
+    <string name="granular_editing_no_focus">Không có đoạn nào đang được chọn</string>
     <plurals name="granular_editing_replaced">
         <item quantity="one">Đã thay thế <xliff:g id="count" example="1">%d</xliff:g></item>
         <item quantity="other">Đã thay thế <xliff:g id="count" example="3">%d</xliff:g></item>

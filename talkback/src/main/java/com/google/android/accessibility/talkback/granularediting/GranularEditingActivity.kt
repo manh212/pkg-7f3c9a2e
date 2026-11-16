@@ -150,6 +150,8 @@ class GranularEditingActivity : AppCompatActivity() {
     documentId = GranularEditing.documentId(sessionId)
     text = savedInstanceState?.getString(STATE_TEXT) ?: initial
     savedInstanceState?.getString(STATE_GRANULARITY)?.let { granularity = Granularity.valueOf(it) }
+    savedInstanceState?.getStringArrayList(STATE_UNDO)?.let { undo.addAll(it.takeLast(MAX_UNDO)) }
+    savedInstanceState?.getStringArrayList(STATE_REDO)?.let { redo.addAll(it.takeLast(MAX_UNDO)) }
 
     heading =
       TextView(this).apply {
@@ -292,6 +294,8 @@ class GranularEditingActivity : AppCompatActivity() {
     super.onSaveInstanceState(outState)
     outState.putString(STATE_TEXT, text)
     outState.putString(STATE_GRANULARITY, granularity.name)
+    outState.putStringArrayList(STATE_UNDO, ArrayList(undo.takeLast(MAX_UNDO)))
+    outState.putStringArrayList(STATE_REDO, ArrayList(redo.takeLast(MAX_UNDO)))
   }
 
   /** Splits the text again and shows it, with no piece selected. */
@@ -397,20 +401,23 @@ class GranularEditingActivity : AppCompatActivity() {
   }
 
   private fun toggleSelected(index: Int) {
+    if (index !in pieces.indices) return
     if (!selected.remove(index)) selected += index
     adapter.notifyItemChanged(index)
   }
 
   /** Copies the selected pieces, or all of the text when none is selected. */
   private fun copy() {
-    val copied = if (selected.isEmpty()) text else TextPieces.join(text, selected.map { pieces[it] })
+    val copied =
+      if (selected.isEmpty()) text
+      else TextPieces.join(text, selected.mapNotNull { pieces.getOrNull(it) })
     GranularEditing.copy(this, copied)
     list.announceForAccessibility(getString(R.string.granular_editing_copied))
   }
 
   private fun cut() {
     if (selected.isEmpty()) return
-    GranularEditing.copy(this, TextPieces.join(text, selected.map { pieces[it] }))
+    GranularEditing.copy(this, TextPieces.join(text, selected.mapNotNull { pieces.getOrNull(it) }))
     delete(selected.toList())
   }
 
@@ -447,7 +454,12 @@ class GranularEditingActivity : AppCompatActivity() {
   private fun replaceOne(query: String, replacement: String) {
     if (query.isEmpty()) return
     lastFind = query
-    val target = findMatch(query, focusedIndex().coerceAtLeast(0), forward = true, includeFrom = true)
+    val from = focusedIndex()
+    if (from < 0) {
+      list.announceForAccessibility(getString(R.string.granular_editing_no_focus))
+      return
+    }
+    val target = findMatch(query, from, forward = true, includeFrom = true)
     val newText = target?.let { TextPieces.replaceFirst(text, pieces[it], query, replacement) }
     if (target == null || newText == null) {
       list.announceForAccessibility(getString(R.string.granular_editing_not_found))
@@ -598,7 +610,12 @@ class GranularEditingActivity : AppCompatActivity() {
   }
 
   private fun readFocusedPiece() {
-    val piece = pieces.getOrNull(focusedIndex().coerceAtLeast(0)) ?: return
+    val index = focusedIndex()
+    if (index < 0) {
+      list.announceForAccessibility(getString(R.string.granular_editing_no_focus))
+      return
+    }
+    val piece = pieces.getOrNull(index) ?: return
     list.announceForAccessibility(label(piece))
   }
 
@@ -621,7 +638,9 @@ class GranularEditingActivity : AppCompatActivity() {
     if (selected.isNotEmpty()) {
       return TextPieces.span(selected.mapNotNull { pieces.getOrNull(it) })
     }
-    val piece = pieces.getOrNull(focusedIndex().coerceAtLeast(0)) ?: return null
+    val index = focusedIndex()
+    if (index < 0) return null
+    val piece = pieces.getOrNull(index) ?: return null
     return piece.coreStart to piece.coreEnd
   }
 
@@ -864,9 +883,13 @@ ${JSONObject().put("source", target)}"""
     val current = EditorDocuments.get(id)?.name ?: return
     ask(R.string.text_editor_rename, current) { typed ->
       val name = typed.trim()
-      if (name.isNotEmpty() && name != current && EditorDocuments.rename(id, name)) {
-        heading.text = name
-        setTitle(name)
+      if (name.isNotEmpty() && name != current) {
+        if (EditorDocuments.rename(id, name)) {
+          heading.text = name
+          setTitle(name)
+        } else {
+          list.announceForAccessibility(getString(R.string.text_editor_rename_failed))
+        }
       }
     }
   }
@@ -1073,7 +1096,10 @@ ${JSONObject().put("source", target)}"""
       .setTitle(R.string.text_editor_delete_document)
       .setMessage(R.string.text_editor_delete_confirm)
       .setPositiveButton(R.string.granular_editing_delete) { _, _ ->
-        if (!EditorDocuments.delete(id)) return@setPositiveButton
+        if (!EditorDocuments.delete(id)) {
+          list.announceForAccessibility(getString(R.string.text_editor_delete_failed))
+          return@setPositiveButton
+        }
         val next = EditorDocuments.mostRecent() ?: EditorDocuments.createDefault()
         if (next == null) {
           finish()
@@ -1217,7 +1243,8 @@ ${JSONObject().put("source", target)}"""
       pieceActions(isSelected).forEach { (title, action) ->
         holder.actionIds +=
           ViewCompat.addAccessibilityAction(view, getString(title)) { _, _ ->
-            action(holder.bindingAdapterPosition)
+            val position = holder.bindingAdapterPosition
+            if (position != RecyclerView.NO_POSITION) action(position)
             true
           }
       }
@@ -1265,6 +1292,8 @@ ${JSONObject().put("source", target)}"""
   companion object {
     private const val STATE_TEXT = "text"
     private const val STATE_GRANULARITY = "granularity"
+    private const val STATE_UNDO = "undo"
+    private const val STATE_REDO = "redo"
     private const val MAX_UNDO = 100
 
     @StringRes

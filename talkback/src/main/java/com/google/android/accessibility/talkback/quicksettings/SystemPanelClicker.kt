@@ -89,11 +89,15 @@ object SystemPanelClicker {
         node != null -> {
           val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
           job.later(AFTER_CLICK_MS) {
-            node.refresh()
-            val state =
-              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) node.stateDescription else null
-            val checked = if (node.isCheckable) isChecked(node) else null
-            job.finish { onDone(if (clicked) Result.Clicked(state, checked) else Result.Failed) }
+            try {
+              node.refresh()
+              val state =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) node.stateDescription else null
+              val checked = if (node.isCheckable) isChecked(node) else null
+              job.finish { onDone(if (clicked) Result.Clicked(state, checked) else Result.Failed) }
+            } finally {
+              node.recycle()
+            }
           }
           true
         }
@@ -126,7 +130,9 @@ object SystemPanelClicker {
       } else {
         val before = labels.size
         roots.forEach { root ->
-          tileLabels(pager(root) ?: root).forEach { labels.putIfAbsent(normalize(it), it) }
+          val within = pager(root) ?: root
+          tileLabels(within).forEach { labels.putIfAbsent(normalize(it), it) }
+          if (within !== root) within.recycle()
         }
         if (labels.size > before && job.turnPage(roots)) {
           true
@@ -183,13 +189,17 @@ object SystemPanelClicker {
       val handled =
         try {
           val roots = systemRoots(service)
-          val elapsed = SystemClock.uptimeMillis() - started
-          // The panel first shows a row of tiles, and then all of them, on pages.
-          val settled =
-            roots.isNotEmpty() &&
-              elapsed >= SETTLE_MS &&
-              (elapsed >= 3 * SETTLE_MS || roots.any { pager(it) != null })
-          step(this, roots, settled)
+          try {
+            val elapsed = SystemClock.uptimeMillis() - started
+            // The panel first shows a row of tiles, and then all of them, on pages.
+            val settled =
+              roots.isNotEmpty() &&
+                elapsed >= SETTLE_MS &&
+                (elapsed >= 3 * SETTLE_MS || roots.any { hasPager(it) })
+            step(this, roots, settled)
+          } finally {
+            roots.forEach { it.recycle() }
+          }
         } catch (e: Throwable) {
           LogUtils.w(TAG, "Cannot use the system's quick settings: %s", e)
           finish(onFailed)
@@ -206,29 +216,37 @@ object SystemPanelClicker {
      */
     fun turnPage(roots: List<AccessibilityNodeInfo>): Boolean {
       val pager = roots.firstNotNullOfOrNull { pager(it) } ?: return false
-      while (pages < 2 * MAX_PAGES) {
-        val action =
-          if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-          else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-        if (pager.performAction(action)) {
-          pages++
-          later(PAGE_MS) { poll() }
-          return true
+      try {
+        while (pages < 2 * MAX_PAGES) {
+          val action =
+            if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+            else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+          if (pager.performAction(action)) {
+            pages++
+            later(PAGE_MS) { poll() }
+            return true
+          }
+          if (!forward) return false
+          forward = false
         }
-        if (!forward) return false
-        forward = false
+        return false
+      } finally {
+        if (roots.none { it === pager }) pager.recycle()
       }
-      return false
     }
 
     /** Goes back to the first page of tiles, a page at a time. Returns false once there. */
     fun rewind(roots: List<AccessibilityNodeInfo>): Boolean {
       if (pages >= MAX_PAGES) return false
       val pager = roots.firstNotNullOfOrNull { pager(it) } ?: return false
-      if (!pager.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return false
-      pages++
-      later(PAGE_MS) { poll() }
-      return true
+      try {
+        if (!pager.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return false
+        pages++
+        later(PAGE_MS) { poll() }
+        return true
+      } finally {
+        if (roots.none { it === pager }) pager.recycle()
+      }
     }
 
     /** Starts counting pages again, after [rewind]. */
@@ -269,7 +287,12 @@ object SystemPanelClicker {
 
   private fun systemRoots(service: AccessibilityService): List<AccessibilityNodeInfo> =
     try {
-      service.windows.mapNotNull { it.root }.filter { it.packageName == SYSTEM_UI }
+      val windows = service.windows
+      try {
+        windows.mapNotNull { it.root }.filter { it.packageName == SYSTEM_UI }
+      } finally {
+        windows.forEach { it.recycle() }
+      }
     } catch (e: RuntimeException) {
       LogUtils.w(TAG, "Cannot read the windows: %s", e)
       emptyList()
@@ -279,41 +302,63 @@ object SystemPanelClicker {
   private fun findTile(root: AccessibilityNodeInfo, target: String): AccessibilityNodeInfo? {
     val within = pager(root) ?: root
     val named =
-      nodes(within).firstOrNull { node ->
+      findNode(within) { node ->
         listOfNotNull(node.contentDescription, node.text).any { normalize(it).startsWith(target) }
-      } ?: return null
-    return clickable(named)
+      } ?: run {
+        if (within !== root) within.recycle()
+        return null
+      }
+    val (found, seen) = clickable(named)
+    seen.forEach { if (it !== found) it.recycle() }
+    if (within !== root && within !== found && seen.none { it === within }) within.recycle()
+    return found
   }
 
-  private fun clickable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+  /**
+   * The first clickable, enabled node at or above [node], with every node the walk looked at.
+   * The caller owns the found node and must recycle the rest.
+   */
+  private fun clickable(
+    node: AccessibilityNodeInfo,
+  ): Pair<AccessibilityNodeInfo?, List<AccessibilityNodeInfo>> {
+    val seen = ArrayList<AccessibilityNodeInfo>()
     var current: AccessibilityNodeInfo? = node
     repeat(MAX_CLICK_PARENTS + 1) {
-      val candidate = current ?: return null
-      if (candidate.isClickable && candidate.isEnabled) return candidate
+      val candidate = current ?: return null to seen
+      seen.add(candidate)
+      if (candidate.isClickable && candidate.isEnabled) return candidate to seen
       current = candidate.parent
     }
-    return null
+    current?.let { seen.add(it) }
+    return null to seen
   }
 
   /**
    * The names of the clickable tiles under [root]: each one's first text, or for a tile that shows
    * only an icon, its first description up to a comma, after which tiles put their state.
    */
-  private fun tileLabels(root: AccessibilityNodeInfo): List<String> =
-    nodes(root)
-      .filter { it.isClickable }
-      .mapNotNull { tile ->
-        val inside = nodes(tile).toList()
-        inside.firstNotNullOfOrNull { clean(it.text) }
-          ?: inside.firstNotNullOfOrNull { clean(it.contentDescription?.toString()?.substringBefore(',')) }
+  private fun tileLabels(root: AccessibilityNodeInfo): List<String> {
+    val labels = ArrayList<String>()
+    forEachNode(root) { tile ->
+      if (!tile.isClickable) return@forEachNode
+      var text: String? = null
+      var description: String? = null
+      forEachNode(tile) { inside ->
+        if (text == null) text = clean(inside.text)
+        if (description == null) {
+          description = clean(inside.contentDescription?.toString()?.substringBefore(','))
+        }
       }
-      .toList()
+      (text ?: description)?.let { labels.add(it) }
+    }
+    return labels
+  }
 
   private fun clean(text: CharSequence?): String? = text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
 
   /** The pages of tiles: the node that scrolls sideways. */
   private fun pager(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
-    nodes(root).firstOrNull { node ->
+    findNode(root) { node ->
       node.isScrollable &&
         node.actionList.any {
           it.id == AccessibilityAction.ACTION_SCROLL_RIGHT.id ||
@@ -322,18 +367,61 @@ object SystemPanelClicker {
         }
     }
 
-  /** [root] and the nodes under it, breadth first, up to a limit. */
-  private fun nodes(root: AccessibilityNodeInfo): Sequence<AccessibilityNodeInfo> = sequence {
+  /** Whether [root] or a node under it is the pages of tiles. */
+  private fun hasPager(root: AccessibilityNodeInfo): Boolean {
+    val pager = pager(root) ?: return false
+    if (pager !== root) pager.recycle()
+    return true
+  }
+
+  /**
+   * The first node under [root] that [visit] keeps, breadth first, up to a limit. Every other
+   * node it looks at is recycled, except [root] itself, which stays the caller's, even when the
+   * search stops early.
+   */
+  private fun findNode(
+    root: AccessibilityNodeInfo,
+    visit: (AccessibilityNodeInfo) -> Boolean,
+  ): AccessibilityNodeInfo? {
     val queue = ArrayDeque<AccessibilityNodeInfo>()
     queue.add(root)
     var count = 0
-    while (queue.isNotEmpty() && count < MAX_NODES) {
-      val node = queue.removeFirst()
-      count++
-      yield(node)
-      for (i in 0 until node.childCount) {
-        node.getChild(i)?.let { queue.add(it) }
+    try {
+      while (queue.isNotEmpty() && count < MAX_NODES) {
+        val node = queue.removeFirst()
+        count++
+        if (visit(node)) return node
+        for (i in 0 until node.childCount) {
+          node.getChild(i)?.let { queue.add(it) }
+        }
+        if (node !== root) node.recycle()
       }
+      return null
+    } finally {
+      while (queue.isNotEmpty()) queue.removeFirst().recycle()
+    }
+  }
+
+  /**
+   * Calls [visit] for [root] and every node under it, breadth first, up to a limit, recycling
+   * each one except [root] itself. [visit] must not keep a node past its call.
+   */
+  private fun forEachNode(root: AccessibilityNodeInfo, visit: (AccessibilityNodeInfo) -> Unit) {
+    val queue = ArrayDeque<AccessibilityNodeInfo>()
+    queue.add(root)
+    var count = 0
+    try {
+      while (queue.isNotEmpty() && count < MAX_NODES) {
+        val node = queue.removeFirst()
+        count++
+        for (i in 0 until node.childCount) {
+          node.getChild(i)?.let { queue.add(it) }
+        }
+        visit(node)
+        if (node !== root) node.recycle()
+      }
+    } finally {
+      while (queue.isNotEmpty()) queue.removeFirst().recycle()
     }
   }
 

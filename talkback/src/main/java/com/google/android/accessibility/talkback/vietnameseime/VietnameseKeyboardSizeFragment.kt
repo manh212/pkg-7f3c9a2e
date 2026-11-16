@@ -17,7 +17,7 @@ class VietnameseKeyboardSizeFragment :
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     showCurrentValue(
       context.getString(R.string.pref_vietnamese_keyboard_size_portrait_key),
-      prefs.getInt(context.getString(R.string.pref_vietnamese_keyboard_size_portrait_key), 100),
+      prefs.getInt(context.getString(R.string.pref_vietnamese_keyboard_size_portrait_key), 65),
     )
     showCurrentValue(
       context.getString(R.string.pref_vietnamese_keyboard_size_landscape_key),

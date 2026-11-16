@@ -136,6 +136,19 @@ class VietnameseKeySpeechTest {
   }
 
   @Test
+  fun confirmedEchoDoesNotKillPendingReleasedPreview() {
+    speech.explore("bê", 200)
+    speech.release(100)
+    speech.confirm("a", 0)
+    assertEquals(listOf("a"), labels())
+    requests.single().completed()
+    advance(99)
+    assertEquals(listOf("a"), labels())
+    advance(1)
+    assertEquals(listOf("a", "bê"), labels())
+  }
+
+  @Test
   fun acceptedPreviewIsNeverReplayedAfterRelease() {
     speech.explore("a", 0)
     speech.release(0)

@@ -60,7 +60,7 @@ class VietnameseKeyTouchTest {
 
   @Test
   fun sharedFirstTapMapLetsInterleavedKeysConfirmIndependently() {
-    val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+    val firstTaps = LinkedHashMap<Pair<Int, VietnameseKeyTouch.Key>, VietnameseKeyTouch.Tap>()
     val first = VietnameseKeyTouch(300, 30, firstTaps)
     val second = VietnameseKeyTouch(300, 30, firstTaps)
     first.start(letter, DOUBLE_TAP)
@@ -76,8 +76,22 @@ class VietnameseKeyTouchTest {
   }
 
   @Test
+  fun anotherPointersFirstTapDoesNotConfirmThisPointersKey() {
+    val firstTaps = LinkedHashMap<Pair<Int, VietnameseKeyTouch.Key>, VietnameseKeyTouch.Tap>()
+    val first = VietnameseKeyTouch(300, 30, firstTaps, pointerId = 0)
+    val second = VietnameseKeyTouch(300, 30, firstTaps, pointerId = 1)
+    first.start(letter, DOUBLE_TAP)
+    assertNull(first.release(letter, DOUBLE_TAP, 10f, 10f, 100, true))
+    second.start(letter, DOUBLE_TAP)
+    assertNull(second.release(letter, DOUBLE_TAP, 10f, 10f, 160, true))
+    val third = VietnameseKeyTouch(300, 30, firstTaps, pointerId = 0)
+    third.start(letter, DOUBLE_TAP)
+    assertEquals(letter, third.release(letter, DOUBLE_TAP, 10f, 10f, 240, true))
+  }
+
+  @Test
   fun exploreDoesNotDiscardAnotherTouchPendingFirstTap() {
-    val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+    val firstTaps = LinkedHashMap<Pair<Int, VietnameseKeyTouch.Key>, VietnameseKeyTouch.Tap>()
     val first = VietnameseKeyTouch(300, 30, firstTaps)
     val second = VietnameseKeyTouch(300, 30, firstTaps)
     first.start(letter, DOUBLE_TAP)

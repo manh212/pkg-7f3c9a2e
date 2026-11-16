@@ -111,7 +111,10 @@ class GeminiLiveProtocolTest {
     assertEquals("A person", response.take())
   }
 
-  @Test(expected = IllegalStateException::class) fun unboundedResponseIsRejected() {
-    GeminiLiveResponse().accept(JSONObject().put("outputTranscription", JSONObject().put("text", "x".repeat(16001))))
+  @Test fun overlongResponseIsCappedInsteadOfRejected() {
+    val response = GeminiLiveResponse()
+    assertFalse(response.accept(JSONObject().put("outputTranscription", JSONObject().put("text", "x".repeat(16001)))))
+    assertTrue(response.accept(JSONObject("""{"turnComplete":true}""")))
+    assertEquals("x".repeat(1200), response.take())
   }
 }

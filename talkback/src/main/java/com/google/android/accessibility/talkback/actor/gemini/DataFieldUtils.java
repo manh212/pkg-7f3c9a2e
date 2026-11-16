@@ -24,16 +24,14 @@ import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Pair;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.actor.gemini.ui.ImageQnaChatAdapter;
 import com.google.android.accessibility.talkback.actor.gemini.ui.ImageQnaChatAdapter.ImageQnaMessage;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableList;
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ListIterator;
-import java.util.Queue;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -121,9 +119,12 @@ public class DataFieldUtils {
 
   /**
    * Compresses a {@link Bitmap} to a base64 representation encoded as a byte array. It returns null
-   * if compression fails.
+   * if the image is null or compression fails.
    */
-  public static byte[] encodeImageToByteArray(Bitmap image) {
+  public static byte[] encodeImageToByteArray(@Nullable Bitmap image) {
+    if (image == null) {
+      return null;
+    }
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     if (!image.compress(CompressFormat.JPEG, 80, byteArrayOutputStream)) {
       LogUtils.e(TAG, "Bitmap compression failed!");
@@ -226,13 +227,8 @@ public class DataFieldUtils {
             context.getString(R.string.image_qna_voice_input_empty),
             context.getString(R.string.image_qna_answer_unavailable));
 
-    // Generate an iterator. Start just after the last element.
-    ListIterator<ImageQnaMessage> li = history.listIterator(history.size());
-
-    int totalLen = question.length();
-    int sizeLimit = GeminiConfiguration.imageQnaQuestionSizeLimit(context);
-
-    Queue<String> deque = new ArrayDeque<>();
+    List<Pair<String, String>> pairs = new ArrayList<>();
+    String pendingQuestion = null;
     for (int i = 1; i < history.size(); i++) {
       ImageQnaMessage message = history.get(i);
       String text = message.getText();
@@ -240,37 +236,53 @@ public class DataFieldUtils {
       if (!TextUtils.isEmpty(text) && text.charAt(text.length() - 1) == '\n') {
         text = text.substring(0, text.length() - 1);
       }
-      deque.add(text);
-      totalLen += text.length();
+      if (text == null) {
+        text = "";
+      }
+      if (message.getViewType() == ImageQnaChatAdapter.TYPE_USER_MESSAGE) {
+        if (pendingQuestion != null) {
+          pairs.add(new Pair<>(pendingQuestion, ""));
+        }
+        pendingQuestion = text;
+      } else if (pendingQuestion != null) {
+        pairs.add(new Pair<>(pendingQuestion, text));
+        pendingQuestion = null;
+      }
+    }
+    if (pendingQuestion != null) {
+      pairs.add(new Pair<>(pendingQuestion, ""));
     }
 
-    while (totalLen >= sizeLimit) {
-      if (deque.size() <= 2) {
-        // Even the size of the last entry in the history is still too long, we need to clear the
-        // whole history.
-        // history.
-        deque.clear();
-        break;
-      }
-      // Remove the oldest user question and the server response.
-      totalLen -= deque.poll().length();
-      totalLen -= deque.poll().length();
+    int totalLen = question.length();
+    int sizeLimit = GeminiConfiguration.imageQnaQuestionSizeLimit(context);
+    for (Pair<String, String> pair : pairs) {
+      totalLen += pair.first.length() + pair.second.length();
+    }
+
+    while (totalLen >= sizeLimit && !pairs.isEmpty()) {
+      Pair<String, String> pair = pairs.remove(0);
+      totalLen -= pair.first.length() + pair.second.length();
     }
 
     // History index 0 is always included in chat.
+    String firstText = history.get(0).getText();
     result
         .append("\n")
-        .append(context.getString(R.string.image_qna_answer_prefix, history.get(0).getText()));
+        .append(
+            context.getString(
+                R.string.image_qna_answer_prefix, firstText == null ? "" : firstText));
 
     // Append the dialog history.
-    while (!deque.isEmpty()) {
-      String content = deque.poll();
-      if (!errorTexts.contains(content)) {
-        result.append("\n").append(context.getString(R.string.image_qna_question_prefix, content));
+    for (Pair<String, String> pair : pairs) {
+      if (!errorTexts.contains(pair.first)) {
+        result
+            .append("\n")
+            .append(context.getString(R.string.image_qna_question_prefix, pair.first));
       }
-      content = deque.poll();
-      if (!errorTexts.contains(content)) {
-        result.append("\n").append(context.getString(R.string.image_qna_answer_prefix, content));
+      if (!errorTexts.contains(pair.second)) {
+        result
+            .append("\n")
+            .append(context.getString(R.string.image_qna_answer_prefix, pair.second));
       }
     }
 

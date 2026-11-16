@@ -128,6 +128,11 @@ public class BottomSheetResultOverlay {
             /* iconLabelResult= */ null,
             /* ocrTextResult= */ null,
             /* screenDescription= */ true);
+      } else if (screenOverviewResult.response() instanceof OverviewResponse.QueryAnswer answer) {
+        String answerText = answer.getAnswer().getAnswer();
+        if (answerText != null) {
+          onImageQnaResponse(answerText);
+        }
       }
     }
   }

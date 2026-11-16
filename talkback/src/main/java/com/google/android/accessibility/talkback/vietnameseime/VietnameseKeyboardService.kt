@@ -821,7 +821,10 @@ class VietnameseKeyboardService : InputMethodService() {
       wordLost = true
     }
     if (editor?.inputType == InputType.TYPE_NULL) {
-      if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) return false
+      if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) {
+        // At the start of the document there is nothing to delete.
+        return cursor == 0 && selectionStart <= 0
+      }
       resetWord()
       expectSelection(-1)
       if (announceDeletion) keySpeech.confirm(getString(R.string.vietnamese_ime_delete), speakAt)
@@ -846,6 +849,7 @@ class VietnameseKeyboardService : InputMethodService() {
         it.subSequence(it.length - Character.charCount(codePoint), it.length).toString()
       }
     }
+    if (atStart) return true
     if (!connection.deleteSurroundingTextInCodePoints(1, 0) && !sendKey(connection, KeyEvent.KEYCODE_DEL)) {
       return false
     }
@@ -987,7 +991,27 @@ class VietnameseKeyboardService : InputMethodService() {
       wordLost = true
     }
     if (editor?.inputType == InputType.TYPE_NULL) {
-      if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) return false
+      val noSelection = selectionStart < 0 || cursor < 0 || selectionStart == cursor
+      if (noSelection) {
+        val before = adjacentWord(connection, beforeCursor = true)
+        val after = if (currentWord) adjacentWord(connection, beforeCursor = false) else ""
+        if (before.isNotEmpty() || after.isNotEmpty()) {
+          repeat(before.codePointCount(0, before.length)) {
+            if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) return false
+          }
+          repeat(after.codePointCount(0, after.length)) {
+            if (!sendKey(connection, KeyEvent.KEYCODE_FORWARD_DEL)) return false
+          }
+          resetWord()
+          expectSelection(if (cursor >= before.length) cursor - before.length else -1)
+          if (announceDeletion) speakDeletedText(before.trimEnd() + after, speakAt)
+          return true
+        }
+      }
+      if (!sendKey(connection, KeyEvent.KEYCODE_DEL)) {
+        // At the start of the document there is nothing to delete.
+        return cursor == 0 && selectionStart <= 0
+      }
       resetWord()
       expectSelection(-1)
       if (announceDeletion) keySpeech.confirm(getString(R.string.vietnamese_ime_delete), speakAt)

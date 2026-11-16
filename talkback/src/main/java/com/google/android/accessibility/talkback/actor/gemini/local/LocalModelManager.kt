@@ -28,6 +28,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -248,15 +249,24 @@ class LocalModelManager private constructor(context: Context) {
     }
     setState(State.Importing)
     worker.execute {
+      val opened: InputStream? =
+        try {
+          appContext.contentResolver.openInputStream(uri)
+        } catch (e: Exception) {
+          LogUtils.e(TAG, "Importing a model failed: %s", e)
+          null
+        }
+      if (opened == null) {
+        setState(State.Failed(ModelFiles.Failure.STORAGE))
+        main.post { onDone(null) }
+        return@execute
+      }
       val model =
         try {
-          store.importUnknown {
-            appContext.contentResolver.openInputStream(uri) ?: throw IOException("Cannot open")
-          }
+          store.importUnknown { opened }
         } catch (_: IOException) {
           null
         } catch (e: Exception) {
-          // Another app's provider can throw anything, such as SecurityException.
           LogUtils.e(TAG, "Importing a model failed: %s", e)
           null
         }

@@ -407,13 +407,17 @@ public final class AccessibilityFocusActionHistory {
 
   private void tryMatchingPendingFocusAction(
       @NonNull AccessibilityNodeInfoCompat focusedNode, long focusEventTime) {
-    if ((pendingWebFocusActionInfo != null)
-        && (focusEventTime - pendingWebFocusActionTime > 0)
+    if (pendingWebFocusActionInfo == null) {
+      return;
+    }
+    if ((focusEventTime - pendingWebFocusActionTime > 0)
         && WebInterfaceUtils.supportsWebActions(focusedNode)
         && (focusEventTime - pendingWebFocusActionTime < getTimeoutToleranceMs(focusedNode))) {
       onAccessibilityFocusAction(
           focusedNode, pendingWebFocusActionInfo, pendingWebFocusActionTime, pendingScreenState,
           pendingOriginEventId);
+      clearPendingFocusAction();
+    } else if (focusEventTime - pendingWebFocusActionTime >= WEB_TIMEOUT_TOLERANCE_MS) {
       clearPendingFocusAction();
     }
   }
@@ -453,6 +457,7 @@ public final class AccessibilityFocusActionHistory {
     pendingWebFocusActionInfo = null;
     pendingWebFocusActionTime = -1;
     pendingOriginEventId = null;
+    pendingScreenState = null;
   }
 
   private int getTimeoutToleranceMs(AccessibilityNodeInfoCompat node) {

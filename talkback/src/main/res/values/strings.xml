@@ -4518,6 +4518,8 @@
   <string name="dictation_field_gone">Text field closed. Nothing typed.</string>
   <!-- Spoken when recorded speech could not be turned into text for dictation. [CHAR_LIMIT=NONE] -->
   <string name="dictation_transcription_failed">Speech not transcribed. Nothing typed.</string>
+  <!-- Spoken when Dictate is pressed again while a transcription is still being worked on. [CHAR_LIMIT=NONE] -->
+  <string name="dictation_still_working">Still working on your dictation. Please wait.</string>
   <!-- Title of the Dictation settings screen and its entry in Meridian settings. [CHAR_LIMIT=NONE] -->
   <string name="title_pref_dictation">Dictation</string>
   <!-- Dictation switch: Rambler transcribes while the user speaks, so that the text is typed sooner after recording stops. Rambler is a product name. [CHAR_LIMIT=NONE] -->

@@ -197,6 +197,8 @@ public final class OwnerChatActivity extends Activity {
           if (ForumProtocol.validId(id)) ids.add(id);
         }
         Collections.sort(ids);
+        boolean more = ids.size() == 30;
+        if (before != null) ids.remove(before);
         String oldest = ids.isEmpty() ? null : ids.get(0);
         List<String> lines = new ArrayList<>();
         java.util.Map<String, String> names = new java.util.HashMap<>();
@@ -225,7 +227,7 @@ public final class OwnerChatActivity extends Activity {
           chatLines.removeAllViews();
           if (lines.isEmpty()) text(chatLines, "Chưa có tin nhắn.");
           for (String line : lines) text(chatLines, line);
-          if (oldest != null && ids.size() == 30) {
+          if (oldest != null && more) {
             button(chatLines, "Xem tin nhắn cũ hơn", () -> refresh(oldest));
           }
           status.setText("Đã tải " + ids.size() + " tin nhắn.");

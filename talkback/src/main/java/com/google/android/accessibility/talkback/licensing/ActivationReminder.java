@@ -319,9 +319,11 @@ public final class ActivationReminder {
       AlertDialog next = new AlertDialog.Builder(context)
           .setTitle(R.string.title_sandfly_registration_reminder)
           .setMessage(
-              context.getString(
-                  R.string.summary_sandfly_trial_dialog,
-                  Math.max(1L, (remaining + 999L) / 1000L)))
+              service == null
+                  ? context.getString(R.string.summary_sandfly_trial_dialog_settings)
+                  : context.getString(
+                      R.string.summary_sandfly_trial_dialog,
+                      Math.max(1L, (remaining + 999L) / 1000L)))
           .setNegativeButton(R.string.action_sandfly_registration_later, (d, w) -> {})
           .setPositiveButton(R.string.action_sandfly_registration_open, (d, w) -> {
             Intent open = new Intent(context, ActivationActivity.class);

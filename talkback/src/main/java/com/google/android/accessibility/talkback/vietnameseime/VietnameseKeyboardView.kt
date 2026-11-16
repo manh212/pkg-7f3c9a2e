@@ -66,7 +66,7 @@ internal class VietnameseKeyboardView(
   private var telexAvailable = true
   private var actionLabel = context.getString(R.string.vietnamese_ime_enter)
   private val pointers = LinkedHashMap<Int, PointerState>()
-  private val firstTaps = LinkedHashMap<VietnameseKeyTouch.Key, VietnameseKeyTouch.Tap>()
+  private val firstTaps = LinkedHashMap<Pair<Int, VietnameseKeyTouch.Key>, VietnameseKeyTouch.Tap>()
   private val selectedKeys = HashSet<VietnameseKeyTouch.Key>()
   private var speechPointer: Int? = null
   private var hoveredKey: VietnameseKeyTouch.Key? = null
@@ -355,7 +355,7 @@ internal class VietnameseKeyboardView(
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
         if (event.actionMasked == MotionEvent.ACTION_DOWN && pointers.isNotEmpty()) {
-          cancelInput(cancelPendingEdits = false)
+          cancelInput()
         }
         val index = event.actionIndex
         val id = event.getPointerId(index)
@@ -371,7 +371,7 @@ internal class VietnameseKeyboardView(
           method = typingMethod,
           symbolPage = symbolPage,
           touch = VietnameseKeyTouch(
-            timing.doubleTapMs, configuration.scaledDoubleTapSlop, firstTaps,
+            timing.doubleTapMs, configuration.scaledDoubleTapSlop, firstTaps, pointerId = id,
           ),
           pcShift = rowsArePc && cell?.key?.id == SHIFT,
         )
@@ -448,7 +448,7 @@ internal class VietnameseKeyboardView(
         }
       }
       MotionEvent.ACTION_CANCEL -> {
-        cancelInput(cancelPendingEdits = false)
+        cancelInput()
         announce("")
       }
     }

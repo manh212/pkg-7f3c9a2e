@@ -154,6 +154,7 @@ class ZipformerModels private constructor(context: Context) {
   }
 
   fun delete() {
+    cancelled.set(true)
     worker.execute {
       Part.entries.forEach {
         file(it).delete()

@@ -174,6 +174,8 @@ public class VoiceCommandProcessor {
   /* Set while the fixed legacy commands run their second, scored-matching pass. */
   private boolean fuzzyLegacyPass;
   private int chainGeneration;
+  private int actionGeneration;
+  private boolean stopRequested;
   private ConfirmationSession confirmationSession;
   private Runnable pendingConfirmationAction;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -387,6 +389,12 @@ public class VoiceCommandProcessor {
     LogUtils.i(LOG_TAG, "handleSpeechCommand() command=\"%s\"", command);
     EventId eventId = EVENT_ID_UNTRACKED;
 
+    // A new top-level final result supersedes anything an earlier command posted: chain
+    // parts, macro steps and repeats still waiting to run are dropped.
+    if (!isPartialResult && !chainedPart) {
+      cancelPendingVoiceActions();
+    }
+
     // A new final result supersedes an AI answer still on its way for an earlier sentence.
     if (!isPartialResult) {
       invalidateAiFallback();
@@ -458,17 +466,18 @@ public class VoiceCommandProcessor {
     // command format: Gemini
     // TODO: When the code structure allows to test taking screenshot, add unit tests
     // of Gemini voice command.
-    if (GeminiConfiguration.isGeminiVoiceCommandEnabled(service)
+    if (!isPartialResult
+        && GeminiConfiguration.isGeminiVoiceCommandEnabled(service)
         && startsWith(command, R.string.voice_commands_gemini)) {
       performGeminiCommand(
-          eventId, command.substring(service.getString(R.string.voice_commands_gemini).length()));
+          eventId, remainder(command, R.string.voice_commands_gemini).toString());
       pipeline.returnFeedback(eventId, Feedback.sound(R.raw.complete));
       handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_GEMINI);
       return true;
     }
 
-    if (handleLegacyCommands(command, eventId)) {
-      return true;
+    if (handleLegacyCommands(command, eventId, isPartialResult)) {
+      return !consumeStopRequest();
     }
     if (!isPartialResult) {
       // A fixed command said slightly differently — a word off, a diacritic missing —
@@ -476,8 +485,8 @@ public class VoiceCommandProcessor {
       // see the sentence.
       fuzzyLegacyPass = true;
       try {
-        if (handleLegacyCommands(command, eventId)) {
-          return true;
+        if (handleLegacyCommands(command, eventId, isPartialResult)) {
+          return !consumeStopRequest();
         }
       } finally {
         fuzzyLegacyPass = false;
@@ -531,7 +540,8 @@ public class VoiceCommandProcessor {
    * helpers, so a second pass with fuzzyLegacyPass set runs the very same commands
    * with scored, diacritic-tolerant matching.
    */
-  private boolean handleLegacyCommands(String command, EventId eventId) {
+  private boolean handleLegacyCommands(
+      String command, EventId eventId, boolean isPartialResult) {
     @Nullable AccessibilityNodeInfoCompat node = null;
     // select all voice command
     // command format: Select all
@@ -995,6 +1005,14 @@ public class VoiceCommandProcessor {
         || equals(command, R.string.voice_commands_nevermind)
         || equals(command, R.string.voice_commands_shut_up)) {
       handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_QUIT);
+      if (!isPartialResult) {
+        cancelPendingVoiceActions();
+        pipeline.returnFeedback(
+            eventId,
+            Feedback.part().setInterruptAllFeedback(true).setStopTts(false));
+        pipeline.returnFeedback(eventId, Feedback.sound(R.raw.complete));
+        stopRequested = true;
+      }
       return true;
     }
 
@@ -1315,6 +1333,22 @@ public class VoiceCommandProcessor {
     dialStage = DIAL_STAGE_NONE;
     mainHandler.removeCallbacks(dialStageTimeout);
     invalidateAiFallback();
+    cancelPendingVoiceActions();
+  }
+
+  /* Drops chain parts, macro steps and repeats posted by an earlier command. */
+  private void cancelPendingVoiceActions() {
+    chainGeneration++;
+    actionGeneration++;
+  }
+
+  /* Whether a stop word ended the session, so the actor does not listen again. */
+  private boolean consumeStopRequest() {
+    if (!stopRequested) {
+      return false;
+    }
+    stopRequested = false;
+    return true;
   }
 
   /* Applies one spoken percentage to the volume or the speech rate it names. */
@@ -1558,8 +1592,14 @@ public class VoiceCommandProcessor {
       if (i == 0) {
         service.performCatalogAction(value, eventId);
       } else {
+        final int generation = actionGeneration;
         mainHandler.postDelayed(
-            () -> service.performCatalogAction(value, eventId), MACRO_STEP_INTERVAL_MS * i);
+            () -> {
+              if (generation == actionGeneration) {
+                service.performCatalogAction(value, eventId);
+              }
+            },
+            MACRO_STEP_INTERVAL_MS * i);
       }
     }
   }
@@ -1586,9 +1626,15 @@ public class VoiceCommandProcessor {
     service.performCatalogAction(value, eventId);
     handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
     if (repeat != null) {
+      final int generation = actionGeneration;
       for (int i = 1; i < repeat.getCount(); i++) {
         mainHandler.postDelayed(
-            () -> service.performCatalogAction(value, eventId), REPEAT_INTERVAL_MS * i);
+            () -> {
+              if (generation == actionGeneration) {
+                service.performCatalogAction(value, eventId);
+              }
+            },
+            REPEAT_INTERVAL_MS * i);
       }
     }
   }
@@ -1753,7 +1799,7 @@ public class VoiceCommandProcessor {
       return command.substring(best.length());
     }
     CharSequence prefix = service.getString(stringResId).toLowerCase();
-    return command.substring(prefix.length());
+    return command.length() > prefix.length() ? command.substring(prefix.length()) : "";
   }
 
   /**
@@ -1914,7 +1960,7 @@ public class VoiceCommandProcessor {
           action.getRepeat() > 1
               ? new VoiceCommandParameters.Repeat(entry.getPhrase(), action.getRepeat())
               : null;
-      performCatalogValue(entry.getValue(), repeat, eventId);
+      runCatalogValue(entry.getValue(), entry.getPhrase(), repeat, eventId);
     } else if (interpretation instanceof VoiceCommandAi.Interpretation.Percent) {
       applyPercent(((VoiceCommandAi.Interpretation.Percent) interpretation).getPercent());
     } else if (interpretation instanceof VoiceCommandAi.Interpretation.Alarm) {

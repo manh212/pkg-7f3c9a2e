@@ -63,6 +63,9 @@ object SandflyAi {
         } catch (e: ClassCastException) {
             LogUtils.e(TAG, "SandFly AI module present but not loadable: %s", e)
             null
+        } catch (e: Throwable) {
+            LogUtils.e(TAG, "SandFly AI module present but not loadable: %s", e)
+            null
         }
     }
 

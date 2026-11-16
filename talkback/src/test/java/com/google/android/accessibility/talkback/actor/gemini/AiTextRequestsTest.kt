@@ -60,6 +60,44 @@ class AiTextRequestsTest {
   }
 
   @Test
+  fun answerCutOffOrBlockedIsAFailureNotAnAnswer() {
+    val performer =
+      object : AiTextRequestPerformer {
+        override fun performRequest(
+          urls: List<String>,
+          apiKey: String,
+          postData: JSONObject,
+          callback: GeminiRestRequestPerformer.GeminiRestResponseCallback,
+        ) {
+          callback.onResponse(
+            DataFieldUtils.GeminiResponse.builder()
+              .setText("partial")
+              .setFinishReason("MAX_TOKENS")
+              .build()
+          )
+        }
+
+        override fun performOnDeviceRequest(
+          postData: JSONObject,
+          callback: GeminiRestRequestPerformer.GeminiRestResponseCallback,
+        ) {}
+
+        override fun cancelExistingRequestIfNeeded() {}
+      }
+    var answer: String? = "unset"
+    var failure: GeminiFailure? = null
+
+    AiTextRequests(context, Consumer<String> {}, performer) { true }
+      .ask("Say hi", false) { text, error ->
+        answer = text
+        failure = error
+      }
+
+    assertNull(answer)
+    assertEquals("The answer was blocked or cut off", failure?.message)
+  }
+
+  @Test
   fun imageRecognitionStaysOnDeviceWhenThatProviderIsSelected() {
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     val wasOnDevice = OnDeviceAiSettings.isOnDevice(prefs)

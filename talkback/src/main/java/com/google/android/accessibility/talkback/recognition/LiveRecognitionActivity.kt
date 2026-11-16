@@ -138,11 +138,14 @@ class LiveRecognitionActivity : ComponentActivity() {
     val flashRequested = pendingFlashPermission
     pendingPermission = null
     pendingFlashPermission = false
-    if (granted && mode != null) {
-      if (resumed) toggle(mode) else initialMode = mode
-    } else if (granted && flashRequested) {
-      if (resumed) toggleFlash() else flashAfterResume = true
-    } else if (!granted) {
+    if (granted) {
+      if (mode != null) {
+        if (resumed) toggle(mode) else initialMode = mode
+      }
+      if (flashRequested) {
+        if (resumed) toggleFlash() else flashAfterResume = true
+      }
+    } else {
       report(R.string.live_recognition_camera_permission)
     }
   }
@@ -259,7 +262,11 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   /** A flashlight toggle independent of recognition modes and their AI settings. */
   internal fun toggleFlash() {
-    if (!canUseRotor()) { updateFlashSwitch(); return }
+    if (!canUseRotor()) {
+      updateFlashSwitch()
+      report(R.string.live_recognition_toggle_unavailable)
+      return
+    }
     if (flashOn) {
       flashOn = false
       updateFlashSwitch()
@@ -308,7 +315,11 @@ class LiveRecognitionActivity : ComponentActivity() {
   }
 
   internal fun toggle(mode: RecognitionMode) {
-    if (!canUseRotor()) { updateSwitches(); return }
+    if (!canUseRotor()) {
+      updateSwitches()
+      report(R.string.live_recognition_toggle_unavailable)
+      return
+    }
     if (mode in enabled) {
       enabled.remove(mode)
       reconcile()
@@ -530,8 +541,13 @@ class LiveRecognitionActivity : ComponentActivity() {
           try {
             val raw = frame.toBitmap()
             val rotation = frame.imageInfo.rotationDegrees
-            val bitmap = if (rotation == 0) raw else Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height,
-              Matrix().apply { postRotate(rotation.toFloat()) }, true).also { raw.recycle() }
+            val bitmap = if (rotation == 0) raw else try {
+              Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height,
+                Matrix().apply { postRotate(rotation.toFloat()) }, true).also { raw.recycle() }
+            } catch (e: Throwable) {
+              raw.recycle()
+              throw e
+            }
             val jpeg = if (!ai) null else ByteArrayOutputStream().use {
               bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it)
               Base64.encodeToString(it.toByteArray(), Base64.NO_WRAP)

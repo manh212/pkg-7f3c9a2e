@@ -1082,6 +1082,30 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun doubleTapDeleteInTypeNullEditorDeletesWholeWord() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    text.append("hello world")
+    Selection.setSelection(text, 11)
+    startEditor { inputType = InputType.TYPE_NULL; initialSelStart = 11; initialSelEnd = 11 }
+    tapDelete()
+    assertEquals("hello worl", text.toString())
+    tapDelete()
+
+    assertEquals("hello ", text.toString())
+    assertEquals(removed("worl"), spoken.last())
+  }
+
+  @Test
+  fun deleteAtDocumentStartInTypeNullEditorLeavesTextUnchanged() {
+    setTypingMethod(SINGLE_TAP_TO_TYPE)
+    startEditor { inputType = InputType.TYPE_NULL; initialSelStart = 0; initialSelEnd = 0 }
+    tapDelete()
+
+    assertEquals("", text.toString())
+    assertTrue(spoken.isEmpty())
+  }
+
+  @Test
   fun singleTapModeSingleTapDeleteDeletesOneCharacter() {
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     text.append("hello world")

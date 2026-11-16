@@ -78,6 +78,16 @@ constructor(
       return
     }
 
+    if (overview.a11yTree.findNodeById(NodeId(0, 0))?.refresh() != true) {
+      val message = context.getString(R.string.overviews_node_not_found)
+      addNewMessage(
+        isLoading = false,
+        ImageQnaMessage(ImageQnaChatAdapter.TYPE_MODEL_MESSAGE).apply { text = message },
+      )
+      pipeline.returnFeedback(Performance.EVENT_ID_UNTRACKED, Feedback.speech(message))
+      return
+    }
+
     val userMessage =
       ImageQnaMessage(ImageQnaChatAdapter.TYPE_USER_MESSAGE, command).apply {
         setVoiceInput(isVoiceInput)

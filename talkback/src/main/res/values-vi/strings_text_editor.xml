@@ -21,6 +21,8 @@
     <string name="text_editor_file_type_docx">Word (.docx)</string>
     <string name="text_editor_save_done">Đã lưu %1$s</string>
     <string name="text_editor_save_failed">Không lưu được tệp</string>
+    <string name="text_editor_delete_failed">Không xóa được văn bản</string>
+    <string name="text_editor_rename_failed">Không đổi được tên văn bản</string>
     <string name="text_editor_word_count">Số từ và ký tự</string>
     <string name="text_editor_word_count_message">%1$d từ, %2$d ký tự</string>
     <string name="text_editor_empty_clipboard">Bộ nhớ tạm trống</string>

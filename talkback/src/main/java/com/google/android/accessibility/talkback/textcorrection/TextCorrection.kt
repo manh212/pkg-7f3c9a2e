@@ -77,24 +77,27 @@ object TextCorrection {
         }
         return
       }
-      if (field.isPassword || GranularEditing.fieldText(field) != session.source.original) {
-        refuse(service, R.string.correction_changed)
+      try {
+        if (field.isPassword || GranularEditing.fieldText(field) != session.source.original) {
+          refuse(service, R.string.correction_changed)
+          return
+        }
+        val arguments = Bundle().apply {
+          putCharSequence(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, replacement)
+        }
+        val success = field.performAction(AccessibilityNodeInfoCompat.ACTION_SET_TEXT, arguments)
+        if (success) {
+          val cursor = session.source.start + result.length
+          field.performAction(AccessibilityNodeInfoCompat.ACTION_SET_SELECTION, Bundle().apply {
+            putInt(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
+            putInt(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_END_INT, cursor)
+          })
+        }
+        refuse(service, if (success) R.string.correction_applied else R.string.correction_apply_failed)
+      } finally {
+        field.recycle()
         session.target.recycle()
-        return
       }
-      val arguments = Bundle().apply {
-        putCharSequence(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, replacement)
-      }
-      val success = field.performAction(AccessibilityNodeInfoCompat.ACTION_SET_TEXT, arguments)
-      if (success) {
-        val cursor = session.source.start + result.length
-        field.performAction(AccessibilityNodeInfoCompat.ACTION_SET_SELECTION, Bundle().apply {
-          putInt(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
-          putInt(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_END_INT, cursor)
-        })
-      }
-      refuse(service, if (success) R.string.correction_applied else R.string.correction_apply_failed)
-      session.target.recycle()
     }
     handler.postDelayed({ attempt(0) }, 200)
   }

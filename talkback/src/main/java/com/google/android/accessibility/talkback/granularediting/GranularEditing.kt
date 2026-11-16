@@ -32,6 +32,7 @@ import com.google.android.accessibility.talkback.actor.voicecommands.VoiceComman
 import com.google.android.accessibility.talkback.texteditor.EditorDocuments
 import com.google.android.accessibility.utils.ClipboardHistory
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 
 /**
  * Granular editing: the text of the focused item opens in a screen of its own, split into pieces
@@ -111,7 +112,7 @@ object GranularEditing {
         )
       }
     } catch (exception: RuntimeException) {
-      sessions.remove(sessionId)
+      sessions.remove(sessionId)?.target?.recycle()
       throw exception
     }
     return true
@@ -162,18 +163,26 @@ object GranularEditing {
     val parts = ArrayList<String>()
     var length = 0
     var visited = 0
-    while (pending.isNotEmpty() && visited++ < 2048 && length < 32768) {
-      val current = pending.removeFirst()
-      if (!current.isVisibleToUser || current.isPassword) continue
-      val value = AccessibilityNodeInfoUtils.getText(current)?.toString().orEmpty()
-      if (value.isNotBlank() && current.childCount == 0) {
-        val available = 32768 - length
-        parts.add(value.take(available))
-        length += value.length.coerceAtMost(available)
+    try {
+      while (pending.isNotEmpty() && visited++ < 2048 && length < 32768) {
+        val current = pending.removeFirst()
+        if (!current.isVisibleToUser || current.isPassword) {
+          if (current !== root) current.recycle()
+          continue
+        }
+        val value = AccessibilityNodeInfoUtils.getText(current)?.toString().orEmpty()
+        if (value.isNotBlank() && current.childCount == 0) {
+          val available = 32768 - length
+          parts.add(value.take(available))
+          length += value.length.coerceAtMost(available)
+        }
+        for (index in 0 until current.childCount) {
+          current.getChild(index)?.let { pending.addLast(it) }
+        }
+        if (current !== root) current.recycle()
       }
-      for (index in 0 until current.childCount) {
-        current.getChild(index)?.let { pending.addLast(it) }
-      }
+    } finally {
+      while (pending.isNotEmpty()) pending.removeFirst().recycle()
     }
     return parts.joinToString("\n")
   }
@@ -235,6 +244,7 @@ object GranularEditing {
         copy(context, newText)
         Toast.makeText(context, R.string.granular_editing_not_saved, Toast.LENGTH_LONG).show()
       }
+      session.target?.recycle()
       return
     }
 
@@ -245,11 +255,15 @@ object GranularEditing {
     val attempt =
       object : Runnable {
         override fun run() {
-          if (write(field, newText, service)) return
+          if (write(field, newText, service)) {
+            field.recycle()
+            return
+          }
           if (++tries < SAVE_TRIES) {
             handler.postDelayed(this, SAVE_INTERVAL_MS)
             return
           }
+          field.recycle()
           copy(appContext, newText)
           Toast.makeText(appContext, R.string.granular_editing_not_saved, Toast.LENGTH_LONG).show()
         }
@@ -259,7 +273,7 @@ object GranularEditing {
 
   /** Dismisses only this editor; enclosing editors and their source fields stay intact. */
   internal fun close(id: Int) {
-    sessions.remove(id)
+    sessions.remove(id)?.target?.recycle()
     childResults.remove(id)
   }
 
@@ -281,7 +295,11 @@ object GranularEditing {
       service?.windows?.mapNotNull { it.root?.let(AccessibilityNodeInfoCompat::wrap) }
         ?: return false
     val replacement = findMatchingFieldAcrossRoots(roots, field) ?: return false
-    return setText(replacement, newText)
+    try {
+      return setText(replacement, newText)
+    } finally {
+      replacement.recycle()
+    }
   }
 
   private fun setText(field: AccessibilityNodeInfoCompat, newText: String): Boolean {
@@ -304,10 +322,19 @@ object GranularEditing {
     original: AccessibilityNodeInfoCompat,
   ): AccessibilityNodeInfoCompat? {
     var result: AccessibilityNodeInfoCompat? = null
-    for (root in roots) {
-      val candidate = findMatchingField(root, original) ?: continue
-      if (result != null) return null
-      result = candidate
+    for ((index, root) in roots.withIndex()) {
+      val candidate = findMatchingField(root, original)
+      if (candidate != null) {
+        if (result != null) {
+          result.recycle()
+          candidate.recycle()
+          if (root !== candidate) root.recycle()
+          for (rest in roots.subList(index + 1, roots.size)) rest.recycle()
+          return null
+        }
+        result = candidate
+      }
+      if (root !== result && root !== candidate) root.recycle()
     }
     return result
   }
@@ -325,34 +352,43 @@ object GranularEditing {
     pending.add(root)
     var match: AccessibilityNodeInfoCompat? = null
     var visited = 0
-    while (pending.isNotEmpty() && visited++ < 4096) {
-      val node = pending.removeFirst()
-      if (
-        node.isEditable &&
-          node.isEnabled &&
-          node.isVisibleToUser &&
-          !node.isPassword &&
-          node.packageName?.toString() == sourcePackage &&
-          node.className?.toString() == sourceClass
-      ) {
-        val bounds = Rect()
-        node.getBoundsInScreen(bounds)
-        val sameField =
-          if (!sourceId.isNullOrEmpty()) {
-            node.viewIdResourceName == sourceId
-          } else {
-            !sourceBounds.isEmpty && bounds == sourceBounds
+    try {
+      while (pending.isNotEmpty() && visited++ < 4096) {
+        val node = pending.removeFirst()
+        val isMatch =
+          node.isEditable &&
+            node.isEnabled &&
+            node.isVisibleToUser &&
+            !node.isPassword &&
+            node.packageName?.toString() == sourcePackage &&
+            node.className?.toString() == sourceClass &&
+            run {
+              val bounds = Rect()
+              node.getBoundsInScreen(bounds)
+              if (!sourceId.isNullOrEmpty()) {
+                node.viewIdResourceName == sourceId
+              } else {
+                !sourceBounds.isEmpty && bounds == sourceBounds
+              }
+            }
+        if (isMatch) {
+          if (match != null) {
+            match.recycle()
+            node.recycle()
+            match = null
+            return null
           }
-        if (sameField) {
-          if (match != null) return null
           match = node
         }
+        for (index in 0 until node.childCount) {
+          node.getChild(index)?.let { pending.addLast(it) }
+        }
+        if (!isMatch && node !== root) node.recycle()
       }
-      for (index in 0 until node.childCount) {
-        node.getChild(index)?.let { pending.addLast(it) }
-      }
+      return match
+    } finally {
+      while (pending.isNotEmpty()) pending.removeFirst().recycle()
     }
-    return match
   }
 
   /**
@@ -369,7 +405,7 @@ object GranularEditing {
     val start = field.textSelectionStart
     val end = field.textSelectionEnd
     if (canPlaceCursor(field, reported.length)) {
-      setSelection(field, start, end)
+      restoreSelection(field, start, end)
       return reported
     }
     // The furthest the cursor can be placed.
@@ -379,8 +415,19 @@ object GranularEditing {
       val middle = (low + high + 1) / 2
       if (canPlaceCursor(field, middle)) low = middle else high = middle - 1
     }
-    setSelection(field, start, end)
+    restoreSelection(field, start, end)
     return reported.substring(0, low)
+  }
+
+  /**
+   * Puts the cursor back where reading the text found it. A selection of -1 means the
+   * field has none, and restoring that would leave the cursor where the probe put it.
+   */
+  private fun restoreSelection(field: AccessibilityNodeInfoCompat, start: Int, end: Int) {
+    if (start < 0 || end < 0) return
+    if (!setSelection(field, start, end)) {
+      LogUtils.w(TAG, "Cannot restore the cursor after reading the text")
+    }
   }
 
   private fun canPlaceCursor(field: AccessibilityNodeInfoCompat, at: Int): Boolean =
@@ -400,4 +447,5 @@ object GranularEditing {
 
   private const val SAVE_TRIES = 15
   private const val SAVE_INTERVAL_MS = 200L
+  private const val TAG = "GranularEditing"
 }

@@ -98,6 +98,18 @@ class LiveRecognitionActivityTest {
     controller.pause().stop().destroy()
   }
 
+  @Test fun toggleWhilePausedReportsUnavailable() {
+    val controller = Robolectric.buildActivity(LiveRecognitionActivity::class.java).setup()
+    val activity = controller.get()
+    controller.pause()
+    activity.toggle(RecognitionMode.LIGHT)
+    assertFalse(activity.isEnabled(RecognitionMode.LIGHT))
+    val texts = descendants(activity.window.decorView)
+      .filterIsInstance<android.widget.TextView>().map { it.text.toString() }
+    assertTrue(texts.contains(activity.getString(R.string.live_recognition_toggle_unavailable)))
+    controller.stop().destroy()
+  }
+
   @Test fun recreationDoesNotReactivateTheModeFromTheOriginalRotorIntent() {
     val controller = Robolectric.buildActivity(LiveRecognitionActivity::class.java)
     controller.get().intent.putExtra(LiveRecognitionActivity.EXTRA_MODE, RecognitionMode.TEXT.name)

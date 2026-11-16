@@ -345,14 +345,19 @@ class SubtitleController internal constructor(
   private fun foregroundRoot(): AccessibilityNodeInfo? {
     val activeRoot = service.rootInActiveWindow
     if (activeRoot != null && activeRoot.packageName?.toString() != service.packageName) return activeRoot
-    for (window in service.windows) {
-      if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
-      val candidate = window.root ?: continue
-      if (candidate.packageName?.toString() != service.packageName) {
-        activeRoot?.recycle()
-        return candidate
+    val windows = service.windows
+    try {
+      for (window in windows) {
+        if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+        val candidate = window.root ?: continue
+        if (candidate.packageName?.toString() != service.packageName) {
+          activeRoot?.recycle()
+          return candidate
+        }
+        candidate.recycle()
       }
-      candidate.recycle()
+    } finally {
+      for (window in windows) window.recycle()
     }
     return activeRoot
   }

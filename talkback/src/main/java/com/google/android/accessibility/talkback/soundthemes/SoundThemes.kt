@@ -198,7 +198,9 @@ object SoundThemes {
 
   /**
    * Replaces the installed themes with the ones in a settings backup. Every theme is
-   * read first, so a bad backup changes nothing.
+   * read first, so a bad backup changes nothing. The themes are written to staging
+   * folders first and only swapped in once they are all written, so a failed write
+   * leaves the installed themes untouched.
    */
   fun restoreBackup(context: Context, json: String): Boolean {
     val wanted = LinkedHashMap<String, List<Pair<String, ByteArray>>>()
@@ -217,13 +219,47 @@ object SoundThemes {
       return false
     }
     val directory = themesDirectory(context)
-    for (dir in directory.listFiles().orEmpty().filter { it.isDirectory && !isDraft(it.name) }) {
-      if (dir.name !in wanted) dir.deleteRecursively()
+    val staged = ArrayList<Pair<String, File>>()
+    val asides = ArrayList<Pair<File, File>>()
+    try {
+      for ((id, files) in wanted) {
+        val staging = File(directory, STAGING_PREFIX + UUID.randomUUID())
+        if (!FileTreeBackup.write(staging, files)) return false
+        staged += id to staging
+      }
+      for ((id, staging) in staged) {
+        val target = File(directory, id)
+        if (target.exists()) {
+          val aside = File(directory, STAGING_PREFIX + "restore-" + UUID.randomUUID())
+          if (!target.renameTo(aside)) {
+            restoreAsides(asides)
+            return false
+          }
+          asides += aside to target
+        }
+        if (!staging.renameTo(target)) {
+          restoreAsides(asides)
+          return false
+        }
+      }
+      for ((aside, _) in asides) aside.deleteRecursively()
+      for (dir in directory.listFiles().orEmpty().filter { it.isDirectory && !isDraft(it.name) }) {
+        if (dir.name !in wanted) dir.deleteRecursively()
+      }
+      return true
+    } finally {
+      for ((_, staging) in staged) staging.deleteRecursively()
     }
-    for ((id, files) in wanted) {
-      if (!FileTreeBackup.write(File(directory, id), files)) return false
+  }
+
+  /** Puts themes set aside by a failed restore back where they were taken from. */
+  private fun restoreAsides(asides: List<Pair<File, File>>) {
+    for ((aside, target) in asides) {
+      // The new theme is already in place, so the target has to be cleared first:
+      // renameTo cannot replace an existing directory.
+      target.deleteRecursively()
+      aside.renameTo(target)
     }
-    return true
   }
 
   /** The theme in use, or Backtalk's if the one in use is gone. */
@@ -639,11 +675,20 @@ object SoundThemes {
     val target = File(themesDirectory(context), staged.id)
     val wasActive = activeId(prefs) == staged.id
     if (use && !wasActive) saveSettings(context, prefs)
-    target.deleteRecursively()
+    var aside: File? = null
+    if (target.exists()) {
+      aside = File(themesDirectory(context), STAGING_PREFIX + UUID.randomUUID())
+      if (!target.renameTo(aside)) {
+        staged.directory.deleteRecursively()
+        throw IOException("Cannot install theme ${staged.id}")
+      }
+    }
     if (!staged.directory.renameTo(target)) {
+      aside?.renameTo(target)
       staged.directory.deleteRecursively()
       throw IOException("Cannot install theme ${staged.id}")
     }
+    aside?.deleteRecursively()
     if (use || wasActive) {
       // The theme's settings replace those of the theme it replaces.
       activate(context, prefs, staged.id, saveCurrent = false)

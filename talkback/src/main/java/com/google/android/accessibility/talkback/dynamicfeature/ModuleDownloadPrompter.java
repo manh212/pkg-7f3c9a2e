@@ -17,17 +17,27 @@
 package com.google.android.accessibility.talkback.dynamicfeature;
 
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.Pipeline;
+import com.google.android.accessibility.talkback.dynamicfeature.Downloader.DownloadErrorCode;
+import com.google.android.accessibility.talkback.dynamicfeature.Downloader.DownloadState;
+import com.google.android.accessibility.talkback.dynamicfeature.Downloader.DownloadStateUpdateListener;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionConstants.DownloadDialogResources;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionConstants.ImageCaptionPreferenceKeys;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionConstants.UninstallDialogResources;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.CaptionType;
+import com.google.android.accessibility.talkback.imagecaption.Request;
 import com.google.android.accessibility.talkback.imagecaption.Request.ErrorCode;
+import com.google.android.accessibility.utils.Performance;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Shows a confirmation dialog to guide users through the download of a module dynamically. */
 public abstract class ModuleDownloadPrompter {
@@ -69,6 +79,25 @@ public abstract class ModuleDownloadPrompter {
     ONBOARDING
   }
 
+  private static final int MAX_DOWNLOAD_DIALOG_SHOWN_TIMES = 3;
+
+  private final Context context;
+  private final Downloader downloader;
+  @Nullable private final Downloader downloaderLegacy;
+  private final ImmutableList<CaptionType> captionTypes;
+  private final ImageCaptionPreferenceKeys preferenceKeys;
+  private final DownloadDialogResources downloadDialogResources;
+  private final UninstallDialogResources uninstallDialogResources;
+  private final SharedPreferences prefs;
+
+  @Nullable private Pipeline.FeedbackReturner pipeline;
+  @Nullable private DownloadStateListener downloadStateListener;
+  @Nullable private UninstallStateListener uninstallStateListener;
+  @Nullable private AccessibilityNodeInfoCompat captionNode;
+
+  private final DownloadStateUpdateListener downloadStateUpdateListener =
+      this::onDownloadStateUpdate;
+
   public ModuleDownloadPrompter(
       Context context,
       Downloader downloader,
@@ -76,44 +105,151 @@ public abstract class ModuleDownloadPrompter {
       ImmutableList<CaptionType> captionTypes,
       ImageCaptionPreferenceKeys preferenceKeys,
       DownloadDialogResources downloadDialogResources,
-      UninstallDialogResources uninstallDialogResources) {}
+      UninstallDialogResources uninstallDialogResources) {
+    this.context = context;
+    this.downloader = downloader;
+    this.downloaderLegacy = downloaderLegacy;
+    this.captionTypes = captionTypes;
+    this.preferenceKeys = preferenceKeys;
+    this.downloadDialogResources = downloadDialogResources;
+    this.uninstallDialogResources = uninstallDialogResources;
+    prefs = SharedPreferencesUtils.getSharedPreferences(context);
+    downloader.registerListener(downloadStateUpdateListener);
+  }
 
-  public void setPipeline(@Nullable Pipeline.FeedbackReturner pipeline) {}
+  public void setPipeline(@Nullable Pipeline.FeedbackReturner pipeline) {
+    this.pipeline = pipeline;
+  }
 
-  public void setDownloadStateListener(@Nullable DownloadStateListener downloadStateListener) {}
+  public void setDownloadStateListener(@Nullable DownloadStateListener downloadStateListener) {
+    this.downloadStateListener = downloadStateListener;
+  }
 
-  public void setUninstallStateListener(@Nullable UninstallStateListener uninstallStateListener) {}
+  public void setUninstallStateListener(@Nullable UninstallStateListener uninstallStateListener) {
+    this.uninstallStateListener = uninstallStateListener;
+  }
 
-  public void setCaptionNode(@Nullable AccessibilityNodeInfoCompat node) {}
+  public void setCaptionNode(@Nullable AccessibilityNodeInfoCompat node) {
+    captionNode = node;
+  }
 
   public boolean isLegacyModuleAvailable() {
-    return false;
+    if (downloaderLegacy == null) {
+      return false;
+    }
+    for (CaptionType captionType : captionTypes) {
+      if (!downloaderLegacy.isInstalled(downloaderLegacy.getModuleName(captionType))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public boolean isModuleAvailable() {
-    return false;
+    for (CaptionType captionType : captionTypes) {
+      if (!downloader.isInstalled(downloader.getModuleName(captionType))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public boolean isModuleDownloading() {
+    for (CaptionType captionType : captionTypes) {
+      if (downloader.isDownloading(downloader.getModuleName(captionType))) {
+        return true;
+      }
+    }
     return false;
   }
 
   public boolean isUninstalled() {
-    return true;
+    return SharedPreferencesUtils.getBooleanPref(
+        prefs, context.getResources(), preferenceKeys.uninstalledKey, false);
   }
 
   public boolean needDownloadDialog(Requester requester) {
-    return false;
+    if (isModuleAvailable() || isLegacyModuleAvailable()) {
+      return false;
+    }
+    if (SharedPreferencesUtils.getBooleanPref(
+        prefs, context.getResources(), preferenceKeys.doNotShowKey, false)) {
+      return false;
+    }
+    String shownTimesKey = context.getString(preferenceKeys.downloadShownTimesKey);
+    return prefs.getInt(shownTimesKey, /* defValue= */ 0) < MAX_DOWNLOAD_DIALOG_SHOWN_TIMES;
   }
 
-  public void showDownloadDialog(Requester requester) {}
+  public void showDownloadDialog(Requester requester) {
+    DownloadDialog dialog =
+        new DownloadDialog(context, downloadDialogResources) {
+          @Override
+          public void handleDialogClick(int buttonClicked) {
+            if (buttonClicked == DialogInterface.BUTTON_POSITIVE) {
+              if (isNotShowAgain()) {
+                SharedPreferencesUtils.putBooleanPref(
+                    prefs, context.getResources(), preferenceKeys.doNotShowKey, true);
+              }
+              if (downloadStateListener != null) {
+                downloadStateListener.onAccepted();
+              }
+              downloadModules();
+            } else if (buttonClicked == DialogInterface.BUTTON_NEGATIVE) {
+              if (downloadStateListener != null) {
+                downloadStateListener.onRejected();
+              }
+            }
+          }
 
-  public void showUninstallDialog() {}
+          @Override
+          public void handleDialogDismiss() {
+            if (downloadStateListener != null) {
+              downloadStateListener.onDialogDismissed(captionNode);
+            }
+          }
+        };
+    dialog.showDialog(requester);
+  }
 
-  public void shutdown() {}
+  public void showUninstallDialog() {
+    UninstallDialog dialog =
+        new UninstallDialog(
+            context,
+            uninstallDialogResources.uninstallTitleRes,
+            uninstallDialogResources.uninstallMessageRes) {
+          @Override
+          public void handleDialogClick(int buttonClicked) {
+            if (buttonClicked == DialogInterface.BUTTON_POSITIVE) {
+              for (CaptionType captionType : captionTypes) {
+                downloader.uninstall(context, downloader.getModuleName(captionType));
+              }
+              SharedPreferencesUtils.putBooleanPref(
+                  prefs, context.getResources(), preferenceKeys.uninstalledKey, true);
+              SharedPreferencesUtils.putBooleanPref(
+                  prefs, context.getResources(), preferenceKeys.installedKey, false);
+              if (uninstallStateListener != null) {
+                uninstallStateListener.onAccepted();
+              }
+            } else if (buttonClicked == DialogInterface.BUTTON_NEGATIVE) {
+              if (uninstallStateListener != null) {
+                uninstallStateListener.onRejected();
+              }
+            }
+          }
+        };
+    dialog.showDialog();
+  }
+
+  public void shutdown() {
+    downloader.unregisterListener(downloadStateUpdateListener);
+  }
 
   public boolean installModule() {
-    return false;
+    boolean installed = true;
+    for (CaptionType captionType : captionTypes) {
+      installed &= downloader.install(context, captionType);
+    }
+    return installed;
   }
 
   public abstract @StringRes int getDownloadSuccessfulHint();
@@ -123,6 +259,56 @@ public abstract class ModuleDownloadPrompter {
   protected abstract boolean initModule();
 
   protected boolean returnFeedback(Feedback.Part.Builder feedback) {
+    return pipeline != null
+        && pipeline.returnFeedback(Performance.EVENT_ID_UNTRACKED, feedback);
+  }
+
+  private void downloadModules() {
+    List<String> moduleNames = new ArrayList<>();
+    for (CaptionType captionType : captionTypes) {
+      moduleNames.add(downloader.getModuleName(captionType));
+    }
+    downloader.download(context, moduleNames.toArray(new String[0]));
+  }
+
+  private void onDownloadStateUpdate(DownloadState downloadState) {
+    if (!isForMyModules(downloadState)) {
+      return;
+    }
+    switch (downloadState.downloadStatus()) {
+      case INSTALLED -> {
+        SharedPreferencesUtils.putBooleanPref(
+            prefs, context.getResources(), preferenceKeys.installedKey, true);
+        SharedPreferencesUtils.putBooleanPref(
+            prefs, context.getResources(), preferenceKeys.uninstalledKey, false);
+        initModule();
+        if (downloadStateListener != null) {
+          downloadStateListener.onInstalled();
+        }
+      }
+      case FAILED -> {
+        if (downloadStateListener != null) {
+          downloadStateListener.onFailed(toErrorCode(downloadState.downloadErrorCode()));
+        }
+      }
+      default -> {}
+    }
+  }
+
+  private boolean isForMyModules(DownloadState downloadState) {
+    for (CaptionType captionType : captionTypes) {
+      if (downloadState.moduleNames().contains(downloader.getModuleName(captionType))) {
+        return true;
+      }
+    }
     return false;
+  }
+
+  private static @ErrorCode int toErrorCode(DownloadErrorCode downloadErrorCode) {
+    return switch (downloadErrorCode) {
+      case NETWORK_ERROR -> Request.ERROR_NETWORK_ERROR;
+      case INSUFFICIENT_STORAGE -> Request.ERROR_INSUFFICIENT_STORAGE;
+      default -> Request.ERROR_UNKNOWN;
+    };
   }
 }

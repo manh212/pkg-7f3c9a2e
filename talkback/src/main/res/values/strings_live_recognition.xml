@@ -29,6 +29,7 @@
     <string translatable="false" name="live_recognition_service_message">Cảnh, Chỉ và đọc, Phát hiện người và Phát hiện cửa gửi một hình ảnh từ camera tới <xliff:g id="host" example="api.anthropic.com">%1$s</xliff:g> sau mỗi vài giây. Văn bản được nhận dạng trên điện thoại này.\n\nĐiều khoản và chính sách quyền riêng tư của dịch vụ đó sẽ áp dụng. AI tạo sinh đang trong giai đoạn thử nghiệm nên sẽ mắc lỗi.</string>
     <string translatable="false" name="live_recognition_send">Gửi hình ảnh</string>
     <string translatable="false" name="live_recognition_camera_permission">Không có quyền truy cập camera</string>
+    <string translatable="false" name="live_recognition_toggle_unavailable">Không đổi được chế độ lúc này.</string>
     <string translatable="false" name="live_recognition_camera_error">Không mở được camera</string>
     <string translatable="false" name="live_recognition_connection_error">Không kết nối được với Gemini. Đã tắt các chế độ dùng Gemini.</string>
     <string translatable="false" name="live_recognition_timeout">Gemini không trả lời kịp thời. Đã tắt các chế độ dùng Gemini.</string>

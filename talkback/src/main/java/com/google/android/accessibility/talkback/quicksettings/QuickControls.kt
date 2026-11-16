@@ -488,9 +488,13 @@ class QuickControls(private val context: Context) {
 
   fun slider(control: QuickControl): SliderState? {
     STREAMS[control]?.let { stream ->
-      val min =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) audio.getStreamMinVolume(stream) else 0
-      return SliderState(min, audio.getStreamMaxVolume(stream), audio.getStreamVolume(stream), 1)
+      try {
+        val min =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) audio.getStreamMinVolume(stream) else 0
+        return SliderState(min, audio.getStreamMaxVolume(stream), audio.getStreamVolume(stream), 1)
+      } catch (e: RuntimeException) {
+        LogUtils.w(TAG, "Cannot read %s: %s", control, e)
+      }
     }
     return when (control) {
       QuickControl.BRIGHTNESS -> {
@@ -520,7 +524,7 @@ class QuickControls(private val context: Context) {
           TalkBackService.getInstance()?.ignoreSelfVolumeChange(stream)
         }
         audio.setStreamVolume(stream, value, 0)
-      } catch (e: SecurityException) {
+      } catch (e: RuntimeException) {
         // Ring and notification volumes can't turn Do Not Disturb on or off without access.
         LogUtils.w(TAG, "Cannot change %s: %s", control, e)
         onFailed()
@@ -561,8 +565,9 @@ class QuickControls(private val context: Context) {
   fun choice(control: QuickControl): ChoiceState? =
     when (control) {
       QuickControl.SOUND_MODE -> {
+        val manager = audio ?: return null
         val current =
-          SoundMode.entries.firstOrNull { it.ringerMode == audio.ringerMode } ?: SoundMode.SOUND
+          SoundMode.entries.firstOrNull { it.ringerMode == manager.ringerMode } ?: SoundMode.SOUND
         ChoiceState(soundChoice(current), soundModes().map { soundChoice(it) })
       }
       QuickControl.SCREEN_TIMEOUT -> {
@@ -587,7 +592,7 @@ class QuickControls(private val context: Context) {
         try {
           audio.ringerMode = value
           Change.DONE
-        } catch (e: SecurityException) {
+        } catch (e: RuntimeException) {
           LogUtils.w(TAG, "Cannot change the sound mode: %s", e)
           Change.FAILED
         }

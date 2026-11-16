@@ -19,58 +19,80 @@ import android.app.Application;
 import android.content.Context;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.CaptionType;
 
-/** Downloads the dynamic feature via {@link MddManager}. */
+/**
+ * Downloads the dynamic feature via {@link MddManager}. There is no real MDD backend in this
+ * fork, so every call is delegated to {@link SplitApkDownloader}, which reports the bundled
+ * modules as installed.
+ */
 public class MddDownloader implements Downloader {
 
-  private MddDownloader() {}
+  private final SplitApkDownloader delegate;
 
-  public static MddDownloader getInstance(Application unused) {
-    return new MddDownloader();
+  private MddDownloader(Context context) {
+    delegate = SplitApkDownloader.getInstance(context);
+  }
+
+  public static MddDownloader getInstance(Application application) {
+    return new MddDownloader(application);
   }
 
   @Override
   public String getModuleName(CaptionType captionType) {
-    return "";
+    return delegate.getModuleName(captionType);
   }
 
   @Override
-  public void download(Context context, String... name) {}
+  public void download(Context context, String... name) {
+    delegate.download(context, name);
+  }
 
   @Override
-  public void uninstall(Context context, String... name) {}
+  public void uninstall(Context context, String... name) {
+    delegate.uninstall(context, name);
+  }
 
   @Override
   public boolean isDownloading(String name) {
-    return false;
+    return delegate.isDownloading(name);
   }
 
   @Override
   public boolean isInstalled(String name) {
-    return false;
+    return delegate.isInstalled(name);
   }
 
   @Override
-  public void registerListener(DownloadStateUpdateListener listener) {}
+  public void registerListener(DownloadStateUpdateListener listener) {
+    delegate.registerListener(listener);
+  }
 
   @Override
-  public void unregisterListener(DownloadStateUpdateListener listener) {}
+  public void unregisterListener(DownloadStateUpdateListener listener) {
+    delegate.unregisterListener(listener);
+  }
 
   @Override
   public DownloadStatus getDownloadStatus(String name) {
-    return null;
+    return delegate.getDownloadStatus(name);
   }
 
   @Override
-  public void updateDownloadStatus(String name, DownloadStatus status) {}
+  public void updateDownloadStatus(String name, DownloadStatus status) {
+    delegate.updateDownloadStatus(name, status);
+  }
 
   @Override
-  public void updateAllDownloadStatus() {}
+  public void updateAllDownloadStatus() {
+    delegate.updateAllDownloadStatus();
+  }
 
   @Override
   public boolean install(Context context, CaptionType captionType) {
-    return false;
+    return delegate.install(context, captionType);
   }
 
   @Override
-  public void initialize(Context context) {}
+  public void initialize(Context context) {
+    delegate.initialize(context);
+  }
 }

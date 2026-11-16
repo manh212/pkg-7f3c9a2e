@@ -232,9 +232,13 @@ internal class AudioSpeechDetector(private val thresholdDbfs: Double = -48.0) {
     val steady = abs(level - previousLevel) < maxOf(80.0, previousLevel * 0.12)
     loudFrames = if (loud) loudFrames + 1 else 0
     steadyFrames = if (loud && steady) steadyFrames + 1 else 0
-    val adaptation = if (!loud || steadyFrames >= 4) 0.2 else 0.01
+    val adaptation = if (!loud || steadyFrames >= STEADY_NOISE_FRAMES) 0.2 else 0.01
     noiseFloor += (level - noiseFloor) * adaptation
     previousLevel = level
-    return loudFrames >= 3 && steadyFrames < 4
+    return loudFrames >= 3 && steadyFrames < STEADY_NOISE_FRAMES
+  }
+
+  companion object {
+    private const val STEADY_NOISE_FRAMES = 30
   }
 }

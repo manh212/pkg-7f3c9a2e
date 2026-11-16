@@ -28,6 +28,8 @@
     <!-- Spoken when saving as a file finishes, with the file name, or fails. [CHAR LIMIT=NONE] -->
     <string name="text_editor_save_done">Saved %1$s</string>
     <string name="text_editor_save_failed">Could not save the file</string>
+    <string name="text_editor_delete_failed">Could not delete the document</string>
+    <string name="text_editor_rename_failed">Could not rename the document</string>
     <string name="text_editor_word_count">Word and character count</string>
     <!-- The counts shown by Word and character count. [CHAR LIMIT=NONE] -->
     <string name="text_editor_word_count_message">%1$d words, %2$d characters</string>

@@ -287,6 +287,7 @@ public class FullScreenReadActor {
     if (internal) {
       LogUtils.d(TAG, "Continuous reading interrupt internal ");
     }
+    retryReadingHandler.clear();
     setReadingState(STATE_STOPPED);
 
     if (wakeLock.isHeld()) {

@@ -52,6 +52,9 @@ object AppIdHandOver {
   /** How long to wait for the old service to leave the enabled services. */
   private const val WATCH_TIMEOUT_MS = 30_000L
 
+  /** How many times to keep watching after the first timeout before giving up. */
+  private const val WATCH_RETRIES = 10
+
   // Secure settings that name accessibility services as shortcut targets. Some of them are only on
   // newer Android versions, and missing ones are skipped.
   private val SHORTCUT_TARGET_SETTINGS =
@@ -142,7 +145,28 @@ object AppIdHandOver {
       false,
       observer,
     )
-    handler.postDelayed({ if (observer.watching) observer.stop() }, WATCH_TIMEOUT_MS)
+    var retriesLeft = WATCH_RETRIES
+    fun armTimeout() {
+      handler.postDelayed(
+        {
+          if (!observer.watching) return@postDelayed
+          val enabled =
+            Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+          if (!ComponentLists.contains(enabled, service)) {
+            observer.stop()
+            LogUtils.i(TAG, "The old app is off, setting up gestures again")
+            handler.postDelayed(onGone, REREGISTER_DELAY_MS)
+          } else if (retriesLeft-- > 0) {
+            armTimeout()
+          } else {
+            observer.stop()
+            LogUtils.w(TAG, "The old app is still on after watching, giving up")
+          }
+        },
+        WATCH_TIMEOUT_MS,
+      )
+    }
+    armTimeout()
   }
 
   private fun swap(context: Context, key: String, oldComponent: String, newComponent: String) {

@@ -138,28 +138,33 @@ internal class CurrencyRecognizer(private val context: Context) : Closeable {
     val model = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder())
     model.put(bytes).rewind()
     interpreter = Interpreter(model, Interpreter.Options().setNumThreads(2))
-    val input = interpreter.getInputTensor(0)
-    val layout = CurrencyInputLayout.from(input.shape())
-    height = layout.height
-    width = layout.width
-    channelsFirst = layout.channelsFirst
-    inputType = input.dataType()
-    floatInput = if (inputType == DataType.FLOAT32) FloatArray(width * height * 3) else null
-    require(inputType == DataType.FLOAT32 || inputType == DataType.UINT8)
-    inputScale = input.quantizationParams().scale
-    inputZeroPoint = input.quantizationParams().zeroPoint
-    if (inputType == DataType.UINT8) require(inputScale > 0f)
-    val output = interpreter.getOutputTensor(0)
-    outputType = output.dataType()
-    require(outputType == DataType.FLOAT32 || outputType == DataType.UINT8)
-    outputScale = output.quantizationParams().scale
-    outputZeroPoint = output.quantizationParams().zeroPoint
-    if (outputType == DataType.UINT8) require(outputScale > 0f)
-    outputShape = output.shape()
-    require(outputShape.size == 3 && outputShape[0] == 1 &&
-      (outputShape[1] == 13 || outputShape[2] == 13))
-    inputBuffer = ByteBuffer.allocateDirect(width * height * 3 * inputType.byteSize()).order(ByteOrder.nativeOrder())
-    outputBuffer = ByteBuffer.allocateDirect(outputShape.reduce(Int::times) * outputType.byteSize()).order(ByteOrder.nativeOrder())
+    try {
+      val input = interpreter.getInputTensor(0)
+      val layout = CurrencyInputLayout.from(input.shape())
+      height = layout.height
+      width = layout.width
+      channelsFirst = layout.channelsFirst
+      inputType = input.dataType()
+      floatInput = if (inputType == DataType.FLOAT32) FloatArray(width * height * 3) else null
+      require(inputType == DataType.FLOAT32 || inputType == DataType.UINT8)
+      inputScale = input.quantizationParams().scale
+      inputZeroPoint = input.quantizationParams().zeroPoint
+      if (inputType == DataType.UINT8) require(inputScale > 0f)
+      val output = interpreter.getOutputTensor(0)
+      outputType = output.dataType()
+      require(outputType == DataType.FLOAT32 || outputType == DataType.UINT8)
+      outputScale = output.quantizationParams().scale
+      outputZeroPoint = output.quantizationParams().zeroPoint
+      if (outputType == DataType.UINT8) require(outputScale > 0f)
+      outputShape = output.shape()
+      require(outputShape.size == 3 && outputShape[0] == 1 &&
+        (outputShape[1] == 13 || outputShape[2] == 13))
+      inputBuffer = ByteBuffer.allocateDirect(width * height * 3 * inputType.byteSize()).order(ByteOrder.nativeOrder())
+      outputBuffer = ByteBuffer.allocateDirect(outputShape.reduce(Int::times) * outputType.byteSize()).order(ByteOrder.nativeOrder())
+    } catch (e: RuntimeException) {
+      interpreter.close()
+      throw e
+    }
   }
 
   fun detect(bitmap: Bitmap): CurrencyPrediction? {

@@ -101,14 +101,13 @@ internal class GeminiLiveResponse {
       clear()
       return false
     }
-    content.optJSONObject("outputTranscription")?.let { transcript.append(it.optString("text")) }
+    content.optJSONObject("outputTranscription")?.let { appendCapped(transcript, it.optString("text")) }
     content.optJSONObject("modelTurn")?.optJSONArray("parts")?.let { parts ->
       for (i in 0 until parts.length()) {
         val part = parts.getJSONObject(i)
-        if (!part.optBoolean("thought")) text.append(part.optString("text"))
+        if (!part.optBoolean("thought")) appendCapped(text, part.optString("text"))
       }
     }
-    if (transcript.length > MAX_LENGTH || text.length > MAX_LENGTH) throw IllegalStateException("Response too long")
     return content.optBoolean("generationComplete") || content.optBoolean("turnComplete")
   }
 
@@ -120,6 +119,13 @@ internal class GeminiLiveResponse {
   }
   /** Drops what came so far. */
   fun clear() { transcript.setLength(0); text.setLength(0) }
+
+  /** Appends only what still fits, so an overlong answer is truncated instead of failing. */
+  private fun appendCapped(builder: StringBuilder, value: String) {
+    val remaining = MAX_LENGTH - builder.length
+    if (remaining <= 0) return
+    builder.append(value.take(remaining))
+  }
 
   private companion object {
     const val MAX_LENGTH = 16_000

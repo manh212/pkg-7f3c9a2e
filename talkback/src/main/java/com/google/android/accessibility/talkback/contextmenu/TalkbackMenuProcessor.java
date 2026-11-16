@@ -23,6 +23,7 @@ import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.view.Menu;
 import android.view.MenuInflater;
+import android.view.View;
 import androidx.annotation.BoolRes;
 import androidx.annotation.IdRes;
 import androidx.annotation.StringRes;
@@ -504,7 +505,7 @@ public class TalkbackMenuProcessor {
                   .getResources()
                   .getBoolean(R.bool.pref_show_context_menu_clipboard_history_default));
       prefs.edit()
-          .putBoolean(settingKey, legacyEnabled && settingEnabled)
+          .putBoolean(settingKey, legacyEnabled || settingEnabled)
           .remove(legacyKey)
           .putBoolean(CLIPBOARD_HISTORY_MIGRATED, true)
           .apply();
@@ -1147,15 +1148,25 @@ public class TalkbackMenuProcessor {
         ListSubMenu subMenu = menu.addSubMenu(0, R.id.script_command, ORDER_SCRIPT_COMMANDS,
             service.getString(R.string.menu_gesture_script_command));
         for (ScriptMenuItem script : scripts) {
-          addAfterMenuCloses(subMenu, R.id.script_command, ORDER_SCRIPT_COMMANDS, script.getTitle(), script::run);
+          addAfterMenuCloses(subMenu, scriptItemId(script), ORDER_SCRIPT_COMMANDS, script.getTitle(), script::run);
         }
       }
       return;
     }
     for (ScriptMenuItem scriptItem : Scripts.menuItems()) {
       addAfterMenuCloses(
-          menu, R.id.script_command, ORDER_SCRIPT_COMMANDS, scriptItem.getTitle(), scriptItem::run);
+          menu, scriptItemId(scriptItem), ORDER_SCRIPT_COMMANDS, scriptItem.getTitle(), scriptItem::run);
     }
+  }
+
+  /**
+   * A stable id for one script's menu row, so that lookups by id find that script instead of
+   * the first one. The script command itself keeps {@code R.id.script_command}, which opens
+   * the submenu above.
+   */
+  private static int scriptItemId(ScriptMenuItem script) {
+    int id = script.getTitle().hashCode();
+    return id == R.id.script_command || id <= 0 ? View.generateViewId() : id;
   }
 
   private void addScriptTool(

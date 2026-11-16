@@ -23,6 +23,9 @@ class MagnificationCoordinateConverter() {
   /** Metadata for calculating coordinates. Null if magnification is not active. */
   private var config: MagnificationCoordinateConfig? = null
 
+  /** The service the display size is read from. Null when not watching. */
+  private var service: AccessibilityService? = null
+
   /** Local display window (after magnification). */
   private val displayLocal: Rect?
     get() = config?.displayLocal
@@ -67,6 +70,7 @@ class MagnificationCoordinateConverter() {
    * already listening.
    */
   fun startWatchingMagnification(service: AccessibilityService) {
+    this.service = service
     updateCoordinates(MagnificationCoordinateConfig.createConfig(service))
     if (magnificationChangedListener != null) {
       service.magnificationController.addListener(magnificationChangedListener)
@@ -74,6 +78,7 @@ class MagnificationCoordinateConverter() {
   }
 
   fun stopWatchingMagnification(service: AccessibilityService) {
+    this.service = null
     if (magnificationChangedListener != null) {
       service.magnificationController.removeListener(magnificationChangedListener)
     }
@@ -106,11 +111,13 @@ class MagnificationCoordinateConverter() {
   }
 
   private fun applyConfig(scale: Float, centerX: Int, centerY: Int) {
-    if (displayGlobal == null) {
+    val service = service ?: return
+    val fresh = MagnificationCoordinateConfig.createConfig(service)
+    if (fresh == null) {
+      updateCoordinates(null)
       return
     }
-    displayGlobal?.let {
-      updateCoordinates(MagnificationCoordinateConfig(scale, Point(centerX, centerY), it))
-    }
+    updateCoordinates(
+      MagnificationCoordinateConfig(scale, Point(centerX, centerY), fresh.displayGlobal))
   }
 }

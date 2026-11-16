@@ -130,7 +130,7 @@ object VoiceCommandAi {
     if (action == 0 || action > entries.size) {
       return Interpretation.None
     }
-    val repeat = number("repeat")?.coerceIn(2, 20) ?: 1
+    val repeat = number("repeat")?.coerceIn(1, 20) ?: 1
     return Interpretation.Action(entries[action - 1], repeat)
   }
 }

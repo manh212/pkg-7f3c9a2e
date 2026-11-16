@@ -89,11 +89,9 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
    */
   fun finish(result: (String?) -> Unit) {
     val alreadyFailed: Boolean
-    val waitForLast: Boolean
     synchronized(lock) {
       onDone = result
       alreadyFailed = failed || !ready
-      waitForLast = pending
     }
     if (alreadyFailed) {
       done(failedResult = true)
@@ -102,7 +100,7 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
     socket?.send(JSONObject().put("realtimeInput", JSONObject().put("audioStreamEnd", true)).toString())
     main.postDelayed(::timeOut, FINISH_TIMEOUT_MS)
     // Text may still be on its way even when no phrase was heard since the last.
-    main.postDelayed(complete, if (waitForLast) FINISH_TIMEOUT_MS else SETTLE_MS)
+    main.postDelayed(complete, FINISH_TIMEOUT_MS)
   }
 
   /** Ends the session without a result, as when SandFly turns off. */

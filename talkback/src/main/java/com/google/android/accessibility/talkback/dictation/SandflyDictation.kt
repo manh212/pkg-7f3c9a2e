@@ -45,6 +45,6 @@ object SandflyDictation {
 
   @JvmStatic
   fun stop() {
-    instance?.takeIf { it.isListening }?.start(null)
+    instance?.takeIf { it.isActive }?.start(null)
   }
 }

@@ -178,7 +178,7 @@ class QuickSettingsActivity : AppCompatActivity() {
   override fun onStop() {
     controls.stop()
     ShizukuShell.release()
-    handler.removeCallbacksAndMessages(null)
+    handler.removeCallbacks(refreshRunnable)
     background?.shutdownNow()
     background = null
     readingTiles = false

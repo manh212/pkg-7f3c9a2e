@@ -100,7 +100,8 @@ public final class ClipboardHistory {
           }
         }
       } catch (JSONException | RuntimeException e) {
-        preferences.edit().putBoolean("sandfly_history_restored", true).apply();
+        // Leave the flag unset: the corrupt data was not imported, so a later start
+        // can try again instead of treating the migration as done.
         return;
       }
       for (String value : previous) {

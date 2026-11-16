@@ -109,8 +109,12 @@ class TextPiecesTest {
   }
 
   @Test
-  fun whiteSpaceOnlyTextHasNoPieces() {
-    assertTrue(TextPieces.split("   \n ", Granularity.WORDS, Locale.US).isEmpty())
+  fun whiteSpaceOnlyTextIsOnePiece() {
+    val pieces = TextPieces.split("   \n ", Granularity.WORDS, Locale.US)
+    assertEquals(1, pieces.size)
+    assertEquals(0, pieces.single().start)
+    assertEquals("   \n ".length, pieces.single().end)
+    assertEquals("   \n ", "   \n ".substring(pieces.single().coreStart, pieces.single().coreEnd))
     assertTrue(TextPieces.split("", Granularity.CHARACTERS, Locale.US).isEmpty())
   }
 }

@@ -324,11 +324,10 @@ public class ContextMenu implements Menu {
 
       item.setIcon(icon);
 
-      if (i < outSpecificItems.length) {
-        outSpecificItems[i++] = item;
-      } else {
-        throw new ArrayIndexOutOfBoundsException();
+      if (outSpecificItems != null && i < outSpecificItems.length) {
+        outSpecificItems[i] = item;
       }
+      i++;
     }
 
     return infoList.size();

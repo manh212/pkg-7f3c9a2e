@@ -50,6 +50,11 @@ class VoiceCommandAiTest {
     assertEquals("scroll_down", action.entry.value)
     assertEquals(3, action.repeat)
 
+    val once =
+      VoiceCommandAi.parseAnswer("{\"action\": 1, \"repeat\": 1}", entries)
+        as VoiceCommandAi.Interpretation.Action
+    assertEquals(1, once.repeat)
+
     val clamped =
       VoiceCommandAi.parseAnswer("{\"action\": 1, \"repeat\": 25}", entries)
         as VoiceCommandAi.Interpretation.Action

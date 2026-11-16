@@ -53,7 +53,8 @@ public final class FocusActorHelper {
     // We mute the feedback of focused node only when it wakes up on the Home Screen and not on CB.
     return FormFactorUtils.isAndroidWear()
         && screenState.isInterpretFirstTimeWhenWakeUp()
-        && isHomeScreenShowing(screenState.getActiveWindow());
+        && isHomeScreenShowing(screenState.getActiveWindow())
+        && isNotCellBroadcastFocusOnScreen(nodeToFocus, screenState.getActiveWindow());
   }
 
   /**
@@ -66,8 +67,17 @@ public final class FocusActorHelper {
   private static boolean isNotCellBroadcastFocusOnScreen(
       @Nullable AccessibilityNodeInfoCompat nodeToFocus,
       @Nullable AccessibilityWindowInfo windowInfo) {
-    return isNotCellBroadcastPackageNode(nodeToFocus)
-        && isNotCellBroadcastPackageNode(AccessibilityWindowInfoUtils.getRootCompat(windowInfo));
+    if (!isNotCellBroadcastPackageNode(nodeToFocus)) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat root = AccessibilityWindowInfoUtils.getRootCompat(windowInfo);
+    try {
+      return isNotCellBroadcastPackageNode(root);
+    } finally {
+      if (root != null) {
+        root.recycle();
+      }
+    }
   }
 
   private static boolean isNotCellBroadcastPackageNode(@Nullable AccessibilityNodeInfoCompat node) {

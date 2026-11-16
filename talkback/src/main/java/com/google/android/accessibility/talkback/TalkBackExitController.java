@@ -117,21 +117,36 @@ public class TalkBackExitController implements AccessibilityEventListener, Scree
     switch (event.getEventType()) {
       case AccessibilityEvent.TYPE_TOUCH_INTERACTION_START -> {
         touchInteractionStartTime = SystemClock.uptimeMillis();
-        targetNode = null;
+        recycleTargetNode();
       }
       case AccessibilityEvent.TYPE_TOUCH_INTERACTION_END -> {
         // ExitBanner handles the click event action.
         if (targetNode != null
             && ((SystemClock.uptimeMillis() - touchInteractionStartTime) < TAP_TIMEOUT_MS)) {
           targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-          targetNode = null;
         }
+        recycleTargetNode();
       }
       case AccessibilityEvent.TYPE_VIEW_HOVER_ENTER -> {
         String viewResIdName = node == null ? "" : node.getViewIdResourceName();
-        targetNode = TextUtils.equals(viewResIdName, EXIT_BUTTON_RES_NAME) ? node : null;
+        if (TextUtils.equals(viewResIdName, EXIT_BUTTON_RES_NAME)) {
+          recycleTargetNode();
+          targetNode = node;
+        } else {
+          recycleTargetNode();
+          if (node != null) {
+            node.recycle();
+          }
+        }
       }
       default -> {}
+    }
+  }
+
+  private void recycleTargetNode() {
+    if (targetNode != null) {
+      targetNode.recycle();
+      targetNode = null;
     }
   }
 

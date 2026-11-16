@@ -26,7 +26,7 @@ public class ScreenDimensionUtils {
    * Get the current nav bar height
    *
    * @param context current context
-   * @return The current nav bar height in dps
+   * @return The current nav bar height in pixels
    */
   public static int getNavBarHeight(Context context) {
     int navBarHeight;
@@ -47,7 +47,7 @@ public class ScreenDimensionUtils {
    * Get the current status bar height
    *
    * @param context current context
-   * @return The current status bar height in dps
+   * @return The current status bar height in pixels
    */
   public static int getStatusBarHeight(Context context) {
     int statusBarHeight;

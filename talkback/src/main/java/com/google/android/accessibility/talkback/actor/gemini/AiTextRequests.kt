@@ -78,6 +78,10 @@ class AiTextRequests internal constructor(
       request,
       object : GeminiRestRequestPerformer.GeminiRestResponseCallback {
         override fun onResponse(response: DataFieldUtils.GeminiResponse) {
+          if (response.finishReason() != DataFieldUtils.FINISH_REASON_STOP) {
+            done(null, GeminiFailure.other("The answer was blocked or cut off"))
+            return
+          }
           val text = response.text()?.trim().orEmpty()
           if (text.isEmpty()) done(null, GeminiFailure.other("Empty answer")) else done(text, null)
         }

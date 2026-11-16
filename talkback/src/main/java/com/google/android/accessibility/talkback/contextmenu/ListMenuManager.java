@@ -571,7 +571,6 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
       ((RecyclerView) menuList).setLayoutManager(new LinearLayoutManager(menuList.getContext()));
     }
 
-    menuList.getContext().setTheme(R.style.A11yAlertDialogCustomViewTheme);
     if (FormFactorUtils.isAndroidWear()) {
       // Support Wear rotary input
       menuList.requestFocus();

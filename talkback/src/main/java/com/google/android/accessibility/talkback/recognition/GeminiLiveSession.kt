@@ -50,7 +50,7 @@ internal class GeminiLiveSession(
   /** Whether a frame was sent and its answer isn't complete. */
   @Volatile private var pending = false
   /** Whether any of the answer to the frame in [pending] came. */
-  private var answerStarted = false
+  @Volatile private var answerStarted = false
   @Volatile private var lastRequest = -REQUEST_INTERVAL_MS
   private val timeout = Runnable {
     LogUtils.w(TAG, "No answer in time (ready=%s)", ready)

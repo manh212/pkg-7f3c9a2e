@@ -1730,6 +1730,7 @@
     <string name="dictation_recognition_automatic">Tự động</string>
     <string name="dictation_recognition_automatic_using">Tự động: <xliff:g id="recognition" example="Rambler">%1$s</xliff:g></string>
     <string name="dictation_recognition_google">Nhận dạng giọng nói của Google trên thiết bị</string>
+    <string name="dictation_still_working">Vẫn đang xử lý phần nhập bằng giọng nói. Vui lòng chờ.</string>
     <string name="dictation_transcription_failed">Không chuyển được lời nói thành văn bản. Chưa nhập nội dung nào.</string>
     <string name="dictation_unavailable">Không có tính năng nhận dạng giọng nói</string>
     <string name="dictation_whisper_needs_model">Whisper, cần mô hình đã tải xuống</string>

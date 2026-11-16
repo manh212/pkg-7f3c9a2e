@@ -155,9 +155,12 @@ class AiDictation(
         return true
       }
       Phase.WORKING -> {
-        giveUp?.let {
-          handler.removeCallbacks(it)
-          it.run()
+        val fallback = giveUp
+        if (fallback == null) {
+          speak(service.getString(R.string.dictation_still_working))
+        } else {
+          handler.removeCallbacks(fallback)
+          fallback.run()
         }
         return true
       }
@@ -245,6 +248,10 @@ class AiDictation(
 
   val isListening: Boolean
     get() = phase != Phase.IDLE && onText != null
+
+  /** Whether a dictation is recording or being transcribed, for a field or a listener. */
+  internal val isActive: Boolean
+    get() = phase != Phase.IDLE
 
   /**
    * A dictated password stays on the phone, so Rambler, which sends the audio to Gemini, isn't used
@@ -607,7 +614,7 @@ class AiDictation(
 
   /** Stops recording and drops what was recorded, as when SandFly turns off. */
   fun cancelListening() {
-    if (onText == null) return
+    if (phase == Phase.IDLE) return
     generation++
     giveUp?.let { handler.removeCallbacks(it) }
     continuous?.cancel()

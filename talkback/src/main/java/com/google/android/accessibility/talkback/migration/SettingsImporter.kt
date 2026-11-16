@@ -25,6 +25,8 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Copies the settings and custom labels of SandFly on Meridian's first start.
@@ -40,8 +42,17 @@ object SettingsImporter {
   // A failed copy is tried again on the next starts, but not forever.
   private const val MAX_ATTEMPTS = 3
   private const val TEMP_SUFFIX = ".import"
+  // How long the first start waits for the import before starting without it. The
+  // import still finishes in the background, and its outcome is recorded.
+  private const val IMPORT_WAIT_TIMEOUT_MS = 5_000L
 
-  /** Imports the old app's settings, once. Call it first thing in Application.onCreate. */
+  /**
+   * Imports the old app's settings, once. Call it first thing in Application.onCreate. The
+   * provider query and file copies run on a background thread, so a slow or unresponsive
+   * old app cannot block the first start; the caller waits for it only up to
+   * [IMPORT_WAIT_TIMEOUT_MS], so the preferences are still loaded after the import in
+   * the usual case.
+   */
   @JvmStatic
   fun importIfNeeded(application: Application) {
     val context: Context = application
@@ -57,16 +68,35 @@ object SettingsImporter {
       LogUtils.i(TAG, "The user is locked, so settings are imported later")
       return
     }
-    val attempts = state.getInt(KEY_ATTEMPTS, 0) + 1
-    val done =
-      try {
-        importFromOldApp(context)
-        true
-      } catch (e: Exception) {
-        LogUtils.e(TAG, "Cannot import settings from %s: %s", AppIdMove.OLD_PACKAGE, e)
-        attempts >= MAX_ATTEMPTS
+    val finished = CountDownLatch(1)
+    Thread(
+        {
+          try {
+            val attempts = state.getInt(KEY_ATTEMPTS, 0) + 1
+            val done =
+              try {
+                importFromOldApp(context)
+                true
+              } catch (e: Exception) {
+                LogUtils.e(TAG, "Cannot import settings from %s: %s", AppIdMove.OLD_PACKAGE, e)
+                attempts >= MAX_ATTEMPTS
+              }
+            state.edit().putInt(KEY_ATTEMPTS, attempts).putBoolean(KEY_DONE, done).commit()
+          } finally {
+            finished.countDown()
+          }
+        },
+        "settings-import",
+      )
+      .start()
+    try {
+      if (!finished.await(IMPORT_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+        LogUtils.w(TAG, "Settings import is still running, starting without it")
       }
-    state.edit().putInt(KEY_ATTEMPTS, attempts).putBoolean(KEY_DONE, done).commit()
+    } catch (e: InterruptedException) {
+      Thread.currentThread().interrupt()
+      LogUtils.w(TAG, "Settings import wait interrupted, starting without it")
+    }
   }
 
   /** Returns true if SandFly is installed, signed with its own key. */

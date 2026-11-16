@@ -25,6 +25,8 @@ internal open class VietnameseKeyFeedback(context: Context) {
   private var pool: SoundPool? = null
   private val soundIds = HashMap<KeySound, Int>()
   private val soundStamps = HashMap<KeySound, Long>()
+  private val loadedIds = HashSet<Int>()
+  private val failedIds = HashSet<Int>()
 
   open fun play(vibrate: Boolean, sound: Boolean, keySound: KeySound, vibratePercent: Int) {
     if (!vibrate && !sound) return
@@ -45,6 +47,8 @@ internal open class VietnameseKeyFeedback(context: Context) {
     pool = null
     soundIds.clear()
     soundStamps.clear()
+    loadedIds.clear()
+    failedIds.clear()
   }
 
   internal fun amplitudeForPercent(percent: Int): Int =
@@ -67,11 +71,26 @@ internal open class VietnameseKeyFeedback(context: Context) {
           .setMaxStreams(MAX_STREAMS)
           .setAudioAttributes(FeedbackController.feedbackAttributes())
           .build()
-          .also { pool = it }
+          .also {
+            it.setOnLoadCompleteListener { _, sampleId, status ->
+              if (status == 0) {
+                loadedIds.add(sampleId)
+                failedIds.remove(sampleId)
+              } else {
+                failedIds.add(sampleId)
+                loadedIds.remove(sampleId)
+              }
+            }
+            pool = it
+          }
     val stamp = stampOf(keySound)
     val loaded = soundIds[keySound]
     if (loaded != null && soundStamps[keySound] == stamp) return
-    if (loaded != null) pool.unload(loaded)
+    if (loaded != null) {
+      pool.unload(loaded)
+      loadedIds.remove(loaded)
+      failedIds.remove(loaded)
+    }
     val soundId =
       when (keySound) {
         is KeySound.Builtin -> pool.load(appContext, keySound.resId, 1)
@@ -90,10 +109,11 @@ internal open class VietnameseKeyFeedback(context: Context) {
   private fun playSound(keySound: KeySound) {
     val pool = pool
     val soundId = soundIds[keySound]
-    if (pool == null || soundId == null || soundId == 0) {
+    if (pool == null || soundId == null || soundId == 0 || soundId in failedIds) {
       playTone()
       return
     }
+    if (soundId !in loadedIds) return
     if (pool.play(soundId, 1f, 1f, 1, 0, 1f) == 0) playTone()
   }
 

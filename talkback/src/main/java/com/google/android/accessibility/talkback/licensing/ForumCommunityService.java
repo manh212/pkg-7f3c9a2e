@@ -75,6 +75,18 @@ final class ForumCommunityService {
     }
   }
 
+  boolean identityMatchesDevice() throws Exception {
+    String request = DeviceLicenseManager.recoveryRequest(context);
+    JSONObject current = firebase.get("forumIdentity/" + uid);
+    return current.length() == 0 || request.equals(current.optString("request"));
+  }
+
+  void rebindInstallation() throws Exception {
+    String request = DeviceLicenseManager.recoveryRequest(context);
+    firebase.put("forumIdentity/" + uid,
+        new JSONObject().put("request", request).put("fingerprint", request.substring(7)));
+  }
+
   String currentName() throws Exception {
     bindInstallation();
     JSONObject profile = firebase.get("forumProfiles/" + uid);
@@ -256,7 +268,10 @@ final class ForumCommunityService {
     firebase.put("forumReports/" + topic + "/" + id,
         new JSONObject().put("uid", uid).put("post", post)
             .put("createdAt", FirebaseRest.timestamp()));
-    if (isModerator() || isOwner()) hide(topic, post);
+    if (isModerator() || isOwner()) {
+      try { hide(topic, post); }
+      catch (Exception ignored) {}
+    }
   }
 
   void reportUser(String topic, String post, String target) throws Exception {

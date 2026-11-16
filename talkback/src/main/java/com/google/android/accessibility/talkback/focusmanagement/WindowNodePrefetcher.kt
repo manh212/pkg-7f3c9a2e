@@ -177,6 +177,7 @@ object WindowNodePrefetcher {
                 val walk = Walk(SystemClock.uptimeMillis() + MAX_WAIT_MS)
                 walk.submit(root.unwrap())
                 walk.await()
+                walk.awaitDrained()
               }
             } finally {
               root.recycle()
@@ -269,6 +270,14 @@ object WindowNodePrefetcher {
         }
       }
       stopped = true
+    }
+
+    fun awaitDrained() {
+      lock.withLock {
+        while (pending > 0) {
+          finished.await()
+        }
+      }
     }
   }
 }

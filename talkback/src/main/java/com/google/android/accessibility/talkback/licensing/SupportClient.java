@@ -99,6 +99,7 @@ public final class SupportClient {
     try {
       SupportStore store = new SupportStore(context);
       JSONObject queue = store.queue();
+      boolean failed = false;
       for (String id : SupportProtocol.keys(queue)) {
         if (stopped.getAsBoolean()) return true;
         JSONObject draft;
@@ -114,10 +115,10 @@ public final class SupportClient {
           store.remove(id);
         } catch (Exception e) {
           store.failed(id, error(e));
-          return true;
+          failed = true;
         } finally { synchronized (SENDING) { SENDING.remove(id); } }
       }
-      return false;
+      return failed;
     } catch (Exception e) { return true; }
   }
 

@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.permission;
 
 import android.Manifest.permission;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import androidx.fragment.app.FragmentActivity;
 import android.text.TextUtils;
@@ -34,9 +35,9 @@ public class PermissionRequestActivity extends FragmentActivity {
   public static final String GRANT_RESULTS = "grant_results";
 
   /** Action key of permission granted. */
-  public static final String ACTION_DONE = "done";
+  public static final String ACTION_DONE = "io.github.aaron_gh.meridian.permission.DONE";
   /** Action key of permission rejected. */
-  public static final String ACTION_REJECTED = "rejected";
+  public static final String ACTION_REJECTED = "io.github.aaron_gh.meridian.permission.REJECTED";
 
   /** Create the activity screen to ask for the requesting permissions */
   @Override
@@ -51,6 +52,7 @@ public class PermissionRequestActivity extends FragmentActivity {
 
     String[] permissions = getIntent().getStringArrayExtra(PERMISSIONS);
     if (permissions == null || permissions.length == 0) {
+      finish();
       return;
     }
 
@@ -79,11 +81,22 @@ public class PermissionRequestActivity extends FragmentActivity {
   public void onRequestPermissionsResult(
       int requestCode, String[] permissions, int[] grantResults) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    if (requestCode != 1) {
+      return;
+    }
+    boolean granted = false;
+    for (int result : grantResults) {
+      if (result == PackageManager.PERMISSION_GRANTED) {
+        granted = true;
+        break;
+      }
+    }
     Intent broadcastIntent = new Intent();
     // finish this activity
     finish();
     // send the broadcast
-    broadcastIntent.setAction(ACTION_DONE);
+    broadcastIntent.setAction(granted ? ACTION_DONE : ACTION_REJECTED);
+    broadcastIntent.setPackage(getPackageName());
     broadcastIntent.putExtra(PERMISSIONS, permissions);
     broadcastIntent.putExtra(GRANT_RESULTS, grantResults);
     sendBroadcast(broadcastIntent);

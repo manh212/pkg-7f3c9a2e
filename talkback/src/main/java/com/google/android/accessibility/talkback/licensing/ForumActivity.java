@@ -51,6 +51,7 @@ public final class ForumActivity extends ComponentActivity {
   private String focusAfterRefresh;
   private final Set<String> pendingReports = new HashSet<>();
   private final Set<String> submittedReports = new HashSet<>();
+  private final Set<String> shownPinnedTopics = new HashSet<>();
   private interface Task { void run() throws Exception; }
 
   @Override public void onCreate(Bundle state) {
@@ -221,7 +222,7 @@ public final class ForumActivity extends ComponentActivity {
         if (!self.equals(post.optString("uid"))) count++;
       }
       String oldest = posts.get(posts.size() - 1);
-      if (finished || posts.size() < 100 || oldest.equals(before)) break;
+      if (finished || posts.size() < 50 || oldest.equals(before)) break;
       before = oldest;
     }
     return count;
@@ -308,10 +309,10 @@ public final class ForumActivity extends ComponentActivity {
       try { value = ForumProtocol.text(field.getText().toString(), 2, 60, "Tên hiển thị"); }
       catch (Exception error) { field.setError(error.getMessage()); return; }
       status.setText("Đang lưu tên…");
+      int ticket = generation;
       work(() -> {
         ForumCommunityService client = new ForumCommunityService(this);
         client.changeName(value);
-        int ticket = generation;
         ui(ticket, () -> { status.setText("Đã cập nhật tên hiển thị."); field.setText(value); });
       });
     });
@@ -343,11 +344,20 @@ public final class ForumActivity extends ComponentActivity {
       }
       final long next = oldest;
       if (before == null) {
+        shownPinnedTopics.clear();
         for (java.util.Iterator<String> iter = pinned.keys(); iter.hasNext();) {
           String id = iter.next();
           if (!ForumProtocol.validId(id) || records.has(id)) continue;
           JSONObject entry = service.get("forumTopics/" + id);
           if (entry.length() > 0) records.put(id, entry);
+        }
+        for (java.util.Iterator<String> iter = pinned.keys(); iter.hasNext();) {
+          String id = iter.next();
+          if (records.has(id)) shownPinnedTopics.add(id);
+        }
+      } else {
+        for (String id : shownPinnedTopics) {
+          if (pinned.has(id)) records.remove(id);
         }
       }
       List<String> ids = new ArrayList<>();
@@ -553,6 +563,8 @@ public final class ForumActivity extends ComponentActivity {
       }
       JSONObject records = service.recent("forumPosts/" + id, "$key", 20, before);
       List<String> loaded = ForumProtocol.newest(records);
+      boolean more = loaded.size() == 20;
+      if (before != null) loaded.remove(before);
       String oldest = loaded.isEmpty() ? null : loaded.get(loaded.size() - 1);
       JSONObject pinnedPosts = service.get("forumPinnedPosts/" + id);
       if (before == null) {
@@ -564,6 +576,7 @@ public final class ForumActivity extends ComponentActivity {
         }
       }
       List<String> ids = ForumProtocol.newest(records);
+      if (before != null) ids.remove(before);
       ids.sort((a, b) -> {
         int priority = Boolean.compare(pinnedPosts.has(b), pinnedPosts.has(a));
         return priority == 0 ? b.compareTo(a) : priority;
@@ -716,7 +729,7 @@ public final class ForumActivity extends ComponentActivity {
           }
           restoreForumFocus(comment, "post:" + postId);
         }
-        if (loaded.size() == 20 && oldest != null) button("Bình luận cũ hơn", () -> thread(id, oldest));
+        if (more && oldest != null) button("Bình luận cũ hơn", () -> thread(id, oldest));
       });
     });
   }

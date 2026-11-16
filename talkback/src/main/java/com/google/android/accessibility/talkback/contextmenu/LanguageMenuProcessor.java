@@ -19,7 +19,6 @@ package com.google.android.accessibility.talkback.contextmenu;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 
 import android.content.Context;
-import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import com.google.android.accessibility.talkback.ActorState;
@@ -31,8 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Configure dynamic menu items on the language context menu. */
@@ -49,16 +46,20 @@ public class LanguageMenuProcessor {
       return null;
     }
 
-    SortedSet<Locale> languagesAvailable =
-        new TreeSet<>(
-            (o1, o2) ->
-                LanguageActor.getLocaleString(context, o1)
-                    .compareTo(LanguageActor.getLocaleString(context, o2)));
-    // Sorts the raw set into the new available set.
-    languagesAvailable.addAll(languagesAvailableRawSet);
+    List<Locale> languagesAvailable = new ArrayList<>(languagesAvailableRawSet);
+    // Sorts the raw set into the new available list. The display string alone does not
+    // identify a locale: two installed locales can share one (Serbian Latin and Cyrillic),
+    // so the locale tag breaks the tie instead of letting one collapse the other.
+    languagesAvailable.sort(
+        (o1, o2) -> {
+          int byDisplay =
+              LanguageActor.getLocaleString(context, o1)
+                  .compareTo(LanguageActor.getLocaleString(context, o2));
+          return byDisplay != 0
+              ? byDisplay
+              : o1.toLanguageTag().compareTo(o2.toLanguageTag());
+        });
 
-    LanguageMenuItemClickListener clickListener =
-        new LanguageMenuItemClickListener(context, pipeline, languagesAvailable);
     List<ContextMenuItem> menuItems = new ArrayList<>();
 
     for (Locale locale : languagesAvailable) {
@@ -69,7 +70,8 @@ public class LanguageMenuProcessor {
               Menu.NONE,
               Menu.NONE,
               LanguageActor.getLocaleString(context, locale));
-      val.setOnMenuItemClickListener(clickListener);
+      val.setOnMenuItemClickListener(
+          new LanguageMenuItemClickListener(pipeline, locale));
       menuItems.add(val);
     }
 
@@ -122,14 +124,11 @@ public class LanguageMenuProcessor {
   }
 
   private static class LanguageMenuItemClickListener implements OnContextMenuItemClickListener {
-    private final Context context;
-    private final Set<Locale> languages;
+    private final Locale locale;
     private final Pipeline.FeedbackReturner pipeline;
 
-    public LanguageMenuItemClickListener(
-        Context context, Pipeline.FeedbackReturner pipeline, Set<Locale> languages) {
-      this.context = context;
-      this.languages = languages;
+    public LanguageMenuItemClickListener(Pipeline.FeedbackReturner pipeline, Locale locale) {
+      this.locale = locale;
       this.pipeline = pipeline;
     }
 
@@ -138,17 +137,7 @@ public class LanguageMenuProcessor {
       if (item == null) {
         return false;
       }
-      final CharSequence itemTitle = item.getTitle();
-      Locale targetLocale = null;
-
-      // Scanning all entries is fine because the collection of locales is small.
-      for (Locale locale : languages) {
-        if (TextUtils.equals(itemTitle, LanguageActor.getLocaleString(context, locale))) {
-          targetLocale = locale;
-          break;
-        }
-      }
-      pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.setLanguage(targetLocale));
+      pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.setLanguage(locale));
       return true;
     }
   }

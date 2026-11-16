@@ -190,6 +190,12 @@ public class IpcService extends Service {
     return messenger.getBinder();
   }
 
+  @Override
+  public void onDestroy() {
+    super.onDestroy();
+    setClientCallback(null);
+  }
+
   /** The listener to be notified when the server is destroyed. */
   public interface ServerOnDestroyListener {
     /** Invoked when the server is destroyed. */

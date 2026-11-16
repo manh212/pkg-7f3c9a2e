@@ -159,7 +159,7 @@ public class SpeechRateAndPitchActor {
   }
 
   public int getSpeechRatePercentage() {
-    return speechRatePercent;
+    return (int) (getCurrentOrDefaultSpeechRate(/* isCurrent= */ true) * 100);
   }
 
   /**
@@ -216,7 +216,7 @@ public class SpeechRateAndPitchActor {
   }
 
   public float getSpeechPitch() {
-    return speechPitch;
+    return getCurrentOrDefaultSpeechPitch(/* isCurrent= */ true);
   }
 
   /**

@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONException
 import org.json.JSONObject
 
-/** Sends Gemini requests to the [AiService] the user set up, as chat requests. */
+/** Sends Gemini requests to the [AiService] the user set up, as chat or Anthropic Messages requests. */
 internal class AiServiceRequestPerformer(private val requestQueue: RequestQueue) {
   constructor(context: Context) : this(GeminiRestRequestPerformer.sharedQueue(context))
 
@@ -54,9 +54,11 @@ internal class AiServiceRequestPerformer(private val requestQueue: RequestQueue)
       finishFailure(session, GeminiFailure.other("The AI service address must start with https"))
       return
     }
-    val chatRequest =
+    val anthropic = AiService.isAnthropic(address)
+    val requestBody =
       try {
-        AiService.toChatRequest(geminiRequest, model)
+        if (anthropic) AiService.toAnthropicRequest(geminiRequest, model)
+        else AiService.toChatRequest(geminiRequest, model)
       } catch (e: JSONException) {
         finishFailure(session, GeminiFailure.other("Could not make the request: $e"))
         return
@@ -67,13 +69,16 @@ internal class AiServiceRequestPerformer(private val requestQueue: RequestQueue)
       object :
         JsonObjectRequest(
           Request.Method.POST,
-          AiService.chatUrl(address),
-          chatRequest,
+          AiService.requestUrl(address),
+          requestBody,
           { response ->
             removeRequest(session, requestReference.get())
             if (isActive(session)) {
               try {
-                finishResponse(session, AiService.parseChatResponse(response, wantsJson))
+                val parsed =
+                  if (anthropic) AiService.parseAnthropicResponse(response, wantsJson)
+                  else AiService.parseChatResponse(response, wantsJson)
+                finishResponse(session, parsed)
               } catch (e: JSONException) {
                 finishFailure(session, GeminiFailure.other("Could not read the answer: $e"))
               }
@@ -87,7 +92,14 @@ internal class AiServiceRequestPerformer(private val requestQueue: RequestQueue)
         override fun getHeaders(): MutableMap<String, String> {
           val headers = HashMap(super.getHeaders())
           // Sent in a header rather than the address, which Volley and the system log.
-          if (apiKey.isNotEmpty()) headers["Authorization"] = "Bearer $apiKey"
+          if (apiKey.isNotEmpty()) {
+            if (anthropic) {
+              headers["x-api-key"] = apiKey
+              headers["anthropic-version"] = ANTHROPIC_VERSION
+            } else {
+              headers["Authorization"] = "Bearer $apiKey"
+            }
+          }
           return headers
         }
       }
@@ -187,5 +199,6 @@ internal class AiServiceRequestPerformer(private val requestQueue: RequestQueue)
     const val TIMEOUT_MS = 60_000
     // Retrying a request that timed out sends and pays for the same slow request again.
     const val MAX_RETRIES = 0
+    const val ANTHROPIC_VERSION = "2023-06-01"
   }
 }

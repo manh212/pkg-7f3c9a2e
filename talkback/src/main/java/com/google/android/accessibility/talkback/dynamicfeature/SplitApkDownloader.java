@@ -72,6 +72,9 @@ public class SplitApkDownloader implements Downloader {
   /** Creates a request to install the module. */
   @Override
   public void download(Context context, String... moduleNames) {
+    if (moduleNames == null || moduleNames.length == 0) {
+      return;
+    }
     ImmutableList<String> moduleNameList = ImmutableList.of(moduleNames[0]);
     DownloadState fakeStateInstalled =
         DownloadState.create(

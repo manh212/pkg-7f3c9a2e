@@ -252,6 +252,89 @@ class AiServiceTest {
   }
 
   @Test
+  fun aChosenServiceThatIsNotSetUpIsNotSwitchedAwayFrom() {
+    val prefs = FakeSharedPreferences()
+    AiProvider.GEMINI.setApiKey(prefs, "gemini key")
+    AiProvider.CLAUDE.setApiKey(prefs, "key")
+    AiProvider.CLAUDE.setModel(prefs, "claude-model")
+    AiProvider.setActive(prefs, AiProvider.CLAUDE)
+    AiProvider.CLAUDE.setModel(prefs, " ")
+
+    assertEquals(AiProvider.GEMINI, AiProvider.active(prefs))
+    assertEquals(AiProvider.CLAUDE.id, prefs.getString(AiProvider.PREF_ACTIVE, null))
+  }
+
+  @Test
+  fun anthropicAddressUsesTheMessagesApi() {
+    assertTrue(AiService.isAnthropic("https://api.anthropic.com/v1"))
+    assertFalse(AiService.isAnthropic("https://api.mistral.ai/v1"))
+    assertEquals(
+      "https://api.anthropic.com/v1/messages",
+      AiService.requestUrl("https://api.anthropic.com/v1/"),
+    )
+    assertEquals(
+      "https://api.anthropic.com/v1/messages",
+      AiService.requestUrl("https://api.anthropic.com/v1/messages"),
+    )
+    assertEquals(
+      "https://api.mistral.ai/v1/chat/completions",
+      AiService.requestUrl("https://api.mistral.ai/v1/"),
+    )
+  }
+
+  @Test
+  fun geminiRequestBecomesAnAnthropicMessagesRequest() {
+    val request = AiService.toAnthropicRequest(geminiRequest(), "claude-sonnet-5-5")
+
+    assertEquals("claude-sonnet-5-5", request.getString("model"))
+    assertEquals(4096, request.getInt("max_tokens"))
+    val messages = request.getJSONArray("messages")
+    assertEquals(1, messages.length())
+    val message = messages.getJSONObject(0)
+    assertEquals("user", message.getString("role"))
+    val content = message.getJSONArray("content")
+    assertEquals("text", content.getJSONObject(0).getString("type"))
+    assertEquals("Describe this image.", content.getJSONObject(0).getString("text"))
+    assertEquals("image", content.getJSONObject(1).getString("type"))
+    val source = content.getJSONObject(1).getJSONObject("source")
+    assertEquals("base64", source.getString("type"))
+    assertEquals("image/jpeg", source.getString("media_type"))
+    assertEquals("QUJD", source.getString("data"))
+  }
+
+  private fun anthropicResponse(text: String, stopReason: String) =
+    JSONObject()
+      .put(
+        "content",
+        JSONArray().put(JSONObject().put("type", "text").put("text", text)),
+      )
+      .put("stop_reason", stopReason)
+
+  @Test
+  fun anthropicAnswerBecomesAGeminiAnswer() {
+    val response =
+      AiService.parseAnthropicResponse(anthropicResponse(" A cat on a sofa. ", "end_turn"), false)
+    assertEquals("A cat on a sofa.", response.text())
+    assertEquals(DataFieldUtils.FINISH_REASON_STOP, response.finishReason())
+  }
+
+  @Test
+  fun anthropicAnswerCutOffAtTheLengthLimitIsStillAnAnswer() {
+    val response =
+      AiService.parseAnthropicResponse(anthropicResponse("A cat on", "max_tokens"), false)
+    assertEquals("A cat on", response.text())
+    assertEquals(DataFieldUtils.FINISH_REASON_STOP, response.finishReason())
+  }
+
+  @Test
+  fun anthropicBlockedAnswerIsNotAStop() {
+    val response =
+      AiService.parseAnthropicResponse(anthropicResponse("", "refusal"), false)
+    assertNull(response.text())
+    assertEquals("REFUSAL", response.finishReason())
+  }
+
+  @Test
   fun emptyOrFilteredAnswerIsNotAStop() {
     val empty = AiService.parseChatResponse(chatResponse(" "), false)
     assertNull(empty.text())

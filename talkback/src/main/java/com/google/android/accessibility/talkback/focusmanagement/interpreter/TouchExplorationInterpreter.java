@@ -147,7 +147,10 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
           setHoverAside(event, eventId);
           result = false;
         } else {
-          pendingHover = null;
+          if (pendingHover != null) {
+            pendingHover.recycle();
+            pendingHover = null;
+          }
           result = handleHoverEnterEvent(event, eventId);
         }
       }
@@ -161,6 +164,9 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
   @SuppressWarnings("deprecation") // AccessibilityEvent(AccessibilityEvent) needs Android 11.
   private void setHoverAside(AccessibilityEvent event, EventId eventId) {
     // The event is recycled after this call, so keep a copy.
+    if (pendingHover != null) {
+      pendingHover.recycle();
+    }
     pendingHover = AccessibilityEvent.obtain(event);
     pendingHoverEventId = eventId;
     if (!pendingHoverPosted) {
@@ -179,11 +185,15 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
     if (handleHoverEnterEvent(event, pendingHoverEventId)) {
       setInputTouchMode();
     }
+    event.recycle();
   }
 
   /** @return {@code true} if any accessibility action is successfully performed. */
   private boolean handleTouchInteractionStartEvent(EventId eventId) {
-    pendingHover = null;
+    if (pendingHover != null) {
+      pendingHover.recycle();
+      pendingHover = null;
+    }
     postDelayHandler.executePendingTouchEndAction();
     setLastTouchedNode(/*touchedNode= */ null);
     postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ false);

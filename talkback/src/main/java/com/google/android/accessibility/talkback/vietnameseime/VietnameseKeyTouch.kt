@@ -8,7 +8,8 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 internal class VietnameseKeyTouch(
   private val doubleTapTimeout: Long,
   private val doubleTapSlop: Int,
-  private val firstTaps: MutableMap<Key, Tap> = LinkedHashMap(),
+  private val firstTaps: MutableMap<Pair<Int, Key>, Tap> = LinkedHashMap(),
+  private val pointerId: Int = 0,
 ) {
   data class Key(val id: String, val textEntry: Boolean = false, val editorAction: Boolean = false)
 
@@ -26,7 +27,7 @@ internal class VietnameseKeyTouch(
   }
 
   fun explore(key: Key?) {
-    selected?.let { firstTaps.remove(it) }
+    selected?.let { firstTaps.remove(pointerId to it) }
     exploredOntoKey = key != null
     selected = key
     exploring = true
@@ -34,7 +35,7 @@ internal class VietnameseKeyTouch(
 
   fun hasPendingFirstTap(key: Key, x: Float, y: Float, now: Long): Boolean {
     pruneStaleFirstTaps(now)
-    val prior = firstTaps[key] ?: return false
+    val prior = firstTaps[pointerId to key] ?: return false
     val dx = x - prior.x
     val dy = y - prior.y
     return now - prior.time in 0..doubleTapTimeout &&
@@ -43,7 +44,7 @@ internal class VietnameseKeyTouch(
 
   fun release(key: Key?, method: Int, x: Float, y: Float, time: Long, tap: Boolean): Key? {
     if (key == null) {
-      selected?.let { firstTaps.remove(it) }
+      selected?.let { firstTaps.remove(pointerId to it) }
       cancel()
       return null
     }
@@ -54,16 +55,16 @@ internal class VietnameseKeyTouch(
       return target
     }
     if (!tap) {
-      firstTaps.remove(target)
+      firstTaps.remove(pointerId to target)
       return null
     }
     if (exploredOntoKey) return null
     if (hasPendingFirstTap(target, x, y, time)) {
-      firstTaps.remove(target)
+      firstTaps.remove(pointerId to target)
       cancel()
       return target
     }
-    firstTaps[target] = Tap(target, x, y, time)
+    firstTaps[pointerId to target] = Tap(target, x, y, time)
     return null
   }
 

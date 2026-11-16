@@ -169,8 +169,14 @@ public final class DeviceLicenseManager {
     String cached = prefs(context).getString("policy", "");
     LicensePolicy next = LicensePolicy.verify(request, license,
         RecoveryProtocol.publicKey(BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY));
-    LicensePolicy old = cached.isEmpty() ? null : LicensePolicy.verify(request, cached,
-        RecoveryProtocol.publicKey(BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY));
+    LicensePolicy old = null;
+    if (!cached.isEmpty()) {
+      try {
+        old = LicensePolicy.verify(request, cached,
+            RecoveryProtocol.publicKey(BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY));
+      } catch (Exception ignored) {
+      }
+    }
     if (old != null && (next.revision < old.revision
         || (next.revision == old.revision && !cached.equals(license)))) {
       return false;

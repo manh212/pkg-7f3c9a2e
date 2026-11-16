@@ -80,6 +80,7 @@ object LiveRecognition {
     val current = activity.get()
     if (current != null) {
       if (current.canUseRotor()) current.toggle(selected)
+      else speak(context.getString(R.string.live_recognition_toggle_unavailable), interrupt = true)
     } else {
       context.startActivity(Intent(context, LiveRecognitionActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)

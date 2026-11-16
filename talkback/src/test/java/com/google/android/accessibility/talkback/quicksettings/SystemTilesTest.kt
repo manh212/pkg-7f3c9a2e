@@ -87,4 +87,41 @@ class SystemTilesTest {
   fun ignoresTextWithoutTiles() {
     assertTrue(SystemTiles.parse("Can't find service: com.android.systemui").isEmpty())
   }
+
+  @Test
+  fun cameraBlockWithoutToggleIsNotJudgedFromMicrophone() {
+    val dump =
+      """
+          SENSOR PRIVACY
+          user_id=0
+          sensor=1
+          toggle_type=1
+          state_type=1
+          user_id=0
+          sensor=2
+          state_type=1
+      """
+        .trimIndent()
+    val privacy = SensorPrivacy.parse(dump, 0)
+    assertEquals(true, privacy[SensorPrivacy.MICROPHONE])
+    assertEquals(false, privacy[SensorPrivacy.CAMERA])
+  }
+
+  @Test
+  fun stateWithoutSensorLeavesThePreviousVerdictAlone() {
+    val dump =
+      """
+          SENSOR PRIVACY
+          user_id=0
+          sensor=2
+          toggle_type=1
+          state_type=1
+          user_id=0
+          toggle_type=1
+          state_type=0
+      """
+        .trimIndent()
+    val privacy = SensorPrivacy.parse(dump, 0)
+    assertEquals(true, privacy[SensorPrivacy.CAMERA])
+  }
 }

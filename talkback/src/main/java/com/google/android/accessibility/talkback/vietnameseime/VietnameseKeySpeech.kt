@@ -99,7 +99,6 @@ internal class VietnameseKeySpeech(
         scheduleNext(minOf(editDue, previewDue, previewExpiresAt))
         return
       }
-      if (key === edit) selected?.finished = true
       lastPreview = key.takeUnless { it === edit }
       key.submitted = true
       var completed = false

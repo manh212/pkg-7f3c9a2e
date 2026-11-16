@@ -159,7 +159,9 @@ object TextPieces {
   /**
    * Turns the segments between [bounds] into pieces, with the white space at their ends as part
    * of the piece rather than shown. White space with no text gives no piece of its own: it goes
-   * with the piece before it, or at the start of the text, with the first piece.
+   * with the piece before it, or at the start of the text, with the first piece. Text that is
+   * white space only is one piece of its own, so that it can be seen, selected and deleted
+   * instead of leaving the editor with nothing to show.
    */
   private fun attachWhiteSpace(text: String, bounds: List<Int>): List<Piece> {
     val pieces = ArrayList<Piece>()
@@ -179,6 +181,9 @@ object TextPieces {
       }
       val start = if (pieces.isEmpty() && leading >= 0) leading else segmentStart
       pieces += Piece(start, coreStart, coreEnd, segmentEnd)
+    }
+    if (pieces.isEmpty() && leading >= 0) {
+      pieces += Piece(leading, leading, text.length, text.length)
     }
     return pieces
   }

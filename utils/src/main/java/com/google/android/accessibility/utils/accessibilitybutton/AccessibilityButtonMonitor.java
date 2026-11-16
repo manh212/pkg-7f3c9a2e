@@ -111,6 +111,8 @@ public class AccessibilityButtonMonitor {
 
   public void initAccessibilityButton(@NonNull AccessibilityButtonMonitorCallback callback) {
     mCallback = callback;
+    mButtonState = PENDING;
+    mHandler.resetSupportabilityNotification();
     if (!FeatureSupport.supportAccessibilityButton()) {
       LogUtils.d(TAG, "Accessibility button is not supported for pre-O devices.");
       // A11y button is not supported on pre-O devices.
@@ -180,7 +182,9 @@ public class AccessibilityButtonMonitor {
   }
 
   public void shutdown() {
-    if (!FeatureSupport.supportAccessibilityButton()) {
+    mHandler.removeCallbacksAndMessages(null);
+    mCallback = null;
+    if (!FeatureSupport.supportAccessibilityButton() || accessibilityButtonCallback == null) {
       return;
     }
     // Unregister callback from AccessibilityButtonController.
@@ -197,6 +201,7 @@ public class AccessibilityButtonMonitor {
           .getAccessibilityButtonController()
           .unregisterAccessibilityButtonCallback(accessibilityButtonCallback);
     }
+    accessibilityButtonCallback = null;
   }
 
   /**
@@ -282,11 +287,15 @@ public class AccessibilityButtonMonitor {
         return;
       }
       switch (msg.what) {
-        case MSG_BUTTON_CLICKED -> parent.mCallback.onAccessibilityButtonClicked();
+        case MSG_BUTTON_CLICKED -> {
+          if (parent.mCallback != null) {
+            parent.mCallback.onAccessibilityButtonClicked();
+          }
+        }
         case MSG_CONFIRM_BUTTON_NOT_SUPPORTED -> {
           parent.mButtonState = NOT_SUPPORTED;
           // Make sure that we only notify once.
-          if (!mHasNotifiedSupportability) {
+          if (!mHasNotifiedSupportability && parent.mCallback != null) {
             LogUtils.d(TAG, "Notify that a11y button is not supported.");
             mHasNotifiedSupportability = true;
             parent.mCallback.onConfirmSupportability(false);
@@ -295,7 +304,7 @@ public class AccessibilityButtonMonitor {
         case MSG_CONFIRM_BUTTON_SUPPORTED -> {
           parent.mButtonState = SUPPORTED;
           // Make sure that we only notify once.
-          if (!mHasNotifiedSupportability) {
+          if (!mHasNotifiedSupportability && parent.mCallback != null) {
             LogUtils.d(TAG, "Notify that a11y button is supported.");
             parent.mCallback.onConfirmSupportability(true);
             mHasNotifiedSupportability = true;
@@ -311,7 +320,7 @@ public class AccessibilityButtonMonitor {
                     parent.mService.getAccessibilityButtonController());
           }
           parent.mButtonState = isAvailable ? SUPPORTED : NOT_SUPPORTED;
-          if (!mHasNotifiedSupportability) {
+          if (!mHasNotifiedSupportability && parent.mCallback != null) {
             LogUtils.d(
                 TAG,
                 "Delayed. Notify that a11y button is %s.",
@@ -322,6 +331,10 @@ public class AccessibilityButtonMonitor {
         }
         default -> {}
       }
+    }
+
+    private void resetSupportabilityNotification() {
+      mHasNotifiedSupportability = false;
     }
 
     private void postDelayedConfirmAccessibilityButtonSupportability(long delay) {

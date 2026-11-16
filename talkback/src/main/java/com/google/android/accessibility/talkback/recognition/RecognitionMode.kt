@@ -48,10 +48,8 @@ internal class RecognitionAnnouncements {
     val normalized = text.trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT)
     if (normalized.isEmpty() || normalized.trimEnd('.', '!', '?') == "none") return false
     val previous = last[source]
-    // Currency uses a shorter repeat interval, while other sources keep the four-second minimum.
-    val minIntervalMs = minOf(MIN_INTERVAL_MS, repeatIntervalMs)
-    if (previous != null && (now - previous.second < minIntervalMs ||
-        (normalized == previous.first && now - previous.second < repeatIntervalMs))) return false
+    if (previous != null && normalized == previous.first &&
+      now - previous.second < repeatIntervalMs) return false
     last[source] = normalized to now
     return true
   }
@@ -59,7 +57,6 @@ internal class RecognitionAnnouncements {
   fun clear() = last.clear()
 
   companion object {
-    private const val MIN_INTERVAL_MS = 4_000L
     const val REPEAT_INTERVAL_MS = 30_000L
   }
 }

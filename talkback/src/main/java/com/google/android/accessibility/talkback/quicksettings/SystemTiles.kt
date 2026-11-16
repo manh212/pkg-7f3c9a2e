@@ -20,13 +20,13 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.google.android.accessibility.talkback.shizuku.ShizukuGrants
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.IOException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** An app's tile, which apps offer for the system's quick settings. */
 data class AppTile(val component: ComponentName, val label: CharSequence, val appName: CharSequence)
@@ -135,7 +135,9 @@ object Dumpsys {
   private const val TIMEOUT_MS = 3_000L
   private const val MAX_CHARS = 1_000_000
 
-  private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+  private val killer = Executors.newSingleThreadScheduledExecutor { runnable ->
+    Thread(runnable, "DumpsysKill").apply { isDaemon = true }
+  }
 
   /** Must not run on the main thread. Returns null if `dumpsys` can't run. */
   fun run(vararg args: String): String? {
@@ -148,8 +150,7 @@ object Dumpsys {
       }
     // Reading a pipe can't be interrupted, so a dumpsys that hangs is killed instead, which ends
     // the read.
-    val kill = Runnable { process.destroyForcibly() }
-    mainHandler.postDelayed(kill, TIMEOUT_MS)
+    val kill = killer.schedule({ process.destroyForcibly() }, TIMEOUT_MS, TimeUnit.MILLISECONDS)
     return try {
       val text = StringBuilder()
       process.inputStream.bufferedReader().use { reader ->
@@ -165,7 +166,7 @@ object Dumpsys {
       LogUtils.w(TAG, "dumpsys failed: %s", e)
       null
     } finally {
-      mainHandler.removeCallbacks(kill)
+      kill.cancel(false)
       process.destroyForcibly()
     }
   }
@@ -201,12 +202,21 @@ object SensorPrivacy {
     var user = -1
     var sensor = -1
     var toggle = -1
+    var seenSensor = false
+    var seenToggle = false
     for (line in dump.lineSequence()) {
-      USER.find(line)?.let { user = it.groupValues[1].toInt() }
-      SENSOR.find(line)?.let { sensor = it.groupValues[1].toInt() }
-      TOGGLE.find(line)?.let { toggle = it.groupValues[1].toInt() }
+      USER.find(line)?.let {
+        user = it.groupValues[1].toInt()
+        sensor = -1
+        toggle = -1
+        seenSensor = false
+        seenToggle = false
+      }
+      SENSOR.find(line)?.let { sensor = it.groupValues[1].toInt(); seenSensor = true }
+      TOGGLE.find(line)?.let { toggle = it.groupValues[1].toInt(); seenToggle = true }
       STATE.find(line)?.let {
-        if (user == userId && toggle == SOFTWARE_TOGGLE && sensor in result) {
+        if (user == userId && seenSensor && seenToggle && toggle == SOFTWARE_TOGGLE
+          && sensor in result) {
           result[sensor] = it.groupValues[1].toInt() == STATE_BLOCKED
         }
       }

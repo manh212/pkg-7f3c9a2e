@@ -132,7 +132,8 @@ enum class AiProvider(
     /**
      * The service in use. A chosen service that isn't set up gives way to one that is, such as
      * Gemini, the first choice, with no key while Claude has one: before the Use switches were
-     * removed, a service could be set up without being used.
+     * removed, a service could be set up without being used. The fallback applies to this call
+     * only and is not stored, so a chosen service is never silently switched away from.
      */
     @JvmStatic
     fun active(prefs: SharedPreferences): AiProvider {
@@ -141,7 +142,6 @@ enum class AiProvider(
       if (chosen == NONE || chosen.isReady(prefs)) return chosen
       val ready = fallback(prefs)
       if (ready == NONE) return chosen
-      setActive(prefs, ready)
       return ready
     }
 

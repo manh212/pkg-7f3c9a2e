@@ -42,7 +42,11 @@ class RamblerLiveTest {
    * setup, the text of a phrase after the first audio, and the last phrase after the end of the
    * audio. Keeps the headers and messages it got.
    */
-  private class FakeLiveApi(private val answerAtEnd: Boolean = true) : AutoCloseable {
+  private class FakeLiveApi(
+    private val answerAtEnd: Boolean = true,
+    private val sendInterim: Boolean = true,
+    private val answerDelayMs: Long = 0,
+  ) : AutoCloseable {
     private val server = ServerSocket(0)
     val headers = mutableMapOf<String, String>()
     val messages = CopyOnWriteArrayList<JSONObject>()
@@ -64,10 +68,14 @@ class RamblerLiveTest {
                   message.optJSONObject("realtimeInput")?.has("audio") == true && !sentFirst -> {
                     sentFirst = true
                     send(output, """{"serverContent":{"inputTranscription":{"text":"Hello there."}}}""")
-                    send(output, """{"serverContent":{"interimInputTranscription":{"text":"how are"}}}""")
+                    if (sendInterim) {
+                      send(output, """{"serverContent":{"interimInputTranscription":{"text":"how are"}}}""")
+                    }
                   }
-                  message.optJSONObject("realtimeInput")?.has("audioStreamEnd") == true && answerAtEnd ->
+                  message.optJSONObject("realtimeInput")?.has("audioStreamEnd") == true && answerAtEnd -> {
+                    Thread.sleep(answerDelayMs)
                     send(output, """{"serverContent":{"inputTranscription":{"text":" How are you? "}}}""")
+                  }
                 }
               }
             }
@@ -165,6 +173,24 @@ class RamblerLiveTest {
       assertEquals("audio/pcm;rate=16000", audio.getString("mimeType"))
       assertTrue(audio.getString("data").isNotEmpty())
       assertTrue(api.messages.last().getJSONObject("realtimeInput").getBoolean("audioStreamEnd"))
+    }
+  }
+
+  @Test
+  fun aLastPhraseWithNoInterimIsNotLost() {
+    FakeLiveApi(sendInterim = false, answerDelayMs = 2000).use { api ->
+      val live = RamblerLive("key", api.url)
+      live.start()
+      val pcm = ByteArray(3200) { it.toByte() }
+      live.send(pcm)
+      Thread.sleep(300)
+      live.send(pcm)
+      waitFor { api.messages.size >= 3 }
+      var result: String? = "not yet"
+      live.finish { result = it }
+      waitFor { result != "not yet" }
+
+      assertEquals("Hello there. How are you?", result)
     }
   }
 
