@@ -185,8 +185,16 @@ public final class SmartContextGestures {
     if (!packageName.isEmpty()) setMode(context, packageName, down, MODE_OWN);
   }
 
+  /** The default for a built-in Smart Context integration, before the user changes it. */
+  public static boolean builtinDefault(String name) {
+    return switch (name) {
+      case "dialog", "call_incoming", "call_active", "short_video", "media" -> true;
+      default -> false;
+    };
+  }
+
   public static boolean isBuiltinEnabled(Context context, String name) {
-    return prefs(context).getBoolean("smart_context_builtin_" + name, false);
+    return prefs(context).getBoolean("smart_context_builtin_" + name, builtinDefault(name));
   }
 
   public static void setBuiltinEnabled(Context context, String name, boolean enabled) {

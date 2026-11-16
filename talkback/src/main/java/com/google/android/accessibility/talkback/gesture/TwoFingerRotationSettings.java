@@ -10,6 +10,6 @@ public final class TwoFingerRotationSettings {
 
   public static boolean isEnabled(SharedPreferences preferences) {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-        && preferences.getBoolean(ENABLED, false);
+        && preferences.getBoolean(ENABLED, true);
   }
 }
