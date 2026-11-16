@@ -293,58 +293,58 @@ public class TalkbackMenuProcessor {
     if (!showMenuItem(R.string.pref_show_context_menu_favorites_key, R.bool.pref_show_context_menu_extra_default)) {
       menu.removeItem(R.id.favorites);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_text_statistics_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_text_statistics_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.text_statistics_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_lock_screen_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_lock_screen_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.lock_screen_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_media_previous_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_media_previous_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.media_previous_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_media_next_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_media_next_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.media_next_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_copy_focused_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_copy_focused_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.copy_focused_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_clear_all_text_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_clear_all_text_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.clear_all_text_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_direct_tap_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_direct_tap_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.direct_tap_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_take_screenshot_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_take_screenshot_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.take_screenshot_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_touch_exploration_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_touch_exploration_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.toggle_touch_exploration_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_monitor_focus_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_monitor_focus_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.monitor_focus_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_auto_translate_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_auto_translate_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.auto_translate_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_copy_more_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_copy_more_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.copy_more_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_copy_full_screen_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_copy_full_screen_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.copy_full_screen_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_focus_screenshot_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_focus_screenshot_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.take_focus_screenshot_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_task_assistant_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_task_assistant_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.task_assistant_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_screen_recognition_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_screen_recognition_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.screen_recognition_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_subtitles_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_subtitles_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.subtitles_menu);
     }
-    if (!showMenuItem(R.string.pref_show_context_menu_subtitle_find_again_key, R.bool.pref_show_context_menu_extra_default)) {
+    if (!showMenuItem(R.string.pref_show_context_menu_subtitle_find_again_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.subtitle_find_again_menu);
     }
     menu.sortItemsByOrder();
