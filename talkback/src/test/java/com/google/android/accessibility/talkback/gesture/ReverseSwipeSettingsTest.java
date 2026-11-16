@@ -40,6 +40,7 @@ import static org.junit.Assert.assertTrue;
 import android.content.Context;
 import android.content.SharedPreferences;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -74,6 +75,7 @@ public class ReverseSwipeSettingsTest {
 
   @Before public void setUp() {
     context = RuntimeEnvironment.getApplication();
+    FormFactorUtils.initialize(context);
     prefs = SharedPreferencesUtils.getSharedPreferences(context);
     prefs.edit().clear().commit();
     mapping = new GestureShortcutMapping(context);
