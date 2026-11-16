@@ -67,7 +67,7 @@ object WindowNamesSetting {
         prefs,
         res,
         res.getString(R.string.pref_speak_system_window_titles_key),
-        res.getBoolean(R.bool.pref_speak_system_window_titles_default),
+        false,
       )
     val value =
       when {
