@@ -31,7 +31,7 @@ keep their stored values. Changing one experiment never enables another.
 | `audio_keep_warm` | Extend idle audio-track retention from 2 seconds to 10 seconds. The shorter microphone-in-use policy remains. |
 
 The two touch timing sliders show absolute milliseconds and use the current
-device timings by default. **Tổng thời gian chạm mô phỏng sau nhấn đúp** starts
+device timings by default. **Thời gian chạm mô phỏng dự phòng sau nhấn đúp** starts
 at two system tap durations plus the existing 40 ms gap when Meridian simulates
 activation. A shorter setting shortens both strokes. A longer setting holds
 the gesture before the first stroke to keep the strokes valid. The gap and

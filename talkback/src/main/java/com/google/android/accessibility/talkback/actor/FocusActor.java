@@ -202,7 +202,7 @@ public class FocusActor implements UserInputEventListener {
       if (fastDoubleTap) logDoubleTapRoute(eventId, "accessibility click");
       return true;
     }
-    if (fastDoubleTap && service instanceof TalkBackService meridian
+    if (fastDoubleTap && node.isAccessibilityFocused() && service instanceof TalkBackService meridian
         && meridian.performTouchClick(AccessibilityWindowInfoUtils.getDisplayId(node.getWindow()))) {
       logDoubleTapRoute(eventId, "Android touch controller");
       return true;
