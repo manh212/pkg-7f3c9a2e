@@ -57,8 +57,15 @@ class SingleTapTypingControllerTest {
     var onScreen: List<AccessibilityWindowInfo> = emptyList()
     val regionsSent = mutableListOf<Region>()
 
+    /**
+     * Lists the windows a test puts on screen. Each call hands out fresh copies, as Android does:
+     * every getWindows() call returns freshly unmarshalled AccessibilityWindowInfo objects, and
+     * the controller recycles the ones it gets, so handing out the same instances twice would
+     * recycle them twice and clear their state (type, id, bounds, root) for the next look.
+     */
     @Implementation
-    override fun getWindows(): List<AccessibilityWindowInfo> = ArrayList(onScreen)
+    override fun getWindows(): List<AccessibilityWindowInfo> =
+      onScreen.map { AccessibilityWindowInfo.obtain(it) }
 
     @Implementation
     fun setGestureDetectionPassthroughRegion(displayId: Int, region: Region) {
