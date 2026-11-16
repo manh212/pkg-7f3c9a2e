@@ -190,11 +190,11 @@
         android:title="@string/title_pref_shortcut_2finger_rotate_counterclockwise" android:summary="%s" />
     <com.google.android.accessibility.talkback.preference.base.GestureListPreference
         android:key="@string/pref_shortcut_2finger_pinch_key"
-        android:defaultValue="@string/shortcut_value_speech_rate_decrease"
+        android:defaultValue="@string/shortcut_value_unassigned"
         android:title="@string/title_pref_shortcut_2finger_pinch" android:summary="%s" />
     <com.google.android.accessibility.talkback.preference.base.GestureListPreference
         android:key="@string/pref_shortcut_2finger_spread_key"
-        android:defaultValue="@string/shortcut_value_speech_rate_increase"
+        android:defaultValue="@string/shortcut_value_unassigned"
         android:title="@string/title_pref_shortcut_2finger_spread" android:summary="%s" />
     <com.google.android.accessibility.talkback.preference.base.GestureListPreference
         android:key="@string/pref_extended_gesture_up_down_key" android:defaultValue="@string/shortcut_value_unassigned"
