@@ -416,33 +416,33 @@ class VietnameseKeyboardService : InputMethodService() {
     val newTiming = VietnameseKeyboardTiming.read(this, prefs)
     val newLayout = prefs.getString(
       getString(R.string.pref_vietnamese_keyboard_layout_key),
-      VietnameseKeyboardView.LAYOUT_AUTO,
-    ) ?: VietnameseKeyboardView.LAYOUT_AUTO
+      VietnameseKeyboardView.LAYOUT_PHONE,
+    ) ?: VietnameseKeyboardView.LAYOUT_PHONE
     val newEcho = KeyboardEchoSettings.read(prefs, resources, ON_SCREEN_KEYBOARD)
     val newOwnVoice = SharedPreferencesUtils.getBooleanPref(
       prefs, resources, R.string.pref_vietnamese_keyboard_own_voice_key,
       R.bool.pref_vietnamese_keyboard_own_voice_default,
     )
     val newSizePortrait = prefs.getInt(
-      getString(R.string.pref_vietnamese_keyboard_size_portrait_key), 100,
+      getString(R.string.pref_vietnamese_keyboard_size_portrait_key), 65,
     ).coerceIn(50, 150)
     val newSizeLandscape = prefs.getInt(
       getString(R.string.pref_vietnamese_keyboard_size_landscape_key), 100,
     ).coerceIn(50, 150)
     val newMicEnabled = prefs.getBoolean(
-      getString(R.string.pref_vietnamese_keyboard_mic_enabled_key), false,
+      getString(R.string.pref_vietnamese_keyboard_mic_enabled_key), true,
     )
     val newShowKeyboardPicker = prefs.getBoolean(
       getString(R.string.pref_vietnamese_keyboard_show_picker_key), true,
     )
     val newShowLanguageKey = prefs.getBoolean(
-      getString(R.string.pref_vietnamese_keyboard_show_language_key), true,
+      getString(R.string.pref_vietnamese_keyboard_show_language_key), false,
     )
     val newShowNumberRow = prefs.getBoolean(
       getString(R.string.pref_vietnamese_keyboard_show_number_row_key), true,
     )
     val newShowSymbolsRow = prefs.getBoolean(
-      getString(R.string.pref_vietnamese_keyboard_show_symbols_row_key), false,
+      getString(R.string.pref_vietnamese_keyboard_show_symbols_row_key), true,
     )
     val newSymbolsRow = VietnameseKeyboardSymbols.read(this, prefs)
     val newAutoCapitalize = prefs.getBoolean(
@@ -455,7 +455,7 @@ class VietnameseKeyboardService : InputMethodService() {
       getString(R.string.pref_vietnamese_keyboard_vibrate_on_key_key), false,
     )
     val newKeySound = prefs.getBoolean(
-      getString(R.string.pref_vietnamese_keyboard_key_sound_key), false,
+      getString(R.string.pref_vietnamese_keyboard_key_sound_key), true,
     )
     val newKeySounds = KeySounds(
       space = KeyboardKeySounds.resolve(this, KeyboardKeySounds.Slot.SPACE),

@@ -32,10 +32,10 @@ object KeyboardKeySounds : SoundChoiceStore {
     override val fileName: String,
     override val defaultResId: Int,
   ) : SoundSlot {
-    SPACE("pref_vietnamese_keyboard_key_sound_space", "space", R.raw.lib_new_space),
-    NORMAL("pref_vietnamese_keyboard_key_sound_normal", "normal", R.raw.lib_new_click),
-    DELETE("pref_vietnamese_keyboard_key_sound_delete", "delete", R.raw.lib_new_cancel),
-    ENTER("pref_vietnamese_keyboard_key_sound_enter", "enter", R.raw.lib_new_clock),
+    SPACE("pref_vietnamese_keyboard_key_sound_space", "space", R.raw.lib_new_focus3),
+    NORMAL("pref_vietnamese_keyboard_key_sound_normal", "normal", R.raw.lib_new_focus2),
+    DELETE("pref_vietnamese_keyboard_key_sound_delete", "delete", R.raw.lib_new_focus4),
+    ENTER("pref_vietnamese_keyboard_key_sound_enter", "enter", R.raw.lib_old_r7),
   }
 
   override fun soundFile(context: Context, slot: SoundSlot): File? =

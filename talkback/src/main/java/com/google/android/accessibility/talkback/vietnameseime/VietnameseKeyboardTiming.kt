@@ -19,13 +19,13 @@ internal data class VietnameseKeyboardTiming(
     const val TAP_HOLD = "pref_vietnamese_keyboard_tap_hold"
 
     fun read(context: Context, prefs: SharedPreferences): VietnameseKeyboardTiming {
-      val sharedDelay = prefs.getInt(context.getString(R.string.pref_direct_input_tap_delay_key), 100)
+      val sharedDelay = prefs.getInt(context.getString(R.string.pref_direct_input_tap_delay_key), 0)
       return VietnameseKeyboardTiming(
         prefs.getInt(EXPLORE_SPEECH, 0).coerceIn(0, 300).toLong(),
         prefs.getInt(RELEASE_SPEECH, 0).coerceIn(0, 300).toLong(),
         sharedDelay.coerceIn(0, 300).toLong(),
-        prefs.getInt(DOUBLE_TAP, ViewConfiguration.getDoubleTapTimeout()).coerceIn(150, 1000).toLong(),
-        prefs.getInt(TAP_HOLD, ViewConfiguration.getLongPressTimeout()).coerceIn(100, 1500).toLong(),
+        prefs.getInt(DOUBLE_TAP, 150).coerceIn(150, 1000).toLong(),
+        prefs.getInt(TAP_HOLD, 290).coerceIn(100, 1500).toLong(),
       )
     }
 
