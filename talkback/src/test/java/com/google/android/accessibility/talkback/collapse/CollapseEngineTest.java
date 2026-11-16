@@ -106,6 +106,7 @@ public class CollapseEngineTest {
 
   @Test
   public void switchOff_filterUnchangedAndNoRepresentative() {
+    setCollapseEnabled(false);
     AccessibilityNodeInfoCompat list = CollapseTestTrees.list(CollapseTestTrees.YOUTUBE_PACKAGE);
     YouTubeTree tree = CollapseTestTrees.youTubeItem(list, 0);
 
