@@ -94,8 +94,43 @@ class VietnameseKeyboardServiceTest {
       override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean =
         !rejectDelete && super.deleteSurroundingTextInCodePoints(beforeLength, afterLength)
 
-      override fun sendKeyEvent(event: KeyEvent): Boolean =
-        !rejectDelete && super.sendKeyEvent(event)
+      // BaseInputConnection.sendKeyEvent only dispatches the key to the target
+      // view (here a bare View that drops it) and always returns false, so a
+      // TYPE_NULL delete — which works purely by sending DEL / FORWARD_DEL key
+      // events — could never change this text. Emulate a real editor instead:
+      // apply DEL / FORWARD_DEL to the text on ACTION_DOWN and report whether
+      // anything was deleted, so the TYPE_NULL delete and delete-word paths
+      // are exercised exactly as on a device.
+      override fun sendKeyEvent(event: KeyEvent): Boolean {
+        if (rejectDelete) return false
+        if (event.keyCode != KeyEvent.KEYCODE_DEL &&
+          event.keyCode != KeyEvent.KEYCODE_FORWARD_DEL
+        ) return super.sendKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_UP) return true
+        if (event.action != KeyEvent.ACTION_DOWN) return super.sendKeyEvent(event)
+        val start = Selection.getSelectionStart(text)
+        val end = Selection.getSelectionEnd(text)
+        if (start < 0 || end < 0) return false
+        val from = minOf(start, end)
+        val to = maxOf(start, end)
+        if (from != to) {
+          text.delete(from, to)
+          Selection.setSelection(text, from)
+          return true
+        }
+        if (event.keyCode == KeyEvent.KEYCODE_DEL) {
+          if (from == 0) return false
+          val deleteFrom = Character.offsetByCodePoints(text, from, -1)
+          text.delete(deleteFrom, from)
+          Selection.setSelection(text, deleteFrom)
+          return true
+        }
+        if (to >= text.length) return false
+        val deleteTo = Character.offsetByCodePoints(text, to, 1)
+        text.delete(to, deleteTo)
+        Selection.setSelection(text, to)
+        return true
+      }
 
       override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean =
         !rejectComposition && super.setComposingText(text, newCursorPosition)
@@ -1102,7 +1137,10 @@ class VietnameseKeyboardServiceTest {
     tapDelete()
 
     assertEquals("", text.toString())
-    assertTrue(spoken.isEmpty())
+    // The touch itself still announces the delete key's name on finger-down
+    // (zero-delay explore, as for every key); only the deletion is silent:
+    // delete() at the document start announces nothing.
+    assertEquals(listOf(service.getString(R.string.vietnamese_ime_delete)), spoken)
   }
 
   @Test
