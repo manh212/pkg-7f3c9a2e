@@ -121,6 +121,15 @@ class PerformanceProfileTest {
   }
 
   @Test
+  fun storedProfile_ignoresMarkerRecordedBeforeExplicitChoice() {
+    prefs.edit().putString(PerformanceProfile.KEY, PerformanceProfile.SPEED).apply()
+    assertNull(PerformanceProfile.storedProfile(prefs))
+
+    PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
+    assertEquals(PerformanceProfile.SPEED, PerformanceProfile.storedProfile(prefs))
+  }
+
+  @Test
   fun unknownProfile_appliesSpeed() {
     PerformanceProfile.apply(prefs, "unknown")
 
