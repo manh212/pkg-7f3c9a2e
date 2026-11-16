@@ -16,8 +16,9 @@ import org.robolectric.annotation.Config;
 @Config(sdk = 34)
 public class TwoFingerRotationTrackerTest {
   private final List<Boolean> turns = new ArrayList<>();
+  private final List<Boolean> pinches = new ArrayList<>();
   private final TwoFingerRotationTracker tracker =
-      new TwoFingerRotationTracker(24f, 8f, turns::add);
+      new TwoFingerRotationTracker(24f, 8f, turns::add, pinches::add);
   private long time = 100;
 
   @Test public void clockwiseTurnChangesToTheNextControlAndConsumesTheTouch() {
@@ -41,6 +42,7 @@ public class TwoFingerRotationTrackerTest {
     assertEquals(List.of(true, true, true), turns);
     assertTrue(rotate(70));
     assertEquals(List.of(true, true, true, true), turns);
+    assertTrue(pinches.isEmpty());
     end();
     assertFalse(tracker.isRotating());
   }
@@ -57,6 +59,7 @@ public class TwoFingerRotationTrackerTest {
     assertFalse(send(MotionEvent.ACTION_MOVE, 100, 160, 200, 160, 2));
     assertTrue(tracker.isScroll());
     assertTrue(turns.isEmpty());
+    assertTrue(pinches.isEmpty());
     end();
   }
 
@@ -65,6 +68,20 @@ public class TwoFingerRotationTrackerTest {
     assertFalse(send(MotionEvent.ACTION_MOVE, 70, 100, 230, 100, 2));
     assertFalse(tracker.isRotating());
     assertTrue(turns.isEmpty());
+    assertTrue(tracker.isPinch());
+    assertEquals(List.of(false), pinches);
+    end();
+  }
+
+  @Test public void pinchInFiresOncePerTouch() {
+    begin();
+    assertFalse(send(MotionEvent.ACTION_MOVE, 130, 100, 170, 100, 2));
+    assertFalse(tracker.isRotating());
+    assertTrue(turns.isEmpty());
+    assertTrue(tracker.isPinch());
+    assertEquals(List.of(true), pinches);
+    assertFalse(send(MotionEvent.ACTION_MOVE, 140, 100, 160, 100, 2));
+    assertEquals(List.of(true), pinches);
     end();
   }
 
