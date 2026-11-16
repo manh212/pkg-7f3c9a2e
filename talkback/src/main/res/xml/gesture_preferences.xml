@@ -232,21 +232,6 @@
     <com.google.android.accessibility.talkback.preference.base.GestureListPreference
         android:key="@string/pref_extended_gesture_right_down_key" android:defaultValue="@string/shortcut_value_unassigned"
         android:title="@string/extended_gesture_right_down" android:summary="%s" />
-    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
-        android:key="@string/pref_shortcut_2finger_anchored_swipe_up_key" android:defaultValue="@string/shortcut_value_unassigned"
-        android:title="@string/title_pref_shortcut_2finger_anchored_swipe_up" android:summary="%s" />
-    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
-        android:key="@string/pref_shortcut_2finger_anchored_swipe_down_key" android:defaultValue="@string/shortcut_value_unassigned"
-        android:title="@string/title_pref_shortcut_2finger_anchored_swipe_down" android:summary="%s" />
-    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
-        android:key="@string/pref_shortcut_2finger_anchored_swipe_left_key" android:defaultValue="@string/shortcut_value_unassigned"
-        android:title="@string/title_pref_shortcut_2finger_anchored_swipe_left" android:summary="%s" />
-    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
-        android:key="@string/pref_shortcut_2finger_anchored_swipe_right_key" android:defaultValue="@string/shortcut_value_unassigned"
-        android:title="@string/title_pref_shortcut_2finger_anchored_swipe_right" android:summary="%s" />
-    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
-        android:key="@string/pref_shortcut_2finger_anchored_tap_key" android:defaultValue="@string/shortcut_value_unassigned"
-        android:title="@string/title_pref_shortcut_2finger_anchored_tap" android:summary="%s" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
   <!-- Three finger gestures -->
