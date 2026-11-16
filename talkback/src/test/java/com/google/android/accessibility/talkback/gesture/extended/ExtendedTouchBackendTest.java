@@ -16,6 +16,7 @@ import android.view.MotionEvent;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.utils.LatencyExperiments;
+import com.google.android.accessibility.utils.gestures.GestureConfiguration;
 import com.google.android.accessibility.utils.gestures.GestureManifold;
 import java.util.ArrayList;
 import java.util.List;
@@ -170,12 +171,13 @@ public class ExtendedTouchBackendTest {
   }
 
   @Test public void liftingBeforeTheStationaryDelayKeepsDoubleTapAvailable() {
-    setStationaryTouchDelay(200);
+    setStationaryTouchDelay(LatencyExperiments.defaultStationaryTouchDelayMs());
     motion(MotionEvent.ACTION_DOWN, 700);
     motion(MotionEvent.ACTION_UP, 700);
-    Shadows.shadowOf(Looper.getMainLooper()).idleFor(99, TimeUnit.MILLISECONDS);
+    int gap = GestureConfiguration.DOUBLE_TAP_TIMEOUT_MS - 40;
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(gap, TimeUnit.MILLISECONDS);
     assertEquals(0, touch.explorationRequests);
-    time += 100;
+    time += gap;
     motion(MotionEvent.ACTION_DOWN, 700);
     motion(MotionEvent.ACTION_UP, 700);
     assertEquals(1, touch.clicks);
@@ -184,9 +186,13 @@ public class ExtendedTouchBackendTest {
   @Test public void fastDoubleTapIsDispatchedOnSecondUpWithOrWithoutRotation() {
     for (boolean rotation : new boolean[] {false, true}) {
       startFastDoubleTapMode(rotation);
+      setStationaryTouchDelay(LatencyExperiments.defaultStationaryTouchDelayMs());
       service.gestures.clear();
       motion(MotionEvent.ACTION_DOWN, 700);
       motion(MotionEvent.ACTION_UP, 700);
+      Shadows.shadowOf(Looper.getMainLooper()).idleFor(150, TimeUnit.MILLISECONDS);
+      time += 150;
+      assertEquals(0, touch.explorationRequests);
       motion(MotionEvent.ACTION_DOWN, 700);
       assertTrue(service.gestures.isEmpty());
       motion(MotionEvent.ACTION_UP, 700);
@@ -209,7 +215,8 @@ public class ExtendedTouchBackendTest {
     motion(MotionEvent.ACTION_DOWN, 700);
     motion(MotionEvent.ACTION_MOVE, 700 - slop - 1);
 
-    Shadows.shadowOf(Looper.getMainLooper()).idleFor(99, TimeUnit.MILLISECONDS);
+    int movingTouchDelayMs = Math.max(150, GestureConfiguration.DOUBLE_TAP_TIMEOUT_MS);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(movingTouchDelayMs - 1, TimeUnit.MILLISECONDS);
     assertEquals(0, touch.explorationRequests);
     Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
     assertEquals(1, touch.explorationRequests);
