@@ -157,4 +157,9 @@ class OnDeviceAiSettingsTest {
     OnDeviceAiSettings.setShortPrompts(prefs, true)
     assertTrue(OnDeviceAiSettings.shortPrompts(prefs))
   }
+
+  @Test
+  fun memoryLimitsAreRespectedByDefault() {
+    assertFalse(OnDeviceAiSettings.ignoreMemoryLimits(FakeSharedPreferences()))
+  }
 }

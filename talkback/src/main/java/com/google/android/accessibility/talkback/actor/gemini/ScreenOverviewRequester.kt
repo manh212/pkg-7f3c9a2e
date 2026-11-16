@@ -276,7 +276,7 @@ internal class ScreenOverviewRequester(
     }
 
   private fun nodeList(tree: AccessibilityTree, style: PromptStyle): String =
-    (tree as? ScreenTree)?.let { nodes(it, style) }.orEmpty()
+    (tree as? ScreenTree)?.let { nodes(it, style) } ?: tree.serialize().toStringUtf8()
 
   private fun languageInstruction(): String =
     "Write all text in ${Locale.getDefault().getDisplayLanguage(Locale.ENGLISH)}. " +

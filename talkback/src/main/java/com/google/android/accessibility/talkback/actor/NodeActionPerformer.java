@@ -84,41 +84,44 @@ public class NodeActionPerformer {
   public boolean performAction(@NonNull NodeAction nodeAction, @Nullable EventId eventId) {
     LogUtils.d(TAG, "perform Action, nodeAction = %s", nodeAction);
     AccessibilityNode nodeActionTarget = nodeAction.target();
-    boolean success = true;
-    if (nodeActionTarget != null) {
-      TraversalTreeCache.onNodeAction(nodeAction.actionId());
-      PreparedFocusSpeech.onNodeAction(nodeAction.actionId());
-      long time = SystemClock.uptimeMillis();
-      if (nodeAction.actionId() == AccessibilityNodeInfoCompat.ACTION_CLICK
-          && AccessibilityNodeInfoUtils.isKeyboard(nodeActionTarget.getCompat())) {
-        setNodeActionRecord(new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
-        keyClicks.execute(
-            () -> {
-              if (!nodeActionTarget.performAction(
-                  nodeAction.actionId(), nodeAction.args(), eventId)) {
-                LogUtils.w(TAG, "The keyboard did not take the click on %s", nodeActionTarget);
-              }
-            });
-        return true;
-      }
-      if (clickFeedback != null
-          && nodeAction.actionId() == AccessibilityNodeInfoCompat.ACTION_CLICK) {
-        success =
-            clickFeedback.click(
-                nodeActionTarget.getCompat(),
-                eventId,
-                () ->
-                    nodeActionTarget.performAction(
-                        nodeAction.actionId(), nodeAction.args(), eventId));
-      } else {
-        success = nodeActionTarget.performAction(nodeAction.actionId(), nodeAction.args(), eventId);
-      }
-      Performance.getInstance()
-          .onAccessibilityActionPerformed(
-              eventId, nodeAction.actionId(), time, success, nodeActionTarget);
-      if (success) {
-        setNodeActionRecord(new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
-      }
+    if (nodeActionTarget == null) {
+      return false;
+    }
+    TraversalTreeCache.onNodeAction(nodeAction.actionId());
+    PreparedFocusSpeech.onNodeAction(nodeAction.actionId());
+    long time = SystemClock.uptimeMillis();
+    if (nodeAction.actionId() == AccessibilityNodeInfoCompat.ACTION_CLICK
+        && AccessibilityNodeInfoUtils.isKeyboard(nodeActionTarget.getCompat())) {
+      keyClicks.execute(
+          () -> {
+            if (nodeActionTarget.performAction(
+                nodeAction.actionId(), nodeAction.args(), eventId)) {
+              setNodeActionRecord(
+                  new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
+            } else {
+              LogUtils.w(TAG, "The keyboard did not take the click on %s", nodeActionTarget);
+            }
+          });
+      return true;
+    }
+    boolean success;
+    if (clickFeedback != null
+        && nodeAction.actionId() == AccessibilityNodeInfoCompat.ACTION_CLICK) {
+      success =
+          clickFeedback.click(
+              nodeActionTarget.getCompat(),
+              eventId,
+              () ->
+                  nodeActionTarget.performAction(
+                      nodeAction.actionId(), nodeAction.args(), eventId));
+    } else {
+      success = nodeActionTarget.performAction(nodeAction.actionId(), nodeAction.args(), eventId);
+    }
+    Performance.getInstance()
+        .onAccessibilityActionPerformed(
+            eventId, nodeAction.actionId(), time, success, nodeActionTarget);
+    if (success) {
+      setNodeActionRecord(new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
     }
     return success;
   }

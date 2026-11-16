@@ -110,6 +110,7 @@ public class SearchScreenOverlay implements SearchObserver {
 
   /** The delay in milliseconds for speaking hint. */
   private static final int DELAY_SPEAK_HINT = 1000;
+  private static final int MAX_SPEAK_HINT_REPOSTS = 30;
 
   /** Dimensions for the search box view on a large screen. */
   private static final int VIEW_WIDTH_LARGE_SCREEN = 1500;
@@ -246,6 +247,7 @@ public class SearchScreenOverlay implements SearchObserver {
     // Add screen-search overlay early when initialize the structure that would make z-order in
     // window layer beneath DimmingOverlayView.
     if (overlayPanel == null) {
+      hasPhysicalKeyboard = inputDeviceMonitor.hasPhysicalKeyboard();
       createUIElements();
       overlayPanel.setVisibility(View.GONE);
     }
@@ -302,8 +304,8 @@ public class SearchScreenOverlay implements SearchObserver {
     searchStateAdapter.setOnViewHolderClickListener(
         clickedView -> {
           searchResultList.setClickable(false);
-          hideImeAndPerformAction(
-              () -> postPerformFocusNode(searchResultList.getChildLayoutPosition(clickedView)));
+          int position = searchResultList.getChildLayoutPosition(clickedView);
+          hideImeAndPerformAction(() -> postPerformFocusNode(position));
         });
     searchResultList.setAdapter(searchStateAdapter);
 
@@ -491,6 +493,12 @@ public class SearchScreenOverlay implements SearchObserver {
    * @param position the index value in the matched list.
    */
   private void postPerformFocusNode(int position) {
+    if (searchState == null
+        || position < 0
+        || position >= searchState.getResults().size()) {
+      searchResultList.setClickable(searchState != null && searchState.getResults().size() > 0);
+      return;
+    }
     final AccessibilityNode clickedNode = searchState.getResult(position).node();
 
     if (clickedNode.isWebContainer()) {
@@ -599,9 +607,11 @@ public class SearchScreenOverlay implements SearchObserver {
     boolean result = false;
 
     if (pipeline != null) {
-      pipeline.returnFeedback(
-          EVENT_ID_UNTRACKED,
-          Feedback.scroll(scrollableNode, ScrollActionRecord.ACTION_AUTO_SCROLL, action, SEARCH));
+      result =
+          pipeline.returnFeedback(
+              EVENT_ID_UNTRACKED,
+              Feedback.scroll(
+                  scrollableNode, ScrollActionRecord.ACTION_AUTO_SCROLL, action, SEARCH));
     }
     if (result) {
       // Screen is scrolled, clears previous search results.
@@ -864,7 +874,9 @@ public class SearchScreenOverlay implements SearchObserver {
     // Cache the current input device status.
     hasPhysicalKeyboard = inputDeviceMonitor.hasPhysicalKeyboard();
 
-    if (overlayPanel == null) {
+    if (overlayPanel == null
+        || shouldShowVariousListOnScreenSearch() != (allElementsListChip != null)) {
+      invalidateUIElements();
       createUIElements();
     }
     overlayPanel.setVisibility(View.VISIBLE);
@@ -923,7 +935,11 @@ public class SearchScreenOverlay implements SearchObserver {
    * to null, so that it will be recreated when shows UI
    */
   public void invalidateUIElements() {
-    overlayPanel = null;
+    if (overlayPanel != null) {
+      WindowManager wm = (WindowManager) service.getSystemService(Context.WINDOW_SERVICE);
+      wm.removeView(overlayPanel);
+      overlayPanel = null;
+    }
   }
 
   public void hide() {
@@ -949,18 +965,18 @@ public class SearchScreenOverlay implements SearchObserver {
           EVENT_ID_UNTRACKED,
           Feedback.talkBackUI(TalkBackUI.Action.SUPPORT, GESTURE_OR_KEYBOARD_ACTION_OVERLAY));
     }
-    if (overlayPanel == null) {
-      return;
-    }
+    hintHandler.removeCallbacksAndMessages(null);
+    if (overlayPanel != null) {
+      overlayPanel.setVisibility(View.GONE);
 
-    overlayPanel.setVisibility(View.GONE);
+      // Reset the keyword if needed when the overlay is hidden.
+      if (TextUtils.isEmpty(keywordEditText.getText())) {
+        searchStrategy.resetLastKeyword();
+      }
+    }
 
     // Clear the cached nodes since user is done with current search.
     searchStrategy.clearCachedNodes();
-    // Reset the keyword if needed when the overlay is hidden.
-    if (TextUtils.isEmpty(keywordEditText.getText())) {
-      searchStrategy.resetLastKeyword();
-    }
 
     if (searchState != null) {
       searchState.clear();
@@ -1123,6 +1139,10 @@ public class SearchScreenOverlay implements SearchObserver {
   }
 
   private void speakHint(String text) {
+    speakHintInternal(text, 0);
+  }
+
+  private void speakHintInternal(String text, int reposts) {
     hintHandler.removeCallbacksAndMessages(null);
     if (pipeline != null) {
       // Use hint for confirming that the matching results will be announced after the editing
@@ -1137,8 +1157,8 @@ public class SearchScreenOverlay implements SearchObserver {
                               .setFlags(FeedbackItem.FLAG_NO_HISTORY))
                       .setHint(text)
                       .build());
-      if (shouldDelayHint()) {
-        hintHandler.postDelayed(() -> speakHint(text), DELAY_SPEAK_HINT);
+      if (shouldDelayHint() && reposts < MAX_SPEAK_HINT_REPOSTS) {
+        hintHandler.postDelayed(() -> speakHintInternal(text, reposts + 1), DELAY_SPEAK_HINT);
       } else {
         pipeline.returnFeedback(Feedback.create(EVENT_ID_UNTRACKED, builder.build()));
       }
@@ -1314,11 +1334,15 @@ public class SearchScreenOverlay implements SearchObserver {
       return;
     }
 
-    searchListChipGroup.clearCheck();
+    if (searchListChipGroup != null) {
+      searchListChipGroup.clearCheck();
+    }
 
     // The "all elements" chip is the default state, so it should be checked when the others are
     // unchecked.
-    allElementsListChip.setChecked(true);
+    if (allElementsListChip != null) {
+      allElementsListChip.setChecked(true);
+    }
     setSelectedListType(null);
   }
 
@@ -1347,7 +1371,7 @@ public class SearchScreenOverlay implements SearchObserver {
 
     // Update the checked list button.
     CheckBox checkbox = getListSearchButtonForListType(listType);
-    if (checkbox.isChecked()) {
+    if (checkbox == null || checkbox.isChecked()) {
       // Selecting the already-selected item should do nothing.
       return;
     }

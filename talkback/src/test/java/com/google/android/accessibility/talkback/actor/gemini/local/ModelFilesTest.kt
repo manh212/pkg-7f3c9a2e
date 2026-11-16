@@ -1,0 +1,47 @@
+/*
+ * Copyright 2026 Backtalk contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
+package com.google.android.accessibility.talkback.actor.gemini.local
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class ModelFilesTest {
+
+  @Test
+  fun sha256_emptyInput_matchesKnownVector() {
+    assertEquals(
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      ModelFiles.sha256(ByteArray(0).inputStream()),
+    )
+  }
+
+  @Test
+  fun sha256_abc_matchesKnownVector() {
+    assertEquals(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      ModelFiles.sha256("abc".toByteArray().inputStream()),
+    )
+  }
+
+  @Test
+  fun sha256_bytesAbove0x80_matchKnownVector() {
+    assertEquals(
+      "d87d01642f47a0d1901b1dfd2331c9def1bcfc69d8835c6cd911fe4165b804e4",
+      ModelFiles.sha256(byteArrayOf(0x80.toByte(), 0xFF.toByte()).inputStream()),
+    )
+  }
+}

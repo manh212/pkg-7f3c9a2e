@@ -76,6 +76,7 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
   private boolean awaitingAnswer;
   private boolean relistenRequested;
   private long lastCommandRanAtMs;
+  private final Runnable relistenRunnable;
   private VoiceCommandDialog voiceCommandDialog;
   private final Context talkbackContext;
   private final TalkBackAnalytics analytics;
@@ -136,7 +137,7 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
       continuousActive = false;
       return;
     }
-    mainHandler.postDelayed(speechRecognizerPerformer::doListening, delayMs);
+    mainHandler.postDelayed(relistenRunnable, delayMs);
   }
 
   @VisibleForTesting
@@ -228,6 +229,8 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
     this.voiceCommandProcessor = voiceCommandProcessor;
     this.analytics = analytics;
     this.speechRecognizerPerformer = speechRecognizerPerformer;
+    // One shared runnable, so that stopListening() can cancel a relisten it posted.
+    relistenRunnable = speechRecognizerPerformer::doListening;
     speechRecognizerPerformer.setListener(this);
     voiceCommandProcessor.setConfirmationSession(
         new VoiceCommandProcessor.ConfirmationSession() {
@@ -235,8 +238,7 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
           public void requestListenAgain() {
             relistenRequested = true;
             awaitingAnswer = true;
-            mainHandler.postDelayed(
-                speechRecognizerPerformer::doListening, CONFIRMATION_RELISTEN_DELAY_MS);
+            mainHandler.postDelayed(relistenRunnable, CONFIRMATION_RELISTEN_DELAY_MS);
           }
 
           @Override
@@ -270,6 +272,10 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
     continuousActive =
         SharedPreferencesUtils.getSharedPreferences(talkbackContext)
             .getBoolean(PREF_CONTINUOUS, false);
+    // A new session starts with no question pending and no relisten from the last one.
+    awaitingAnswer = false;
+    relistenRequested = false;
+    mainHandler.removeCallbacks(relistenRunnable);
     lastCommandRanAtMs = SystemClock.uptimeMillis();
     if (checkDialog && voiceCommandDialog.getShouldShowDialogPref()) {
       voiceCommandDialog.showDialog();
@@ -295,6 +301,10 @@ public class VoiceCommandActor implements SpeechRecognizerRequester {
 
   /** Stops speech recognition. */
   public void stopListening() {
+    continuousActive = false;
+    awaitingAnswer = false;
+    relistenRequested = false;
+    mainHandler.removeCallbacks(relistenRunnable);
     speechRecognizerPerformer.stopListening();
   }
 

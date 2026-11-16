@@ -675,6 +675,8 @@ public class ImageCaptionResultBottomSheet {
     final TextView ocrResulView;
     @Nullable private AccessibilityViewCommand thumbsUpCommand;
     @Nullable private AccessibilityViewCommand thumbsDownCommand;
+    private int thumbUpActionId = -1;
+    private int thumbDownActionId = -1;
     final MaterialButton askGeminiButton;
     final MaterialButton askGeminiTypingButton;
 
@@ -735,16 +737,26 @@ public class ImageCaptionResultBottomSheet {
 
     void setThumbUpAction(AccessibilityViewCommand command) {
       thumbsUpCommand = command;
-      ViewCompat.addAccessibilityAction(
-          imageDescriptionResultView, context.getString(R.string.action_text_like_button), command);
+      if (thumbUpActionId != -1) {
+        ViewCompat.removeAccessibilityAction(imageDescriptionResultView, thumbUpActionId);
+      }
+      thumbUpActionId =
+          ViewCompat.addAccessibilityAction(
+              imageDescriptionResultView,
+              context.getString(R.string.action_text_like_button),
+              command);
     }
 
     void setThumbDownAction(AccessibilityViewCommand command) {
       thumbsDownCommand = command;
-      ViewCompat.addAccessibilityAction(
-          imageDescriptionResultView,
-          context.getString(R.string.action_text_dislike_button),
-          command);
+      if (thumbDownActionId != -1) {
+        ViewCompat.removeAccessibilityAction(imageDescriptionResultView, thumbDownActionId);
+      }
+      thumbDownActionId =
+          ViewCompat.addAccessibilityAction(
+              imageDescriptionResultView,
+              context.getString(R.string.action_text_dislike_button),
+              command);
     }
 
     void fillThumbState(boolean thumbUp, boolean thumbDown) {
@@ -752,35 +764,33 @@ public class ImageCaptionResultBottomSheet {
       if (thumbsUpCommand == null) {
         LogUtils.e(TAG, "No AccessibilityViewCommand for thumbs-up action");
       } else {
-        int likeActionId =
+        if (thumbUpActionId != -1) {
+          ViewCompat.removeAccessibilityAction(imageDescriptionResultView, thumbUpActionId);
+        }
+        thumbUpActionId =
             ViewCompat.addAccessibilityAction(
                 imageDescriptionResultView,
-                context.getString(R.string.action_text_like_button),
+                context.getString(
+                    thumbUp
+                        ? R.string.action_text_clear_like_button
+                        : R.string.action_text_like_button),
                 thumbsUpCommand);
-        int clearLikeActionId =
-            ViewCompat.addAccessibilityAction(
-                imageDescriptionResultView,
-                context.getString(R.string.action_text_clear_like_button),
-                thumbsUpCommand);
-        ViewCompat.removeAccessibilityAction(
-            imageDescriptionResultView, thumbUp ? likeActionId : clearLikeActionId);
       }
 
       if (thumbsDownCommand == null) {
         LogUtils.e(TAG, "No AccessibilityViewCommand for thumbs-down action");
       } else {
-        int dislikeActionId =
+        if (thumbDownActionId != -1) {
+          ViewCompat.removeAccessibilityAction(imageDescriptionResultView, thumbDownActionId);
+        }
+        thumbDownActionId =
             ViewCompat.addAccessibilityAction(
                 imageDescriptionResultView,
-                context.getString(R.string.action_text_dislike_button),
+                context.getString(
+                    thumbDown
+                        ? R.string.action_text_clear_dislike_button
+                        : R.string.action_text_dislike_button),
                 thumbsDownCommand);
-        int clearDislikeActionId =
-            ViewCompat.addAccessibilityAction(
-                imageDescriptionResultView,
-                context.getString(R.string.action_text_clear_dislike_button),
-                thumbsDownCommand);
-        ViewCompat.removeAccessibilityAction(
-            imageDescriptionResultView, thumbDown ? dislikeActionId : clearDislikeActionId);
       }
     }
 

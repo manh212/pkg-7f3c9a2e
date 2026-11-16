@@ -27,8 +27,10 @@ import com.google.protobuf.ByteString
  * Numbers the visible nodes of the window that holds a node, so that Gemini can refer to screen
  * elements by number and TalkBack can find the live nodes again.
  */
-class ScreenTree private constructor(private val nodes: List<AccessibilityNodeInfoCompat>) :
-  AccessibilityTree {
+class ScreenTree private constructor(
+  private val nodes: List<AccessibilityNodeInfoCompat>,
+  private val windowId: Int,
+) : AccessibilityTree {
 
   /** One line per node that has content or can be acted on, for the Gemini prompt. */
   val description: String by lazy {
@@ -63,9 +65,13 @@ class ScreenTree private constructor(private val nodes: List<AccessibilityNodeIn
       .take(COMPACT_MAX_LINES)
   }
 
-  // Node numbers are unique across the whole tree, so the window ID is not needed to find a node.
-  override fun findNodeById(nodeId: NodeId): AccessibilityNodeInfoCompat? =
-    nodes.getOrNull(nodeId.uniqueId)
+  override fun findNodeById(nodeId: NodeId): AccessibilityNodeInfoCompat? {
+    if (nodeId.windowId != 0 && nodeId.windowId != windowId) {
+      return null
+    }
+    val node = nodes.getOrNull(nodeId.uniqueId) ?: return null
+    return node.takeIf { it.refresh() }
+  }
 
   override fun serialize(): ByteString = ByteString.copyFromUtf8(description)
 
@@ -136,7 +142,7 @@ class ScreenTree private constructor(private val nodes: List<AccessibilityNodeIn
           current.getChild(index)?.let { queue.addLast(it) }
         }
       }
-      return ScreenTree(nodes)
+      return ScreenTree(nodes, root.windowId)
     }
   }
 }

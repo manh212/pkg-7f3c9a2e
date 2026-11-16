@@ -47,7 +47,7 @@ object ModelFiles {
       if (read < 0) break
       digest.update(buffer, 0, read)
     }
-    return digest.digest().joinToString("") { "%02x".format(it) }
+    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
   }
 
   fun partFile(target: File) = File(target.path + PART_SUFFIX)

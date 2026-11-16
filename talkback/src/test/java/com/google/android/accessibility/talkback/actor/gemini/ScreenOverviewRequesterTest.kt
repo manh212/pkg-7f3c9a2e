@@ -46,7 +46,11 @@ class ScreenOverviewRequesterTest {
     }
 
   /** Asks a question in [style], answers it with [answer], and returns the request and result. */
-  private fun ask(style: PromptStyle, answer: String): Pair<JSONObject, OverviewResponse> {
+  private fun ask(
+    style: PromptStyle,
+    answer: String,
+    tree: AccessibilityTree = this.tree,
+  ): Pair<JSONObject, OverviewResponse> {
     var request: JSONObject? = null
     var result: OverviewResponse? = null
     val requester =
@@ -168,5 +172,18 @@ class ScreenOverviewRequesterTest {
     val json = LocalModel.entries.filter { it.writesJson }.map { it.id }
     assertEquals(listOf("e2b", "e4b", "gemma4-12b"), json)
     assertTrue(LocalModel.entries.filter { it.id.startsWith("fastvlm") }.none { it.writesJson })
+  }
+
+  @Test
+  fun nonScreenTreeSerializesIntoThePrompt() {
+    val otherTree =
+      object : AccessibilityTree {
+        override fun findNodeById(nodeId: NodeId): AccessibilityNodeInfoCompat? = null
+
+        override fun serialize(): ByteString = ByteString.copyFromUtf8("Settings button")
+      }
+    val (request, _) = ask(PromptStyle.ON_DEVICE_PLAIN, "ok", otherTree)
+
+    assertTrue(prompt(request).contains("Settings button"))
   }
 }

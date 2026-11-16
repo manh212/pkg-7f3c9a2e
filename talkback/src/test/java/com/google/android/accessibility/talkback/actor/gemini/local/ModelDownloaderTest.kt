@@ -138,4 +138,20 @@ class ModelDownloaderTest {
     server.stop(0)
     assertEquals(ModelDownloader.Result.Failed(ModelFiles.Failure.NETWORK), run())
   }
+
+  @Test
+  fun aMalformedUrlIsANetworkFailure() {
+    val target = File(dir, "m.litertlm")
+    val result =
+      ModelDownloader().download("not a url", target, 1, "0".repeat(64), {}, { false })
+    assertEquals(ModelDownloader.Result.Failed(ModelFiles.Failure.NETWORK), result)
+  }
+
+  @Test
+  fun aNonHttpUrlIsANetworkFailure() {
+    val target = File(dir, "m.litertlm")
+    val result =
+      ModelDownloader().download("ftp://127.0.0.1/x", target, 1, "0".repeat(64), {}, { false })
+    assertEquals(ModelDownloader.Result.Failed(ModelFiles.Failure.NETWORK), result)
+  }
 }

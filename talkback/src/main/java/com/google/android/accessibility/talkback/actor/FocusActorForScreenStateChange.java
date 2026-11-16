@@ -175,6 +175,7 @@ public class FocusActorForScreenStateChange {
             lastFocusAction = focusActionRecord;
           } else {
             fallBackWindow = null;
+            lastFocusAction = null;
           }
         }
       }
@@ -330,8 +331,8 @@ public class FocusActorForScreenStateChange {
       String logMessage =
           "Input-focused node is not suitable for accessibility-focus and "
               + (replacement != null
-                  ? "no suitable child has been found"
-                  : "has been replaced by a suitable child");
+                  ? "has been replaced by a suitable child"
+                  : "no suitable child has been found");
       LogUtils.v(TAG, logMessage);
       return replacement;
     }

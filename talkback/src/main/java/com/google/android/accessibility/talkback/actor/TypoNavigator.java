@@ -95,6 +95,7 @@ public class TypoNavigator {
           textCursorTracker == null
               ? node.getTextSelectionStart()
               : textCursorTracker.getCurrentCursorPosition();
+      cursorPosition = Math.max(0, Math.min(cursorPosition, spanned.length()));
       SuggestionSpan[] spansAfterCursor =
           spanned.getSpans(cursorPosition, spanned.length(), SuggestionSpan.class);
       SuggestionSpan[] spansBeforeCursor =

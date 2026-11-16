@@ -55,10 +55,12 @@ object VoiceCommandChain {
     var index = 0
     while (index < words.size) {
       val connector =
-        keywords.connectorTokens.firstOrNull { connector ->
-          words.size - index >= connector.size &&
-            words.subList(index, index + connector.size) == connector
-        }
+        keywords.connectorTokens
+          .filter { connector ->
+            words.size - index >= connector.size &&
+              words.subList(index, index + connector.size) == connector
+          }
+          .maxByOrNull { it.size }
       if (connector != null) {
         if (current.isNotEmpty()) {
           parts.add(current.joinToString(" "))

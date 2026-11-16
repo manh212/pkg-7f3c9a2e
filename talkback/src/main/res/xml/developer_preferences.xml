@@ -153,7 +153,7 @@
       android:key="@string/pref_tts_overlay_key"
       android:title="@string/title_pref_tts_overlay" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="true"
+      android:defaultValue="false"
       android:key="@string/pref_on_device_ai_ignore_memory_limits_key"
       android:title="@string/title_pref_on_device_ai_ignore_memory_limits"
       android:summary="@string/summary_pref_on_device_ai_ignore_memory_limits" />

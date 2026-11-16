@@ -74,7 +74,11 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
           | AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED;
 
   private final HashMap<EventId, Integer> cachedFromValues = new HashMap<>();
+  private final HashMap<EventId, Integer> cachedToValues = new HashMap<>();
   private final HashMap<EventId, Integer> cachedItemCounts = new HashMap<>();
+
+  /** The dedup caches are keyed by a node id the framework reuses, so they must stay bounded. */
+  private static final int MAX_CACHED_SCROLL_EVENTS = 256;
   private final Bundle speechParams = new Bundle();
   private ScrollPositionHandler handler;
 
@@ -116,6 +120,7 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
       case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
         // Window state changes clear the cache.
         cachedFromValues.clear();
+        cachedToValues.clear();
         cachedItemCounts.clear();
         getHandler().cancelScrollFeedback();
       }
@@ -165,9 +170,15 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
     }
 
     final int fromIndex = event.getFromIndex() + 1;
+    final int toIndex = event.getToIndex() + 1;
     final int itemCount = event.getItemCount();
     if (itemCount <= 0 || fromIndex <= 0) {
       return true;
+    }
+
+    if (!EventId.isSourceNodeIdAvailable()) {
+      // Without the hidden node id there is nothing to dedup on; never suppress.
+      return false;
     }
 
     EventId eventId;
@@ -178,10 +189,13 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
     }
 
     final Integer cachedFromIndex = cachedFromValues.get(eventId);
+    final Integer cachedToIndex = cachedToValues.get(eventId);
     final Integer cachedItemCount = cachedItemCounts.get(eventId);
 
     if ((cachedFromIndex != null)
         && (cachedFromIndex == fromIndex)
+        && (cachedToIndex != null)
+        && (cachedToIndex == toIndex)
         && (cachedItemCount != null)
         && (cachedItemCount == itemCount)) {
       // The from index hasn't changed, which means the event is coming
@@ -189,7 +203,13 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
       return true;
     }
 
+    if (cachedFromValues.size() >= MAX_CACHED_SCROLL_EVENTS) {
+      cachedFromValues.clear();
+      cachedToValues.clear();
+      cachedItemCounts.clear();
+    }
     cachedFromValues.put(eventId, fromIndex);
+    cachedToValues.put(eventId, toIndex);
     cachedItemCounts.put(eventId, itemCount);
 
     return false;
@@ -332,12 +352,12 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
       try {
         eventClone = AccessibilityEvent.obtain(event);
       } catch (NullPointerException e) {
-        LogUtils.i(
-            TAG,
-            "A NullPointerException is expected to be thrown in the Robolectric tests when we try"
-                + " to create a clone of the mocking AccessibilityEvent instance. This exception"
-                + " should never occur when the program is running on actual Android devices.");
-        eventClone = event;
+        // A NullPointerException is expected to be thrown in the Robolectric tests when we try
+        // to create a clone of the mocking AccessibilityEvent instance. The original event
+        // must not be handed to the delayed handler: the framework may have recycled it by
+        // the time the feedback fires, up to a second later.
+        LogUtils.i(TAG, "Could not clone the scroll event, dropping the delayed feedback.");
+        return;
       }
 
       final EventIdAnd<AccessibilityEvent> eventAndId =
@@ -388,10 +408,17 @@ public class ScrollFeedbackManager implements AccessibilityEventListener {
 
     public EventId(AccessibilityEvent event)
         throws InvocationTargetException, IllegalAccessException {
+      if (getSourceNodeIdMethod == null) {
+        throw new IllegalStateException("getSourceNodeId is unavailable");
+      }
       @Nullable Object nodeId = getSourceNodeIdMethod.invoke(event);
       this.nodeId = (nodeId == null) ? 0 : (long) nodeId;
       this.windowId = event.getWindowId();
       this.hashcode = toHashcode(this.nodeId, this.windowId);
+    }
+
+    static boolean isSourceNodeIdAvailable() {
+      return getSourceNodeIdMethod != null;
     }
 
     @Override

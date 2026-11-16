@@ -2429,7 +2429,7 @@
         },
         "pref_on_device_ai_ignore_memory_limits": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_tables_navigation_menu_setting_key": {
           "type": "boolean",

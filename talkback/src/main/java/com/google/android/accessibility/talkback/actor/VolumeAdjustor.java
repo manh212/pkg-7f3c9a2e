@@ -70,7 +70,7 @@ public class VolumeAdjustor {
       }
     }
     int maxVolume = Math.max(audioManager.getStreamMaxVolume(streamTypeToAdjust), 1);
-    int minVolume = Math.max(audioManager.getStreamMinVolume(streamTypeToAdjust), 1);
+    int minVolume = audioManager.getStreamMinVolume(streamTypeToAdjust);
     int currentVolume = audioManager.getStreamVolume(streamTypeToAdjust);
 
     if ((maxVolume <= minVolume)

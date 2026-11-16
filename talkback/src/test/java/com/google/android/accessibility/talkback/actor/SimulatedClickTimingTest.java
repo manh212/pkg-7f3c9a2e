@@ -27,7 +27,8 @@ public class SimulatedClickTimingTest {
 
   @Test public void fastDoubleTapShortensTheFallbackAndStartsImmediately() {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_DOUBLE_TAP, true);
-    checkGesture(doubleTap, Math.min(40, ViewConfiguration.getTapTimeout()));
+    checkGesture(
+        doubleTap, Math.min(40, ViewConfiguration.getTapTimeout()), /* touchExploration= */ false);
   }
 
   @Test public void fastModeKeepsOrdinaryClickTiming() {
@@ -35,22 +36,34 @@ public class SimulatedClickTimingTest {
     int baseline = ViewConfiguration.getTapTimeout();
     checkGesture(
         new EventId(100, Performance.EVENT_TYPE_GESTURE, AccessibilityService.GESTURE_SWIPE_UP),
-        baseline);
-    checkGesture(null, baseline);
+        baseline,
+        /* touchExploration= */ false);
+    checkGesture(null, baseline, /* touchExploration= */ false);
   }
 
   @Test public void fastModeOffKeepsCurrentSystemTapDuration() {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_DOUBLE_TAP, false);
-    checkGesture(doubleTap, ViewConfiguration.getTapTimeout());
+    checkGesture(doubleTap, ViewConfiguration.getTapTimeout(), /* touchExploration= */ false);
   }
 
-  private void checkGesture(EventId origin, int durationMs) {
+  @Test public void touchExplorationAddsTheSecondStroke() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_DOUBLE_TAP, false);
+    int durationMs = ViewConfiguration.getTapTimeout();
     GestureDescription gesture =
-        FocusActor.buildFallbackClickGesture(new Rect(0, 0, 100, 100), origin);
+        FocusActor.buildFallbackClickGesture(
+            new Rect(0, 0, 100, 100), null, /* touchExploration= */ true);
     assertEquals(2, gesture.getStrokeCount());
     assertEquals(0, gesture.getStroke(0).getStartTime());
     assertEquals(durationMs, gesture.getStroke(0).getDuration());
     assertEquals(durationMs + 40, gesture.getStroke(1).getStartTime());
     assertEquals(durationMs, gesture.getStroke(1).getDuration());
+  }
+
+  private void checkGesture(EventId origin, int durationMs, boolean touchExploration) {
+    GestureDescription gesture =
+        FocusActor.buildFallbackClickGesture(new Rect(0, 0, 100, 100), origin, touchExploration);
+    assertEquals(1, gesture.getStrokeCount());
+    assertEquals(0, gesture.getStroke(0).getStartTime());
+    assertEquals(durationMs, gesture.getStroke(0).getDuration());
   }
 }

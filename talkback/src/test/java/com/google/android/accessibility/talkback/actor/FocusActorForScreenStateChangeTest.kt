@@ -165,6 +165,19 @@ class FocusActorForScreenStateChangeTest {
     assertEquals(1, RootsShadow.rootRequests)
   }
 
+  @Test
+  fun newerAppFocusBeatsOlderImeFocus() {
+    val root = root()
+    val ime = window(IME, AccessibilityWindowInfo.TYPE_INPUT_METHOD, root)
+    val app = window(APP, AccessibilityWindowInfo.TYPE_APPLICATION, root)
+    history.onAccessibilityFocusAction(button(ime, root, "Ime"), focusInfo(), 1, screen(ime))
+    history.onAccessibilityFocusAction(button(app, root, "Play"), focusInfo(), 2, screen(app))
+    shadowOf(service).setWindows(listOf(ime, app))
+
+    assertTrue(restore(app))
+    assertEquals(listOf("Play"), focused.map { it?.text?.toString() })
+  }
+
   /** Restores the last focus into [active], counting only the roots that fetches. */
   private fun restore(active: AccessibilityWindowInfo): Boolean {
     RootsShadow.rootRequests = 0
@@ -193,11 +206,12 @@ class FocusActorForScreenStateChangeTest {
   private fun button(
     window: AccessibilityWindowInfo,
     root: AccessibilityNodeInfo,
+    text: String = "Play",
   ): AccessibilityNodeInfoCompat {
     val node = AccessibilityNodeInfo.obtain(View(service))
     node.packageName = APP_PACKAGE
     node.className = "android.widget.Button"
-    node.text = "Play"
+    node.text = text
     node.isVisibleToUser = true
     node.isEnabled = true
     node.isClickable = true
@@ -214,6 +228,7 @@ class FocusActorForScreenStateChangeTest {
 
   private companion object {
     const val APP = 10
+    const val IME = 30
     const val SHADE = 20
     const val APP_PACKAGE = "com.example.app"
   }

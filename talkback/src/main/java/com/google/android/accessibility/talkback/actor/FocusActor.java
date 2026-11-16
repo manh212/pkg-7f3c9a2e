@@ -63,6 +63,7 @@ import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.PerformActionUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.List;
@@ -227,6 +228,9 @@ public class FocusActor implements UserInputEventListener {
   }
 
   public boolean doubleClickNode(AccessibilityNodeInfoCompat node, EventId eventId) {
+    if (node == null || pipeline == null) {
+      return false;
+    }
     return pipeline.returnFeedback(eventId, Feedback.edit(node, SELECT_SEGMENT))
         || simulateDoubleClickOnNode(service, node);
   }
@@ -247,6 +251,9 @@ public class FocusActor implements UserInputEventListener {
   }
 
   public boolean clickCurrentHierarchical(@Nullable EventId eventId) {
+    if (pipeline == null) {
+      return false;
+    }
     AccessibilityNodeInfoCompat currentFocus =
         accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
     if (currentFocus == null) {
@@ -260,6 +267,9 @@ public class FocusActor implements UserInputEventListener {
     AccessibilityNodeInfoCompat nodeToClick =
         AccessibilityNodeInfoUtils.getSelfOrMatchingAncestor(
             currentFocus, AccessibilityNodeInfoUtils.FILTER_CLICKABLE);
+    if (nodeToClick == null) {
+      return false;
+    }
     return pipeline.returnFeedback(eventId, Feedback.nodeAction(nodeToClick, ACTION_CLICK.getId()));
   }
 
@@ -473,21 +483,32 @@ public class FocusActor implements UserInputEventListener {
     Rect rect = new Rect();
     node.getBoundsInScreen(rect);
     return accessibilityService.dispatchGesture(
-        buildFallbackClickGesture(rect, eventId), /* callback= */ null, /* handler= */ null);
+        buildFallbackClickGesture(
+            rect,
+            eventId,
+            SettingsUtils.isTouchExplorationEnabled(
+                accessibilityService.getContentResolver())),
+        /* callback= */ null,
+        /* handler= */ null);
   }
 
   @VisibleForTesting
-  static GestureDescription buildFallbackClickGesture(Rect rect, @Nullable EventId eventId) {
+  static GestureDescription buildFallbackClickGesture(
+      Rect rect, @Nullable EventId eventId, boolean touchExploration) {
     Path path = new Path();
     path.moveTo(rect.centerX(), rect.centerY());
     int durationMs = ViewConfiguration.getTapTimeout();
     if (LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled() && fromDoubleTap(eventId)) {
       durationMs = Math.min(durationMs, FAST_TAP_STROKE_MS);
     }
-    return new GestureDescription.Builder()
-        .addStroke(new StrokeDescription(path, 0, durationMs))
-        .addStroke(new StrokeDescription(path, durationMs + STROKE_TIME_GAP_MS, durationMs))
-        .build();
+    GestureDescription.Builder builder =
+        new GestureDescription.Builder()
+            .addStroke(new StrokeDescription(path, 0, durationMs));
+    if (touchExploration) {
+      builder.addStroke(
+          new StrokeDescription(path, durationMs + STROKE_TIME_GAP_MS, durationMs));
+    }
+    return builder.build();
   }
 
   private static boolean fromDoubleTap(@Nullable EventId eventId) {
@@ -507,10 +528,6 @@ public class FocusActor implements UserInputEventListener {
         new GestureDescription.Builder()
             .addStroke(new StrokeDescription(path, /* startTime= */ 0, durationMs))
             .addStroke(new StrokeDescription(path, durationMs + STROKE_TIME_GAP_MS, durationMs))
-            .addStroke(
-                new StrokeDescription(path, 2L * (durationMs + STROKE_TIME_GAP_MS), durationMs))
-            .addStroke(
-                new StrokeDescription(path, 3L * (durationMs + STROKE_TIME_GAP_MS), durationMs))
             .build();
     return accessibilityService.dispatchGesture(
         gestureDescription, /* callback= */ null, /* handler= */ null);

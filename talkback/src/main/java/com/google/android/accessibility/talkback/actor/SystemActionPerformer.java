@@ -70,9 +70,14 @@ public final class SystemActionPerformer {
   }
 
   public boolean performAction(int id) {
-    if (actorState != null) {
+    boolean result = performActionInternal(id);
+    if (result && actorState != null) {
       actorState.setLastSystemAction(id);
     }
+    return result;
+  }
+
+  private boolean performActionInternal(int id) {
     if (id == GLOBAL_ACTION_SYSTEM_NOTIFICATIONS) {
       return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS);
     }

@@ -73,9 +73,34 @@ class ScreenJsonRepairTest {
   }
 
   @Test
-  fun elementsThatAreNotObjectsAreDropped() {
-    val result = repaired("""{"top_ui_elements":["Back",{"label":"ok"}]}""")
-    assertEquals(1, result.getJSONArray("top_ui_elements").length())
+  fun bareElementsAreKeptAsBestEffort() {
+    val result = repaired("""{"top_ui_elements":["Back", 7, {"label":"ok"}]}""")
+    val elements = result.getJSONArray("top_ui_elements")
+    assertEquals(3, elements.length())
+    assertEquals("Back", elements.getJSONObject(0).getString("label"))
+    assertEquals(
+      7,
+      elements
+        .getJSONObject(1)
+        .getJSONArray("potentiallyMatchingNodes")
+        .getJSONObject(0)
+        .getInt("uniqueId"),
+    )
+    assertEquals("ok", elements.getJSONObject(2).getString("label"))
+  }
+
+  @Test
+  fun nodeIdsLargerThanIntAreRejected() {
+    val result =
+      repaired("""{"ui_elements":[{"potentiallyMatchingNodes":[2147483648, 7, 2147483647]}]}""")
+    val nodes =
+      result
+        .getJSONArray("ui_elements")
+        .getJSONObject(0)
+        .getJSONArray("potentiallyMatchingNodes")
+    assertEquals(2, nodes.length())
+    assertEquals(7, nodes.getJSONObject(0).getInt("uniqueId"))
+    assertEquals(2147483647, nodes.getJSONObject(1).getInt("uniqueId"))
   }
 
   @Test

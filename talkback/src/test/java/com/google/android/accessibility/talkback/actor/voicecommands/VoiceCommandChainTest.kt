@@ -53,4 +53,13 @@ class VoiceCommandChainTest {
     assertEquals(listOf("cuon xuong"), VoiceCommandChain.split("rồi cuộn xuống", keywords))
     assertEquals(listOf("cuon xuong"), VoiceCommandChain.split("cuộn xuống rồi", keywords))
   }
+
+  @Test
+  fun split_longestConnectorWinsOverShorterPrefix() {
+    val overlapping = VoiceCommandChain.Keywords(listOf("sau", "sau đó"))
+    assertEquals(
+      listOf("quay lai", "ve man hinh chinh"),
+      VoiceCommandChain.split("quay lại sau đó về màn hình chính", overlapping),
+    )
+  }
 }

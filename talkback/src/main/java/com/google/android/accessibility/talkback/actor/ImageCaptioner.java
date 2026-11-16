@@ -19,8 +19,6 @@ package com.google.android.accessibility.talkback.actor;
 import static com.google.android.accessibility.talkback.Feedback.Focus.Action.MUTE_NEXT_FOCUS;
 import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_ICON_LABEL_FAILED;
 import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_ICON_LABEL_SUCCEED;
-import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_IMAGE_DESCRIPTION_FAILED;
-import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_IMAGE_DESCRIPTION_SUCCEED;
 import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_IMAGE_PROCESS_BLOCK_OVERLAY;
 import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_OCR_FAILED;
 import static com.google.android.accessibility.talkback.PrimesController.TimerAction.IMAGE_CAPTION_OCR_SUCCEED;
@@ -41,9 +39,6 @@ import static com.google.android.accessibility.talkback.analytics.TalkBackAnalyt
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_ICON_DETECT_SUCCEED;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_IMAGE_CAPTION_CACHE_HIT;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_ABORT;
-import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_FAIL;
-import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_NO_RESULT;
-import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_SUCCEED;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_OCR_ABORT;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_OCR_PERFORM_FAIL;
 import static com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.IMAGE_CAPTION_EVENT_OCR_PERFORM_SUCCEED;
@@ -122,14 +117,12 @@ import com.google.android.accessibility.talkback.imagecaption.ImageCaptionConsta
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionStorage;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.CaptionType;
-import com.google.android.accessibility.talkback.imagecaption.ImageDescriptionRequest;
 import com.google.android.accessibility.talkback.imagecaption.ImageNode;
 import com.google.android.accessibility.talkback.imagecaption.Request;
 import com.google.android.accessibility.talkback.imagecaption.Request.ErrorCode;
 import com.google.android.accessibility.talkback.imagecaption.RequestList;
 import com.google.android.accessibility.talkback.imagecaption.Result;
 import com.google.android.accessibility.talkback.imagecaption.ScreenshotCaptureRequest;
-import com.google.android.accessibility.talkback.imagedescription.ImageDescriptionProcessor;
 import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport;
 import com.google.android.accessibility.utils.AccessibilityNode;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
@@ -146,7 +139,6 @@ import com.google.android.accessibility.utils.screenunderstanding.IconAnnotation
 import com.google.android.libraries.accessibility.utils.bitmap.BitmapUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.auto.value.AutoValue;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Duration;
@@ -162,7 +154,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 /** Performs image caption and manages related state. */
 public class ImageCaptioner extends Handler
@@ -220,10 +211,6 @@ public class ImageCaptioner extends Handler
   private boolean iconAnnotationsDetectorStarted = false;
   @Nullable private AccessibilityNodeInfoCompat queuedNode;
   private final CaptionResults captionResults;
-  @VisibleForTesting @Nullable ImageDescriptionProcessor imageDescriptionProcessor;
-  @VisibleForTesting boolean isImageDescriptionProcessorInitializing;
-  @VisibleForTesting @Nullable Future<Boolean> initImageDescriptionProcessFuture;
-  @VisibleForTesting @Nullable Future<Boolean> shutDownImageDescriptionProcessFuture;
   private final ModuleStateManager moduleStateManager;
 
   /** A handler for showing UI elements, like a dialog. */
@@ -235,12 +222,17 @@ public class ImageCaptioner extends Handler
    */
   private int requestId = 0;
 
+  /**
+   * The request ids whose results timeout is still armed. A timeout message for an id that left
+   * this set is a stale one and is ignored, so one caption starting or finishing never cancels
+   * the timeout guarding another caption that is still pending.
+   */
+  private final Set<Integer> pendingResultTimeouts = new HashSet<>();
+
   private final RequestList<ScreenshotCaptureRequest> screenshotRequests;
   private final RequestList<CharacterCaptionRequest> characterCaptionRequests =
       new RequestList<>(CAPTION_REQUEST_CAPACITY);
   private final RequestList<IconDetectionRequest> iconDetectionRequests =
-      new RequestList<>(CAPTION_REQUEST_CAPACITY);
-  private final RequestList<ImageDescriptionRequest> imageDescriptionRequests =
       new RequestList<>(CAPTION_REQUEST_CAPACITY);
   private GeminiOptInDialog geminiOptInDialog;
   private GeminiOptInDialog geminiNanoOptInDialog;
@@ -320,9 +312,6 @@ public class ImageCaptioner extends Handler
       }
     } else {
       LogUtils.v(TAG, "Icon detection is not initialized in ImageCaptioner()");
-    }
-    if (!initImageDescription()) {
-      LogUtils.v(TAG, "Image description is not initialized in ImageCaptioner()");
     }
     geminiOptInDialog =
         new GeminiOptInDialog(
@@ -520,13 +509,6 @@ public class ImageCaptioner extends Handler
         && ImageCaptioner.isSupportIconDetection();
   }
 
-  public static boolean supportsImageDescription(Context context) {
-    return FeatureSupport.canTakeScreenShotByAccessibilityService()
-        && TalkbackFeatureSupport.supportDynamicFeatures()
-        && FeatureFlagReader.enableImageDescription(context)
-        && ImageDescriptionProcessor.isSupportImageDescription();
-  }
-
   public static boolean isSupportIconDetection() {
     return supportIconDetection;
   }
@@ -612,6 +594,7 @@ public class ImageCaptioner extends Handler
   @VisibleForTesting
   void shutdownIconDetector() {
     removeMessages(MSG_RESULT_TIMEOUT);
+    pendingResultTimeouts.clear();
     abandonCaptionResults();
 
     if (iconAnnotationsDetector != null) {
@@ -629,69 +612,10 @@ public class ImageCaptioner extends Handler
     return moduleStateManager.isLibraryReady(IMAGE_DESCRIPTION);
   }
 
-  @CanIgnoreReturnValue
-  public boolean initImageDescription() {
-    if (!moduleStateManager.isLibraryReady(IMAGE_DESCRIPTION)) {
-      return false;
-    }
-
-    if (imageDescriptionProcessor != null || isImageDescriptionProcessorInitializing) {
-      // ImageDescriptionProcessor has been initialized or is initializing.
-      return true;
-    }
-
-    if (!moduleStateManager.installModule(IMAGE_DESCRIPTION)) {
-      // Image description module install failed.
-      return false;
-    }
-    isImageDescriptionProcessorInitializing = true;
-    initImageDescriptionProcessFuture =
-        executorService.submit(
-            () -> {
-              LogUtils.v(TAG, "Creating ImageDescriptionProcessor...");
-              if (imageDescriptionProcessor != null) {
-                LogUtils.v(TAG, "ImageDescriptionProcessor created");
-                isImageDescriptionProcessorInitializing = false;
-                return true;
-              }
-
-              try {
-                imageDescriptionProcessor = new ImageDescriptionProcessor(service, analytics);
-                LogUtils.v(TAG, "ImageDescriptionProcessor initialized.");
-                return true;
-              } catch (UnsatisfiedLinkError error) {
-                LogUtils.e(TAG, error.getMessage());
-                return false;
-              } finally {
-                isImageDescriptionProcessorInitializing = false;
-              }
-            });
-    return true;
-  }
-
-  private void shutdownImageDescription() {
-    LogUtils.v(
-        TAG,
-        "shutdownImageDescription isImageDescriptionProcessorInitializing=%b",
-        isImageDescriptionProcessorInitializing);
-    shutDownImageDescriptionProcessFuture =
-        executorService.submit(
-            () -> {
-              isImageDescriptionProcessorInitializing = false;
-              if (imageDescriptionProcessor != null) {
-                imageDescriptionProcessor.stop();
-                imageDescriptionProcessor = null;
-                LogUtils.v(TAG, "ImageDescriptionProcessor stopped.");
-              }
-              return true;
-            });
-  }
-
   public void shutdown() {
     // Ends all requests, so that results that come later are ignored.
     clearRequests();
     shutdownIconDetector();
-    shutdownImageDescription();
     moduleStateManager.shutdown();
 
     SharedPreferencesUtils.getSharedPreferences(service)
@@ -714,7 +638,6 @@ public class ImageCaptioner extends Handler
           @Override
           void initialize() {
             initIconDetection();
-            initImageDescription();
           }
         },
         new ManualDownloadStateListener(
@@ -731,20 +654,7 @@ public class ImageCaptioner extends Handler
             initIconDetection();
           }
         },
-        new ManualDownloadStateListener(
-            service,
-            pipeline,
-            analytics,
-            this,
-            DownloadStateListenerResources.IMAGE_DESCRIPTION,
-            ImageCaptionPreferenceKeys.IMAGE_DESCRIPTION,
-            DownloadDialogResources.IMAGE_DESCRIPTION.moduleSizeInMb,
-            ImageCaptionLogKeys.IMAGE_DESCRIPTION) {
-          @Override
-          void initialize() {
-            initImageDescription();
-          }
-        });
+        null);
   }
 
   public void setActorState(ActorState actorState) {
@@ -795,27 +705,16 @@ public class ImageCaptioner extends Handler
     }
     boolean iconDetectionAvailable = (iconAnnotationsDetector != null);
 
-    if (moduleStateManager.isLibraryReady(IMAGE_DESCRIPTION) && imageDescriptionProcessor == null) {
-      initImageDescription();
-    }
-    boolean imageDescriptionAvailable =
-        (imageDescriptionProcessor != null) || isImageDescriptionProcessorInitializing;
-
-    CaptionType captionType =
-        supportsImageDescription(service)
-            ? ImageCaptionUtils.getPreferredModuleOnNode(service, node)
-            : ICON_LABEL;
+    CaptionType captionType = ICON_LABEL;
     LogUtils.v(
         TAG,
-        "iconDetectionAvailable=%s, imageDescriptionAvailable=%s, captionType = %s",
+        "iconDetectionAvailable=%s, captionType = %s",
         iconDetectionAvailable,
-        imageDescriptionAvailable,
         captionType);
 
-    // Shows a dialog to download icon detection module for small size images; shows a dialog to
-    // download image description module for large size images. Only one dialog will be shown.
-    if ((captionType == ICON_LABEL && !iconDetectionAvailable)
-        || (captionType == IMAGE_DESCRIPTION && !imageDescriptionAvailable)) {
+    // Shows a dialog to download icon detection module for small size images. Only one dialog
+    // will be shown.
+    if (captionType == ICON_LABEL && !iconDetectionAvailable) {
       if (showDownloadDialog(captionType, node, MENU)) {
         return false;
       }
@@ -1167,19 +1066,10 @@ public class ImageCaptioner extends Handler
       return;
     }
 
-    if (service.getString(ImageCaptionPreferenceKeys.IMAGE_DESCRIPTION.uninstalledKey).equals(key)
-        && moduleStateManager.isLegacyUninstalled(IMAGE_DESCRIPTION)) {
-      imageDescriptionRequests.clear();
-      shutdownImageDescription();
-      return;
-    }
-
     if (service.getString(ImageCaptionPreferenceKeys.ALL.uninstalledKey).equals(key)
         && moduleStateManager.isCombinedUninstalled()) {
       iconDetectionRequests.clear();
       shutdownIconDetector();
-      imageDescriptionRequests.clear();
-      shutdownImageDescription();
     }
   }
 
@@ -1360,7 +1250,7 @@ public class ImageCaptioner extends Handler
     if (!screens.croppedScreenCapture().equals(screens.blockedScreenCapture())) {
       captionResult.addUsedScreenshot(screens.croppedScreenCapture());
     }
-    sendResultTimeoutMessage();
+    sendResultTimeoutMessage(requestId);
 
     CaptionNodeType captionNodeType = getCaptionNodeType(service, node, /* needSizeCheck= */ false);
     boolean hasCaptionRequest = false;
@@ -1396,25 +1286,7 @@ public class ImageCaptioner extends Handler
       hasCaptionRequest = true;
     }
 
-    // Image description with Garcon.
-    if (imageDescriptionProcessor == null) {
-      // Image description isn't supported or ready.
-      captionResult.setImageDescription(null);
-      if (isImageDescriptionProcessorInitializing) {
-        LogUtils.v(TAG, "Image description process is initializing...");
-      }
-    } else if (!isUserRequested
-        && !needAutomaticImageDescription(
-            service,
-            prefs,
-            getCaptionNodeType(service, node, /* needSizeCheck= */ true),
-            /* hasAiCore= */ false)) {
-      // Automatic image description is disabled.
-      captionResult.setImageDescription(null);
-    } else {
-      addImageDescriptionRequest(requestId, node, screens.croppedScreenCapture(), isUserRequested);
-      hasCaptionRequest = true;
-    }
+    captionResult.setImageDescription(null);
 
     if (hasCaptionRequest) {
       return;
@@ -1424,7 +1296,7 @@ public class ImageCaptioner extends Handler
     // No result will finish the caption result, so it goes now, with its timeout.
     captionResult.recycleAndClearScreenshots();
     captionResults.removeCaptionResult(requestId);
-    removeMessages(MSG_RESULT_TIMEOUT);
+    cancelResultTimeout(requestId);
     screenshotRequests.performNextRequest(request);
   }
 
@@ -1540,53 +1412,6 @@ public class ImageCaptioner extends Handler
             isUserRequested));
   }
 
-  private void onImageDescriptionFinish(
-      CaptionRequest request, AccessibilityNode node, Result result, boolean isUserRequested) {
-    if (request.getDurationMillis() != INVALID_DURATION) {
-      primeLogImageCaptionEvent(
-          IMAGE_CAPTION_IMAGE_DESCRIPTION_SUCCEED, request.getDurationMillis());
-    }
-    analytics.onImageCaptionEvent(IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_SUCCEED);
-    LogUtils.v(
-        TAG,
-        "onImageDescriptionFinish() "
-            + StringBuilderUtils.joinFields(
-                StringBuilderUtils.optionalSubObj("result", result.text()),
-                StringBuilderUtils.optionalSubObj("node", node)));
-    imageDescriptionRequests.performNextRequest(request);
-
-    handleResult(request.getRequestId(), node, result, isUserRequested);
-    imageCaptionStorage.updateImageDescriptionResult(node, result);
-  }
-
-  @VisibleForTesting
-  void addImageDescriptionRequest(
-      int id, AccessibilityNodeInfoCompat node, Bitmap screenCapture, boolean isUserRequested) {
-    imageDescriptionRequests.addRequest(
-        new ImageDescriptionRequest(
-            id,
-            service,
-            node,
-            screenCapture,
-            imageDescriptionProcessor,
-            /* onFinishListener= */ this::onImageDescriptionFinish,
-            /* onErrorListener= */ (errorRequest, errorNode, errorCode, userRequest) -> {
-              if (errorRequest.getDurationMillis() != INVALID_DURATION) {
-                primeLogImageCaptionEvent(
-                    IMAGE_CAPTION_IMAGE_DESCRIPTION_FAILED, errorRequest.getDurationMillis());
-              }
-              analytics.onImageCaptionEvent(IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_FAIL);
-              LogUtils.v(TAG, "onError(), error=%s", Request.errorName(errorCode));
-              imageDescriptionRequests.performNextRequest(errorRequest);
-              handleResult(
-                  errorRequest.getRequestId(),
-                  AccessibilityNode.takeOwnership(node),
-                  Result.create(IMAGE_DESCRIPTION, null),
-                  userRequest);
-            },
-            isUserRequested));
-  }
-
   /** Returns why the node needs automatic image captioning. */
   private static CaptionNodeType getCaptionNodeType(
       Context context, AccessibilityNodeInfoCompat node, boolean needSizeCheck) {
@@ -1660,10 +1485,10 @@ public class ImageCaptioner extends Handler
   @VisibleForTesting
   void clearRequests() {
     removeMessages(MSG_RESULT_TIMEOUT);
+    pendingResultTimeouts.clear();
     screenshotRequests.clear();
     characterCaptionRequests.clear();
     iconDetectionRequests.clear();
-    imageDescriptionRequests.clear();
     abandonCaptionResults();
   }
 
@@ -1686,11 +1511,6 @@ public class ImageCaptioner extends Handler
   @VisibleForTesting
   int getWaitingIconDetectionRequestSize() {
     return iconDetectionRequests.getWaitingRequestSize();
-  }
-
-  @VisibleForTesting
-  int getWaitingImageDescriptionRequestSize() {
-    return imageDescriptionRequests.getWaitingRequestSize();
   }
 
   @VisibleForTesting
@@ -1766,9 +1586,7 @@ public class ImageCaptioner extends Handler
         }
         case IMAGE_DESCRIPTION -> {
           captionResult.setImageDescription(result);
-          if (!needFeedbackToUser
-              && imageDescriptionProcessor != null
-              && !captionResult.isImageDescriptionByGemini) {
+          if (!needFeedbackToUser && !captionResult.isImageDescriptionByGemini) {
             analytics.onImageCaptionEvent(IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_ABORT);
           }
         }
@@ -1780,7 +1598,7 @@ public class ImageCaptioner extends Handler
         }
         captionResult.recycleAndClearScreenshots();
         captionResults.removeCaptionResult(id);
-        removeMessages(MSG_RESULT_TIMEOUT);
+        cancelResultTimeout(id);
         screenshotRequests.performNextRequest(captionResult.screenshotRequest);
       }
     }
@@ -1881,11 +1699,6 @@ public class ImageCaptioner extends Handler
     if (Result.isEmpty(ocrTextResult)) {
       analytics.onImageCaptionEvent(IMAGE_CAPTION_EVENT_OCR_PERFORM_SUCCEED_EMPTY);
     }
-    if (Result.isEmpty(imageDescriptionResult)) {
-      if (imageDescriptionProcessor != null && !isImageDescriptionByGemini) {
-        analytics.onImageCaptionEvent(IMAGE_CAPTION_EVENT_IMAGE_DESCRIBE_NO_RESULT);
-      }
-    }
 
     if (isUserRequested && isImageDescriptionByGemini) {
       if (isGeminiFinishedWithError) {
@@ -1981,38 +1794,46 @@ public class ImageCaptioner extends Handler
             text, SpeakOptions.create().setFlags(FLAG_FORCE_FEEDBACK | FLAG_NO_DEVICE_SLEEP)));
   }
 
-  /** Sends a message to handle results timeout. */
-  private void sendResultTimeoutMessage() {
-    removeMessages(MSG_RESULT_TIMEOUT);
-
+  /** Sends a message to handle one request's results timeout. */
+  private void sendResultTimeoutMessage(int requestId) {
+    pendingResultTimeouts.add(requestId);
     Message message = new Message();
     message.what = MSG_RESULT_TIMEOUT;
     message.arg1 = requestId;
-
     sendMessageDelayed(message, RESULT_MAX_WAITING_TIME_MS);
+  }
+
+  /** Stops tracking one request's results timeout; its queued message becomes a no-op. */
+  private void cancelResultTimeout(int requestId) {
+    pendingResultTimeouts.remove(requestId);
   }
 
   @Override
   public void handleMessage(@NonNull Message msg) {
     super.handleMessage(msg);
     if (msg.what == MSG_RESULT_TIMEOUT) {
+      if (!pendingResultTimeouts.remove(msg.arg1)) {
+        // The request already finished; its timeout was cancelled.
+        return;
+      }
       // Obtains the caption result by requestId.
       @Nullable CaptionResult captionResult = captionResults.getCaptionResult(msg.arg1);
-      if (captionResult != null) {
-        @Nullable
-        AccessibilityNode focusedNode =
-            AccessibilityNode.takeOwnership(
-                accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false));
-        if (captionResult.node.equals(focusedNode)) {
-          returnCaptionResult(msg.arg1, captionResult);
-        }
+      if (captionResult == null) {
+        // The request was already evicted; there is nothing to time out.
+        return;
+      }
+      @Nullable
+      AccessibilityNode focusedNode =
+          AccessibilityNode.takeOwnership(
+              accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false));
+      if (captionResult.node.equals(focusedNode)) {
+        returnCaptionResult(msg.arg1, captionResult);
       }
       LogUtils.w(TAG, "Caption request is timeout.");
       // Ends the caption requests, so that their results are ignored when they come. The screenshot
       // requests that wait stay, such as one the user has just made.
       characterCaptionRequests.clear();
       iconDetectionRequests.clear();
-      imageDescriptionRequests.clear();
       abandonCaptionResults();
     }
   }

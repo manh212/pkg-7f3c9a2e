@@ -12,6 +12,9 @@ import com.google.android.accessibility.utils.WeakReferenceHandler;
  * Similar to {@link BroadcastReceiver} but executes the action on the thread that the instance is
  * created on (instead of the main thread). This is to help with classes that are not thread-safe.
  *
+ * <p>When the instance is created on a thread without a prepared looper, the action runs on the
+ * main thread instead of throwing at construction time.
+ *
  * <p>Child classes should implement {@link #onReceiveIntent} instead of {@link #onReceive}.
  */
 public abstract class SameThreadBroadcastReceiver extends BroadcastReceiver {
@@ -33,7 +36,9 @@ public abstract class SameThreadBroadcastReceiver extends BroadcastReceiver {
       extends WeakReferenceHandler<SameThreadBroadcastReceiver> {
 
     public BroadcastReceiverHandler(SameThreadBroadcastReceiver parent) {
-      super(parent, Looper.myLooper());
+      super(
+          parent,
+          Looper.myLooper() != null ? Looper.myLooper() : Looper.getMainLooper());
     }
 
     @Override

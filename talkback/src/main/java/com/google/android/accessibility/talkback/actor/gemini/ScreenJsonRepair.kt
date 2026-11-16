@@ -135,7 +135,19 @@ internal object ScreenJsonRepair {
   private fun elements(array: JSONArray): JSONArray {
     val fixed = JSONArray()
     for (i in 0 until array.length()) {
-      val element = array.optJSONObject(i) ?: continue
+      val element =
+        when (val value = array.get(i)) {
+          is JSONObject -> value
+          is String -> JSONObject().put("label", value)
+          is Number ->
+            inRangeId(value)?.let {
+              JSONObject()
+                .put(
+                  "potentiallyMatchingNodes",
+                  JSONArray().put(JSONObject().put("uniqueId", it)))
+            }
+          else -> null
+        } ?: continue
       if (element.has("potentiallyMatchingNodes")) {
         element.put("potentiallyMatchingNodes", nodes(element.get("potentiallyMatchingNodes")))
       }
@@ -144,13 +156,23 @@ internal object ScreenJsonRepair {
     return fixed
   }
 
+  /** A node id that fits in an Int, or null when the model wrote one that does not. */
+  private fun inRangeId(value: Number): Int? {
+    val id = value.toLong()
+    return if (id in Int.MIN_VALUE..Int.MAX_VALUE && id.toDouble() == value.toDouble()) {
+      id.toInt()
+    } else {
+      null
+    }
+  }
+
   private fun nodes(value: Any): JSONArray {
     val list = value as? JSONArray ?: JSONArray().put(value)
     val fixed = JSONArray()
     for (i in 0 until list.length()) {
       when (val node = list.get(i)) {
         is JSONObject -> fixed.put(node)
-        is Number -> fixed.put(JSONObject().put("uniqueId", node.toInt()))
+        is Number -> inRangeId(node)?.let { fixed.put(JSONObject().put("uniqueId", it)) }
         is String ->
           node.trim().toIntOrNull()?.let { fixed.put(JSONObject().put("uniqueId", it)) }
       }

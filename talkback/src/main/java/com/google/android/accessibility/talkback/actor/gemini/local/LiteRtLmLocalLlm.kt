@@ -26,6 +26,7 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -124,6 +125,7 @@ class LiteRtLmLocalLlm(
     engine?.let {
       return it
     }
+    verifyModelFile()
     beforeLoad()
     val backend = if (useGpu) Backend.GPU() else Backend.CPU()
     val config =
@@ -135,9 +137,46 @@ class LiteRtLmLocalLlm(
         maxNumImages = 1,
         cacheDir = cacheDir,
       )
-    return Engine(config).also {
-      it.initialize()
-      engine = it
+    val created = Engine(config)
+    try {
+      created.initialize()
+    } catch (e: Throwable) {
+      try {
+        created.close()
+      } catch (_: Exception) {
+        Log.w(TAG, "Could not close the failed engine", e)
+      }
+      throw e
+    }
+    engine = created
+    return created
+  }
+
+  /**
+   * Checks the model file against the hash stored for it, once per file, so that a file corrupted
+   * after installation is reported as damaged instead of failing later as a confusing model error.
+   * A file that is not a known model has no stored hash and is left alone.
+   */
+  private fun verifyModelFile() {
+    val model = LocalModel.entries.firstOrNull { it.localFileName == modelFile.name } ?: return
+    val verified = synchronized(verifiedFiles) { verifiedFiles[modelFile.path] }
+    if (verified != null
+        && verified.first == modelFile.length()
+        && verified.second == modelFile.lastModified()) {
+      return
+    }
+    val matches =
+      try {
+        modelFile.inputStream().use { ModelFiles.sha256(it).equals(model.sha256, ignoreCase = true) }
+      } catch (_: IOException) {
+        false
+      }
+    if (!matches) {
+      throw LocalLlmException(
+        "The on-device model file is damaged. Delete it and download it again.")
+    }
+    synchronized(verifiedFiles) {
+      verifiedFiles[modelFile.path] = modelFile.length() to modelFile.lastModified()
     }
   }
 
@@ -168,5 +207,8 @@ class LiteRtLmLocalLlm(
   companion object {
     private const val TAG = "LiteRtLmLocalLlm"
     const val DEFAULT_IDLE_UNLOAD_MS = 2 * 60 * 1000L
+
+    /** Model files already checked against their stored hash, by path, with size and mtime. */
+    private val verifiedFiles = mutableMapOf<String, Pair<Long, Long>>()
   }
 }

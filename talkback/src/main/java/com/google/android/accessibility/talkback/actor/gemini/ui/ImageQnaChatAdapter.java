@@ -206,6 +206,8 @@ public class ImageQnaChatAdapter extends RecyclerView.Adapter<ImageQnaChatAdapte
     @Nullable private MotionLayout motionLayout;
     @Nullable private AccessibilityViewCommand thumbsUpCommand;
     @Nullable private AccessibilityViewCommand thumbsDownCommand;
+    private int thumbUpActionId = -1;
+    private int thumbDownActionId = -1;
     @MessageType int viewType;
     @Nullable private ImageView geminiIcon;
     private final LoopAnimationTransitionListener loopAnimationTransitionListener;
@@ -284,34 +286,33 @@ public class ImageQnaChatAdapter extends RecyclerView.Adapter<ImageQnaChatAdapte
       if (thumbsUpCommand == null) {
         LogUtils.e(TAG, "No AccessibilityViewCommand for thumbs-up action");
       } else {
-        int likeActionId =
+        if (thumbUpActionId != -1) {
+          ViewCompat.removeAccessibilityAction(itemView, thumbUpActionId);
+        }
+        thumbUpActionId =
             ViewCompat.addAccessibilityAction(
                 itemView,
-                itemView.getContext().getString(R.string.action_text_like_button),
+                itemView.getContext().getString(
+                    thumbUp
+                        ? R.string.action_text_clear_like_button
+                        : R.string.action_text_like_button),
                 thumbsUpCommand);
-        int clearLikeActionId =
-            ViewCompat.addAccessibilityAction(
-                itemView,
-                itemView.getContext().getString(R.string.action_text_clear_like_button),
-                thumbsUpCommand);
-        ViewCompat.removeAccessibilityAction(itemView, thumbUp ? likeActionId : clearLikeActionId);
       }
 
       if (thumbsDownCommand == null) {
         LogUtils.e(TAG, "No AccessibilityViewCommand for thumbs-down action");
       } else {
-        int dislikeActionId =
+        if (thumbDownActionId != -1) {
+          ViewCompat.removeAccessibilityAction(itemView, thumbDownActionId);
+        }
+        thumbDownActionId =
             ViewCompat.addAccessibilityAction(
                 itemView,
-                itemView.getContext().getString(R.string.action_text_dislike_button),
+                itemView.getContext().getString(
+                    thumbDown
+                        ? R.string.action_text_clear_dislike_button
+                        : R.string.action_text_dislike_button),
                 thumbsDownCommand);
-        int clearDislikeActionId =
-            ViewCompat.addAccessibilityAction(
-                itemView,
-                itemView.getContext().getString(R.string.action_text_clear_dislike_button),
-                thumbsDownCommand);
-        ViewCompat.removeAccessibilityAction(
-            itemView, thumbDown ? dislikeActionId : clearDislikeActionId);
       }
     }
 

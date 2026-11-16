@@ -708,8 +708,9 @@ public class TextEditActor implements VoiceDictationDelegate {
     // When input focus and a11y focus is not on the same editable node, move the input focus to
     // a11y focused node to let paste can perform correctly.
     if (a11yFocusedNode != null && a11yFocusedNode.isEditable() && node != a11yFocusedNode) {
-      a11yFocusedNode.performAction(FOCUS_INPUT);
-      node = a11yFocusedNode;
+      if (a11yFocusedNode.performAction(FOCUS_INPUT)) {
+        node = a11yFocusedNode;
+      }
     }
     editTextActionHistory.beforePaste();
     boolean result =

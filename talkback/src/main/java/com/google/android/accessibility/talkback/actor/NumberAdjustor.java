@@ -94,15 +94,13 @@ public class NumberAdjustor {
     }
     if (decrease) {
       if (AccessibilityNodeInfoUtils.supportsAction(node, ACTION_SCROLL_BACKWARD.getId())) {
-        pipeline.returnFeedback(
+        return pipeline.returnFeedback(
             EVENT_ID_UNTRACKED, Feedback.nodeAction(node, ACTION_SCROLL_BACKWARD.getId()));
-        return true;
       }
     } else {
       if (AccessibilityNodeInfoUtils.supportsAction(node, ACTION_SCROLL_FORWARD.getId())) {
-        pipeline.returnFeedback(
+        return pipeline.returnFeedback(
             EVENT_ID_UNTRACKED, Feedback.nodeAction(node, ACTION_SCROLL_FORWARD.getId()));
-        return true;
       }
     }
     LogUtils.d(TAG, "adjustValue does not happen");

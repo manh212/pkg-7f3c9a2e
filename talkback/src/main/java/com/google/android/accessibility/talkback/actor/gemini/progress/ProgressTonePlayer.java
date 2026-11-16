@@ -24,6 +24,7 @@ public class ProgressTonePlayer {
 
   @Nullable private InfiniteIterator<Tone> tones;
   private long endTimeMs;
+  @Nullable private Runnable delayedPlayRunnable;
 
   /**
    * @param toneProvider provides the set of tones to play for each invocation of {@link
@@ -91,7 +92,8 @@ public class ProgressTonePlayer {
 
     tones = toneProvider.getNextToneGroup();
     if (delayPlayTone) {
-      handler.postDelayed(() -> playTonesInternal(timeoutMs), DELAY_PLAY_TONE_MS);
+      delayedPlayRunnable = () -> playTonesInternal(timeoutMs);
+      handler.postDelayed(delayedPlayRunnable, DELAY_PLAY_TONE_MS);
       return;
     }
 
@@ -106,7 +108,14 @@ public class ProgressTonePlayer {
 
   public void stopTones() {
     tones = null;
+    handler.removeCallbacks(playNextToneRunnable);
+    handler.removeCallbacks(onTimeoutListener);
+    if (delayedPlayRunnable != null) {
+      handler.removeCallbacks(delayedPlayRunnable);
+    }
   }
+
+  private final Runnable playNextToneRunnable = this::playNextTone;
 
   private void playTonesInternal(long endTimeMs) {
     this.endTimeMs = endTimeMs;
@@ -131,6 +140,6 @@ public class ProgressTonePlayer {
 
     Tone tone = tones.next();
     tonePlayer.accept(tone);
-    handler.postDelayed(this::playNextTone, tone.delayMs);
+    handler.postDelayed(playNextToneRunnable, tone.delayMs);
   }
 }

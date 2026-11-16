@@ -55,23 +55,29 @@ class ModelDownloader(
       have = 0L
     }
     if (have < expectedSize) {
-      val connection = connect(URL(url))
       try {
-        connection.connectTimeout = TIMEOUT_MS
-        connection.readTimeout = TIMEOUT_MS
-        if (have > 0) connection.setRequestProperty("Range", "bytes=$have-")
-        val append =
-          when (connection.responseCode) {
-            HttpURLConnection.HTTP_PARTIAL -> true
-            HttpURLConnection.HTTP_OK -> false
-            else -> return Result.Failed(ModelFiles.Failure.HTTP)
+        val connection = connect(URL(url))
+        try {
+          connection.connectTimeout = TIMEOUT_MS
+          connection.readTimeout = TIMEOUT_MS
+          if (have > 0) connection.setRequestProperty("Range", "bytes=$have-")
+          val append =
+            when (connection.responseCode) {
+              HttpURLConnection.HTTP_PARTIAL -> true
+              HttpURLConnection.HTTP_OK -> false
+              else -> return Result.Failed(ModelFiles.Failure.HTTP)
+            }
+          if (!append) have = 0L
+          if (!copy(connection, part, append, have, onProgress, isCancelled)) {
+            return Result.Cancelled
           }
-        if (!append) have = 0L
-        if (!copy(connection, part, append, have, onProgress, isCancelled)) return Result.Cancelled
+        } finally {
+          connection.disconnect()
+        }
       } catch (_: IOException) {
         return Result.Failed(ModelFiles.Failure.NETWORK)
-      } finally {
-        connection.disconnect()
+      } catch (_: ClassCastException) {
+        return Result.Failed(ModelFiles.Failure.NETWORK)
       }
     }
     // Reading the file back for its hash can fail too, such as when storage is removed.

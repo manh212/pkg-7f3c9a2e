@@ -345,13 +345,14 @@ public class GeminiActor {
       var image = request.image();
       if (image != null) {
         imageBytes = DataFieldUtils.encodeImageToByteArray(image);
-      }
-      if (!image.isRecycled()) {
-        image.recycle();
+        if (!image.isRecycled()) {
+          image.recycle();
+        }
       }
     }
     if (imageBytes == null) {
       LogUtils.e(TAG, "Invalid request for requestScreenOverview: required fields are null");
+      handleScreenOverviewErrorResponse(requestId, NO_IMAGE);
       return;
     }
 
@@ -628,11 +629,12 @@ public class GeminiActor {
       Result ocrTextResult,
       boolean isScreenDescription) {
     byte[] image = cachedImageMap.get(requestId);
-    // Clear all caches once there is an image used by the image caption result dialog.
-    cachedImageMap.clear();
+    // Drop only this request's cached image, so other pending requests keep theirs.
+    cachedImageMap.remove(requestId);
 
     if (isScreenDescription && !GeminiConfiguration.screenOverviewEnabled(context)) {
       LogUtils.d(TAG, "Screen description is disabled");
+      requestIdMap.remove(requestId);
       return;
     }
 
@@ -951,10 +953,21 @@ public class GeminiActor {
             TalkBackAnalytics.GEMINI_FAIL_FAIL_TO_ENCODE_PICTURE, /* serverSide= */ true);
         responseScreenOverviewResult(requestId, new OverviewResponse.Error(errorReason, null));
       }
-      case JOB_CANCELLED ->
-          analytics.onGeminiFailEvent(
-              TalkBackAnalytics.GEMINI_FAIL_USER_ABORT, /* serverSide= */ true);
-      default -> {}
+      case EMPTY_PROMPT -> {
+        analytics.onGeminiFailEvent(
+            TalkBackAnalytics.GEMINI_FAIL_COMMAND_NOT_PROVIDED, /* serverSide= */ true);
+        responseScreenOverviewResult(requestId, new OverviewResponse.Error(errorReason, null));
+      }
+      case FEATURE_DOWNLOADING -> {
+        analytics.onGeminiFailEvent(
+            TalkBackAnalytics.GEMINI_FAIL_SERVICE_UNAVAILABLE, /* serverSide= */ true);
+        responseScreenOverviewResult(requestId, new OverviewResponse.Error(errorReason, null));
+      }
+      case JOB_CANCELLED -> {
+        analytics.onGeminiFailEvent(
+            TalkBackAnalytics.GEMINI_FAIL_USER_ABORT, /* serverSide= */ true);
+        responseScreenOverviewResult(requestId, new OverviewResponse.Error(errorReason, null));
+      }
     }
     progressTonePlayer.stop();
   }
