@@ -105,7 +105,7 @@ object OnDeviceAiSettings {
    * the model.
    */
   fun ignoreMemoryLimits(prefs: SharedPreferences): Boolean =
-    prefs.getBoolean(PREF_IGNORE_MEMORY_LIMITS, false)
+    prefs.getBoolean(PREF_IGNORE_MEMORY_LIMITS, true)
 
   /** How long to wait for an answer, in seconds, that the user can pick from. */
   val TIMEOUT_CHOICES_SECONDS = listOf(60, 120, 180, 300, 600)
