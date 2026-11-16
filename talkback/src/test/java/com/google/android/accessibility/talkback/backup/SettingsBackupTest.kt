@@ -128,7 +128,7 @@ class SettingsBackupTest {
   }
 
   @Test
-  fun upgradeReplacesOldDefaultsOnceEvenWhenTheirSnapshotMatchesTheBundle() {
+  fun bundledDefaultsFillOnlyMissingKeysAndLeaveStoredValuesAlone() {
     val state = SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
     state
       .edit()
@@ -150,10 +150,13 @@ class SettingsBackupTest {
       .commit()
     extra.edit().clear().putString("custom_user_setting", "keep").commit()
     braille.edit().clear().putString("pref_brailleime_translator_code", "VIETNAMESE").commit()
+    val before = bundledFilesBefore()
 
     SettingsBackup.applyInitialDefaultsIfNeeded(context)
 
-    assertBundledDefaults()
+    assertBundledDefaultsFillOnlyMissing(before)
+    assertEquals("old-order", prefs.getString(ItemOrder.READING_CONTROLS_KEY, null))
+    assertEquals("GRANULARITY_CHARACTERS", prefs.getString("pref_current_selector_setting_key", null))
     assertEquals("local@example.invalid", prefs.getString("pref_problem_report_email", null))
     assertEquals("local-history", prefs.getString("pref_stopwatch_history", null))
     assertEquals("local-key", prefs.getString("pref_gemini_api_key", null))
@@ -757,6 +760,31 @@ class SettingsBackupTest {
 
   private fun bundledSettings(): String =
     context.assets.open("initial-settings.json").bufferedReader().use { it.readText() }
+
+  private fun bundledFilesBefore(): Map<String, Map<String, *>> {
+    val files = JSONObject(bundledSettings()).getJSONObject("files").getJSONObject("device")
+    val deviceContext = context.createDeviceProtectedStorageContext()
+    val before = mutableMapOf<String, Map<String, *>>()
+    for (file in files.keys()) {
+      val name = if (file == "default") context.packageName + "_preferences" else file
+      before[file] = deviceContext.getSharedPreferences(name, Context.MODE_PRIVATE).all.toMap()
+    }
+    return before
+  }
+
+  private fun assertBundledDefaultsFillOnlyMissing(before: Map<String, Map<String, *>>) {
+    val files = JSONObject(bundledSettings()).getJSONObject("files").getJSONObject("device")
+    val deviceContext = context.createDeviceProtectedStorageContext()
+    for (file in files.keys()) {
+      val name = if (file == "default") context.packageName + "_preferences" else file
+      val stored = deviceContext.getSharedPreferences(name, Context.MODE_PRIVATE)
+      val entries = files.getJSONObject(file)
+      for (key in entries.keys()) {
+        val expected = before[file]?.get(key) ?: SettingsBackup.decode(entries.getJSONObject(key))
+        assertEquals(key, expected, stored.all[key])
+      }
+    }
+  }
 
   private fun assertBundledDefaults() {
     val files = JSONObject(bundledSettings()).getJSONObject("files").getJSONObject("device")
