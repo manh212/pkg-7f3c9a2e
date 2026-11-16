@@ -159,8 +159,8 @@ class TranslationTest {
   }
 
   @Test
-  fun settings_defaultToDetectingIntoTheDeviceLanguage() {
-    assertNull(TranslationSettings.source(prefs))
+  fun settings_defaultToEnglishSourceAndTheDeviceLanguage() {
+    assertEquals("en", TranslationSettings.source(prefs))
     assertEquals(TranslationLanguages.of(Locale.getDefault()), TranslationSettings.target(prefs))
     assertTrue(TranslationSettings.followsDevice(prefs))
     assertNull(TranslationSettings.secondTarget(prefs))

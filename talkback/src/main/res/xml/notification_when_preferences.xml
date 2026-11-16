@@ -16,7 +16,7 @@
       android:key="pref_notification_locked"
       android:title="@string/notification_locked_title" />
   <ListPreference
-      android:defaultValue="ALWAYS"
+      android:defaultValue="ONLY_WITHOUT"
       android:entries="@array/notification_headphones_entries"
       android:entryValues="@array/notification_headphones_values"
       android:key="pref_notification_headphones"
@@ -87,7 +87,7 @@
       android:summary="%s"
       android:title="@string/notification_queue_title" />
   <ListPreference
-      android:defaultValue="NOW"
+      android:defaultValue="AFTER"
       android:entries="@array/notification_while_reading_entries"
       android:entryValues="@array/notification_while_reading_values"
       android:key="pref_notification_while_reading"

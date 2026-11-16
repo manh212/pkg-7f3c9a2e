@@ -2,6 +2,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
   <string name="menu_extra_actions" tools:ignore="MissingTranslation">Thao tác bổ sung</string>
   <bool name="pref_show_context_menu_extra_default">true</bool>
+  <bool name="pref_show_context_menu_extra_hidden_default">false</bool>
   <string name="pref_show_context_menu_speech_history_key" translatable="false">pref_show_context_menu_speech_history</string>
   <string name="pref_show_context_menu_favorites_key" translatable="false">pref_show_context_menu_favorites</string>
   <string name="pref_show_context_menu_clipboard_history_key" translatable="false">pref_show_context_menu_clipboard_history</string>

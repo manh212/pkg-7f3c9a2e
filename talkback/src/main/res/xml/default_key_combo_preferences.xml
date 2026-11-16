@@ -7,7 +7,7 @@
             android:key="@string/pref_select_keymap_key"
             android:title="@string/keycombo_menu_select_keymap"
             android:summary="%s"
-            android:defaultValue="@string/default_keymap_entry_value"
+            android:defaultValue="@string/new_keymap_entry_value"
             android:entries="@array/pref_select_keymap_entries"
             android:entryValues="@array/pref_select_keymap_values" />
         <ListPreference

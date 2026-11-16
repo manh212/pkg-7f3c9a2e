@@ -85,13 +85,12 @@ object SpeechCompressor {
     }
   }
 
-  /** The settings that compress nothing: every threshold at the top, no makeup gain. */
+  /** The default compressor settings: the CLARITY preset. */
   @JvmStatic
-  fun defaults(): Settings =
-    Settings(IntArray(BANDS), IntArray(BANDS) { 20 }, 10, 200, 0)
+  fun defaults(): Settings = Preset.CLARITY.settings()
 
   enum class Preset(private val settings: Settings) {
-    NONE(defaults()),
+    NONE(Settings(IntArray(BANDS), IntArray(BANDS) { 20 }, 10, 200, 0)),
     GENTLE(Settings(intArrayOf(-18, -18, -18, -18, -18), intArrayOf(15, 15, 15, 15, 15), 10, 250, 2)),
     CLARITY(
       Settings(intArrayOf(-15, -21, -27, -27, -21), intArrayOf(15, 20, 25, 30, 30), 5, 150, 3)

@@ -30,14 +30,21 @@ class IndividualFeedbackSettingsTest {
     IndividualFeedbackSettings.VIBRATIONS.first { it.key == "view_clicked_pattern" }
 
   @Test
-  fun everythingIsOnByDefault() {
+  fun screenOnAndOffSoundsAreOffByDefaultAndEverythingElseIsOn() {
     IndividualFeedbackSettings.SOUNDS.forEach {
-      assertTrue(IndividualFeedbackSettings.isSoundOn(prefs, it))
+      if (it.key == "screen_on" || it.key == "screen_off") {
+        assertFalse(IndividualFeedbackSettings.isSoundOn(prefs, it))
+      } else {
+        assertTrue(IndividualFeedbackSettings.isSoundOn(prefs, it))
+      }
     }
     IndividualFeedbackSettings.VIBRATIONS.forEach {
       assertTrue(IndividualFeedbackSettings.isVibrationOn(prefs, it))
     }
-    assertTrue(IndividualFeedbackSettings.mutedSoundResources(prefs).isEmpty())
+    assertEquals(
+      setOf("screen_on", "screen_off"),
+      IndividualFeedbackSettings.mutedSoundResources(prefs),
+    )
     assertTrue(IndividualFeedbackSettings.mutedVibrationResources(prefs).isEmpty())
   }
 
@@ -45,12 +52,18 @@ class IndividualFeedbackSettingsTest {
   fun turningASoundOffMutesOnlyThatSound() {
     IndividualFeedbackSettings.setSoundOn(prefs, focus, false)
     assertFalse(IndividualFeedbackSettings.isSoundOn(prefs, focus))
-    assertEquals(setOf("focus"), IndividualFeedbackSettings.mutedSoundResources(prefs))
+    assertEquals(
+      setOf("screen_on", "screen_off", "focus"),
+      IndividualFeedbackSettings.mutedSoundResources(prefs),
+    )
     assertTrue(IndividualFeedbackSettings.mutedVibrationResources(prefs).isEmpty())
 
     IndividualFeedbackSettings.setSoundOn(prefs, focus, true)
     assertTrue(IndividualFeedbackSettings.isSoundOn(prefs, focus))
-    assertTrue(IndividualFeedbackSettings.mutedSoundResources(prefs).isEmpty())
+    assertEquals(
+      setOf("screen_on", "screen_off"),
+      IndividualFeedbackSettings.mutedSoundResources(prefs),
+    )
   }
 
   @Test
@@ -61,7 +74,10 @@ class IndividualFeedbackSettingsTest {
       setOf("view_clicked_pattern"),
       IndividualFeedbackSettings.mutedVibrationResources(prefs),
     )
-    assertTrue(IndividualFeedbackSettings.mutedSoundResources(prefs).isEmpty())
+    assertEquals(
+      setOf("screen_on", "screen_off"),
+      IndividualFeedbackSettings.mutedSoundResources(prefs),
+    )
   }
 
   @Test
@@ -147,7 +163,7 @@ class IndividualFeedbackSettingsTest {
   fun groupedItemMutesEveryResource() {
     IndividualFeedbackSettings.setSoundOn(prefs, radialMenu, false)
     assertEquals(
-      (1..8).map { "radial_menu_$it" }.toSet(),
+      setOf("screen_on", "screen_off") + (1..8).map { "radial_menu_$it" }.toSet(),
       IndividualFeedbackSettings.mutedSoundResources(prefs),
     )
   }
@@ -220,9 +236,9 @@ class IndividualFeedbackSettingsTest {
   }
 
   @Test
-  fun screenOffStaysOnWhenVolumeChangeWasOn() {
+  fun screenOffIsOffByDefault() {
     val screenOff = IndividualFeedbackSettings.SOUNDS.first { it.key == "screen_off" }
     IndividualFeedbackSettings.migrate(prefs)
-    assertTrue(IndividualFeedbackSettings.isSoundOn(prefs, screenOff))
+    assertFalse(IndividualFeedbackSettings.isSoundOn(prefs, screenOff))
   }
 }

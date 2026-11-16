@@ -30,8 +30,8 @@ public class ExtendedGesturesTest {
     prefs.edit().clear().commit();
   }
 
-  @Test public void rotationIsOffByDefaultAndIndependentOfExtendedGestures() {
-    assertFalse(TwoFingerRotationSettings.isEnabled(prefs));
+  @Test public void rotationIsOnByDefaultAndIndependentOfExtendedGestures() {
+    assertTrue(TwoFingerRotationSettings.isEnabled(prefs));
     prefs.edit().putBoolean(TwoFingerRotationSettings.ENABLED, true).commit();
     assertTrue(TwoFingerRotationSettings.isEnabled(prefs));
     assertFalse(ExtendedGestures.isEnabled(prefs));

@@ -68,10 +68,9 @@ class KeyboardEchoSettingsTest {
   private fun read(input: TypingInput) = KeyboardEchoSettings.read(prefs, res, input)
 
   @Test
-  fun defaultIsCharactersAndWords() {
-    for (input in TypingInput.values()) {
-      assertEquals(PREF_ECHO_CHARACTERS_AND_WORDS, read(input))
-    }
+  fun defaultIsWordsOnScreenAndCharactersAndWordsOnPhysical() {
+    assertEquals(PREF_ECHO_WORDS, read(TypingInput.ON_SCREEN_KEYBOARD))
+    assertEquals(PREF_ECHO_CHARACTERS_AND_WORDS, read(TypingInput.PHYSICAL_KEYBOARD))
   }
 
   @Test
@@ -141,7 +140,7 @@ class KeyboardEchoSettingsTest {
     KeyboardEchoSettings.write(prefs, res, TypingInput.PHYSICAL_KEYBOARD, PREF_ECHO_SILENT_TYPING)
     KeyboardEchoSettings.migrate(app, prefs)
     assertEquals(PREF_ECHO_SILENT_TYPING, read(TypingInput.PHYSICAL_KEYBOARD))
-    assertEquals(PREF_ECHO_CHARACTERS_AND_WORDS, read(TypingInput.ON_SCREEN_KEYBOARD))
+    assertEquals(PREF_ECHO_WORDS, read(TypingInput.ON_SCREEN_KEYBOARD))
     assertEquals("Không đọc khi nhập", KeyboardEchoSettings.choiceName(res, PREF_ECHO_SILENT_TYPING))
     assertEquals(1, KeyboardEchoSettings.choices(res).count { it == PREF_ECHO_SILENT_TYPING })
   }

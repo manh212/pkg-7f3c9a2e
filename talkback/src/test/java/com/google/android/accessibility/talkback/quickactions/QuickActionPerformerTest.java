@@ -251,12 +251,12 @@ public class QuickActionPerformerTest {
 
     assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
 
-    // Unset reads as the default (characters and words, 0); the choices start at None (2).
-    assertEquals("2", prefs.getString("pref_echo_on_screen_keyboard", null));
+    // Unset reads as the default (words, 3); the next choice is characters and words (0).
+    assertEquals("0", prefs.getString("pref_echo_on_screen_keyboard", null));
     assertEquals(
         context.getString(R.string.title_pref_echo_virtual_keyboard)
             + ", "
-            + KeyboardEchoSettings.choiceName(context.getResources(), 2),
+            + KeyboardEchoSettings.choiceName(context.getResources(), 0),
         spokenText());
   }
 
@@ -268,14 +268,6 @@ public class QuickActionPerformerTest {
             R.string.title_pref_dictation,
             DictationSettings.PREF_RECOGNITION,
             QuickActionPerformer.PERFORMER_DICTATION_RECOGNITION);
-
-    assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
-    assertEquals("zipformer", prefs.getString(DictationSettings.PREF_RECOGNITION, null));
-    assertEquals(
-        context.getString(R.string.title_pref_dictation)
-            + ", "
-            + context.getString(R.string.dictation_recognition_zipformer),
-        spokenText());
 
     assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
     assertEquals("rambler", prefs.getString(DictationSettings.PREF_RECOGNITION, null));
@@ -291,6 +283,14 @@ public class QuickActionPerformerTest {
         context.getString(R.string.title_pref_dictation)
             + ", "
             + context.getString(R.string.dictation_compact_android),
+        spokenText());
+
+    assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
+    assertEquals("zipformer", prefs.getString(DictationSettings.PREF_RECOGNITION, null));
+    assertEquals(
+        context.getString(R.string.title_pref_dictation)
+            + ", "
+            + context.getString(R.string.dictation_recognition_zipformer),
         spokenText());
   }
 

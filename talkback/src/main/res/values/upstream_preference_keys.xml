@@ -123,7 +123,7 @@
         <item>45</item>
         <item>60</item>
       </string-array>
-      <string name="pref_rotor_step_degrees_default" translatable="false">30</string>
+      <string name="pref_rotor_step_degrees_default" translatable="false">15</string>
   <string name="pref_edge_first_click_mm_key" translatable="false">pref_edge_first_click_mm</string>
   <string name="pref_edge_first_click_mm_default" translatable="false">10</string>
   <string-array name="pref_edge_first_click_mm_entries">
@@ -284,7 +284,7 @@
   
   
       <!-- Default preferences -->
-  <bool name="pref_show_exit_watermark_default">true</bool>
+  <bool name="pref_show_exit_watermark_default">false</bool>
   <bool name="pref_talkback_gesture_detection_default">true</bool>
   <string name="pref_touch_explore_time_out_default" translatable="false">@string/touch_explore_time_out_default</string>
   <string name="pref_touch_focus_time_out_default" translatable="false">@string/touch_focus_time_out_default</string>

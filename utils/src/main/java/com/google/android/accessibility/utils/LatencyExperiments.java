@@ -2,7 +2,6 @@ package com.google.android.accessibility.utils;
 
 import android.content.SharedPreferences;
 import android.os.SystemClock;
-import android.view.ViewConfiguration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -11,34 +10,40 @@ public final class LatencyExperiments {
 
   public enum Feature {
     TRACE("trace"),
-    RESET_SESSION("reset_session"),
+    RESET_SESSION("reset_session", true),
     STALL_CAPTURE("stall_capture"),
-    LIGHT_LOGGING("light_logging"),
-    NONBLOCKING_PREFETCH("nonblocking_prefetch"),
-    ASYNC_ORDER("async_order"),
-    SCOPED_CACHE("scoped_cache"),
-    INPUT_PRIORITY("input_priority"),
-    TOAST_FILTER("toast_filter"),
-    EARLY_CONTROLS("early_controls"),
-    CACHED_TEXT("cached_text"),
-    FRESH_PREPARED("fresh_prepared"),
-    PCM_ADJACENT("pcm_adjacent"),
-    PCM_SECOND("pcm_second"),
-    IMMEDIATE_SPEECH("immediate_speech"),
-    FAST_DOUBLE_TAP("simulated_double_tap"),
-    FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe"),
-    EARLY_TOUCH_SPEECH("touch_speech_with_rotation"),
-    FAST_WINDOW_TRANSITIONS("fast_window_transitions"),
-    FAST_SCROLL("fast_scroll"),
-    LIVE_EDGE_REUSE("live_edge_reuse"),
-    AUDIO_RESAMPLE("audio_resample"),
-    AUDIO_KEEP_WARM("audio_keep_warm");
+    LIGHT_LOGGING("light_logging", true),
+    NONBLOCKING_PREFETCH("nonblocking_prefetch", true),
+    ASYNC_ORDER("async_order", true),
+    SCOPED_CACHE("scoped_cache", true),
+    INPUT_PRIORITY("input_priority", true),
+    TOAST_FILTER("toast_filter", true),
+    EARLY_CONTROLS("early_controls", true),
+    CACHED_TEXT("cached_text", true),
+    FRESH_PREPARED("fresh_prepared", true),
+    PCM_ADJACENT("pcm_adjacent", true),
+    PCM_SECOND("pcm_second", true),
+    IMMEDIATE_SPEECH("immediate_speech", true),
+    FAST_DOUBLE_TAP("simulated_double_tap", true),
+    FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe", true),
+    EARLY_TOUCH_SPEECH("touch_speech_with_rotation", true),
+    FAST_WINDOW_TRANSITIONS("fast_window_transitions", true),
+    FAST_SCROLL("fast_scroll", true),
+    LIVE_EDGE_REUSE("live_edge_reuse", true),
+    AUDIO_RESAMPLE("audio_resample", true),
+    AUDIO_KEEP_WARM("audio_keep_warm", true);
 
     public final String key;
+    public final boolean defaultEnabled;
     private volatile boolean enabled;
 
     Feature(String suffix) {
+      this(suffix, false);
+    }
+
+    Feature(String suffix, boolean defaultEnabled) {
       key = "pref_latency_" + suffix;
+      this.defaultEnabled = defaultEnabled;
     }
 
     public boolean enabled() {
@@ -57,7 +62,7 @@ public final class LatencyExperiments {
 
   public static void load(SharedPreferences preferences) {
     for (Feature feature : Feature.values()) {
-      feature.enabled = preferences.getBoolean(feature.key, false);
+      feature.enabled = preferences.getBoolean(feature.key, feature.defaultEnabled);
     }
     loadStationaryTouchDelay(preferences);
   }
@@ -67,7 +72,7 @@ public final class LatencyExperiments {
   }
 
   public static int defaultStationaryTouchDelayMs() {
-    return Math.max(150, ViewConfiguration.getDoubleTapTimeout() - 50);
+    return 100;
   }
 
   public static int minimumStationaryTouchDelayMs() {

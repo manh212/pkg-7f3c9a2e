@@ -522,8 +522,8 @@ public class FailoverTextToSpeech {
   private static final String RESPOKEN_ID_PREFIX = "respoken:";
   public static final String PREF_SWITCH_LANGUAGES_KEY = "pref_switch_languages";
   public static final String PREF_SWITCH_DIALECTS_KEY = "pref_switch_dialects";
-  private static final boolean SWITCH_LANGUAGES_DEFAULT = true;
-  private static final boolean SWITCH_DIALECTS_DEFAULT = true;
+  private static final boolean SWITCH_LANGUAGES_DEFAULT = false;
+  private static final boolean SWITCH_DIALECTS_DEFAULT = false;
   private @Nullable String preferredTtsEngine;
 
   private final OnSharedPreferenceChangeListener preferenceChangeListener =
@@ -550,7 +550,7 @@ public class FailoverTextToSpeech {
             enginesWithoutFileAudio.clear();
           }
         } else if (PREF_ALWAYS_INTERRUPT_SPEECH_KEY.equals(key)) {
-          alwaysInterruptSpeech = sharedPrefs.getBoolean(key, false);
+          alwaysInterruptSpeech = sharedPrefs.getBoolean(key, true);
         } else if (PREF_SWITCH_LANGUAGES_KEY.equals(key)
             || PREF_SWITCH_DIALECTS_KEY.equals(key)) {
           readLanguageSwitches(sharedPrefs);
@@ -700,7 +700,7 @@ public class FailoverTextToSpeech {
     preferredTtsEngine = readPreferredEngine(prefs);
     speakInPhrases = prefs.getBoolean(PREF_SPEAK_IN_PHRASES_KEY, SPEAK_IN_PHRASES_DEFAULT);
     lowLatencyAudio = prefs.getBoolean(PREF_LOW_LATENCY_AUDIO_KEY, lowLatencyAudioDefault(context));
-    alwaysInterruptSpeech = prefs.getBoolean(PREF_ALWAYS_INTERRUPT_SPEECH_KEY, false);
+    alwaysInterruptSpeech = prefs.getBoolean(PREF_ALWAYS_INTERRUPT_SPEECH_KEY, true);
     readLanguageSwitches(prefs);
     VoiceProfiles.setActive(VoiceProfiles.readActive(prefs));
     equalizerGains = SpeechEqualizer.inUse(prefs);

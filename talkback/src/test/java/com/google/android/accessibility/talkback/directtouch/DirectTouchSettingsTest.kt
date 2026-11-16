@@ -27,8 +27,8 @@ class DirectTouchSettingsTest {
 
   @Test
   fun defaults() {
-    assertTrue(DirectTouchSettings.isMasterEnabled(prefs))
-    assertTrue(DirectTouchSettings.isSpeechEnabled(prefs))
+    assertFalse(DirectTouchSettings.isMasterEnabled(prefs))
+    assertFalse(DirectTouchSettings.isSpeechEnabled(prefs))
     assertFalse(DirectTouchSettings.isHapticsEnabled(prefs))
     assertFalse(DirectTouchSettings.isAppEnabled(prefs, "a.b"))
     assertFalse(DirectTouchSettings.isDirectTyping(prefs, "a.b"))
@@ -82,7 +82,7 @@ class DirectTouchSettingsTest {
   fun importRejectsGarbage() {
     assertFalse(DirectTouchSettings.importJson(prefs, "not json"))
     assertFalse(DirectTouchSettings.importJson(prefs, "{\"version\":2}"))
-    assertTrue(DirectTouchSettings.isMasterEnabled(prefs))
+    assertFalse(DirectTouchSettings.isMasterEnabled(prefs))
   }
 
   @Test

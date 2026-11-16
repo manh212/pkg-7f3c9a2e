@@ -701,14 +701,14 @@ class SettingsBackupTest {
   }
 
   @Test
-  fun eventProcessingLevelResetRaisesEveryInstallToMediumOnce() {
+  fun eventProcessingLevelResetRaisesEveryInstallToLowOnce() {
     val state = SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
     state.edit().clear().commit()
     prefs.edit().clear().putString("pref_event_processing_level", "very_low").commit()
 
     SettingsBackup.applyEventProcessingLevelResetIfNeeded(context)
 
-    assertEquals("medium", prefs.getString("pref_event_processing_level", null))
+    assertEquals("low", prefs.getString("pref_event_processing_level", null))
     assertTrue(state.getBoolean("event_processing_level_reset", false))
 
     prefs.edit().putString("pref_event_processing_level", "low").commit()
@@ -729,14 +729,14 @@ class SettingsBackupTest {
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("actions", prefs.getString("pref_a11y_hints", null))
-    assertEquals("actions", prefs.getString(customKey, null))
+    assertEquals("off", prefs.getString(customKey, null))
     assertTrue(state.getBoolean("usage_hints_reset_2", false))
 
     prefs.edit().putString("pref_a11y_hints", "off").commit()
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("off", prefs.getString("pref_a11y_hints", null))
-    assertEquals("actions", prefs.getString(customKey, null))
+    assertEquals("off", prefs.getString(customKey, null))
   }
 
   @Test
@@ -751,7 +751,7 @@ class SettingsBackupTest {
     SettingsBackup.applyUsageHintsResetIfNeeded(context)
 
     assertEquals("actions", prefs.getString("pref_a11y_hints", null))
-    assertEquals("actions", prefs.getString(customKey, null))
+    assertEquals("off", prefs.getString(customKey, null))
     assertTrue(state.getBoolean("usage_hints_reset_2", false))
   }
 

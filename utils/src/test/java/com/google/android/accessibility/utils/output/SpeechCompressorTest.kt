@@ -32,11 +32,20 @@ class SpeechCompressorTest {
 
   @Test
   fun damagedSettingsAreTheDefaults() {
-    assertEquals(SpeechCompressor.defaults(), SpeechCompressor.parse(null))
-    assertEquals(SpeechCompressor.defaults(), SpeechCompressor.parse(""))
-    assertEquals(SpeechCompressor.defaults(), SpeechCompressor.parse("1,2,3"))
+    val clarity =
+      SpeechCompressor.Settings(
+        intArrayOf(-15, -21, -27, -27, -21),
+        intArrayOf(15, 20, 25, 30, 30),
+        5,
+        150,
+        3,
+      )
+    assertEquals(clarity, SpeechCompressor.defaults())
+    assertEquals(clarity, SpeechCompressor.parse(null))
+    assertEquals(clarity, SpeechCompressor.parse(""))
+    assertEquals(clarity, SpeechCompressor.parse("1,2,3"))
     assertEquals(
-      SpeechCompressor.defaults(),
+      clarity,
       SpeechCompressor.parse("0,0,0,0,0,20,20,20,20,20,10,200,x"),
     )
   }
@@ -68,7 +77,7 @@ class SpeechCompressorTest {
     }
     val custom = SpeechCompressor.defaults().also { it.thresholds[2] = -20 }
     assertNull(SpeechCompressor.presetOf(custom))
-    assertTrue(SpeechCompressor.defaults().isNoOp())
+    assertFalse(SpeechCompressor.defaults().isNoOp())
     assertFalse(SpeechCompressor.Preset.GENTLE.settings().isNoOp())
   }
 
@@ -89,7 +98,7 @@ class SpeechCompressorTest {
     for (frequency in doubleArrayOf(100.0, 1000.0, 5000.0)) {
       val samples = sine(frequency, amplitude = 0.1f, frames = rate * 2, atRate = rate)
       val input = rms(samples, samples.size / 2)
-      SpeechCompressor.Filter(SpeechCompressor.defaults(), rate, 1).process(samples)
+      SpeechCompressor.Filter(SpeechCompressor.Preset.NONE.settings(), rate, 1).process(samples)
       assertEquals("at $frequency Hz", 0.0, 20 * log10(rms(samples, samples.size / 2) / input), 0.05)
     }
   }

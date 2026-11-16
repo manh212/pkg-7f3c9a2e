@@ -9,7 +9,7 @@
       android:title="@string/timer_clock_hours_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:key="pref_notification_clock_interval"
-      android:defaultValue="60"
+      android:defaultValue="0"
       android:title="@string/notification_clock_interval_title"
       android:dialogTitle="@string/notification_clock_interval_title"
       android:entries="@array/timer_interval_entries"

@@ -6,6 +6,8 @@ import static org.junit.Assert.assertEquals;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Test;
@@ -28,18 +30,51 @@ public class LatencyExperimentsTest {
     LatencyExperiments.setPreparationAllowed(false);
   }
 
+  /** The features that load as on when their switch was never saved. */
+  private static final Set<LatencyExperiments.Feature> DEFAULT_ON = EnumSet.of(
+      LatencyExperiments.Feature.CACHED_TEXT,
+      LatencyExperiments.Feature.EARLY_CONTROLS,
+      LatencyExperiments.Feature.FAST_SCROLL,
+      LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE,
+      LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS,
+      LatencyExperiments.Feature.FRESH_PREPARED,
+      LatencyExperiments.Feature.IMMEDIATE_SPEECH,
+      LatencyExperiments.Feature.PCM_ADJACENT,
+      LatencyExperiments.Feature.PCM_SECOND,
+      LatencyExperiments.Feature.RESET_SESSION,
+      LatencyExperiments.Feature.FAST_DOUBLE_TAP,
+      LatencyExperiments.Feature.EARLY_TOUCH_SPEECH,
+      LatencyExperiments.Feature.ASYNC_ORDER,
+      LatencyExperiments.Feature.AUDIO_KEEP_WARM,
+      LatencyExperiments.Feature.AUDIO_RESAMPLE,
+      LatencyExperiments.Feature.INPUT_PRIORITY,
+      LatencyExperiments.Feature.LIGHT_LOGGING,
+      LatencyExperiments.Feature.LIVE_EDGE_REUSE,
+      LatencyExperiments.Feature.NONBLOCKING_PREFETCH,
+      LatencyExperiments.Feature.SCOPED_CACHE,
+      LatencyExperiments.Feature.TOAST_FILTER);
+
   @Test
-  public void persistedSwitchesAreIndependentAndMissingSwitchesAreOff() {
+  public void persistedSwitchesAreIndependentAndMissingSwitchesUseTheirDefaults() {
     SharedPreferences preferences = RuntimeEnvironment.getApplication()
         .getSharedPreferences("latency-test", Context.MODE_PRIVATE);
-    preferences.edit().clear().putBoolean(LatencyExperiments.Feature.ASYNC_ORDER.key, true).commit();
-    LatencyExperiments.load(preferences);
-    for (LatencyExperiments.Feature feature : LatencyExperiments.Feature.values()) {
-      assertEquals(feature == LatencyExperiments.Feature.ASYNC_ORDER, feature.enabled());
-    }
     preferences.edit().clear().commit();
     LatencyExperiments.load(preferences);
+    for (LatencyExperiments.Feature feature : LatencyExperiments.Feature.values()) {
+      assertEquals(DEFAULT_ON.contains(feature), feature.enabled());
+    }
+    preferences.edit().clear()
+        .putBoolean(LatencyExperiments.Feature.TRACE.key, true)
+        .putBoolean(LatencyExperiments.Feature.ASYNC_ORDER.key, false).commit();
+    LatencyExperiments.load(preferences);
+    assertTrue(LatencyExperiments.Feature.TRACE.enabled());
     assertFalse(LatencyExperiments.Feature.ASYNC_ORDER.enabled());
+    assertTrue(LatencyExperiments.Feature.CACHED_TEXT.enabled());
+    assertFalse(LatencyExperiments.Feature.STALL_CAPTURE.enabled());
+    preferences.edit().clear().commit();
+    LatencyExperiments.load(preferences);
+    assertTrue(LatencyExperiments.Feature.ASYNC_ORDER.enabled());
+    assertFalse(LatencyExperiments.Feature.TRACE.enabled());
   }
 
   @Test

@@ -80,7 +80,7 @@ object SpeechEqualizer {
   @JvmStatic
   fun isOn(prefs: SharedPreferences, profileId: String): Boolean =
     try {
-      prefs.getBoolean(onKey(profileId), true)
+      prefs.getBoolean(onKey(profileId), false)
     } catch (e: ClassCastException) {
       true
     }

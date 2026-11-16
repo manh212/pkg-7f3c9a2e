@@ -22,7 +22,7 @@ public class BrailleSpeedSettingsTest {
         SharedPreferences p = RuntimeEnvironment.getApplication()
                 .getSharedPreferences("braille_speed_test", Context.MODE_PRIVATE);
         p.edit().clear().commit();
-        assertEquals(50, BrailleSpeedSettings.letterDelay(p));
+        assertEquals(35, BrailleSpeedSettings.letterDelay(p));
         p.edit().putInt(BrailleSpeedSettings.KEY_LETTER_DELAY, 500).commit();
         assertEquals(300, BrailleSpeedSettings.letterDelay(p));
         p.edit().putInt(BrailleSpeedSettings.KEY_LETTER_DELAY, 0).commit();

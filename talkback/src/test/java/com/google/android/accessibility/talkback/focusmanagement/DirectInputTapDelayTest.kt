@@ -141,12 +141,10 @@ class DirectInputTapDelayTest {
   }
 
   @Test
-  fun noSetting_typesAfterTheDefault100ms() {
+  fun noSetting_typesImmediatelyWithTheDefault0ms() {
     hoverOntoAndOff(keyNode())
 
-    runMainQueueFor(99)
-    assertEquals(0, receiver.touchEnds())
-    runMainQueueFor(2)
+    runMainQueueFor(1)
     assertEquals(1, receiver.touchEnds())
   }
 

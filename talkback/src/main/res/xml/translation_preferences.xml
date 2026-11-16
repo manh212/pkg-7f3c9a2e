@@ -7,6 +7,7 @@
       android:title="@string/title_pref_translation_service" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="@string/pref_offline_translation_source_language_key"
+      android:defaultValue="en"
       android:persistent="false"
       android:title="@string/title_pref_translation_source" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
@@ -54,7 +55,7 @@
       android:order="100"
       android:title="@string/translation_category_speech">
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="true"
+        android:defaultValue="false"
         android:key="pref_translation_target_voice"
         android:title="@string/title_pref_translation_target_voice" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference

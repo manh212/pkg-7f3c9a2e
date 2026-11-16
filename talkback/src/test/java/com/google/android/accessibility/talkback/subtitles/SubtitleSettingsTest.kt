@@ -35,7 +35,7 @@ class SubtitleSettingsTest {
     assertEquals(listOf("Ngoại tuyến", "Trực tuyến"),
       context.resources.getStringArray(R.array.subtitle_engine_labels).toList())
     assertEquals("gemini", SubtitleSettings.geminiVoice(prefs))
-    assertEquals("accessibility", SubtitleSettings.geminiChannel(prefs))
+    assertEquals("media", SubtitleSettings.geminiChannel(prefs))
     prefs.edit().putString(SubtitleSettings.ENGINE, "gemini_live")
       .putString(SubtitleSettings.GEMINI_VOICE, "reader")
       .putString(SubtitleSettings.GEMINI_CHANNEL, "media").commit()

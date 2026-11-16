@@ -29,7 +29,7 @@
         android:summary="@string/notification_detect_language_summary"
         android:title="@string/notification_detect_language_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:key="pref_notification_sound_before"
         android:title="@string/notification_sound_before_title" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
@@ -44,18 +44,18 @@
         android:summary="@string/notification_lowercase_summary"
         android:title="@string/notification_lowercase_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:key="pref_notification_separate_digits"
         android:summary="@string/notification_separate_digits_summary"
         android:title="@string/notification_separate_digits_title" />
     <ListPreference
-        android:defaultValue="5"
+        android:defaultValue="3"
         android:dependency="pref_notification_separate_digits"
         android:key="pref_notification_min_digits"
         android:summary="%s"
         android:title="@string/notification_min_digits_title" />
     <ListPreference
-        android:defaultValue="FULL"
+        android:defaultValue="DOMAIN"
         android:entries="@array/notification_url_entries"
         android:entryValues="@array/notification_url_values"
         android:key="pref_notification_urls"

@@ -233,7 +233,7 @@ public class ExtendedTouchBackendTest {
 
   @Test public void missingStationaryDelayKeepsTheExistingTimer() {
     touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
-    int baseline = LatencyExperiments.defaultStationaryTouchDelayMs();
+    int baseline = 100;
     motion(MotionEvent.ACTION_DOWN, 700);
 
     Shadows.shadowOf(Looper.getMainLooper()).idleFor(baseline - 1, TimeUnit.MILLISECONDS);

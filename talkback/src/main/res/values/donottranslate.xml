@@ -309,7 +309,7 @@
     <!-- Window names. Replaces the speak system window titles and first item interrupts window name
          switches, which only the migration in WindowNamesSetting reads now. -->
     <string name="pref_window_names_key" translatable="false">pref_window_names</string>
-    <string name="pref_window_names_default" translatable="false">always</string>
+    <string name="pref_window_names_default" translatable="false">window_opens</string>
     <string-array name="pref_window_names_entries">
         <item>@string/window_names_always</item>
         <item>@string/window_names_until_first_item</item>
@@ -956,6 +956,7 @@
     </string-array>
 
     <string name="typing_type_lift_to_type" translatable="false">1</string>
+    <string name="typing_type_direct_silent" translatable="false">6</string>
 
     <!-- Typing type preference values -->
     <!-- We depend on the order of these strings -->
@@ -1006,7 +1007,7 @@
       <item>@string/value_vietnamese_keyboard_layout_auto</item>
     </string-array>
 
-    <string name="pref_vietnamese_keyboard_layout_default" translatable="false">auto</string>
+    <string name="pref_vietnamese_keyboard_layout_default" translatable="false">phone</string>
 
   <!-- Multi-tap timeout entries -->
 
@@ -1207,7 +1208,7 @@
   <string name="shortcut_value_text_editor" translatable="false">TEXT_EDITOR</string>
   <string name="shortcut_value_dictate" translatable="false">DICTATE</string>
   <string name="pref_ai_dictation_key" translatable="false">pref_ai_dictation</string>
-  <bool name="pref_ai_dictation_default">true</bool>
+  <bool name="pref_ai_dictation_default">false</bool>
   <!-- Product names of the speech recognition choices in Dictation settings. -->
   <string name="dictation_recognition_rambler" translatable="false">Rambler (Gemini API)</string>
   <string name="keycombo_shortcut_global_refresh" translatable="false">keycombo_shortcut_global_refresh</string>
@@ -1414,7 +1415,7 @@
       <item>none</item>
     </string-array>
 
-    <string name="pref_emoji_speech_default" translatable="false">engine</string>
+    <string name="pref_emoji_speech_default" translatable="false">names</string>
 
     <string-array name="pref_emoji_repeat_count_entries">
       <item>@string/emoji_repeat_count_off</item>
@@ -1435,21 +1436,21 @@
       <item>6</item>
     </string-array>
 
-    <string name="pref_emoji_repeat_count_default" translatable="false">0</string>
+    <string name="pref_emoji_repeat_count_default" translatable="false">2</string>
 
     <!-- The list of the gestures which the platform supports. [CHAR_LIMIT=NONE] -->
 
 
     <!-- Default preferences -->
-    <string name="pref_speech_rate_default">1.0</string>
+    <string name="pref_speech_rate_default">2.1090908</string>
     <string name="pref_keep_screen_on_while_speaking_key" translatable="false">pref_keep_screen_on_while_speaking</string>
     <integer name="pref_speech_rate_default_int">100</integer>
     <string name="pref_speech_pitch_default">1.0</string>
     <bool name="pref_use_accessibility_stream_default">true</bool>
     <bool name="pref_mute_speech_while_recording_default">false</bool>
     <bool name="pref_speak_in_phrases_default">false</bool>
-    <bool name="pref_switch_languages_default">true</bool>
-    <bool name="pref_switch_dialects_default">true</bool>
+    <bool name="pref_switch_languages_default">false</bool>
+    <bool name="pref_switch_dialects_default">false</bool>
     <string name="pref_speech_volume_default">100</string>
     <integer name="pref_speech_volume_min">25</integer>
     <bool name="pref_screenoff_default">false</bool>
@@ -1457,16 +1458,17 @@
     <bool name="pref_announce_full_charge_default">false</bool>
     <bool name="pref_proximity_default">false</bool>
     <bool name="pref_auto_update_check_default">true</bool>
-    <bool name="pref_dev_builds_default">false</bool>
-    <bool name="pref_notification_list_default">false</bool>
+    <bool name="pref_dev_builds_default">true</bool>
+    <bool name="pref_notification_list_default">true</bool>
     <bool name="pref_quick_settings_default">false</bool>
     <bool name="pref_cache_keyboard_keys_default">false</bool>
-    <bool name="pref_vibration_default">true</bool>
+    <bool name="pref_vibration_default">false</bool>
     <bool name="pref_soundback_default">true</bool>
-    <bool name="pref_use_audio_focus_default">true</bool>
-    <string name="pref_soundback_volume_default">50</string>
-    <bool name="pref_intonation_default">true</bool>
+    <bool name="pref_use_audio_focus_default">false</bool>
+    <string name="pref_soundback_volume_default">53</string>
+    <bool name="pref_intonation_default">false</bool>
     <string name="pref_keyboard_echo_default" translatable="false">0</string>
+    <string name="pref_keyboard_echo_on_screen_default" translatable="false">3</string>
     <string name="pref_interrupt_typing_default" translatable="false">@string/value_interrupt_typing_always</string>
     <bool name="pref_interrupt_enter_default">true</bool>
     <string name="pref_capital_letters_default">1</string>
@@ -1475,30 +1477,30 @@
     <bool name="pref_count_repeated_symbols_default">true</bool>
     <string name="pref_node_desc_order_default">pref_node_desc_order_value_state_name_role_pos</string>
     <string name="pref_time_feedback_format_default">pref_time_feedback_format_values_undefined</string>
-    <bool name="pref_speak_element_ids_default">false</bool>
+    <bool name="pref_speak_element_ids_default">true</bool>
     <bool name="pref_speak_notifications_default">true</bool>
     <bool name="pref_speak_volume_changes_default">true</bool>
     <bool name="pref_diagnosis_mode_default">false</bool>
     <bool name="pref_tts_overlay_default">false</bool>
     <bool name="pref_multiple_gesture_set_default">false</bool>
     <bool name="pref_echo_recognized_text_default">false</bool>
-    <bool name="pref_reduce_window_delay_default">true</bool>
+    <bool name="pref_reduce_window_delay_default">false</bool>
     <bool name="pref_wrap_around_default">true</bool>
-    <bool name="pref_collapse_list_item_actions_default">false</bool>
-    <bool name="pref_fix_stuck_touch_exploration_default">true</bool>
+    <bool name="pref_collapse_list_item_actions_default">true</bool>
+    <bool name="pref_fix_stuck_touch_exploration_default">false</bool>
     <bool name="pref_touch_stops_speech_default">true</bool>
     <bool name="pref_focus_new_windows_default">true</bool>
-    <bool name="pref_volume_keys_adjust_speech_while_speaking_default">false</bool>
-    <bool name="pref_volume_keys_adjust_sliders_default">false</bool>
-    <bool name="pref_volume_keys_move_cursor_default">false</bool>
+    <bool name="pref_volume_keys_adjust_speech_while_speaking_default">true</bool>
+    <bool name="pref_volume_keys_adjust_sliders_default">true</bool>
+    <bool name="pref_volume_keys_move_cursor_default">true</bool>
     <bool name="pref_speak_items_before_scroll_default">false</bool>
     <bool name="pref_first_item_interrupts_window_name_default">false</bool>
     <bool name="pref_auto_enter_table_navigation_default">false</bool>
     <bool name="pref_tree_debug_default">false</bool>
-    <bool name="pref_performance_stats_default">false</bool>
+    <bool name="pref_performance_stats_default">true</bool>
     <bool name="pref_log_overlay_default">false</bool>
     <bool name="pref_web_scripts_default">true</bool>
-    <string name="pref_typing_confirmation_default">@string/typing_type_lift_to_type</string>
+    <string name="pref_typing_confirmation_default">@string/typing_type_direct_silent</string>
     <string name="pref_typing_long_press_duration_default">@string/typing_long_press_default</string>
     <bool name="pref_phonetic_letters_default">true</bool>
     <string name="pref_a11y_hints_default" translatable="false">actions</string>
@@ -1510,21 +1512,21 @@
     <bool name="pref_allow_frequent_content_change_announcement_default">true</bool>
     <bool name="pref_explore_by_touch_default">true</bool>
     <bool name="pref_single_tap_default">false</bool>
-    <bool name="pref_dim_when_talkback_enabled_default">false</bool>
+    <bool name="pref_dim_when_talkback_enabled_default">true</bool>
     <bool name="pref_shake_to_read_default">false</bool>
     <bool name="pref_auto_icon_detection_default">false</bool>
     <bool name="pref_auto_image_description_default">false</bool>
-    <bool name="pref_auto_text_recognition_default">true</bool>
+    <bool name="pref_auto_text_recognition_default">false</bool>
     <bool name="pref_auto_icon_detection_unlabelled_only_default">true</bool>
     <bool name="pref_auto_image_description_unlabelled_only_default">false</bool>
     <bool name="pref_auto_on_device_image_description_unlabelled_only_default">true</bool>
     <bool name="pref_auto_text_recognition_unlabelled_only_default">true</bool>
-    <bool name="pref_detailed_image_description_default">false</bool>
-    <bool name="pref_ai_label_suggestion_default">false</bool>
+    <bool name="pref_detailed_image_description_default">true</bool>
+    <bool name="pref_ai_label_suggestion_default">true</bool>
     <bool name="pref_opt_in_screen_overview_default">false</bool>
     <bool name="pref_auto_on_device_image_description_default">false</bool>
-    <bool name="pref_formatting_inline_default">true</bool>
-    <bool name="pref_smart_browse_mode_default">true</bool>
+    <bool name="pref_formatting_inline_default">false</bool>
+    <bool name="pref_smart_browse_mode_default">false</bool>
     <bool name="pref_browse_mode_per_app_default">false</bool>
 
     <!-- Selector preferences default values -->
@@ -1532,7 +1534,7 @@
     <bool name="pref_selector_activation_default">false</bool>
     <string name="pref_selector_first_time_activation_key">pref_selector_first_time_activation_key</string>
 
-    <bool name="pref_selector_speech_rate_default">true</bool>
+    <bool name="pref_selector_speech_rate_default">false</bool>
     <bool name="pref_selector_language_default">false</bool>
     <bool name="pref_selector_verbosity_default">false</bool>
     <bool name="pref_selector_punctuation_default">false</bool>
@@ -1541,17 +1543,17 @@
     <bool name="pref_selector_hide_screen_default">false</bool>
     <bool name="pref_selector_scroll_seq_default">false</bool>
     <bool name="pref_selector_a11y_volume_default">false</bool>
-    <bool name="pref_selector_brightness_default">true</bool>
+    <bool name="pref_selector_brightness_default">false</bool>
     <bool name="pref_selector_lift_to_activate_default">false</bool>
     <bool name="pref_selector_wrap_around_default">false</bool>
     <bool name="pref_selector_links_controls_web_only_default">false</bool>
     <bool name="pref_selector_auto_switch_default">true</bool>
-    <bool name="pref_selection_mode_reading_control_default">true</bool>
+    <bool name="pref_selection_mode_reading_control_default">false</bool>
     <bool name="pref_selector_tablet_held_up_faces_away_default">false</bool>
     <bool name="pref_selector_switch_tts_engine_default">false</bool>
     <bool name="pref_selector_speech_stream_default">false</bool>
     <bool name="pref_selector_speech_volume_default">false</bool>
-    <bool name="pref_selector_vertical_navigation_default">false</bool>
+    <bool name="pref_selector_vertical_navigation_default">true</bool>
     <bool name="pref_selector_voice_profile_default">false</bool>
     <bool name="pref_selector_control_telling_time_default">false</bool>
     <bool name="pref_selector_audio_focus_default">false</bool>
@@ -1559,7 +1561,7 @@
     <bool name="pref_selector_repeat_translate_default">true</bool>
     <bool name="pref_selector_granularity_headings_default">true</bool>
     <bool name="pref_selector_granularity_words_default">true</bool>
-    <bool name="pref_selector_granularity_paragraphs_default">true</bool>
+    <bool name="pref_selector_granularity_paragraphs_default">false</bool>
     <bool name="pref_selector_granularity_characters_default">true</bool>
     <bool name="pref_selector_granularity_lines_default">true</bool>
     <bool name="pref_selector_granularity_windows_default">false</bool>
@@ -1585,22 +1587,22 @@
     <bool name="pref_selector_granularity_unvisited_links_default">false</bool>
     <bool name="pref_selector_granularity_radios_default">false</bool>
     <bool name="pref_selector_granularity_containers_default">false</bool>
-    <bool name="pref_selector_granularity_search_default">true</bool>
+    <bool name="pref_selector_granularity_search_default">false</bool>
     <bool name="pref_selector_special_widget_default">true</bool>
-    <bool name="pref_selector_granularity_typo_default">true</bool>
-    <bool name="pref_selector_granularity_row_column_default">true</bool>
+    <bool name="pref_selector_granularity_typo_default">false</bool>
+    <bool name="pref_selector_granularity_row_column_default">false</bool>
     <bool name="pref_selector_granularity_row_default">false</bool>
     <bool name="pref_selector_granularity_column_default">false</bool>
     <bool name="pref_selector_text_formatting_inline_default">false</bool>
 
-    <bool name="pref_show_context_menu_custom_action_default">false</bool>
+    <bool name="pref_show_context_menu_custom_action_default">true</bool>
     <bool name="pref_show_context_menu_editing_default">true</bool>
     <bool name="pref_show_context_menu_page_navigation_default">false</bool>
-    <bool name="pref_show_context_menu_labeling_default">false</bool>
+    <bool name="pref_show_context_menu_labeling_default">true</bool>
     <bool name="pref_show_context_menu_granularity_default">false</bool>
     <bool name="pref_show_context_menu_read_from_top_default">false</bool>
     <bool name="pref_show_context_menu_read_from_current_default">true</bool>
-    <bool name="pref_show_context_menu_copy_last_spoken_phrase_default">false</bool>
+    <bool name="pref_show_context_menu_copy_last_spoken_phrase_default">true</bool>
     <bool name="pref_show_context_menu_spell_last_spoken_phrase_default">false</bool>
     <bool name="pref_show_context_menu_repeat_last_spoken_phrase_default">false</bool>
     <bool name="pref_show_context_menu_translate_last_spoken_phrase_default">false</bool>
@@ -1617,10 +1619,10 @@
     <bool name="pref_show_context_menu_show_keyboard_shortcuts_default">false</bool>
     <bool name="pref_show_context_menu_talkback_settings_default">true</bool>
     <bool name="pref_show_context_menu_system_action_default">false</bool>
-    <bool name="pref_show_context_menu_tts_settings_default">true</bool>
+    <bool name="pref_show_context_menu_tts_settings_default">false</bool>
     <bool name="pref_show_context_menu_image_caption_default">true</bool>
     <bool name="pref_show_context_menu_summarize_view_default">true</bool>
-    <bool name="pref_show_context_menu_typo_suggestions_default">true</bool>
+    <bool name="pref_show_context_menu_typo_suggestions_default">false</bool>
     <bool name="pref_show_context_menu_text_formatting_default">false</bool>
 
     <bool name="pref_show_navigation_menu_characters_default">true</bool>
@@ -1957,17 +1959,17 @@
   <string name="shortcut_value_pause_backtalk" translatable="false">PAUSE_BACKTALK</string>
   <string name="pref_show_pause_confirmation_dialog">pref_show_pause_confirmation_dialog</string>
   <string name="pref_show_context_menu_pause_backtalk_setting_key" translatable="false">pref_pause_backtalk_menu_setting_key</string>
-  <bool name="pref_show_context_menu_pause_backtalk_default">true</bool>
+  <bool name="pref_show_context_menu_pause_backtalk_default">false</bool>
   <string name="shortcut_value_turn_off_sandfly" translatable="false">TURN_OFF_SANDFLY</string>
   <string name="pref_show_context_menu_turn_off_setting_key" translatable="false">pref_turn_off_menu_setting_key</string>
-  <bool name="pref_show_context_menu_turn_off_default">true</bool>
+  <bool name="pref_show_context_menu_turn_off_default">false</bool>
   <item type="id" name="turn_off_sandfly" />
   <string name="pref_resume_backtalk_key" translatable="false">pref_resume_talkback</string>
   <string name="resume_screen_keyguard" translatable="false">KEYGUARD</string>
   <string name="resume_screen_off" translatable="false">SCREEN_OFF</string>
   <string name="resume_screen_on" translatable="false">SCREEN_ON</string>
   <string name="resume_screen_manual" translatable="false">MANUAL</string>
-  <string name="pref_resume_backtalk_default" translatable="false">@string/resume_screen_keyguard</string>
+  <string name="pref_resume_backtalk_default" translatable="false">@string/resume_screen_on</string>
   <string-array name="pref_resume_backtalk_entries">
     <item>@string/value_resume_keyguard</item>
     <item>@string/value_resume_screen_on</item>
@@ -1983,10 +1985,10 @@
   <item type="id" name="pause_backtalk" />
   <item type="id" name="notification_backtalk_paused" />
   <string name="pref_show_context_menu_inspect_item_setting_key" translatable="false">pref_inspect_item_menu_setting_key</string>
-  <bool name="pref_show_context_menu_inspect_item_default">false</bool>
+  <bool name="pref_show_context_menu_inspect_item_default">true</bool>
   <item type="id" name="inspect_item" />
   <string name="pref_show_context_menu_copy_screen_tree_setting_key" translatable="false">pref_copy_screen_tree_menu_setting_key</string>
-  <bool name="pref_show_context_menu_copy_screen_tree_default">false</bool>
+  <bool name="pref_show_context_menu_copy_screen_tree_default">true</bool>
   <item type="id" name="copy_screen_tree" />
   <item type="id" name="script_command" />
 
@@ -2013,7 +2015,7 @@
     <string name="pref_debug_log_key" translatable="false">pref_debug_log</string>
     <bool name="pref_debug_log_default">false</bool>
     <string name="pref_disable_latency_extras_key" translatable="false">pref_disable_latency_extras</string>
-    <bool name="pref_disable_latency_extras_default">true</bool>
+    <bool name="pref_disable_latency_extras_default">false</bool>
     <string name="pref_disable_latency_pinned_key" translatable="false">pref_disable_latency_pinned</string>
     <bool name="pref_disable_latency_pinned_default">false</bool>
     <string name="pref_delete_debug_log_key" translatable="false">pref_delete_debug_log</string>

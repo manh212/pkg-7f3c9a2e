@@ -27,15 +27,15 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Tests for the AI label suggestion switch: off unless the user turns it on. */
+/** Tests for the AI label suggestion switch: on unless the user turns it off. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LabelSuggestionSettingsTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun offByDefault() {
-    assertFalse(LabelSuggestionSettings.isEnabled(context))
+  fun onByDefault() {
+    assertTrue(LabelSuggestionSettings.isEnabled(context))
   }
 
   @Test

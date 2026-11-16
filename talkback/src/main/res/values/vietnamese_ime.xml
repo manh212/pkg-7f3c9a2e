@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <bool name="vietnamese_ime_supported">false</bool>
-    <bool name="pref_vietnamese_keyboard_own_voice_default">true</bool>
+    <bool name="pref_vietnamese_keyboard_own_voice_default">false</bool>
     <string name="pref_vietnamese_keyboard_own_voice_key" translatable="false">pref_vietnamese_keyboard_own_voice</string>
     <string name="pref_vietnamese_keyboard_size_portrait_key" translatable="false">pref_vietnamese_keyboard_size_portrait</string>
     <string name="pref_vietnamese_keyboard_size_landscape_key" translatable="false">pref_vietnamese_keyboard_size_landscape</string>
     <string name="pref_vietnamese_keyboard_bottom_spacing_key" translatable="false">pref_vietnamese_keyboard_bottom_spacing</string>
-    <integer name="pref_vietnamese_keyboard_bottom_spacing_default">32</integer>
+    <integer name="pref_vietnamese_keyboard_bottom_spacing_default">56</integer>
     <integer name="pref_vietnamese_keyboard_bottom_spacing_max">80</integer>
     <string name="pref_vietnamese_keyboard_mic_enabled_key" translatable="false">pref_vietnamese_keyboard_mic_enabled</string>
     <string name="pref_vietnamese_keyboard_show_picker_key" translatable="false">pref_vietnamese_keyboard_show_picker</string>

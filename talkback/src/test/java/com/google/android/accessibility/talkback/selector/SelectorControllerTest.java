@@ -39,8 +39,8 @@ import org.robolectric.annotation.Config;
 /**
  * Tests the gate behind "Change reading control in selection mode": while the switch is off,
  * focus changes within web content must keep the user's reading control instead of replacing it
- * with a contextual setting, such as Actions. While the switch is on (the default), or outside
- * web content, focus changes behave as before.
+ * with a contextual setting, such as Actions. While the switch is on, or outside
+ * web content, focus changes behave as before. The switch is off by default.
  */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
@@ -78,9 +78,9 @@ public class SelectorControllerTest {
   }
 
   @Test
-  public void switchUnset_focusInsideWebView_doesNotKeepReadingControl() {
-    // The switch is on by default, so nothing is kept until the user turns it off.
-    assertFalse(keepsReadingControlInWebContent(context, prefs, webChildNode()));
+  public void switchUnset_focusInsideWebView_keepsReadingControl() {
+    // The switch is off by default, so reading control is kept until the user turns it on.
+    assertTrue(keepsReadingControlInWebContent(context, prefs, webChildNode()));
   }
 
   @Test

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-      android:defaultValue="@string/pref_keyboard_echo_default"
+      android:defaultValue="@string/pref_keyboard_echo_on_screen_default"
       android:entries="@array/pref_keyboard_echo_entries"
       android:entryValues="@array/pref_keyboard_echo_values"
       android:key="@string/pref_echo_on_screen_keyboard_key"

@@ -66,16 +66,16 @@ class WindowNamesSettingTest {
   }
 
   @Test
-  fun defaultIsAlways() {
-    assertEquals(WindowNamesSetting.ALWAYS, WindowNamesSetting.read(prefs, res))
+  fun defaultIsWindowOpens() {
+    assertEquals(WindowNamesSetting.WINDOW_OPENS, WindowNamesSetting.read(prefs, res))
     WindowNamesSetting.migrate(prefs, res)
-    assertEquals(WindowNamesSetting.ALWAYS, WindowNamesSetting.read(prefs, res))
+    assertEquals(WindowNamesSetting.WINDOW_OPENS, WindowNamesSetting.read(prefs, res))
   }
 
   @Test
   fun unknownValueReadsAsTheDefault() {
     prefs.edit().putString(res.getString(R.string.pref_window_names_key), "loud").apply()
-    assertEquals(WindowNamesSetting.ALWAYS, WindowNamesSetting.read(prefs, res))
+    assertEquals(WindowNamesSetting.WINDOW_OPENS, WindowNamesSetting.read(prefs, res))
   }
 
   @Test

@@ -38,17 +38,17 @@ class NotificationSettingsTest {
   }
 
   @Test
-  fun busyBehaviorOfMapsNamesAndDefaultsToNow() {
+  fun busyBehaviorOfMapsNamesAndDefaultsToAfter() {
     assertEquals(BusyBehavior.NOW, BusyBehavior.of("NOW"))
     assertEquals(BusyBehavior.AFTER, BusyBehavior.of("AFTER"))
     assertEquals(BusyBehavior.SKIP, BusyBehavior.of("SKIP"))
-    assertEquals(BusyBehavior.NOW, BusyBehavior.of("LATER"))
-    assertEquals(BusyBehavior.NOW, BusyBehavior.of(null))
+    assertEquals(BusyBehavior.AFTER, BusyBehavior.of("LATER"))
+    assertEquals(BusyBehavior.AFTER, BusyBehavior.of(null))
   }
 
   @Test
-  fun busyBehaviorDefaultsToNowWhenThePreferenceIsAbsent() {
-    assertEquals(BusyBehavior.NOW, NotificationSettings.read(prefs).busyBehavior)
+  fun busyBehaviorDefaultsToAfterWhenThePreferenceIsAbsent() {
+    assertEquals(BusyBehavior.AFTER, NotificationSettings.read(prefs).busyBehavior)
   }
 
   @Test

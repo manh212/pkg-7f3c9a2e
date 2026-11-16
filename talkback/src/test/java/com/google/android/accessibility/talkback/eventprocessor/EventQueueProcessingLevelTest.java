@@ -107,10 +107,10 @@ public class EventQueueProcessingLevelTest {
   }
 
   @Test
-  public void invalidLevel_fallsBackToMedium() {
+  public void invalidLevel_fallsBackToLow() {
     ProcessorEventQueue.setProcessingLevel("unknown");
 
-    assertEquals("medium", ProcessorEventQueue.getProcessingLevel());
-    assertEquals(16L, EventQueue.processingSliceMs());
+    assertEquals("low", ProcessorEventQueue.getProcessingLevel());
+    assertEquals(12L, EventQueue.processingSliceMs());
   }
 }

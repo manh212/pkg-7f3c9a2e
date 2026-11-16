@@ -368,9 +368,9 @@ class OrganizedSettingsTest {
     val calls = com.google.android.accessibility.talkback.calls.CallSettingsFragment()
     open(calls)
     assertTrue(calls.findPreference<TwoStatePreference>("pref_call_announce")!!.isChecked)
-    assertFalse(calls.findPreference<TwoStatePreference>("pref_call_duration")!!.isChecked)
+    assertTrue(calls.findPreference<TwoStatePreference>("pref_call_duration")!!.isChecked)
     assertFalse(calls.findPreference<TwoStatePreference>("pref_call_quiet_hours")!!.isChecked)
-    assertEquals("0", calls.findPreference<ListPreference>("pref_call_repeats")!!.value)
+    assertEquals("3", calls.findPreference<ListPreference>("pref_call_repeats")!!.value)
     assertEquals("0", calls.findPreference<ListPreference>("pref_call_duration_interval")!!.value)
     assertEquals(
       "com.google.android.accessibility.talkback.notifications.InitialSetupFragment",

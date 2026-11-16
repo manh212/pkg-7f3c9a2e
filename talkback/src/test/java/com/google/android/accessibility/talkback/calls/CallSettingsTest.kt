@@ -41,9 +41,10 @@ class CallSettingsTest {
       .putString(CallSettings.VOICE, "calls").commit()
     val settings = CallSettings.read(prefs)
     assertTrue(settings.announce)
+    assertTrue(settings.duration)
     assertFalse(settings.quietHours)
     assertEquals("calls", settings.voiceProfile)
-    assertEquals(0, settings.repeats)
+    assertEquals(3, settings.repeats)
     assertEquals(0, settings.intervalSeconds)
     prefs.edit().clear().commit()
   }

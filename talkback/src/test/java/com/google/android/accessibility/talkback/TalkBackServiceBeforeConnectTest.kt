@@ -20,7 +20,6 @@ import com.google.android.accessibility.talkback.report.LatencyMeasurementSessio
 import com.google.android.accessibility.talkback.gesture.GestureProfiles
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -45,12 +44,12 @@ class TalkBackServiceBeforeConnectTest {
   }
 
   @Test
-  fun freshConnectionInitializesPreferencesBeforeResettingGestureProfiles() {
+  fun freshConnectionInitializesPreferencesWithoutAnActiveGestureProfile() {
     checkConnection(existingProfile = false)
   }
 
   @Test
-  fun reconnectAfterUpdateSelectsDefaultWithoutDeletingSavedProfilesOrSettings() {
+  fun reconnectAfterUpdateKeepsTheSelectedProfileWithoutDeletingSavedProfilesOrSettings() {
     checkConnection(existingProfile = true)
   }
 
@@ -69,8 +68,8 @@ class TalkBackServiceBeforeConnectTest {
     try {
       assertThrows(InfrastructureReached::class.java) { service.connect() }
       assertNotNull(prefsField.get(service))
-      assertEquals("", prefs.getString(GestureProfiles.ACTIVE_KEY, null))
-      assertFalse(GestureProfiles.isActive())
+      assertEquals(if (existingProfile) profile.id else null, prefs.getString(GestureProfiles.ACTIVE_KEY, null))
+      assertEquals(existingProfile, GestureProfiles.isActive())
       assertEquals(if (existingProfile) listOf(profile) else emptyList(), GestureProfiles.read(prefs))
       assertTrue(prefs.getBoolean("startup_setting_to_keep", false))
     } finally {
