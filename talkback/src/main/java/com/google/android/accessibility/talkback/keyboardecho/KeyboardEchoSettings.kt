@@ -122,8 +122,7 @@ object KeyboardEchoSettings {
   @JvmStatic
   fun migrate(context: Context, prefs: SharedPreferences) {
     val res = context.resources
-    val default = res.getString(R.string.pref_keyboard_echo_default)
-    fun presetValue(keyResId: Int): String =
+    fun presetValue(keyResId: Int, default: String): String =
       VerbosityPreferences.getPreferenceValueString(prefs, res, res.getString(keyResId), default)
         ?: default
     val editor = prefs.edit()
@@ -135,8 +134,18 @@ object KeyboardEchoSettings {
         changed = true
       }
     }
-    val onScreen = { presetValue(R.string.pref_keyboard_echo_on_screen_key) }
-    val physical = { presetValue(R.string.pref_keyboard_echo_physical_key) }
+    val onScreen = {
+      presetValue(
+        R.string.pref_keyboard_echo_on_screen_key,
+        res.getString(R.string.pref_keyboard_echo_on_screen_default),
+      )
+    }
+    val physical = {
+      presetValue(
+        R.string.pref_keyboard_echo_physical_key,
+        res.getString(R.string.pref_keyboard_echo_default),
+      )
+    }
     moveIfUnset(TypingInput.ON_SCREEN_KEYBOARD, onScreen)
     moveIfUnset(TypingInput.PHYSICAL_KEYBOARD, physical)
     if (changed) {
