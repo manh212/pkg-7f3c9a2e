@@ -22,6 +22,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.content.Context;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.Region;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
@@ -237,7 +238,7 @@ public class PassThroughModeActor {
       int x = activeSimulatedTap.x;
       int y = activeSimulatedTap.y;
       region = new Region(directTouchRegion);
-      region.op(x, y, x + 1, y + 1, Region.Op.UNION);
+      region.op(new Rect(x, y, x + 1, y + 1), Region.Op.UNION);
     }
     service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, region);
   }
