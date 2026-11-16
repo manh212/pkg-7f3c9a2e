@@ -45,7 +45,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private final Runnable failure;
   private final boolean rotationEnabled;
   private final boolean extendedEnabled;
-  private final boolean simulatedDoubleTapEnabled;
+  private final boolean fastDoubleTapEnabled;
   private final TwoFingerRotationTracker rotationTracker;
   private final ArrayDeque<MotionEvent> queued = new ArrayDeque<>();
   private final float[] downY = new float[32];
@@ -58,16 +58,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean stationaryExplorationPending;
   private long defaultExplorationAt;
   private int minimumTouchExplorationMoveTimeMs;
-  private @Nullable Runnable pendingSimulatedTap;
-  private int simulatedTapDelayMs;
   private int state = TouchInteractionController.STATE_CLEAR;
-  private final Runnable sendPendingSimulatedTap = () -> {
-    Runnable tap = pendingSimulatedTap;
-    pendingSimulatedTap = null;
-    if (tap != null && active && controllerState() == TouchInteractionController.STATE_CLEAR) {
-      tap.run();
-    }
-  };
   private final Runnable armExtendedAfterHold = () -> {
     if (active && twoFingerTracking && !twoFingerMoved && !completedInteraction
         && controllerState() == TouchInteractionController.STATE_TOUCH_INTERACTING) {
@@ -99,12 +90,12 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   }
 
   ExtendedTouchBackend(TalkBackService service, Runnable failure, boolean rotationEnabled,
-      boolean extendedEnabled, boolean simulatedDoubleTapEnabled) {
+      boolean extendedEnabled, boolean fastDoubleTapEnabled) {
     this.service = service;
     this.failure = failure;
     this.rotationEnabled = rotationEnabled;
     this.extendedEnabled = extendedEnabled;
-    this.simulatedDoubleTapEnabled = simulatedDoubleTapEnabled;
+    this.fastDoubleTapEnabled = fastDoubleTapEnabled;
     float touchSlop = ViewConfiguration.get(service).getScaledTouchSlop();
     rotationTracker =
         new TwoFingerRotationTracker(
@@ -160,27 +151,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
   }
 
-  boolean scheduleSimulatedTap(Runnable tap, int delayMs) {
-    if (!active || !simulatedDoubleTapEnabled || pendingSimulatedTap != null) {
-      return false;
-    }
-    pendingSimulatedTap = tap;
-    simulatedTapDelayMs = delayMs;
-    if (controllerState() == TouchInteractionController.STATE_CLEAR) {
-      handler.postDelayed(sendPendingSimulatedTap, simulatedTapDelayMs);
-    }
-    return true;
-  }
-
-  private void cancelSimulatedTap() {
-    pendingSimulatedTap = null;
-    handler.removeCallbacks(sendPendingSimulatedTap);
-  }
-
   void stop() {
     active = false;
     handler.removeCallbacks(failure);
-    cancelSimulatedTap();
     LatencyExperiments.resetTouchControllerContact();
     firstPointerOnly = false;
     handler.removeCallbacks(explore);
@@ -201,7 +174,6 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     if (!active) return;
     int action = event.getActionMasked();
     if (action == MotionEvent.ACTION_DOWN) {
-      if (pendingSimulatedTap != null) cancelSimulatedTap();
       LatencyExperiments.onTouchControllerContact(true);
     }
     if (transitionPending) {
@@ -384,10 +356,6 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     if (next == TouchInteractionController.STATE_CLEAR) {
       firstPointerOnly = false;
       resetTwoFingerTracking();
-      if (pendingSimulatedTap != null) {
-        handler.removeCallbacks(sendPendingSimulatedTap);
-        handler.postDelayed(sendPendingSimulatedTap, simulatedTapDelayMs);
-      }
     }
     handler.removeCallbacks(explore);
     cancelStationaryTouchExploration();
@@ -435,7 +403,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     completedInteraction = true;
     if (id == AccessibilityService.GESTURE_DOUBLE_TAP) {
       AccessibilityServiceInfo info = service.getServiceInfo();
-      if (simulatedDoubleTapEnabled
+      if (fastDoubleTapEnabled
           || (info != null && (info.flags & AccessibilityServiceInfo.FLAG_SERVICE_HANDLES_DOUBLE_TAP) != 0)) {
         dispatch(event);
       } else {

@@ -136,59 +136,26 @@ public class ExtendedTouchBackendTest {
     assertEquals(1, touch.clicks);
   }
 
-  @Test public void simulatedModeSendsPhysicalDoubleTapToMeridianWithOrWithoutRotation() {
+  @Test public void fastDoubleTapIsDispatchedOnSecondUpWithOrWithoutRotation() {
     for (boolean rotation : new boolean[] {false, true}) {
-      startSimulatedMode(rotation);
+      startFastDoubleTapMode(rotation);
       service.gestures.clear();
       motion(MotionEvent.ACTION_DOWN, 700);
       motion(MotionEvent.ACTION_UP, 700);
       motion(MotionEvent.ACTION_DOWN, 700);
+      assertTrue(service.gestures.isEmpty());
       motion(MotionEvent.ACTION_UP, 700);
       assertEquals(List.of(AccessibilityService.GESTURE_DOUBLE_TAP), service.gestures);
       assertEquals(0, touch.clicks);
     }
   }
 
-  @Test public void simulatedTapWaitsForClearAndThenUsesTheSelectedDelay() {
-    startSimulatedMode(false);
-    List<Integer> taps = new ArrayList<>();
-    for (int delayMs : new int[] {80, 200}) {
-      changeTouchState(TouchInteractionController.STATE_TOUCH_INTERACTING);
-      assertTrue(backend.scheduleSimulatedTap(() -> taps.add(delayMs), delayMs));
-      Shadows.shadowOf(Looper.getMainLooper()).idleFor(300, TimeUnit.MILLISECONDS);
-      assertFalse(taps.contains(delayMs));
-
-      changeTouchState(TouchInteractionController.STATE_CLEAR);
-      Shadows.shadowOf(Looper.getMainLooper()).idleFor(delayMs - 1, TimeUnit.MILLISECONDS);
-      assertFalse(taps.contains(delayMs));
-      Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
-      assertTrue(taps.contains(delayMs));
-    }
-    assertEquals(List.of(80, 200), taps);
-  }
-
-  @Test public void aNewTouchCancelsThePendingSimulatedTap() {
-    startSimulatedMode(true);
-    changeTouchState(TouchInteractionController.STATE_CLEAR);
-    assertTrue(backend.scheduleSimulatedTap(
-        () -> { throw new AssertionError("Stale simulated tap"); }, 80));
-    changeTouchState(TouchInteractionController.STATE_TOUCH_INTERACTING);
-    motion(MotionEvent.ACTION_DOWN, 700);
-    changeTouchState(TouchInteractionController.STATE_CLEAR);
-    Shadows.shadowOf(Looper.getMainLooper()).idleFor(200, TimeUnit.MILLISECONDS);
-  }
-
-  private void startSimulatedMode(boolean rotation) {
+  private void startFastDoubleTapMode(boolean rotation) {
     backend.stop();
     backend = new ExtendedTouchBackend(
         service, () -> { throw new AssertionError("Gesture backend failed"); }, rotation, false, true);
     backend.start();
-    changeTouchState(TouchInteractionController.STATE_TOUCH_INTERACTING);
-  }
-
-  private void changeTouchState(int state) {
-    touch.state = state;
-    touch.callback.onStateChanged(state);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
   }
 
   @Test public void movingFartherThanTouchSlopCancelsOnlyTheEarlyExplorationRequest() {

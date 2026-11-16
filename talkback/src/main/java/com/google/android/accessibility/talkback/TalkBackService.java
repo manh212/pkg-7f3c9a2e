@@ -90,7 +90,6 @@ import android.view.Display;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
-import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -366,7 +365,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 import kotlin.Unit;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -1214,9 +1212,6 @@ public class TalkBackService extends AccessibilityServiceCompat
   public void onAccessibilityEvent(AccessibilityEvent event) {
     if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return;
     long receivedAt = SystemClock.uptimeMillis();
-    if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED && passThroughModeActor != null) {
-      passThroughModeActor.onSimulatedTapClick(event);
-    }
     if (pipeline != null) {
       fullScreenMonitor.onEvent(event, pipeline.getFeedbackReturner());
       progressBarAnnouncer.onEvent(event);
@@ -4769,36 +4764,12 @@ public class TalkBackService extends AccessibilityServiceCompat
         && extendedGesturesController.performClick(displayId);
   }
 
-  public boolean scheduleSimulatedTap(
-      int x, int y, int windowId, int nodeHash, long recognizedAt, BooleanSupplier targetStillFocused) {
-    if (!canReadScreenMonitor() || extendedGesturesController == null
-        || passThroughModeActor == null || !passThroughModeActor.canSimulateTap()) {
-      return false;
-    }
-    int totalMs = LatencyExperiments.doubleTapClickDurationMs();
-    int holdMs = Math.min(ViewConfiguration.getTapTimeout(), 40);
-    boolean scheduled = extendedGesturesController.scheduleSimulatedTap(
-        () -> {
-          if (canReadScreenMonitor() && targetStillFocused.getAsBoolean()) {
-            passThroughModeActor.dispatchSimulatedTap(
-                x, y, windowId, nodeHash, recognizedAt, totalMs, holdMs);
-          } else {
-            LogUtils.i("SimulatedDoubleTap", "skipped because the target is no longer focused");
-          }
-        },
-        totalMs - holdMs);
-    if (scheduled) {
-      LogUtils.i("SimulatedDoubleTap", "scheduled chosen=%dms", totalMs);
-    }
-    return scheduled;
-  }
-
   private void updateExtendedGestures() {
     if (prefs == null || gestureController == null) return;
     if (extendedGesturesController == null) {
       if (!com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.isEnabled(prefs)
           && !TwoFingerRotationSettings.isEnabled(prefs)
-          && !LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.enabled()) return;
+          && !LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled()) return;
       extendedGesturesController =
           new com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController(this);
     }
@@ -4923,9 +4894,6 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (extendedGesturesController != null) {
       extendedGesturesController.stop();
     }
-    if (passThroughModeActor != null) {
-      passThroughModeActor.cancelSimulatedTap();
-    }
     if (VERSION.SDK_INT >= Build.VERSION_CODES.R && getServiceInfo() != null) {
       for (Display display : WindowUtils.getAllDisplays(getApplicationContext())) {
         setTouchExplorationPassthroughRegion(display.getDisplayId(), new Region());
@@ -4997,9 +4965,9 @@ public class TalkBackService extends AccessibilityServiceCompat
           LatencyExperiments.loadTouchTiming(prefs);
           return;
         }
-        if (LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.key.equals(key)) {
+        if (LatencyExperiments.Feature.FAST_DOUBLE_TAP.key.equals(key)) {
           LatencyExperiments.setEnabled(
-              LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP, prefs.getBoolean(key, false));
+              LatencyExperiments.Feature.FAST_DOUBLE_TAP, prefs.getBoolean(key, false));
           updateExtendedGestures();
           return;
         }

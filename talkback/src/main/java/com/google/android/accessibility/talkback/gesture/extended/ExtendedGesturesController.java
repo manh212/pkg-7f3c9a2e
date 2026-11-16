@@ -16,7 +16,7 @@ public final class ExtendedGesturesController {
   private ExtendedTouchBackend backend;
   private boolean activeExtendedGestures;
   private boolean activeRotation;
-  private boolean activeSimulatedDoubleTap;
+  private boolean activeFastDoubleTap;
 
   public ExtendedGesturesController(TalkBackService service) { this.service = service; }
 
@@ -29,16 +29,16 @@ public final class ExtendedGesturesController {
         ExtendedGestures.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
     boolean rotation = available &&
         TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
-    boolean simulatedDoubleTap = available && LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.enabled();
-    if (!extended && !rotation && !simulatedDoubleTap) { stop(); return; }
+    boolean fastDoubleTap = available && LatencyExperiments.Feature.FAST_DOUBLE_TAP.enabled();
+    if (!extended && !rotation && !fastDoubleTap) { stop(); return; }
     if (backend != null && extended == activeExtendedGestures && rotation == activeRotation
-        && simulatedDoubleTap == activeSimulatedDoubleTap) return;
+        && fastDoubleTap == activeFastDoubleTap) return;
     stop();
     try {
       activeExtendedGestures = extended;
       activeRotation = rotation;
-      activeSimulatedDoubleTap = simulatedDoubleTap;
-      backend = new ExtendedTouchBackend(service, this::failed, rotation, extended, simulatedDoubleTap);
+      activeFastDoubleTap = fastDoubleTap;
+      backend = new ExtendedTouchBackend(service, this::failed, rotation, extended, fastDoubleTap);
       backend.start();
     } catch (RuntimeException error) {
       LogUtils.w("ExtendedTouchBackend", "Could not start touch controller: %s", error);
@@ -51,10 +51,6 @@ public final class ExtendedGesturesController {
         && backend != null && backend.performClick();
   }
 
-  public boolean scheduleSimulatedTap(Runnable tap, int delayMs) {
-    return Build.VERSION.SDK_INT >= 33 && backend != null && backend.scheduleSimulatedTap(tap, delayMs);
-  }
-
   public void stop() {
     if (Build.VERSION.SDK_INT >= 33 && backend != null) {
       backend.stop();
@@ -62,7 +58,7 @@ public final class ExtendedGesturesController {
     }
     activeExtendedGestures = false;
     activeRotation = false;
-    activeSimulatedDoubleTap = false;
+    activeFastDoubleTap = false;
   }
 
   public void configurationChanged(Configuration configuration) {
@@ -70,15 +66,15 @@ public final class ExtendedGesturesController {
   }
 
   private void failed() {
-    boolean simulating = activeSimulatedDoubleTap;
+    boolean fastDoubleTap = activeFastDoubleTap;
     boolean rotationFailed = activeRotation
         || TwoFingerRotationSettings.isEnabled(SharedPreferencesUtils.getSharedPreferences(service));
     stop();
-    if (simulating) {
+    if (fastDoubleTap) {
       SharedPreferencesUtils.getSharedPreferences(service).edit()
-          .putBoolean(LatencyExperiments.Feature.SIMULATED_DOUBLE_TAP.key, false)
+          .putBoolean(LatencyExperiments.Feature.FAST_DOUBLE_TAP.key, false)
           .apply();
-      Toast.makeText(service, R.string.simulated_double_tap_failed, Toast.LENGTH_LONG).show();
+      Toast.makeText(service, R.string.fast_double_tap_failed, Toast.LENGTH_LONG).show();
       return;
     }
     SharedPreferencesUtils.getSharedPreferences(service).edit()

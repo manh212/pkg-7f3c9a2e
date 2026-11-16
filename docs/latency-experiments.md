@@ -36,16 +36,17 @@ at two system tap durations plus the existing 40 ms gap when Meridian simulates
 activation. A shorter setting shortens both strokes. A longer setting holds
 the gesture before the first stroke to keep the strokes valid. The gap and
 the physical double-tap recognition thresholds stay the same.
-On Android 13 and later, **Mô phỏng chạm để kích hoạt sau nhấn đúp** uses one
-synthetic touch for a physical double-tap on a focused item with a valid touch
-position. It uses the same slider for the total planned delay and short touch,
-after the system finishes the physical touch interaction. The setting is off
-by default and works with or without two-finger rotation. The
-`SimulatedDoubleTap` diagnostic entries show submission, cancellation or
-completion, and a matching view-click event when the target reports one.
+On Android 13 and later, **Phản hồi nhanh khi nhấn đúp** sends an ordinary
+double-tap to Meridian as soon as the second finger-up is recognized, with or
+without rotation. Meridian uses the existing accessibility click and click
+feedback. If that click is unavailable, it asks Android's touch controller
+to click before using its own simulated fallback. The slider controls only
+that last fallback. The switch retains the value stored by the former
+simulated activation experiment. Latency tracing records which click path ran.
+
 **Thời gian chờ đọc khi giữ yên một ngón** starts at the existing exploration
 delay, the system double-tap timeout minus 50 ms with a 150 ms floor. It
-applies while Meridian handles touch for rotation or extended gestures on
+applies while Meridian handles touch for rotation, extended gestures or fast double-tap feedback on
 Android 13 and later. Real taps, movement beyond touch slop and multi-finger
 gestures leave the stationary timer.
 

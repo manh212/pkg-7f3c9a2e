@@ -28,7 +28,7 @@ public final class LatencyExperiments {
     PCM_ADJACENT("pcm_adjacent"),
     PCM_SECOND("pcm_second"),
     IMMEDIATE_SPEECH("immediate_speech"),
-    SIMULATED_DOUBLE_TAP("simulated_double_tap"),
+    FAST_DOUBLE_TAP("simulated_double_tap"),
     FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe"),
     TOUCH_SPEECH_WITH_ROTATION("touch_speech_with_rotation"),
     FAST_WINDOW_TRANSITIONS("fast_window_transitions"),

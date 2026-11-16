@@ -21,7 +21,6 @@ import android.graphics.Rect
 import android.graphics.Region
 import android.hardware.display.DisplayManager
 import android.os.Looper
-import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -37,8 +36,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadow.api.Shadow
-import org.robolectric.shadows.ShadowAccessibilityService
 
 /**
  * Runs pass-through mode with the pass-through region and the feedback pipeline replaced by
@@ -137,36 +134,5 @@ class PassThroughModeActorTest {
     pass(5000)
     assertTrue(actor.state.isPassThroughModeActive)
     assertEquals(listOf(fullScreen), service.regions)
-  }
-
-  @Test
-  fun simulatedActivationSendsOneTapAndRestoresDirectTouchWhenItEnds() {
-    val shadow: ShadowAccessibilityService = Shadow.extract(service)
-    shadow.setCanDispatchGestures(true)
-    val directTouch = Rect(10, 10, 20, 20)
-    actor.setDirectTouchRegion(Region(directTouch))
-    actor.dispatchSimulatedTap(50, 60, 7, 15, SystemClock.uptimeMillis(), 120, 40)
-
-    val dispatch = shadow.gesturesDispatched.single()
-    val gesture = dispatch.description()
-    assertEquals(1, gesture.strokeCount)
-    assertEquals(40L, gesture.getStroke(0).duration)
-    assertEquals(Rect(10, 10, 51, 61), service.regions.last())
-    assertFalse(actor.canSimulateTap())
-
-    dispatch.callback().onCompleted(gesture)
-    assertEquals(directTouch, service.regions.last())
-    assertTrue(actor.canSimulateTap())
-  }
-
-  @Test
-  fun simulatedActivationCannotOverrideLockedPassThrough() {
-    val shadow: ShadowAccessibilityService = Shadow.extract(service)
-    shadow.setCanDispatchGestures(true)
-    val lockedRegion = Rect(1, 1, 10, 10)
-    actor.lockTouchExplorePassThrough(Region(lockedRegion))
-    actor.dispatchSimulatedTap(50, 60, 7, 15, SystemClock.uptimeMillis(), 120, 40)
-    assertEquals(listOf(lockedRegion), service.regions)
-    assertTrue(shadow.gesturesDispatched.isEmpty())
   }
 }

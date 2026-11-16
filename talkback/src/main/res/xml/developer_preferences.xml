@@ -51,7 +51,7 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_latency_simulated_double_tap"
-        android:title="@string/title_latency_simulated_double_tap" />
+        android:title="@string/title_latency_fast_double_tap" />
     <com.google.android.accessibility.talkback.preference.base.TouchTimingSeekBarPreference
         android:key="pref_latency_double_tap_click_duration_ms"
         android:title="@string/title_latency_double_tap_click_duration"
