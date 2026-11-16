@@ -64,12 +64,14 @@ class CacheCleanupTest {
 
     CacheCleanup.run(context, prefs)
 
-    // The version must not be recorded synchronously, before clean() runs on the
-    // background thread. (The background thread needs file I/O before it can record
-    // the version, so this read wins the race in practice; if this ever flakes, drop
-    // this assertion and keep the polling assertion below.)
-    assertEquals(0, prefs.getInt("cache_cleanup_version", 0))
-
+    // No immediate assertion here: the version is recorded on the background
+    // thread after clean() returns, so whether it is already 1 at this point is a
+    // scheduling race, not a property of the code. The immediate
+    // assertEquals(0, ...) flaked in CI run #1856 (expected 0, was 1: the
+    // background thread had already finished clean() on the near-empty cache
+    // dir before the main thread read). Per the test's own note, that assertion
+    // is dropped; the polling assertion below is the stable check that the
+    // version is recorded once the background run completes.
     val deadline = System.currentTimeMillis() + 5000
     while (prefs.getInt("cache_cleanup_version", 0) < 1
         && System.currentTimeMillis() < deadline) {
