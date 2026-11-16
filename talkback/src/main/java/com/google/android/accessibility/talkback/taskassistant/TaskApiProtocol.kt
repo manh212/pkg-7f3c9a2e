@@ -17,8 +17,15 @@ object TaskApiProtocol {
       .put("action", JSONObject().put("type", "STRING").put("enum", JSONArray(TaskOperation.entries.map { it.wire })))
     listOf("node", "package", "text", "message", "evidence").forEach { fields.put(it, JSONObject().put("type", "STRING")) }
     fields.put("checked", JSONObject().put("type", "BOOLEAN")).put("sensitive", JSONObject().put("type", "BOOLEAN"))
+    val stepFields = JSONObject()
+      .put("action", JSONObject().put("type", "STRING").put("enum", JSONArray(TaskOperation.entries.map { it.wire })))
+    listOf("package", "text", "message", "label", "view_id", "role").forEach { stepFields.put(it, JSONObject().put("type", "STRING")) }
+    stepFields.put("sensitive", JSONObject().put("type", "BOOLEAN"))
+    fields.put("steps", JSONObject().put("type", "ARRAY")
+      .put("items", JSONObject().put("type", "OBJECT").put("properties", stepFields)
+        .put("required", JSONArray(listOf("action")))))
     val schema = JSONObject().put("type", "OBJECT").put("properties", fields)
-      .put("required", JSONArray(listOf("snapshot", "action")))
+      .put("required", JSONArray(listOf("snapshot")))
     val config = JSONObject().put("maxOutputTokens", 4096)
     if (model.removePrefix("models/").startsWith("gemini")) {
       config.put("responseMimeType", "application/json").put("responseSchema", schema)

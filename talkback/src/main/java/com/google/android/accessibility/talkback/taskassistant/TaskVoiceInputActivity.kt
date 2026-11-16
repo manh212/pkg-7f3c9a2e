@@ -8,7 +8,11 @@ import android.speech.RecognizerIntent
 class TaskVoiceInputActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    if (savedInstanceState != null) return
+    if (savedInstanceState != null) {
+      finish()
+      TaskAssistant.onVoiceResult(intent.getLongExtra(REQUEST_TOKEN, 0), null)
+      return
+    }
     try {
       startActivityForResult(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
