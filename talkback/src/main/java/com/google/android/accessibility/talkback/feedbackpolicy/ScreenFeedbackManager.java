@@ -333,6 +333,9 @@ public class ScreenFeedbackManager
             if (window.isFocused() || window.isAccessibilityFocused()) {
               silencedNotificationWindows.remove(id);
             }
+          }
+          window.recycle();
+          if (present) {
             break;
           }
         }
@@ -483,7 +486,6 @@ public class ScreenFeedbackManager
 
       // Generate spoken feedback for main window changes.
       CharSequence utterance = "";
-      CharSequence hint = null;
 
       if (FeatureFlagReader.enableSpeakDialogContent(service)
           && interpretation.isWebDialogOpenedEvent()) {
@@ -572,7 +574,6 @@ public class ScreenFeedbackManager
         feedback.addPart(
             new FeedbackPart(utterance)
                 .windowName(true)
-                .hint(hint)
                 .forceFeedbackEvenIfAudioPlaybackActive(true)
                 .forceFeedbackEvenIfMicrophoneActive(true));
       }
@@ -596,12 +597,23 @@ public class ScreenFeedbackManager
                     return AccessibilityNodeInfoUtils.isWearUnreadNotificationDot(node);
                   }
                 });
-
         if (unreadNode != null) {
-          return new FeedbackPart(unreadNode.getContentDescription())
+          CharSequence description = unreadNode.getContentDescription();
+          if (unreadNode != root) {
+            unreadNode.recycle();
+          }
+          if (root != null) {
+            root.recycle();
+          }
+          window.recycle();
+          return new FeedbackPart(description)
               .forceFeedbackEvenIfAudioPlaybackActive(true)
               .forceFeedbackEvenIfMicrophoneActive(true);
         }
+        if (root != null) {
+          root.recycle();
+        }
+        window.recycle();
       }
       return null;
     }
