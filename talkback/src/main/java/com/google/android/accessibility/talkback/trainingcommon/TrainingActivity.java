@@ -277,6 +277,7 @@ public class TrainingActivity extends FragmentActivity
   private void prepareAnalytics() {
     metricStore = new TrainingMetricStore(this, isOnboarding() ? ONBOARDING : TUTORIAL);
     trainingLogged = false;
+    trainingInSessionLogged = false;
     trainingSectionLogger =
         trainingActivityInterfaceInjector.provideTrainingSectionLogger(metricStore);
   }
@@ -394,10 +395,12 @@ public class TrainingActivity extends FragmentActivity
                   image.resourceId(),
                   null);
           imageView.setImageDrawable(drawable);
+          imageView.setVisibility(View.VISIBLE);
         } catch (NameNotFoundException e) {
           LogUtils.e(TAG, "Image not found.", e);
+          imageView.setImageDrawable(null);
+          imageView.setVisibility(View.GONE);
         }
-        imageView.setVisibility(View.VISIBLE);
       } else {
         imageView.setVisibility(View.GONE);
       }
@@ -443,18 +446,16 @@ public class TrainingActivity extends FragmentActivity
     super.onCreate(savedInstanceState);
 
     prepareAnalytics();
-    if (savedInstanceState == null) {
-      getOnBackPressedDispatcher()
-          .addCallback(
-              this,
-              new OnBackPressedCallback(true) {
-                @Override
-                public void handleOnBackPressed() {
-                  // TODO: Add an instrumentation test to verify back key behavior.
-                  navigationController.onBackPressed();
-                }
-              });
-    }
+    getOnBackPressedDispatcher()
+        .addCallback(
+            this,
+            new OnBackPressedCallback(true) {
+              @Override
+              public void handleOnBackPressed() {
+                // TODO: Add an instrumentation test to verify back key behavior.
+                navigationController.onBackPressed();
+              }
+            });
 
     initialize(getIntent());
     talkBackEnabledReceiver =
@@ -641,6 +642,9 @@ public class TrainingActivity extends FragmentActivity
                 unregisterTalkBackEnabledReceiver();
               });
       ipcClient.setGesturesListener(this::redrawPageForChangedShortcuts);
+    } else {
+      ipcClient.getServiceData().setShowExitBanner(showExitBanner);
+      notifyHasTrainingBanner(showExitBanner);
     }
     ipcClient.bindService();
 

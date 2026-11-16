@@ -171,7 +171,7 @@ public class NavigationButtonBar extends LinearLayout {
     }
 
     // Add back button if the current page is not the first page.
-    if (!isFirstPage && hasButton(BUTTON_TYPE_BACK)) {
+    if ((!isFirstPage || isPrevButtonShownOnFirstPage) && hasButton(BUTTON_TYPE_BACK)) {
       count++;
     }
 

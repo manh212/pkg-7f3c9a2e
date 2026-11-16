@@ -66,9 +66,6 @@ public abstract class TrainingConfig {
     TRAINING_ID_TUTORIAL_KEYBOARD,
   }
 
-  private int totalShownPageNumber = -1;
-  private int totalPageNumber = -1;
-
   @StringRes
   public abstract int getName();
 
@@ -84,24 +81,20 @@ public abstract class TrainingConfig {
   public abstract boolean isSupportNavigateUpArrow();
 
   /**
-   * The total number of the page where page number information is shown. Returns 0, if any page in
-   * the training requires hiding the page number by {@link PageConfig.Builder#hidePageNumber()}.
+   * The total number of the pages where page number information is shown. Pages that hide their
+   * page number are not counted.
    */
   public int getTotalShownPageNumber(ServiceData serviceData) {
-    if (totalShownPageNumber < 0) {
-      totalShownPageNumber = 0;
-      for (PageConfig pageConfig : getPages()) {
-        if (!pageConfig.showPageNumber()) {
-          // The remaining pages won't be calculated since the method is used for the single page or
-          // the last page.
-          break;
-        }
-        if (pageConfig.showingPredicate() != null
-            && !pageConfig.showingPredicate().test(serviceData)) {
-          continue;
-        }
-        totalShownPageNumber++;
+    int totalShownPageNumber = 0;
+    for (PageConfig pageConfig : getPages()) {
+      if (!pageConfig.showPageNumber()) {
+        continue;
       }
+      if (pageConfig.showingPredicate() != null
+          && !pageConfig.showingPredicate().test(serviceData)) {
+        continue;
+      }
+      totalShownPageNumber++;
     }
     return totalShownPageNumber;
   }
@@ -122,17 +115,13 @@ public abstract class TrainingConfig {
 
   /** The total number of page. The page with a hidden page number is also counted. */
   public int getTotalPageNumber(ServiceData serviceData) {
-    if (totalPageNumber < 0) {
-      totalPageNumber =
-          (int)
-              getPages().stream()
-                  .filter(
-                      (pageConfig ->
-                          pageConfig.showingPredicate() == null
-                              || pageConfig.showingPredicate().test(serviceData)))
-                  .count();
-    }
-    return totalPageNumber;
+    return (int)
+        getPages().stream()
+            .filter(
+                (pageConfig ->
+                    pageConfig.showingPredicate() == null
+                        || pageConfig.showingPredicate().test(serviceData)))
+            .count();
   }
 
   public static Builder builder(@StringRes int trainingName) {

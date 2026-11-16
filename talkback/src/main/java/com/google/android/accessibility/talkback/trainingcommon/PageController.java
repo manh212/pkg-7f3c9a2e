@@ -208,7 +208,7 @@ public class PageController {
       switchPage(indexPageNumber);
     } else {
       int targetPageNumber = currentPageNumber - 1;
-      while (targetPageNumber < getPageSize()) {
+      while (targetPageNumber >= 0) {
         PageConfig targetPageConfig = getPageConfig(targetPageNumber);
         if (targetPageConfig != null && targetPageConfig.showingPredicate().test(serviceData)) {
           break;

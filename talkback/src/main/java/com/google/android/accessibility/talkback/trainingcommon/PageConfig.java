@@ -45,7 +45,6 @@ import com.google.android.accessibility.talkback.trainingcommon.TrainingIpcClien
 import com.google.android.accessibility.talkback.trainingcommon.content.Container;
 import com.google.android.accessibility.talkback.trainingcommon.content.Divider;
 import com.google.android.accessibility.talkback.trainingcommon.content.EditTextBox;
-import com.google.android.accessibility.talkback.trainingcommon.content.ExitBanner;
 import com.google.android.accessibility.talkback.trainingcommon.content.Heading;
 import com.google.android.accessibility.talkback.trainingcommon.content.Image;
 import com.google.android.accessibility.talkback.trainingcommon.content.Link;
@@ -1025,8 +1024,6 @@ public abstract class PageConfig {
     /** Adds a TalkBack-exit banner to the page. */
     @CanIgnoreReturnValue
     public PageConfig.Builder addExitBanner(PageAndContentPredicate predicate) {
-      ExitBanner exitBanner = new ExitBanner();
-      exitBanner.setShowingPredicate(predicate);
       this.contents.add(trainingContent.getTutorialContentSupplier().provideExitBanner(predicate));
       return this;
     }

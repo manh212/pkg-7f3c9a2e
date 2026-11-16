@@ -143,10 +143,9 @@ public class TrainingIpcClient extends IpcClient {
     private boolean isAnyGestureChanged = true;
     private final HashMap<String, String> actionKeyToGestureText = new HashMap<>();
     private final TutorialShortcuts shortcuts = new TutorialShortcuts();
-    private final boolean showExitBanner;
+    private boolean showExitBanner;
     private boolean isIconDetectionUnavailable = false;
     private boolean isImageDescriptionUnavailable = false;
-    private boolean hasAiCore = false;
 
     public ServiceData(Context context, boolean showExitBanner) {
       this.context = context;
@@ -186,6 +185,11 @@ public class TrainingIpcClient extends IpcClient {
       return showExitBanner;
     }
 
+    /** Updates whether TalkBack training should show exit banner. */
+    public void setShowExitBanner(boolean showExitBanner) {
+      this.showExitBanner = showExitBanner;
+    }
+
     /** Checks whether the icon detection is unavailable. */
     public boolean isIconDetectionUnavailable() {
       return isIconDetectionUnavailable;
@@ -194,11 +198,6 @@ public class TrainingIpcClient extends IpcClient {
     /** Checks whether the image description is unavailable. */
     public boolean isImageDescriptionUnavailable() {
       return isImageDescriptionUnavailable;
-    }
-
-    /** Checks whether the AI core existed in this device. */
-    public boolean hasAiCore() {
-      return hasAiCore;
     }
   }
 }

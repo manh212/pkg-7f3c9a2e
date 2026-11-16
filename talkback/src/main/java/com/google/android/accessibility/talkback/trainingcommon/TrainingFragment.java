@@ -152,7 +152,7 @@ public class TrainingFragment extends Fragment {
       // Setting a pane title for fragment will trigger TYPE_WINDOW_STATE_CHANGED. It will drop an
       // immediate TYPE_VIEW_FOCUS event sent after the last window state changed event. As a
       // result, the dropped TYPE_VIEW_FOCUS event will not set a11y focus on the fragment.
-      ViewCompat.setAccessibilityPaneTitle(view, getString(page.getPageNameResId()));
+      ViewCompat.setAccessibilityPaneTitle(view, page.getPageNameFromStringOrRes(getContext()));
 
       // Support rotary input.
       view.requestFocus();
