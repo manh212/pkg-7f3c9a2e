@@ -87,6 +87,24 @@ class TelexTest {
   }
 
   @Test
+  fun vowelKeyAfterConsonantAppendsInsteadOfReshaping() {
+    assertEquals("tele", type("tele"))
+    assertEquals("telex", type("telexx"))
+    assertEquals("tẽle", type("telex"))
+    assertEquals("masage", type("massage"))
+    assertEquals("Masage", type("Massage"))
+    assertEquals("máa", type("masa"))
+    assertEquals("cáa", type("casa"))
+    assertEquals("casa", type("cassa"))
+    assertEquals("papa", type("papa"))
+    assertEquals("tete", type("tete"))
+    assertEquals("banana", type("banana"))
+    assertEquals("bâna", type("baana"))
+    assertEquals("sóo", type("soso"))
+    assertEquals("soso", type("sosso"))
+  }
+
+  @Test
   fun backspaceKeepsTheToneOnTheRemainingSyllable() {
     assertEquals("hòa", Telex.deleteLast("hoàn"))
     assertEquals("hò", Telex.deleteLast("hòa"))
