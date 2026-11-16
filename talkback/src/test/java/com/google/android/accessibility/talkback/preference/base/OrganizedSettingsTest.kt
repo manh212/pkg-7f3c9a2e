@@ -14,6 +14,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.directtouch.DirectTouchFragment
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
 import com.google.android.accessibility.talkback.gesture.ReverseSwipeSettings
+import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
@@ -270,11 +271,32 @@ class OrganizedSettingsTest {
     assertEquals("saved format", prefs.getString("pref_notification_format", null))
   }
   @Test
+  fun edgeGestureSettingsStartDisabledWithEveryGestureUnassigned() {
+    val fragment = EdgeGestureSettingsFragment()
+    open(fragment)
+    assertFalse(requireNotNull(fragment.findPreference<TwoStatePreference>(EdgeGesture.ENABLED)).isChecked)
+    assertEquals(
+      EdgeGesture.DEFAULT_WIDTH_DP,
+      requireNotNull(fragment.findPreference<SeekBarPreference>(EdgeGesture.WIDTH)).value,
+    )
+    assertEquals(
+      EdgeGesture.DEFAULT_DISTANCE_DP,
+      requireNotNull(fragment.findPreference<SeekBarPreference>(EdgeGesture.DISTANCE)).value,
+    )
+    assertEquals(23, EdgeGesture.values().size)
+    for (gesture in EdgeGesture.values()) {
+      val row = requireNotNull(fragment.findPreference<GestureListPreference>(gesture.key))
+      assertEquals(activity.getString(R.string.shortcut_value_unassigned), row.currentValue)
+      assertEquals(activity.getString(R.string.edge_gesture_unassigned), row.summary.toString())
+    }
+  }
+
+  @Test
   fun navigationContainsOnlyTopicLinksWithConstructibleDestinations() {
     val fragment = NavigationGroupFragment()
     open(fragment)
     val screen = fragment.preferenceScreen
-    assertEquals(7, screen.preferenceCount)
+    assertEquals(8, screen.preferenceCount)
     for (index in 0 until screen.preferenceCount) {
       val row = screen.getPreference(index)
       val destination = row.fragment ?: continue

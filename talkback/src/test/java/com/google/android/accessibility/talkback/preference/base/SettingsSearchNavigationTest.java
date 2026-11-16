@@ -98,6 +98,7 @@ public class SettingsSearchNavigationTest {
             "SmartContextGestureSettingsFragment",
             "DirectTouchFragment",
             "TalkBackGestureShortcutPreferenceFragment",
+            "EdgeGestureSettingsFragment",
             "TalkBackKeyboardShortcutPreferenceFragment",
             "VolumeKeySettingsFragment"),
         fragments);
