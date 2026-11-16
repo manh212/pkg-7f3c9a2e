@@ -64,13 +64,13 @@ object DirectTouchSettings {
     editor.apply()
   }
 
-  fun isMasterEnabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MASTER, true)
+  fun isMasterEnabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MASTER, false)
 
   fun setMasterEnabled(prefs: SharedPreferences, enabled: Boolean) {
     prefs.edit().putBoolean(PREF_MASTER, enabled).apply()
   }
 
-  fun isSpeechEnabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SPEECH, true)
+  fun isSpeechEnabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SPEECH, false)
 
   fun isHapticsEnabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_HAPTICS, false)
 
