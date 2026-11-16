@@ -144,17 +144,17 @@ object DiagnosticsExport {
       !prefs.getBoolean(
         context.getString(R.string.pref_disable_latency_pinned_key),
         context.resources.getBoolean(R.bool.pref_disable_latency_pinned_default))
-    val prepareAdjacent = prefs.getBoolean("pref_prepare_adjacent_speech", false)
-    val prepareSecondAhead = prefs.getBoolean("pref_prepare_second_ahead_speech", false)
-    val selectedProcessingLevel = prefs.getString("pref_event_processing_level", "medium")
+    val prepareAdjacent = prefs.getBoolean("pref_prepare_adjacent_speech", true)
+    val prepareSecondAhead = prefs.getBoolean("pref_prepare_second_ahead_speech", true)
+    val selectedProcessingLevel = prefs.getString("pref_event_processing_level", "low")
     val prepareSpeechActive =
       !extrasDisabled && (prepareAdjacent || prepareSecondAhead)
     out.append("Source commit: ${BuildConfig.COMMIT_HASH}\n")
     out.append("== Latency experiments ==\n")
     for (feature in LatencyExperiments.Feature.values()) {
-      out.append("${feature.key}: ${prefs.getBoolean(feature.key, false)}\n")
+      out.append("${feature.key}: ${prefs.getBoolean(feature.key, feature.defaultEnabled)}\n")
     }
-    out.append("PCM preparation enabled by settings: ${!extrasDisabled && (prefs.getBoolean("pref_latency_pcm_adjacent", false) || prefs.getBoolean("pref_latency_pcm_second", false))}\n")
+    out.append("PCM preparation enabled by settings: ${!extrasDisabled && (prefs.getBoolean("pref_latency_pcm_adjacent", LatencyExperiments.Feature.PCM_ADJACENT.defaultEnabled) || prefs.getBoolean("pref_latency_pcm_second", LatencyExperiments.Feature.PCM_SECOND.defaultEnabled))}\n")
     out.append(failoverTts()?.navigationCacheSummary() ?: "Navigation PCM cache: unavailable")
     out.append("\n")
     out.append("== Latency controls ==\n")
