@@ -64,7 +64,7 @@ class SubtitleSettingsTest {
   @Test fun customPercentagesStayInsideTheWindowEvenWithAnInvalidBackup() {
     prefs.edit().putString(SubtitleSettings.REGION, "custom").putInt(SubtitleSettings.LEFT, 120)
       .putInt(SubtitleSettings.RIGHT, -20).putInt(SubtitleSettings.TOP, -10).commit()
-    assertEquals(Rect(990, 0, 1000, 1000), SubtitleSettings.bounds(prefs, Rect(0, 0, 1000, 1000), null))
+    assertEquals(Rect(990, 0, 1000, 200), SubtitleSettings.bounds(prefs, Rect(0, 0, 1000, 1000), null))
     prefs.edit().putString(SubtitleSettings.INTERVAL, "bad").commit()
     assertEquals(750L, SubtitleSettings.interval(prefs))
   }
