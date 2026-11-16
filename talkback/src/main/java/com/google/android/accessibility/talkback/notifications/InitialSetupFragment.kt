@@ -35,11 +35,13 @@ import com.google.android.accessibility.talkback.calls.CallPermissions
 import com.google.android.accessibility.talkback.notifications.TimerPermissionChecks.Status
 import com.google.android.accessibility.talkback.shizuku.ShizukuGrants
 import com.google.android.accessibility.talkback.timer.TimerKeepAliveService
+import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.util.Locale
 
 /**
- * Initial setup: the language first, then every permission SandFly stands on, one at a time.
- * Choosing a language applies it at once and moves the walk on by itself. A step the phone
+ * Initial setup: the language first, then the performance configuration, then every permission
+ * SandFly stands on, one at a time. Choosing a language applies it at once and moves the walk
+ * on by itself. A step the phone
  * already grants is passed over; dealing with a step — in the system's own dialog or settings
  * page — moves the walk on by itself when this screen comes back, so there is no button to press
  * between one permission and the next, and a step whose grant cannot be checked moves on when
@@ -77,6 +79,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     val automatic: Boolean = true,
     val unverifiable: Boolean = false,
     val choice: Boolean = false,
+    val choiceKind: ChoiceKind = ChoiceKind.LANGUAGE,
     val summaryText: ((Context) -> String)? = null,
   )
 
@@ -109,7 +112,10 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
 
   private fun buildStep(screen: PreferenceGroup, steps: List<Step>, current: Step) {
     if (current.choice) {
-      buildLanguageStep(screen, steps)
+      when (current.choiceKind) {
+        ChoiceKind.LANGUAGE -> buildLanguageStep(screen, steps)
+        ChoiceKind.PERFORMANCE -> buildPerformanceStep(screen, steps)
+      }
       return
     }
     val context = requireContext()
@@ -244,6 +250,75 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     rebuild()
   }
 
+  private fun buildPerformanceStep(screen: PreferenceGroup, steps: List<Step>) {
+    val context = requireContext()
+    val category = screen.category(R.string.timer_setup_performance_title)
+    category.action(
+      getString(
+        R.string.timer_setup_progress,
+        flow.step + 1,
+        steps.size,
+        currentPerformanceProfileName(),
+      ),
+      getString(
+        R.string.timer_setup_performance_detail,
+        getString(R.string.timer_setup_performance_speed),
+        getString(R.string.timer_setup_performance_speed_detail),
+        getString(R.string.timer_setup_performance_energy),
+        getString(R.string.timer_setup_performance_energy_detail),
+      ),
+    ) {
+      rebuild()
+    }
+    category.addPreference(
+      PerformancePreference(context, currentPerformanceProfileIndex()) { index ->
+        onPerformanceProfileSelected(steps.size, index)
+      }
+    )
+    if (flow.reviewing) {
+      category.action(getString(R.string.timer_setup_back)) {
+        flow.backToSummary(steps.size)
+        rebuild()
+      }
+    } else {
+      category.action(getString(R.string.timer_setup_performance_keep)) {
+        keepPerformanceProfile(steps.size)
+      }
+      category.action(getString(R.string.timer_setup_exit)) { leave() }
+    }
+  }
+
+  private fun onPerformanceProfileSelected(stepCount: Int, index: Int) {
+    val profile = PerformanceChoice.entries[index].profile
+    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    if (PerformanceProfile.storedProfile(prefs) == profile) return
+    PerformanceProfile.apply(prefs, profile)
+    flow.chooseProfile(stepCount)
+    rebuild()
+  }
+
+  private fun keepPerformanceProfile(stepCount: Int) {
+    val profile = PerformanceChoice.entries[currentPerformanceProfileIndex()].profile
+    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+    if (PerformanceProfile.storedProfile(prefs) != profile) {
+      PerformanceProfile.apply(prefs, profile)
+    }
+    flow.skip()
+    rebuild()
+  }
+
+  private fun currentPerformanceProfileIndex(): Int {
+    val stored =
+      PerformanceProfile.storedProfile(
+        SharedPreferencesUtils.getSharedPreferences(requireContext())
+      )
+    return PerformanceChoice.entries.indexOfFirst { it.profile == stored }.takeIf { it >= 0 }
+      ?: 0
+  }
+
+  private fun currentPerformanceProfileName(): String =
+    getString(PerformanceChoice.entries[currentPerformanceProfileIndex()].nameRes)
+
   private fun storedLanguageTag(): String? {
     val stored = AppCompatDelegate.getApplicationLocales()
     if (stored.isEmpty) return null
@@ -322,6 +397,23 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         status = { if (languageChosen) Status.GRANTED else Status.MISSING },
         choice = true,
         summaryText = { currentLanguageName() },
+      ),
+      Step(
+        R.string.timer_setup_performance_title,
+        status = {
+          if (
+            PerformanceProfile.storedProfile(
+              SharedPreferencesUtils.getSharedPreferences(it)
+            ) != null
+          ) {
+            Status.GRANTED
+          } else {
+            Status.MISSING
+          }
+        },
+        choice = true,
+        choiceKind = ChoiceKind.PERFORMANCE,
+        summaryText = { currentPerformanceProfileName() },
       ),
       Step(
         R.string.timer_setup_service_title,
@@ -553,6 +645,56 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
 private enum class AppLanguage(val tag: String, val displayName: String) {
   VIETNAMESE("vi", "Tiếng Việt"),
   ENGLISH("en", "English"),
+}
+
+private enum class ChoiceKind {
+  LANGUAGE,
+  PERFORMANCE,
+}
+
+private enum class PerformanceChoice(val profile: String, @StringRes val nameRes: Int) {
+  SPEED(PerformanceProfile.SPEED, R.string.timer_setup_performance_speed),
+  ENERGY(PerformanceProfile.ENERGY, R.string.timer_setup_performance_energy),
+}
+
+private class PerformancePreference(
+  context: Context,
+  private val selected: Int,
+  private val onSelect: (Int) -> Unit,
+) : Preference(context) {
+  init {
+    layoutResource = R.layout.timer_setup_performance
+    isPersistent = false
+    isSelectable = false
+    isIconSpaceReserved = false
+  }
+
+  override fun onBindViewHolder(holder: PreferenceViewHolder) {
+    super.onBindViewHolder(holder)
+    val spinner = holder.findViewById(R.id.timer_setup_performance_spinner) as Spinner
+    spinner.contentDescription = context.getString(R.string.timer_setup_performance_title)
+    spinner.adapter =
+      ArrayAdapter(
+          context,
+          android.R.layout.simple_spinner_item,
+          PerformanceChoice.entries.map { context.getString(it.nameRes) },
+        )
+        .apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+    spinner.setSelection(selected)
+    spinner.onItemSelectedListener =
+      object : AdapterView.OnItemSelectedListener {
+        override fun onItemSelected(
+          parent: AdapterView<*>?,
+          view: View?,
+          position: Int,
+          id: Long,
+        ) {
+          onSelect(position)
+        }
+
+        override fun onNothingSelected(parent: AdapterView<*>?) {}
+      }
+  }
 }
 
 private class LanguagePreference(

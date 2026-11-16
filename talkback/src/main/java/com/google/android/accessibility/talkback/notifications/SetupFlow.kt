@@ -85,6 +85,18 @@ class SetupFlow {
 
   /** A language was chosen: the walk moves on at once, with no pending open surviving it. */
   fun chooseLanguage(stepCount: Int) {
+    choose(stepCount)
+  }
+
+  /**
+   * A performance profile was chosen: the walk moves on at once, with no pending open
+   * surviving it.
+   */
+  fun chooseProfile(stepCount: Int) {
+    choose(stepCount)
+  }
+
+  private fun choose(stepCount: Int) {
     openTapped = false
     wentAway = false
     if (reviewing) {
