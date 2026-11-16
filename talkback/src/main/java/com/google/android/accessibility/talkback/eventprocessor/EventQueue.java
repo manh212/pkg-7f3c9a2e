@@ -80,7 +80,7 @@ class EventQueue {
 
   private static volatile int maxConsecutiveFocusJumps = 3;
   private static volatile long processingSliceMs = 16;
-  private static volatile String processingLevel = "medium";
+  private static volatile String processingLevel = "low";
 
   static volatile boolean focusPriorityEnabled = true;
   private static volatile boolean focusPriorityEnabledByProcessingLevel;
@@ -94,7 +94,7 @@ class EventQueue {
    * always kept.
    */
   static void setProcessingLevel(String level) {
-    String normalized = level == null ? "medium" : level.trim().toLowerCase(Locale.ROOT);
+    String normalized = level == null ? "low" : level.trim().toLowerCase(Locale.ROOT);
     normalized = normalized.replace('-', '_').replace(' ', '_');
     switch (normalized) {
       case "very_low":
@@ -126,12 +126,18 @@ class EventQueue {
         processingSliceMs = 32;
         break;
       case "medium":
-      default:
         processingLevel = "medium";
         focusPriorityEnabledByProcessingLevel = false;
         maximumQualifyingEvents = 2;
         maxConsecutiveFocusJumps = 3;
         processingSliceMs = 16;
+        break;
+      default:
+        processingLevel = "low";
+        focusPriorityEnabledByProcessingLevel = true;
+        maximumQualifyingEvents = 1;
+        maxConsecutiveFocusJumps = 4;
+        processingSliceMs = 12;
         break;
     }
   }
