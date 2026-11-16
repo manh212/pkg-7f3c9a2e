@@ -496,8 +496,17 @@ object TraversalTreeCache {
     val trackedWindow = if (buildingWindowId != NO_WINDOW_ID) buildingWindowId
       else root?.windowId ?: NO_WINDOW_ID
     if (WindowCachePolicy.isForeignContentChange(event, trackedWindow)) return
-    if ((!cacheOnly && !LatencyExperiments.Feature.SCOPED_CACHE.enabled()) ||
-      WindowCachePolicy.affectsOrder(event, trackedWindow)) revisionCounter.incrementAndGet()
+    // A build in flight may already hold pre-change node snapshots, and put() resets the
+    // text-change clock, so any content change in its window makes the result stale — even a
+    // text-only change. Bug 176's affectsOrder() change below still spares the SAVED order
+    // from text-only changes; the revision counter is read only by in-flight
+    // AsyncTraversalOrder jobs, so this bump discards no saved order.
+    val inFlightContentChange = buildingWindowId != NO_WINDOW_ID &&
+      event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+      event.windowId == buildingWindowId
+    if (inFlightContentChange ||
+      ((!cacheOnly && !LatencyExperiments.Feature.SCOPED_CACHE.enabled()) ||
+        WindowCachePolicy.affectsOrder(event, trackedWindow))) revisionCounter.incrementAndGet()
   }
 
   @JvmStatic
