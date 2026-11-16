@@ -60,6 +60,6 @@ public abstract class Result {
 
   @Override
   public final int hashCode() {
-    return Objects.hash(type(), text(), confidence());
+    return Objects.hash(type(), text() == null ? null : text().toString(), confidence());
   }
 }

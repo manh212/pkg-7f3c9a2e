@@ -19,12 +19,11 @@ package com.google.android.accessibility.utils.volumebutton;
 import android.view.KeyEvent;
 import android.view.ViewConfiguration;
 import androidx.annotation.Nullable;
-import java.util.concurrent.TimeUnit;
 
 /** Matches the double short press of the play/pause button on wired headset * */
 public class DoublePlayPauseButtonShortPressPatternMatcher extends VolumeButtonPatternMatcher {
 
-  private static final long MULTIPLE_TAP_TIMEOUT = TimeUnit.MINUTES.toMillis(1);
+  private static final long MULTIPLE_TAP_TIMEOUT = ViewConfiguration.getDoubleTapTimeout();
   private static final long LONG_PRESS_TIMEOUT = ViewConfiguration.getLongPressTimeout();
 
   private int buttonPresses;
@@ -40,6 +39,10 @@ public class DoublePlayPauseButtonShortPressPatternMatcher extends VolumeButtonP
   @Override
   public void onKeyEvent(KeyEvent keyEvent) {
     if (keyEvent.getKeyCode() != getButtonCombination()) {
+      return;
+    }
+
+    if (keyEvent.getAction() == KeyEvent.ACTION_DOWN && keyEvent.getRepeatCount() > 0) {
       return;
     }
 

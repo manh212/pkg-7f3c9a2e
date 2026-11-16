@@ -27,6 +27,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @CheckReturnValue
 public class ActorStateProvider {
 
+  private final EditTextActionHistory editTextActionHistory = new EditTextActionHistory();
+
   /**
    * Returns whether the accessibility-service is automatically sending text-cursor to end, instead
    * of a real text-editing action.
@@ -44,6 +46,6 @@ public class ActorStateProvider {
   }
 
   public EditTextActionHistory.@NonNull Provider editHistory() {
-    return new EditTextActionHistory().provider;
+    return editTextActionHistory.provider;
   }
 }

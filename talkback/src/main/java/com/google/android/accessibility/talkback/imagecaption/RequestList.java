@@ -45,7 +45,7 @@ public class RequestList<T extends Request> {
   private final Duration minIntervalTime;
 
   private final Handler handler =
-      new Handler(Looper.myLooper()) {
+      new Handler(requireLooper()) {
         @Override
         public void handleMessage(@NonNull Message msg) {
           super.handleMessage(msg);
@@ -55,6 +55,14 @@ public class RequestList<T extends Request> {
           }
         }
       };
+
+  private static Looper requireLooper() {
+    Looper looper = Looper.myLooper();
+    if (looper == null) {
+      throw new IllegalStateException("RequestList must be created on a looper thread");
+    }
+    return looper;
+  }
 
   /**
    * When the last request was performed or finished, in {@link SystemClock#uptimeMillis()}, which
@@ -128,6 +136,9 @@ public class RequestList<T extends Request> {
       LogUtils.v(TAG, "cancel %s size=%d ", request.getClass().getSimpleName(), requests.size());
     }
 
+    if (requests.isEmpty()) {
+      return;
+    }
     T request = requests.getFirst();
     long now = SystemClock.uptimeMillis();
     if (lastRequestExecutionTimeMs != Request.INVALID_TIME) {
@@ -199,11 +210,15 @@ public class RequestList<T extends Request> {
     }
 
     public int size() {
-      return arrayDeque.size();
+      synchronized (mutex) {
+        return arrayDeque.size();
+      }
     }
 
     public boolean isEmpty() {
-      return arrayDeque.isEmpty();
+      synchronized (mutex) {
+        return arrayDeque.isEmpty();
+      }
     }
   }
 }

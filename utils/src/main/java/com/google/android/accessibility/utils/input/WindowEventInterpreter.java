@@ -1225,6 +1225,10 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
           int displayId = interpretation.getDisplayId();
           List<AccessibilityWindowInfo> windows = windowsOnAllDisplays().get(displayId);
           if (windows == null) {
+            // No windows on this display: every tracked window here is closed.
+            for (Integer windowId : windowIdsToBeRemoved) {
+              windowIdToData.remove(windowId);
+            }
             return;
           }
           for (AccessibilityWindowInfo window : windows) {
@@ -1256,7 +1260,7 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
     }
 
     List<CharSequence> texts = event.getText();
-    if (!texts.isEmpty()) {
+    if (texts != null && !texts.isEmpty()) {
       return texts.get(0);
     }
 

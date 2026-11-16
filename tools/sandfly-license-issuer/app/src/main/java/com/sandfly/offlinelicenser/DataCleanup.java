@@ -133,7 +133,10 @@ final class DataCleanup {
     button(root, "Xóa mọi dữ liệu có thể dọn", () -> prepare("Xóa mọi dữ liệu được phép", service -> {
       Plan plan = new Plan("Xóa mọi dữ liệu được phép").addAll(SUPPORT).add("supportContacts")
           .add("supportStaff").addAll(FORUM);
-      plan.records = service.shallowKeys("supportIndex").length();
+      plan.records = service.shallowKeys("supportIndex").length()
+          + service.shallowKeys("supportContacts").length()
+          + service.shallowKeys("supportStaff").length();
+      for (String path : FORUM) plan.records += service.shallowKeys(path).length();
       Plan pending = pendingRequests(service);
       plan.paths.addAll(pending.paths);
       plan.records += pending.records;

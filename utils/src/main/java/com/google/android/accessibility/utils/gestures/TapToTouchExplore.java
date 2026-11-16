@@ -80,8 +80,8 @@ public class TapToTouchExplore extends GestureMatcher {
       cancelGesture(event);
       return;
     }
-    if (isInvalidUpEvent(event)) {
-      debugMotionEvent(TAG, "onUp/isInvalidUpEvent. Gesture:%d", getGestureId());
+    if (isLongHoldUpEvent(event)) {
+      debugMotionEvent(TAG, "onUp/isLongHoldUpEvent. Gesture:%d", getGestureId());
       completeGesture(eventId, event);
       return;
     }
@@ -123,11 +123,11 @@ public class TapToTouchExplore extends GestureMatcher {
     return moveDelta > slop;
   }
 
-  protected boolean isInvalidUpEvent(MotionEvent upEvent) {
+  protected boolean isLongHoldUpEvent(MotionEvent upEvent) {
     long time = upEvent.getEventTime();
     long timeDelta = time - lastDownTime;
     if (timeDelta > tapTimeout) {
-      debugMotionEvent(TAG, "isInvalidUpEvent/tapTimeout's over. Gesture:%d", getGestureId());
+      debugMotionEvent(TAG, "isLongHoldUpEvent/tapTimeout's over. Gesture:%d", getGestureId());
       return true;
     }
     return false;

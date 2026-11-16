@@ -51,7 +51,6 @@ final class IssuerSecrets {
               || info.getSecurityLevel() == KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT
           : info.isInsideSecureHardware();
       if (!hardware) {
-        store.deleteEntry(ALIAS);
         throw new IllegalStateException("Thiết bị không hỗ trợ mã hóa bằng khóa phần cứng.");
       }
       storageKey = key;

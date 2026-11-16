@@ -700,7 +700,12 @@ public class FeedbackController {
 
   /** Interrupts all ongoing feedback. */
   public void interrupt() {
-    // TODO: Stop all sounds.
+    mSoundPool.autoPause();
+    mPendingPlays.clear();
+    LowLatencyAudio.stopAllSounds();
+    if (mSpatialSoundPlayer != null) {
+      mSpatialSoundPlayer.stop();
+    }
     VIBRATION_EXECUTOR.execute(mVibrator::cancel);
   }
 

@@ -386,7 +386,7 @@ public class TextEventFilter {
                 .getPackageManager()
                 .getApplicationLabel(
                     context.getPackageManager().getApplicationInfo(packageNameString, 0));
-        String normalizedLabel = label.toString().toLowerCase(Locale.ROOT);
+        String normalizedLabel = label == null ? "" : label.toString().toLowerCase(Locale.ROOT);
         isBrailleKeyboard =
             normalizedLabel.contains("braille") || normalizedLabel.contains("chữ nổi");
       } catch (PackageManager.NameNotFoundException e) {

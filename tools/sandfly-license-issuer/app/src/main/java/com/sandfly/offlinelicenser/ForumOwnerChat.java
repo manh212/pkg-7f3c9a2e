@@ -85,19 +85,19 @@ final class ForumOwnerChat {
   void open() {
     LinearLayout layout = column();
     status = text(layout, "");
-    button(layout, "Tải lại hộp thư", this::inbox);
+    button(layout, "Tải lại hộp thư", () -> inbox(null));
     ScrollView scroll = new ScrollView(activity);
     scroll.addView(layout);
     dialog = new AlertDialog.Builder(activity).setTitle("Nhắn tin riêng")
         .setView(scroll).setNegativeButton("Đóng", null).create();
     dialog.show();
-    inbox();
+    inbox(null);
   }
 
-  private void inbox() {
+  private void inbox(Long before) {
     work("Đang tải hộp thư…", () -> {
       FirebaseRest client = authorized();
-      JSONObject records = client.recent("forumChatIndex", "lastAt", 50, null);
+      JSONObject records = client.activity("forumChatIndex", 50, before);
       List<String> uids = new ArrayList<>();
       for (java.util.Iterator<String> it = records.keys(); it.hasNext();) {
         String value = it.next();
@@ -106,17 +106,22 @@ final class ForumOwnerChat {
       uids.sort((left, right) -> Long.compare(records.optJSONObject(right).optLong("lastAt"),
           records.optJSONObject(left).optLong("lastAt")));
       List<String> labels = new ArrayList<>();
+      long oldest = Long.MAX_VALUE;
       for (String uid : uids) {
+        oldest = Math.min(oldest, records.optJSONObject(uid).optLong("lastAt", Long.MAX_VALUE));
         String name = client.get("forumProfiles/" + uid).optString("name", "Thành viên");
         labels.add(name + publicBadge(client, uid) + " · " + uid);
       }
+      boolean more = records.length() >= 50 && oldest > 1;
+      Long next = more ? oldest - 1 : null;
       ui(() -> {
         LinearLayout result = column();
         if (uids.isEmpty()) text(result, "Chưa có cuộc trò chuyện nào.");
         for (int i = 0; i < uids.size(); i++) {
           String uid = uids.get(i);
-          button(result, "Mở cuộc trò chuyện: " + labels.get(i), () -> openConversation(uid));
+          button(result, "Mở cuộc trò chuyện: " + labels.get(i), () -> openConversation(uid, null));
         }
+        if (more) button(result, "Xem cuộc trò chuyện cũ hơn", () -> inbox(next));
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(result);
         new AlertDialog.Builder(activity).setTitle("Danh sách cuộc trò chuyện")
@@ -126,16 +131,17 @@ final class ForumOwnerChat {
     });
   }
 
-  private void openConversation(String uid) {
+  private void openConversation(String uid, String before) {
     work("Đang tải tin nhắn…", () -> {
       FirebaseRest client = authorized();
-      JSONObject records = client.recent("forumChats/" + uid + "/messages", "$key", 40, null);
+      JSONObject records = client.recent("forumChats/" + uid + "/messages", "$key", 40, before);
       List<String> keys = new ArrayList<>();
       for (java.util.Iterator<String> it = records.keys(); it.hasNext();) {
         String key = it.next();
         if (ForumProtocol.validId(key)) keys.add(key);
       }
       Collections.sort(keys);
+      String oldest = keys.isEmpty() ? null : keys.get(0);
       String name = client.get("forumProfiles/" + uid).optString("name", "Thành viên");
       String senderBadge = publicBadge(client, uid);
       String developerName = client.get("forumProfiles/" + client.uid())
@@ -157,6 +163,9 @@ final class ForumOwnerChat {
               : developerName + senderRole;
           String when = DateFormat.getDateTimeInstance().format(new Date(item.optLong("createdAt")));
           text(content, author + ", " + when + ": " + item.optString("text"));
+        }
+        if (oldest != null && keys.size() == 40) {
+          button(content, "Xem tin nhắn cũ hơn", () -> openConversation(uid, oldest));
         }
         TextView label = text(content, "Trả lời tin nhắn");
         EditText reply = new EditText(activity);
@@ -202,7 +211,7 @@ final class ForumOwnerChat {
               .put("lastMessage", id).put("from", client.uid()));
       ui(() -> {
         status.setText("Đã gửi phản hồi.");
-        openConversation(recipient);
+        openConversation(recipient, null);
       });
     });
   }
@@ -215,6 +224,16 @@ final class ForumOwnerChat {
       if (!fingerprint.matches("[0-9a-f]{64}")) throw new IllegalStateException("Không thực hiện được.");
       JSONObject changes = new JSONObject().put("forumBans/" + uid, blocked ? true : JSONObject.NULL)
           .put("forumDeviceBans/" + fingerprint, blocked ? true : JSONObject.NULL);
+      if (!blocked) {
+        JSONObject identities = client.get("forumIdentity");
+        for (java.util.Iterator<String> it = identities.keys(); it.hasNext();) {
+          String member = it.next();
+          JSONObject record = identities.optJSONObject(member);
+          if (record != null && fingerprint.equals(record.optString("fingerprint"))) {
+            changes.put("forumBans/" + member, JSONObject.NULL);
+          }
+        }
+      }
       client.update(changes);
       ui(() -> status.setText(blocked ? "Đã chặn." : "Đã bỏ chặn."));
     });

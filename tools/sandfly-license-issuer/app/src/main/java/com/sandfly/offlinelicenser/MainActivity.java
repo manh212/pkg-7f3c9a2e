@@ -406,6 +406,16 @@ public final class MainActivity extends ComponentActivity {
   @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
     if (support != null && support.result(requestCode, resultCode, data)) return;
+    if (requestCode == AUTH_REQUEST) {
+      finishAuthentication();
+      if (!ownerAuthorized) return;
+      if (resultCode != RESULT_OK) {
+        state.setText("Đã hủy cấp phép.");
+        return;
+      }
+      issue(null);
+      return;
+    }
     if (!ownerAuthorized) return;
     if (requestCode == BROWSER_REQUEST) {
       loginButton.setEnabled(true);
@@ -413,17 +423,10 @@ public final class MainActivity extends ComponentActivity {
       refresh();
       return;
     }
-    if (requestCode != AUTH_REQUEST) return;
-    if (resultCode != RESULT_OK) {
-      finishAuthentication();
-      state.setText("Đã hủy cấp phép.");
-      return;
-    }
-    issue(null);
   }
 
   private void issue(Signature signer) {
-    if (!ownerAuthorized) return;
+    if (!ownerAuthorized) { finishAuthentication(); return; }
     String request = pendingRequest;
     String name = pendingName;
     String description = pendingDescription;
@@ -431,8 +434,14 @@ public final class MainActivity extends ComponentActivity {
     LicensePolicy policy = pendingPolicy;
     SyncCoordinator.SIGNER.execute(() -> {
       try {
+        JSONObject existing = new IssuerStore(this).records()
+            .optJSONObject(RecoveryProtocol.deviceId(request));
+        long freshRevision = existing == null ? 1 : AdminPanel.revision(existing);
+        LicensePolicy signing = freshRevision == policy.revision ? policy
+            : new LicensePolicy(request, freshRevision, policy.issuedAt, policy.expiresAt,
+                policy.state, policy.kind, policy.packageId, policy.packageName, policy.features);
         Signature authenticatedSigner = signer == null ? IssuerKeys.signer() : signer;
-        String license = policy.sign(authenticatedSigner);
+        String license = signing.sign(authenticatedSigner);
         new IssuerStore(this).record(request, name, description, uid, license);
         onUi(() -> {
           issued = license;

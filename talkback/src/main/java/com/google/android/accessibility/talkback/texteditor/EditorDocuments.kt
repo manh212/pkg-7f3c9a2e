@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.texteditor
 
 import android.content.Context
 import android.util.AtomicFile
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -46,6 +47,7 @@ object EditorDocuments {
   )
 
   private const val FILE_NAME = "editor-documents.json"
+  private const val TAG = "EditorDocuments"
   private const val KEY_ID = "id"
   private const val KEY_NAME = "name"
   private const val KEY_CONTENT = "content"
@@ -185,7 +187,14 @@ object EditorDocuments {
     for (i in 0 until array.length()) {
       val entry = array.optJSONObject(i) ?: continue
       val id = entry.optString(KEY_ID, "")
-      if (id.isBlank() || parsed.any { it.id == id }) continue
+      if (id.isBlank()) {
+        LogUtils.w(TAG, "parse() dropping document at index %d: blank id", i)
+        continue
+      }
+      if (parsed.any { it.id == id }) {
+        LogUtils.w(TAG, "parse() dropping duplicate document id=%s at index %d", id, i)
+        continue
+      }
       parsed +=
         Document(
           id = id,
@@ -217,21 +226,46 @@ object EditorDocuments {
     val file = store
     if (file == null || !readable) return false
     var output: FileOutputStream? = null
+    var written = false
     return try {
       val data = toJson(updated).toString().toByteArray(StandardCharsets.UTF_8)
       output = file.startWrite()
       output.write(data)
       file.finishWrite(output)
       output = null
-      if (!data.contentEquals(file.readFully())) return false
+      written = true
+      if (!data.contentEquals(file.readFully())) {
+        return reloadFromDisk(updated)
+      }
       documents.clear()
       documents += updated
       true
     } catch (e: IOException) {
       output?.let { file.failWrite(it) }
-      false
+      if (written) reloadFromDisk(updated) else false
     } catch (e: RuntimeException) {
       output?.let { file.failWrite(it) }
+      if (written) reloadFromDisk(updated) else false
+    }
+  }
+
+  /**
+   * Replaces the in-memory documents with what is actually on disk, so memory never
+   * disagrees with the store after a write. Returns whether the disk holds exactly the
+   * documents the save asked for.
+   */
+  private fun reloadFromDisk(updated: List<Document>): Boolean {
+    val file = store ?: return false
+    return try {
+      val reloaded = parse(JSONArray(String(file.readFully(), StandardCharsets.UTF_8)))
+      documents.clear()
+      documents += reloaded
+      reloaded == updated
+    } catch (e: IOException) {
+      false
+    } catch (e: JSONException) {
+      false
+    } catch (e: RuntimeException) {
       false
     }
   }

@@ -94,7 +94,11 @@ public abstract class Request {
   public Request(@Nullable OnPendingListener onPendingListener, @Nullable Duration timeout) {
     this.onPendingListener = onPendingListener;
     this.timeout = timeout;
-    handler = new Handler(Looper.myLooper());
+    Looper looper = Looper.myLooper();
+    if (looper == null) {
+      throw new IllegalStateException("Request must be created on a looper thread");
+    }
+    handler = new Handler(looper);
     timeoutRunnable =
         () -> {
           LogUtils.e(TAG, "CaptionRequest timeout is reached. " + this);

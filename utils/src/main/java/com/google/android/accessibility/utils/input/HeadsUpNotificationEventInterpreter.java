@@ -168,8 +168,9 @@ public class HeadsUpNotificationEventInterpreter implements AccessibilityEventLi
     SparseArray<List<AccessibilityWindowInfo>> windowsOnAllDisplays =
         AccessibilityServiceCompatUtils.getWindowsOnAllDisplays(service);
 
-    for (int displayId = 0; displayId < windowsOnAllDisplays.size(); displayId++) {
-      @Nullable List<AccessibilityWindowInfo> windows = windowsOnAllDisplays.get(displayId);
+    for (int i = 0; i < windowsOnAllDisplays.size(); i++) {
+      int displayId = windowsOnAllDisplays.keyAt(i);
+      @Nullable List<AccessibilityWindowInfo> windows = windowsOnAllDisplays.valueAt(i);
       if ((addedWindowDisplayId != -1 && addedWindowDisplayId != displayId) || windows == null) {
         continue;
       }

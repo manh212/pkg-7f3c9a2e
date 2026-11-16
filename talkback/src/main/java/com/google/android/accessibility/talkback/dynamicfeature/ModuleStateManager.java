@@ -16,7 +16,6 @@
 package com.google.android.accessibility.talkback.dynamicfeature;
 
 import static com.google.android.accessibility.talkback.actor.ImageCaptioner.supportsIconDetection;
-import static com.google.android.accessibility.talkback.actor.ImageCaptioner.supportsImageDescription;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -128,13 +127,7 @@ public class ModuleStateManager {
                   || isModuleInstalled(
                       moduleDownloadPrompterProvider
                           .getSingleIconDetectionModuleDownloadPrompter()));
-      case IMAGE_DESCRIPTION ->
-          supportsImageDescription(context)
-              && (isLegacyModuleInstalled(
-                      moduleDownloadPrompterProvider
-                          .getSingleImageDescriptionModuleDownloadPrompter())
-                  || isModuleInstalled(
-                      moduleDownloadPrompterProvider.getImageDescriptionModuleDownloadPrompter()));
+      case IMAGE_DESCRIPTION -> false;
       default -> {
         LogUtils.e(TAG, "isLibraryReady() with unexpected CaptionType.");
         yield false;
@@ -389,7 +382,7 @@ public class ModuleStateManager {
           !supportCombinedDownload
               // The AAB downloader does not support combined downloads.
               || !FeatureFlagReader.enableMdd(context)
-              || !supportsImageDescription(context);
+              || true;
       isImageSingle =
           !supportCombinedDownload
               // The AAB downloader does not support combined downloads.

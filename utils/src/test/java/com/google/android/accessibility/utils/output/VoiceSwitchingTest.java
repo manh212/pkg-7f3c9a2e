@@ -47,8 +47,22 @@ public class VoiceSwitchingTest {
     assertEquals(Arrays.asList(vietnamese, english), choices);
     assertEquals(vietnamese, VoiceSwitching.adjacent(choices, "unknown", true));
     assertEquals(english, VoiceSwitching.adjacent(choices, "unknown", false));
-    assertTrue(VoiceSwitching.candidates(Arrays.asList(vietnamese, english), Locale.US,
-        Collections.singletonList("missing")).isEmpty());
+    assertEquals(Collections.singletonList(english),
+        VoiceSwitching.candidates(Arrays.asList(vietnamese, english), Locale.US,
+            Collections.singletonList("missing")));
+  }
+
+  @Test
+  public void staleOrderFallsThroughAndNewVoicesJoinTheCycle() {
+    Voice vietnamese = voice("viet", Locale.forLanguageTag("vi-VN"), true);
+    Voice vietnameseTwo = voice("viet2", Locale.forLanguageTag("vi-VN"), true);
+    Voice english = voice("eng", Locale.US, true);
+    assertEquals(Arrays.asList(vietnamese, vietnameseTwo),
+        VoiceSwitching.candidates(Arrays.asList(vietnamese, vietnameseTwo, english),
+            Locale.forLanguageTag("vi-VN"), Collections.singletonList("viet")));
+    assertEquals(Arrays.asList(vietnamese),
+        VoiceSwitching.candidates(Arrays.asList(vietnamese, english),
+            Locale.forLanguageTag("vi-VN"), Collections.singletonList("viet")));
   }
 
   @Test

@@ -215,6 +215,9 @@ public class SimpleOverlay {
     } catch (BadTokenException e) {
       LogUtils.e(LOG_TAG, e, "BadTokenException is detected in %s.", getClass().getName());
       return;
+    } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+      LogUtils.e(LOG_TAG, e, "Failed to add overlay view in %s.", getClass().getName());
+      return;
     }
     isVisible = true;
 
@@ -234,7 +237,11 @@ public class SimpleOverlay {
       return;
     }
 
-    windowManager.removeViewImmediate(rootView);
+    try {
+      windowManager.removeViewImmediate(rootView);
+    } catch (IllegalArgumentException e) {
+      LogUtils.e(LOG_TAG, e, "Overlay view was already removed in %s.", getClass().getName());
+    }
     isVisible = false;
 
     if (listener != null) {

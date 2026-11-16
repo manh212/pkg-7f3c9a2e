@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.commands
 
+import android.content.Context
 import android.os.Bundle
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
@@ -23,6 +24,8 @@ import com.google.android.accessibility.material.preference.AccessibilitySuitePr
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.keyboard.ArrowKeyNav
+import com.google.android.accessibility.talkback.keyboard.ArrowKeyNavCommand
 import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils
 import com.google.android.accessibility.talkback.preference.base.KeyboardShortcutDialogPreference
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
@@ -56,29 +59,36 @@ class CommandFragment : TalkbackBaseFragment() {
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     preferenceManager.setStorageDeviceProtected()
-    val gestures = readGestures(this)
-    sections =
-      listOf(
-        Section(
-          "gestures",
-          R.string.command_gestures,
-          R.string.command_no_gestures,
-          R.string.command_add_gesture,
-          R.string.command_choose_gesture,
-          R.string.command_remove_gesture,
-          gestures,
-        ),
-        Section(
-          "arrow_keys",
-          R.string.keycombo_menu_category_arrow_key_nav,
-          R.string.command_no_arrow_keys,
-          R.string.command_add_arrow_keys,
-          R.string.command_choose_arrow_keys,
-          R.string.command_remove_arrow_keys,
-          CommandBindings.arrowKeys(requireContext()),
-        ),
-      )
+    sections = buildSections()
     preferenceScreen = preferenceManager.createPreferenceScreen(requireContext())
+  }
+
+  /**
+   * Reads the current gesture and arrow-key slots. Rebuilt on every fill: arrow-key
+   * slots cache their value at construction, so a reassignment must rebuild them.
+   */
+  private fun buildSections(): List<Section> {
+    val gestures = readGestures(this)
+    return listOf(
+      Section(
+        "gestures",
+        R.string.command_gestures,
+        R.string.command_no_gestures,
+        R.string.command_add_gesture,
+        R.string.command_choose_gesture,
+        R.string.command_remove_gesture,
+        gestures,
+      ),
+      Section(
+        "arrow_keys",
+        R.string.keycombo_menu_category_arrow_key_nav,
+        R.string.command_no_arrow_keys,
+        R.string.command_add_arrow_keys,
+        R.string.command_choose_arrow_keys,
+        R.string.command_remove_arrow_keys,
+        CommandBindings.arrowKeys(requireContext()),
+      ),
+    )
   }
 
   override fun onResume() {
@@ -88,6 +98,7 @@ class CommandFragment : TalkbackBaseFragment() {
 
   private fun fill() {
     val context = requireContext()
+    sections = buildSections()
     val screen = preferenceScreen
     screen.removeAll()
     val command = command ?: return
@@ -229,7 +240,9 @@ class CommandFragment : TalkbackBaseFragment() {
   }
 
   private fun assign(gesture: CommandBindings.GestureSlot, value: String) {
-    prefs.edit().putString(gesture.key, value).apply()
+    if (!assignArrowSlot(gesture, value)) {
+      prefs.edit().putString(gesture.key, value).apply()
+    }
     fill()
     val context = requireContext()
     PreferencesActivityUtils.announceText(
@@ -242,7 +255,55 @@ class CommandFragment : TalkbackBaseFragment() {
     )
   }
 
+  /**
+   * Assigns [value] to an arrow-key slot, routing through [ArrowKeyNav]: arrow-key
+   * assignments are long prefs (`arrow_key_nav_keys_<name>`), not the slot's synthetic
+   * string key, so a plain `putString` would land nowhere. Returns true when
+   * [gesture] is an arrow-key slot and the write was handled; false otherwise, so the
+   * caller writes the string pref as usual. Removing (value == unassigned) frees the
+   * slot's keys; assigning moves the slot's keys to the command [value] runs.
+   */
+  private fun assignArrowSlot(gesture: CommandBindings.GestureSlot, value: String): Boolean {
+    val context = requireContext()
+    val slotCommand = arrowCommandForSlot(gesture) ?: return false
+    val unassigned = getString(R.string.shortcut_value_unassigned)
+    if (value == unassigned) {
+      ArrowKeyNav.save(context, slotCommand, ArrowKeyNav.UNASSIGNED)
+      return true
+    }
+    val target =
+      ArrowKeyNavCommand.entries.firstOrNull { arrowKeyCommandValue(context, it) == value }
+        ?: return false
+    if (target == slotCommand) return true
+    val keys = ArrowKeyNav.keysFor(context, slotCommand)
+    ArrowKeyNav.save(context, slotCommand, ArrowKeyNav.UNASSIGNED)
+    ArrowKeyNav.save(context, target, keys)
+    return true
+  }
+
+  /** The arrow-key command a slot stands for, from its synthetic key (see CommandBindings.arrowKeys). */
+  private fun arrowCommandForSlot(gesture: CommandBindings.GestureSlot): ArrowKeyNavCommand? {
+    val name = gesture.key.removePrefix(ARROW_SLOT_KEY_PREFIX)
+    if (name == gesture.key) return null
+    return ArrowKeyNavCommand.entries.firstOrNull { it.name.lowercase() == name }
+  }
+
+  /** The command value [command] runs, or null when it runs no command. */
+  private fun arrowKeyCommandValue(context: Context, command: ArrowKeyNavCommand): String? {
+    command.action?.let {
+      return Commands.valueOfKeyboardAction(context, it)
+    }
+    return if (command == ArrowKeyNavCommand.TOGGLE) {
+      context.getString(R.string.shortcut_value_toggle_arrow_key_nav)
+    } else {
+      null
+    }
+  }
+
   companion object {
     const val ARG_COMMAND = "command"
+
+    /** Prefix of the synthetic keys CommandBindings.arrowKeys() gives its slots. */
+    private const val ARROW_SLOT_KEY_PREFIX = "arrow_key_nav_slot_"
   }
 }

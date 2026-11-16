@@ -1,5 +1,6 @@
 package com.google.android.accessibility.utils.output;
 
+import android.text.TextUtils;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,6 +20,7 @@ public final class BilingualSpeechText implements CharSequence {
   private final boolean originalFirst;
   private final boolean parallel;
   private final String audioStream;
+  private final CharSequence combined;
 
   public BilingualSpeechText(
       CharSequence original,
@@ -50,6 +52,7 @@ public final class BilingualSpeechText implements CharSequence {
     this.originalFirst = originalFirst;
     this.parallel = parallel;
     this.audioStream = audioStream == null ? "" : audioStream;
+    this.combined = TextUtils.concat(first(), " ", second());
   }
 
   public CharSequence original() {
@@ -121,21 +124,21 @@ public final class BilingualSpeechText implements CharSequence {
 
   @Override
   public int length() {
-    return translated.length();
+    return combined.length();
   }
 
   @Override
   public char charAt(int index) {
-    return translated.charAt(index);
+    return combined.charAt(index);
   }
 
   @Override
   public CharSequence subSequence(int start, int end) {
-    return translated.subSequence(start, end);
+    return combined.subSequence(start, end);
   }
 
   @Override
   public String toString() {
-    return translated.toString();
+    return combined.toString();
   }
 }

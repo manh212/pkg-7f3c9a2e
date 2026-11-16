@@ -558,9 +558,26 @@ final class ForumAdministration {
       if (post.isEmpty()) {
         for (String path : new String[]{"forumPosts/", "forumTopicLikes/", "forumPostLikes/",
             "forumPollVotes/", "forumPollGuards/", "forumPinnedPosts/", "forumReports/", "forumPinnedTopics/",
-            "forumAnnouncements/"}) {
+            "forumAnnouncements/", "forumAdminRatings/", "forumEditAudit/", "forumModerationArchive/",
+            "forumModerationLog/"}) {
           try { service.deleteCleanupData(path + topic); } catch (Exception ignored) {}
         }
+        try {
+          JSONObject audits = service.get("forumDeleteAudit");
+          for (java.util.Iterator<String> users = audits.keys(); users.hasNext();) {
+            String owner = users.next();
+            JSONObject archive = audits.optJSONObject(owner);
+            if (archive == null) continue;
+            for (java.util.Iterator<String> keys = archive.keys(); keys.hasNext();) {
+              String id = keys.next();
+              JSONObject entry = archive.optJSONObject(id);
+              if (entry != null && topic.equals(entry.optString("topic"))) {
+                try { service.deleteCleanupData("forumDeleteAudit/" + owner + "/" + id); }
+                catch (Exception ignored) {}
+              }
+            }
+          }
+        } catch (Exception ignored) {}
       } else {
         try { service.deleteCleanupData("forumPostLikes/" + topic + "/" + post); }
         catch (Exception ignored) {}
@@ -576,16 +593,17 @@ final class ForumAdministration {
     run(screen, true, service -> {
       JSONObject identity = service.get("forumIdentity/" + uid);
       String fingerprint = identity.optString("fingerprint");
-      if (!fingerprint.matches("[0-9a-f]{64}")) throw new IllegalStateException();
-      JSONObject changes = new JSONObject().put("forumBans/" + uid, blocked ? true : JSONObject.NULL)
-          .put("forumDeviceBans/" + fingerprint, blocked ? true : JSONObject.NULL);
-      if (!blocked) {
-        JSONObject identities = service.get("forumIdentity");
-        for (java.util.Iterator<String> it = identities.keys(); it.hasNext();) {
-          String member = it.next();
-          JSONObject record = identities.optJSONObject(member);
-          if (record != null && fingerprint.equals(record.optString("fingerprint"))) {
-            changes.put("forumBans/" + member, JSONObject.NULL);
+      JSONObject changes = new JSONObject().put("forumBans/" + uid, blocked ? true : JSONObject.NULL);
+      if (fingerprint.matches("[0-9a-f]{64}")) {
+        changes.put("forumDeviceBans/" + fingerprint, blocked ? true : JSONObject.NULL);
+        if (!blocked) {
+          JSONObject identities = service.get("forumIdentity");
+          for (java.util.Iterator<String> it = identities.keys(); it.hasNext();) {
+            String member = it.next();
+            JSONObject record = identities.optJSONObject(member);
+            if (record != null && fingerprint.equals(record.optString("fingerprint"))) {
+              changes.put("forumBans/" + member, JSONObject.NULL);
+            }
           }
         }
       }
@@ -794,7 +812,7 @@ final class ForumAdministration {
     JSONObject updated = new JSONObject(record.toString());
     updated.remove("name");
     updated.remove("authorName");
-    if (needsActivity) updated.put("lastAt", record.getLong("createdAt"));
+    if (needsActivity) updated.put("lastAt", record.optLong("createdAt", 0));
     if (needsRank) updated.put("rankAt",
         record.optLong("lastAt", record.optLong("createdAt")));
     service.put(path, updated);

@@ -126,6 +126,17 @@ class CallLimitControllerTest {
     assertEquals(1, TelecomShadow.ended)
   }
 
+  @Test fun changingDurationMidCallRearmsUnderTheNewLimit() {
+    state(TelephonyManager.EXTRA_STATE_OFFHOOK)
+    advance(30)
+    prefs.edit().putString(CallLimitSettings.MINUTES, "2").commit()
+    shadowOf(Looper.getMainLooper()).idle()
+    advance(60)
+    assertEquals(0, TelecomShadow.ended)
+    advance(30)
+    assertEquals(1, TelecomShadow.ended)
+  }
+
   @Test fun revokedPermissionPreventsDisconnect() {
     state(TelephonyManager.EXTRA_STATE_OFFHOOK)
     shadowOf(app).denyPermissions(Manifest.permission.ANSWER_PHONE_CALLS)

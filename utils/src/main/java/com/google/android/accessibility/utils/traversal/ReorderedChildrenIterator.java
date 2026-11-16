@@ -17,12 +17,16 @@
 package com.google.android.accessibility.utils.traversal;
 
 import android.graphics.Rect;
+import android.text.TextUtils;
+import android.view.View;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
+import java.util.NoSuchElementException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -69,8 +73,7 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
   private int currentIndex;
   private final List<AccessibilityNodeInfoCompat> nodes;
   private final boolean isAscending;
-  // TODO: Refactor to get RTL state.
-  private static final boolean RIGHT_TO_LEFT = false;
+  private final boolean isRightToLeft;
   private final NodeCachedBoundsCalculator boundsCalculator;
   private boolean missedAllChildren;
 
@@ -84,6 +87,9 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
       @Nullable NodeCachedBoundsCalculator boundsCalculator) {
     this.parent = parent;
     this.isAscending = isAscending;
+    this.isRightToLeft =
+        TextUtils.getLayoutDirectionFromLocale(Locale.getDefault())
+            == View.LAYOUT_DIRECTION_RTL;
     this.boundsCalculator =
         (boundsCalculator == null) ? new NodeCachedBoundsCalculator() : boundsCalculator;
 
@@ -219,7 +225,7 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
     }
 
     // We are ordering left-to-right, top-to-bottom.
-    if (RIGHT_TO_LEFT) {
+    if (isRightToLeft) {
       final int rightDifference = leftBounds.right - rightBounds.right;
       if (rightDifference != 0) {
         return -rightDifference;
@@ -272,6 +278,9 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
 
   @Override
   public @Nullable AccessibilityNodeInfoCompat next() {
+    if (!hasNext()) {
+      throw new NoSuchElementException("ReorderedChildrenIterator has no more elements");
+    }
     AccessibilityNodeInfoCompat nextNode = nodes.get(currentIndex);
     if (isAscending) {
       currentIndex++;

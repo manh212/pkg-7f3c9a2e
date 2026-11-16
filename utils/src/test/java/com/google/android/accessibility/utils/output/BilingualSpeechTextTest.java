@@ -25,7 +25,22 @@ public class BilingualSpeechTextTest {
     assertEquals("Hello", speech.second().toString());
     assertEquals("vietnamese", speech.firstProfile());
     assertEquals("english", speech.secondProfile());
-    assertEquals("Xin chào", speech.toString());
+    assertEquals("Xin chào Hello", speech.toString());
+  }
+
+  @Test
+  public void charSequenceViewCoversBothTextsInSpokenOrder() {
+    BilingualSpeechText speech =
+        new BilingualSpeechText("Hello", "Xin chào", "english", "vietnamese", true);
+    assertEquals("Hello Xin chào", speech.toString());
+    assertEquals(14, speech.length());
+    assertEquals('X', speech.charAt(6));
+    assertEquals("Hello", speech.subSequence(0, 5).toString());
+    assertEquals("Xin chào", speech.subSequence(6, 14).toString());
+    BilingualSpeechText reversed =
+        new BilingualSpeechText("Hello", "Xin chào", "english", "vietnamese", false);
+    assertEquals("Xin chào Hello", reversed.toString());
+    assertEquals("Xin chào", reversed.subSequence(0, 8).toString());
   }
 
   @Test

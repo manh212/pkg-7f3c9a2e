@@ -177,8 +177,13 @@ public class FeedbackItem {
   public FeedbackItem(FeedbackItem item) {
     mCreationTime = System.currentTimeMillis();
     mEventId = item.getEventId();
+    mUtteranceId = item.getUtteranceId();
     mFlags = item.getFlags();
     mUtteranceGroup = item.getUtteranceGroup();
+    isUninterruptibleByNewSpeech = !item.isInterruptibleByNewSpeech();
+    mCanIgnoreInterrupts = item.canIgnoreInterrupts();
+    isGloballyUninterruptible = item.isGloballyUninterruptible();
+    flushGlobalTtsQueue = item.shouldFlushGlobalTtsQueue();
     mStartAction = item.getStartAction();
     mCompletedAction = item.getCompletedAction();
     mRangeStartCallback = item.getRangeStartCallback();
@@ -265,7 +270,13 @@ public class FeedbackItem {
    * @return {@code true} if removed.
    */
   public boolean removeFragment(FeedbackFragment fragment) {
-    return mFragments.remove(fragment);
+    for (int i = 0; i < mFragments.size(); i++) {
+      if (mFragments.get(i) == fragment) {
+        mFragments.remove(i);
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Removes all {@link FeedbackFragment}s associated with this item. */

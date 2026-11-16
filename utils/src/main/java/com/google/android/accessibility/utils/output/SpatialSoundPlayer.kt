@@ -120,6 +120,11 @@ class SpatialSoundPlayer(private val context: Context) {
     }
   }
 
+  /** Stops the sounds playing now, if any, without freeing the thread. */
+  fun stop() {
+    handler.post { stopRequestedBefore(Long.MAX_VALUE) }
+  }
+
   /** Stops the sounds playing now, if any, and frees the thread. */
   fun shutdown() {
     handler.post {
@@ -181,7 +186,12 @@ class SpatialSoundPlayer(private val context: Context) {
     val bytes =
       if (path != null) {
         try {
-          File(path).readBytes()
+          val file = File(path)
+          if (file.length() > MAX_FILE_BYTES) {
+            LogUtils.w(TAG, "Sound file too large: %s", path)
+            return null
+          }
+          file.readBytes()
         } catch (e: IOException) {
           LogUtils.w(TAG, "Cannot read sound %s: %s", path, e)
           return null
@@ -240,12 +250,24 @@ class SpatialSoundPlayer(private val context: Context) {
         val outputIndex = decoder.dequeueOutputBuffer(info, DECODE_TIMEOUT_US)
         if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
           val format = decoder.outputFormat
-          rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-          channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-          if (!isSupportedFormat(rate, channels)) return null
-          if (format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
-            encoding = format.getInteger(MediaFormat.KEY_PCM_ENCODING)
+          val newRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+          val newChannels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+          val newEncoding =
+            if (format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+              format.getInteger(MediaFormat.KEY_PCM_ENCODING)
+            } else {
+              AudioFormat.ENCODING_PCM_16BIT
+            }
+          val changed = newRate != rate || newChannels != channels || newEncoding != encoding
+          if (!isSupportedFormat(newRate, newChannels)
+            || (newEncoding != AudioFormat.ENCODING_PCM_FLOAT
+              && newEncoding != AudioFormat.ENCODING_PCM_16BIT)
+            || (changed && samples.size > 0)) {
+            return null
           }
+          rate = newRate
+          channels = newChannels
+          encoding = newEncoding
         } else if (outputIndex >= 0) {
           val output = decoder.getOutputBuffer(outputIndex)!!.order(ByteOrder.nativeOrder())
           output.position(info.offset)
@@ -343,6 +365,12 @@ class SpatialSoundPlayer(private val context: Context) {
 
     /** The most decoded samples kept at once, about 8 MB. */
     private const val MAX_CACHED_SAMPLES = 2_000_000L
+
+    /**
+     * The most bytes read from a sound file chosen by the user. A sound at the longest length,
+     * highest sample rate, most channels and widest encoding this player accepts is about 61 MB.
+     */
+    private const val MAX_FILE_BYTES = 64L * 1024 * 1024
 
     /**
      * Whether a sound at [rate] Hz with [channels] channels can be played. A header can claim

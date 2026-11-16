@@ -772,14 +772,6 @@ public abstract class Feedback {
                 .build());
   }
 
-  public static Part.Builder initializeImageDescription() {
-    return Part.builder()
-        .setImageCaption(
-            ImageCaption.builder()
-                .setAction(ImageCaption.Action.INITIALIZE_IMAGE_DESCRIPTION)
-                .build());
-  }
-
   public static Part.Builder wholeScreenChange() {
     return Part.builder()
         .setUiChange(
@@ -2225,7 +2217,6 @@ public abstract class Feedback {
       PERFORM_CAPTIONS,
       CONFIRM_DOWNLOAD_AND_PERFORM_CAPTIONS,
       INITIALIZE_ICON_DETECTION,
-      INITIALIZE_IMAGE_DESCRIPTION,
       PERFORM_CAPTION_WITH_GEMINI,
       ONLINE_GEMINI_FEATURE_OPT_IN,
       PERFORM_CAPTION_WITH_ON_DEVICE_GEMINI,

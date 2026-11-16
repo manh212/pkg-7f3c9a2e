@@ -141,23 +141,29 @@ public class TwoFingerSecondFingerMultiTap extends GestureMatcher {
     }
 
     final int currentFingerCount = event.getPointerCount();
+    if (currentFingerCount > targetFingerCount) {
+      gestureMotionEventLog(VERBOSE, "Too many fingers involved.");
+      cancelGesture(event);
+      return;
+    }
     for (int i = 0; i < currentFingerCount; i++) {
+      final int pointerId = event.getPointerId(i);
+      if (pointerId < 0 || pointerId >= bases.length) {
+        gestureMotionEventLog(VERBOSE, "Unexpected pointer id.");
+        cancelGesture(event);
+        return;
+      }
       final float delta =
           (float)
               Math.hypot(
-                  event.getX(i) - bases[event.getPointerId(i)].x,
-                  event.getY(i) - bases[event.getPointerId(i)].y);
+                  event.getX(i) - bases[pointerId].x,
+                  event.getY(i) - bases[pointerId].y);
       if (delta > ((completedTapCount + 1) * touchSlop)) {
 
         gestureMotionEventLog(VERBOSE, "MotionEvent positions move Excessively.");
         cancelGesture(event);
         return;
       }
-    }
-    if (currentFingerCount > targetFingerCount) {
-      gestureMotionEventLog(VERBOSE, "Too many fingers involved.");
-      cancelGesture(event);
-      return;
     }
   }
 

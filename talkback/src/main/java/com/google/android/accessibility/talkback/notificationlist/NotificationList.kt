@@ -116,8 +116,12 @@ object NotificationList {
       notifications.values.forEach {
         if (ranking.getRanking(it.key, notificationRanking)) {
           it.overrideGroupKey = notificationRanking.overrideGroupKey
+        } else {
+          it.overrideGroupKey = null
         }
       }
+    } else {
+      notifications.values.forEach { it.overrideGroupKey = null }
     }
     this.ranking = ranking
     changed()

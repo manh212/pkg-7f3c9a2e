@@ -62,7 +62,10 @@ public class TextCursorTracker {
 
   private void processViewAccessibilityFocused(AccessibilityEvent event) {
     AccessibilityNodeInfoCompat source = AccessibilityEventUtils.sourceCompat(event);
-    if (source == null || mNode != null || !source.isFocused() || !source.isEditable()) {
+    if (source == null || !source.isFocused() || !source.isEditable()) {
+      return;
+    }
+    if (source.equals(mNode)) {
       return;
     }
     clear();

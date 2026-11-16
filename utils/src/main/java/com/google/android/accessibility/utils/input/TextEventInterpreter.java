@@ -1146,11 +1146,12 @@ public class TextEventInterpreter {
   private static CharSequence getEventText(AccessibilityEvent event) {
     final List<CharSequence> eventText = event.getText();
 
-    if (eventText.isEmpty()) {
+    if (eventText == null || eventText.isEmpty()) {
       return "";
     }
 
-    return eventText.get(0);
+    CharSequence text = eventText.get(0);
+    return text == null ? "" : text;
   }
 
   private static CharSequence getFieldText(AccessibilityEvent event) {
@@ -1181,6 +1182,7 @@ public class TextEventInterpreter {
     @Nullable CharSequence lastText = mHistory.getLastText(event.getSource());
     int lastToIndex = mHistory.getLastToIndex();
     return lastText != null
+        && text != null
         && lastToIndex != NO_INDEX
         && !TextUtils.equals(lastText, text.toString())
         && event.getToIndex() - lastToIndex == text.length() - lastText.length();

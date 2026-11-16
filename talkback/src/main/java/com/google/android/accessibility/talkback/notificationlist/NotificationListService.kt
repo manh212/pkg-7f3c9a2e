@@ -158,7 +158,14 @@ class NotificationListService : NotificationListenerService() {
 
   private fun textOf(notification: Notification): String {
     val extras = notification.extras ?: return ""
-    return "${extras.getCharSequence(Notification.EXTRA_TITLE)}|${extras.getCharSequence(Notification.EXTRA_TEXT)}"
+    val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n")
+    return listOf(
+            extras.getCharSequence(Notification.EXTRA_TITLE),
+            extras.getCharSequence(Notification.EXTRA_TEXT),
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT),
+            extras.getCharSequence(Notification.EXTRA_SUB_TEXT),
+            lines)
+        .joinToString("|")
   }
 
   override fun onNotificationRemoved(notification: StatusBarNotification, ranking: RankingMap?) {

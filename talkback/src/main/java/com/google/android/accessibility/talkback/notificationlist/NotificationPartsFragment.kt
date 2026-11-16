@@ -37,6 +37,8 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
  */
 class NotificationPartsFragment : TalkbackBaseFragment() {
   private lateinit var prefs: SharedPreferences
+  private var moveLayoutListener: View.OnLayoutChangeListener? = null
+  private var moveLayoutTimeout: Runnable? = null
 
   public override fun getTitle(): CharSequence = getText(R.string.title_pref_notification_parts)
 
@@ -69,7 +71,9 @@ class NotificationPartsFragment : TalkbackBaseFragment() {
     val list = listView ?: return
     val count = preferenceScreen.preferenceCount
     list.post {
-      list.addOnLayoutChangeListener(
+      moveLayoutListener?.let { list.removeOnLayoutChangeListener(it) }
+      moveLayoutTimeout?.let { list.removeCallbacks(it) }
+      val listener =
         object : View.OnLayoutChangeListener {
           override fun onLayoutChange(
             v: View,
@@ -83,14 +87,31 @@ class NotificationPartsFragment : TalkbackBaseFragment() {
             oldBottom: Int,
           ) {
             list.removeOnLayoutChangeListener(this)
+            moveLayoutTimeout?.let { list.removeCallbacks(it) }
+            moveLayoutListener = null
+            moveLayoutTimeout = null
             list.scrollToPosition(index)
             val row = list.findViewHolderForAdapterPosition(index)?.itemView ?: return
             row.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
             announce(row, positionText(row, index, count))
           }
         }
-      )
+      val timeout = Runnable {
+        list.removeOnLayoutChangeListener(listener)
+        if (moveLayoutListener === listener) {
+          moveLayoutListener = null
+          moveLayoutTimeout = null
+        }
+      }
+      moveLayoutListener = listener
+      moveLayoutTimeout = timeout
+      list.addOnLayoutChangeListener(listener)
+      list.postDelayed(timeout, MOVE_LAYOUT_TIMEOUT_MS)
     }
+  }
+
+  companion object {
+    private const val MOVE_LAYOUT_TIMEOUT_MS = 1000L
   }
 
   private inner class PartPreference(context: Context, private val part: NotificationPart) :

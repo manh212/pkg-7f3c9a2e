@@ -27,7 +27,6 @@ import static com.google.android.accessibility.talkback.imagecaption.ImageCaptio
 import static com.google.android.accessibility.talkback.imagecaption.ImageCaptionUtils.getAutomaticImageCaptioningState;
 import static com.google.android.accessibility.talkback.imagecaption.Request.ERROR_INSUFFICIENT_STORAGE;
 import static com.google.android.accessibility.talkback.imagecaption.Request.ERROR_NETWORK_ERROR;
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import android.content.Context;
 import android.content.DialogInterface;
@@ -51,7 +50,6 @@ import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.actor.ImageCaptioner;
 import com.google.android.accessibility.talkback.actor.gemini.AiCoreEndpoint;
 import com.google.android.accessibility.talkback.actor.gemini.AiCoreEndpoint.AiFeatureDownloadCallback;
-import com.google.android.accessibility.talkback.actor.gemini.GeminiConfiguration;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.ImageCaptionLogKeys;
 import com.google.android.accessibility.talkback.dynamicfeature.DownloaderFactory;
@@ -74,8 +72,6 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -165,12 +161,14 @@ public class AutomaticDescriptionsFragment extends TalkbackBaseFragment {
       MddNotification.cancel(context);
     }
 
+    prefs.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
+
     if (useAiCore.isPresent()) {
       // Refresh the UI of the image description preference.
       Preference imageDescriptionPreference =
           findPreferenceByResId(R.string.pref_image_description_key);
 
-      if (imageDescriptionPreference == null || !ImageCaptioner.supportsIconDetection(context)) {
+      if (imageDescriptionPreference == null) {
         return;
       }
 
@@ -183,7 +181,6 @@ public class AutomaticDescriptionsFragment extends TalkbackBaseFragment {
       setupDetailedImageDescriptionPreference(
           FeatureSwitchDialogResources.DETAILED_IMAGE_DESCRIPTION);
     }
-    prefs.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
   }
 
   @Override
@@ -298,36 +295,7 @@ public class AutomaticDescriptionsFragment extends TalkbackBaseFragment {
       return;
     }
 
-    if (!ImageCaptioner.supportsImageDescription(context)) {
-      removePreference(imageDescriptionPreference);
-      return;
-    }
-
-    Futures.addCallback(
-        hasAiCoreFuture,
-        new FutureCallback<Boolean>() {
-          @Override
-          public void onSuccess(Boolean hasAiCore) {
-            if (hasAiCore && GeminiConfiguration.isOnDeviceGeminiImageCaptioningEnabled(context)) {
-              useAiCore = Optional.of(true);
-              getActivity()
-                  .runOnUiThread(() -> setupPreferenceForGeminiNano(imageDescriptionPreference));
-            } else {
-              useAiCore = Optional.of(false);
-              getActivity()
-                  .runOnUiThread(() -> setupPreferenceForGarcon(imageDescriptionPreference));
-            }
-            moduleStateManager.setHasAiCore(useAiCore);
-          }
-
-          @Override
-          public void onFailure(Throwable t) {
-            useAiCore = Optional.of(false);
-            getActivity().runOnUiThread(() -> setupPreferenceForGarcon(imageDescriptionPreference));
-            moduleStateManager.setHasAiCore(useAiCore);
-          }
-        },
-        directExecutor());
+    removePreference(imageDescriptionPreference);
   }
 
   /** Updates the summary of preference and sets {@link OnPreferenceClickListener}. */
@@ -675,11 +643,17 @@ public class AutomaticDescriptionsFragment extends TalkbackBaseFragment {
     SharedPreferencesUtils.putBooleanPref(prefs, context.getResources(), key, value);
   }
 
-  private static void showToast(FragmentActivity activity, @StringRes int text) {
+  private static void showToast(@Nullable FragmentActivity activity, @StringRes int text) {
+    if (activity == null) {
+      return;
+    }
     activity.runOnUiThread(() -> Toast.makeText(activity, text, Toast.LENGTH_LONG).show());
   }
 
-  private static void showToast(FragmentActivity activity, String text) {
+  private static void showToast(@Nullable FragmentActivity activity, String text) {
+    if (activity == null) {
+      return;
+    }
     activity.runOnUiThread(() -> Toast.makeText(activity, text, Toast.LENGTH_LONG).show());
   }
 

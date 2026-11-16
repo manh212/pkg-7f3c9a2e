@@ -114,8 +114,10 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
     }
     val manager = CommandBindings.keyComboManager(requireContext())
     for ((name, value) in keys) {
-      val keyCombo = AppGestures.keyCombo(name) ?: continue
-      entry(keyCategory, manager.getKeyComboStringRepresentation(keyCombo), value, { chooseCommand { assignKeys(name, it) } }) {
+      val keyCombo = AppGestures.keyCombo(name)
+      val keyName =
+        keyCombo?.let { manager.getKeyComboStringRepresentation(it) } ?: name
+      entry(keyCategory, keyName, value, { chooseCommand { assignKeys(name, it) } }) {
         save(keys = keys - name)
       }
     }

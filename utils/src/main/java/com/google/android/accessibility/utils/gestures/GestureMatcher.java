@@ -206,8 +206,8 @@ public abstract class GestureMatcher {
   }
 
   private void setState(@State int state, MotionEvent event, boolean notify) {
+    this.state = state;
     if (state != STATE_GESTURE_PROCESSING) {
-      this.state = state;
       cancelPendingTransitions();
     }
     if (notify && listener != null) {

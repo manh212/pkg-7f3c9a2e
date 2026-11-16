@@ -34,7 +34,7 @@ public class ImageCaptionStorage {
 
   private static final String TAG = "ImageCaptionStorage";
   private static final int RESULT_CAPACITY = 500;
-  public static final boolean ENABLE_CACHE_MECHANISM = false;
+  public static final boolean ENABLE_CACHE_MECHANISM = true;
 
   private final LimitedCapacityCache imageNodes;
   private @MonotonicNonNull IconAnnotationsDetector iconAnnotationsDetector;
@@ -114,23 +114,6 @@ public class ImageCaptionStorage {
     imageNodes.put(imageNode);
   }
 
-  /** Stores the image description result for the specified node in the cache. */
-  public void updateImageDescriptionResult(AccessibilityNode node, Result result) {
-    if (!ImageCaptionStorage.isStorable(node) || Result.isEmpty(result)) {
-      LogUtils.v(TAG, "Image Description result (" + result + ") should not be stored.");
-      return;
-    }
-
-    // Always creating a new ImageNode here to avoid searching twice. Because it's necessary to find
-    // the ImageNode in LimitedCapacityCache.put().
-    @Nullable ImageNode imageNode = ImageNode.create(node);
-    if (imageNode == null) {
-      return;
-    }
-    imageNode.setImageDescriptionResult(result);
-    imageNodes.put(imageNode);
-  }
-
   /**
    * Marks the OCR text, the detected icon label and image description for the specific node as
    * invalid in the cache.
@@ -200,6 +183,8 @@ public class ImageCaptionStorage {
     /** Removes all {@link ImageNode}s in the cache. */
     public synchronized void clear() {
       imageNodes.clear();
+      firstOldestKey = null;
+      lastNewestKey = null;
     }
 
     /**

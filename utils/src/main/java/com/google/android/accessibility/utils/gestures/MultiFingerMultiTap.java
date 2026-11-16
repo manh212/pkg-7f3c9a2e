@@ -118,7 +118,7 @@ class MultiFingerMultiTap extends GestureMatcher {
   @Override
   protected void onUp(EventId eventId, MotionEvent event) {
 
-    long timeDelta = event.getEventTime() - lastUpTime;
+    long timeDelta = event.getEventTime() - lastDownTime;
     if (timeDelta > tapTimeout) {
       cancelGesture(event);
       return;
@@ -149,7 +149,7 @@ class MultiFingerMultiTap extends GestureMatcher {
   @Override
   protected void onMove(EventId eventId, MotionEvent event) {
 
-    if (null == findNearestPoint(event, touchSlop, false)) {
+    if (!allPointersWithinSlop(event, touchSlop)) {
       cancelGesture(event);
     }
   }
@@ -238,6 +238,30 @@ class MultiFingerMultiTap extends GestureMatcher {
   }
 
   @Nullable
+  private boolean allPointersWithinSlop(MotionEvent event, float slop) {
+    boolean anyBase = false;
+    for (int i = 0; i < bases.length; i++) {
+      final PointF p = bases[i];
+      if (Float.isNaN(p.x) && Float.isNaN(p.y)) {
+        continue;
+      }
+      anyBase = true;
+      boolean withinSlop = false;
+      for (int j = 0; j < event.getPointerCount(); j++) {
+        final float dX = p.x - event.getX(j);
+        final float dY = p.y - event.getY(j);
+        if (Math.hypot(dX, dY) < slop) {
+          withinSlop = true;
+          break;
+        }
+      }
+      if (!withinSlop) {
+        return false;
+      }
+    }
+    return anyBase;
+  }
+
   private PointF findNearestPoint(MotionEvent event, float slop, boolean filterMatched) {
     float moveDelta = Float.MAX_VALUE;
     PointF nearest = null;

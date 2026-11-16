@@ -157,6 +157,16 @@ public class FeatureSwitchDialog extends BaseDialog {
 
   @Override
   public void handleDialogClick(int buttonClicked) {
+    if (resources.descriptionType == TYPE_DETAILED_DESCRIPTION) {
+      if (buttonClicked == DialogInterface.BUTTON_POSITIVE) {
+        prefs
+            .edit()
+            .putBoolean(context.getString(resources.switchPreferenceKeys.switchKey), true)
+            .apply();
+      }
+      return;
+    }
+
     if (switches == null) {
       return;
     }

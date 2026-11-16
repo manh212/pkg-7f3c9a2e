@@ -9,6 +9,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import io.meridian.licensing.FirebaseRest;
+import io.meridian.licensing.ForumProtocol;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -118,7 +119,7 @@ final class AnnouncementPanel {
     SyncCoordinator.WORKER.execute(() -> {
       try {
         FirebaseRest service = authorized();
-        service.put("appAnnouncements/" + System.currentTimeMillis(), new JSONObject()
+        service.put("appAnnouncements/" + ForumProtocol.id(), new JSONObject()
             .put("text", value).put("updatedAt", FirebaseRest.timestamp())
             .put("requireLatest", requireLatest));
         List<Stored> stored = fetch(service);

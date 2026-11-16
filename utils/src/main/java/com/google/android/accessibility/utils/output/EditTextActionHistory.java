@@ -155,12 +155,12 @@ public class EditTextActionHistory {
   }
 
   public boolean hasSelectAllActionAtTime(long eventTime) {
-    return !((mSelectAllFinishTime == -1) || (mSelectAllStartTime > eventTime))
+    return !((mSelectAllStartTime == -1) || (mSelectAllStartTime > eventTime))
         && !((mSelectAllFinishTime >= mSelectAllStartTime) && (mSelectAllFinishTime < eventTime));
   }
 
   public boolean hasSetTextActionAtTime(long eventTime) {
-    return !((setTextFinishTime == -1) || (setTextStartTime > eventTime))
+    return !((setTextStartTime == -1) || (setTextStartTime > eventTime))
         && !((setTextFinishTime >= setTextStartTime) && (setTextFinishTime < eventTime));
   }
 }

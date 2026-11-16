@@ -73,6 +73,8 @@ public class OrderedTraversalController {
       return;
     }
 
+    nodeTreeMap.clear();
+    missesChildren = false;
     NodeCachedBoundsCalculator boundsCalculator = new NodeCachedBoundsCalculator();
     boundsCalculator.setSpeakingNodesCache(speakingNodesCache);
     tree =

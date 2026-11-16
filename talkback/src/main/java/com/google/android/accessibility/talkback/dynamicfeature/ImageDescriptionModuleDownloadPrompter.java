@@ -20,7 +20,6 @@ import static com.google.android.accessibility.talkback.imagecaption.ImageCaptio
 
 import android.content.Context;
 import androidx.annotation.Nullable;
-import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionConstants.DownloadDialogResources;
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionConstants.ImageCaptionPreferenceKeys;
@@ -61,6 +60,6 @@ public class ImageDescriptionModuleDownloadPrompter extends ModuleDownloadPrompt
 
   @Override
   protected boolean initModule() {
-    return returnFeedback(Feedback.initializeImageDescription());
+    return true;
   }
 }

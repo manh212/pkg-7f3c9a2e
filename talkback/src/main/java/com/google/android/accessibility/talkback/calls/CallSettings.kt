@@ -5,9 +5,9 @@ import java.util.Calendar
 
 data class CallSettings(
   val announce: Boolean = true,
-  val duration: Boolean = false,
+  val duration: Boolean = true,
   val intervalSeconds: Int = 0,
-  val repeats: Int = 0,
+  val repeats: Int = 3,
   val voiceProfile: String = "",
   val quietHours: Boolean = false,
   val quietStart: Int = 23 * 60,

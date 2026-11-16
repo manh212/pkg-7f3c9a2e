@@ -35,6 +35,7 @@ class SecondFingerTap extends GestureMatcher {
   protected int currentTaps;
   private final int touchSlop;
   private long firstDownTime;
+  private int secondFingerPointerId;
 
   private final PointF[] bases;
   protected boolean pendingRestart;
@@ -60,6 +61,7 @@ class SecondFingerTap extends GestureMatcher {
   public void clear() {
     currentTaps = 0;
     firstDownTime = Long.MAX_VALUE;
+    secondFingerPointerId = -1;
     pendingRestart = false;
     super.clear();
   }
@@ -94,6 +96,7 @@ class SecondFingerTap extends GestureMatcher {
       cancelGesture(event);
       return;
     }
+    secondFingerPointerId = event.getPointerId(event.getActionIndex());
     bases[0].x = event.getX(0);
     bases[0].y = event.getY(0);
     bases[1].x = event.getX(1);
@@ -103,7 +106,7 @@ class SecondFingerTap extends GestureMatcher {
   @Override
   protected void onPointerUp(EventId eventId, MotionEvent event) {
     gestureMotionEventLog(VERBOSE, "onPointerUp");
-    if (event.getPointerId(event.getActionIndex()) != 1) {
+    if (event.getPointerId(event.getActionIndex()) != secondFingerPointerId) {
 
       gestureMotionEventLog(VERBOSE, "Invalid finger of split-tap");
       cancelGesture(event);

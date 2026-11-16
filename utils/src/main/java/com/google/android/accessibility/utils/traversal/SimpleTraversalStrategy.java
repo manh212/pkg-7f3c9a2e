@@ -38,10 +38,14 @@ public class SimpleTraversalStrategy implements TraversalStrategy {
     }
 
     AccessibilityNodeInfoRef ref = AccessibilityNodeInfoRef.obtain(startNode, bounds);
-    boolean focusFound =
-        direction == TraversalStrategy.SEARCH_FOCUS_FORWARD
-            ? ref.nextInOrder()
-            : ref.previousInOrder();
+    boolean focusFound;
+    if (direction == TraversalStrategy.SEARCH_FOCUS_FORWARD) {
+      focusFound = ref.nextInOrder();
+    } else if (direction == TraversalStrategy.SEARCH_FOCUS_BACKWARD) {
+      focusFound = ref.previousInOrder();
+    } else {
+      return null;
+    }
     if (focusFound) {
       return ref.get();
     }

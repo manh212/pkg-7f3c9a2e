@@ -41,12 +41,10 @@ import com.google.android.accessibility.talkback.actor.gemini.GeminiActor.Finish
 import com.google.android.accessibility.talkback.dynamicfeature.DownloaderFactory
 import com.google.android.accessibility.talkback.dynamicfeature.ModuleStateManager
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor
-import com.google.android.accessibility.talkback.imagecaption.CaptionRequest
 import com.google.android.accessibility.talkback.imagecaption.ImageCaptionStorage
 import com.google.android.accessibility.talkback.imagecaption.RequestList
 import com.google.android.accessibility.talkback.imagecaption.ScreenshotCaptureRequest
 import com.google.android.accessibility.talkback.imagecaption.ScreenshotCaptureRequestAccess
-import com.google.android.accessibility.talkback.imagedescription.ImageDescriptionProcessor
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.time.Duration
@@ -234,44 +232,6 @@ class ImageCaptionerRequestsTest {
     assertEquals("C started before B ended", 2, service.callbacks.size)
 
     failScreenshot(service.callbacks[1])
-    assertEquals(3, service.callbacks.size)
-  }
-
-  @Test
-  fun aSlowCaptionIsSaidAfterFiveSeconds_andItsLateTimeoutEndsNothingElse() {
-    focusMonitor.focus = node
-    // Its image description never answers, so the caption waits for it.
-    captioner.imageDescriptionProcessor =
-      ImageDescriptionProcessor(context, TalkBackAnalyticsImpl(context))
-    captioner.caption(node, /* isUserRequested= */ true) // A
-    idle()
-    takeScreenshot(service.callbacks[0])
-    captioner.caption(node, /* isUserRequested= */ true) // B, which waits for A's caption
-    idle()
-    val spokenForA = spoken.size
-
-    advance(Duration.ofMillis(4900))
-    assertEquals(spokenForA, spoken.size)
-    assertEquals(1, service.callbacks.size)
-
-    // After 5 seconds, A says what it has, and B starts.
-    advance(Duration.ofMillis(200))
-    assertEquals("A was not said after 5 seconds", spokenForA + 1, spoken.size)
-    assertEquals("B did not start when A gave up", 2, service.callbacks.size)
-
-    takeScreenshot(service.callbacks[1])
-    captioner.caption(node, /* isUserRequested= */ true) // C, which waits for B's caption
-    idle()
-    val spokenForB = spoken.size
-
-    // A's own requests would time out now, 10 seconds after they started. They ended with A.
-    advance(CaptionRequest.CAPTION_TIMEOUT_MS.minusMillis(5100).plusMillis(50))
-    assertEquals("A was said again", spokenForB, spoken.size)
-    assertEquals("C started before B ended", 2, service.callbacks.size)
-
-    // B gives up 5 seconds after its screenshot, and C starts.
-    advance(Duration.ofMillis(200))
-    assertEquals(spokenForB + 1, spoken.size)
     assertEquals(3, service.callbacks.size)
   }
 

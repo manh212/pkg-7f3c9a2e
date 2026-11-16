@@ -142,6 +142,7 @@ public enum CursorGranularity {
       String @Nullable [] supportedHtmlElements,
       List<CursorGranularity> result) {
     result.clear();
+    result.add(DEFAULT);
 
     for (CursorGranularity value : values()) {
       if (value.value == NO_VALUE) {
@@ -165,7 +166,6 @@ public enum CursorGranularity {
     result.add(ROW_COLUMN);
     result.add(ROW);
     result.add(COLUMN);
-    result.add(DEFAULT);
   }
 
   private static void addWebGranularities(

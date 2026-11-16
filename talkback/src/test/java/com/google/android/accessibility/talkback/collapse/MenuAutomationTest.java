@@ -74,11 +74,25 @@ public class MenuAutomationTest {
   /** Records every feedback part routed through the returner, in order. */
   private static final class RecordingReturner implements Pipeline.FeedbackReturner {
     final List<Feedback.Part> parts = new ArrayList<>();
+    /** When true, refuses every node action after the first one (the menu-button click). */
+    boolean refuseLaterNodeActions;
+    private int nodeActions;
 
     @Override
     public boolean returnFeedback(Feedback feedback) {
       parts.addAll(feedback.failovers());
-      return true;
+      boolean isNodeAction = false;
+      for (Feedback.Part part : feedback.failovers()) {
+        if (part.nodeAction() != null) {
+          isNodeAction = true;
+          break;
+        }
+      }
+      if (!isNodeAction) {
+        return true;
+      }
+      nodeActions++;
+      return !refuseLaterNodeActions || nodeActions <= 1;
     }
   }
 
@@ -88,7 +102,13 @@ public class MenuAutomationTest {
 
     @Override
     public List<AccessibilityNodeInfoCompat> windowRoots() {
-      return roots;
+      // The automation owns the returned roots and recycles them, like the real
+      // provider's fresh getRoot() wrappers, so hand out fresh copies per call.
+      List<AccessibilityNodeInfoCompat> copies = new ArrayList<>();
+      for (AccessibilityNodeInfoCompat root : roots) {
+        copies.add(AccessibilityNodeInfoCompat.obtain(root));
+      }
+      return copies;
     }
 
     @Override
@@ -281,6 +301,33 @@ public class MenuAutomationTest {
     assertTrue(deliver(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED));
 
     assertEquals(feedTree2.primary, lastFocusPart().focus().target());
+    assertFalse(MenuAutomation.isPending());
+  }
+
+  @Test
+  public void refusedPlainRowClick_graceThenFailureClose_speaksNotAvailable() {
+    returner.refuseLaterNodeActions = true;
+    beginShare();
+    YouTubeSheetTree sheet =
+        CollapseTestTrees.youTubeMenuSheet("Play next in queue", "Share", "Not interested");
+    showOnly(sheet.root);
+
+    assertTrue(deliver(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED));
+    // The row click was attempted and refused: the begin click plus the refused attempt.
+    assertEquals(2, nodeActionParts().size());
+    assertEquals(sheet.rows.get(1), lastNodeActionPart().nodeAction().target().getCompat());
+
+    // The grace deadline fires and the failure close presses Back.
+    shadowOf(Looper.getMainLooper()).idleFor(1100, TimeUnit.MILLISECONDS);
+    assertNotNull(lastSystemActionPart());
+    assertEquals(
+        AccessibilityService.GLOBAL_ACTION_BACK,
+        lastSystemActionPart().systemAction().systemActionId());
+
+    showOnly(feedList);
+    assertTrue(deliver(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED));
+    assertEquals(feedTree.primary, lastFocusPart().focus().target());
+    assertEquals("Not available", lastSpeechPart().speech().text().toString());
     assertFalse(MenuAutomation.isPending());
   }
 

@@ -75,6 +75,9 @@ public final class GranularityIterator {
    */
   @Nullable
   public static TextSegmentIterator getIteratorForGranularity(CharSequence text, int granularity) {
+    if (text == null) {
+      return null;
+    }
 
     switch (granularity) {
       case AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER -> {
@@ -162,25 +165,16 @@ public final class GranularityIterator {
     // APIs.
     final BreakIterator breakIterator;
 
-    private static CharacterTextSegmentIterator instance;
-    private Locale iteratorLocale;
-
     private CharacterTextSegmentIterator(Locale locale) {
       this(locale, BreakIterator.getCharacterInstance(locale));
     }
 
     CharacterTextSegmentIterator(Locale locale, BreakIterator breakIterator) {
-      iteratorLocale = locale;
       this.breakIterator = breakIterator;
     }
 
     private static CharacterTextSegmentIterator getInstance(Locale locale) {
-      // If the locale changes, the instance formed using the previous locale is not required.
-      // We just need one instance but with the correct locale.
-      if (instance == null || !instance.getLocale().equals(locale)) {
-        instance = new CharacterTextSegmentIterator(locale);
-      }
-      return instance;
+      return new CharacterTextSegmentIterator(locale);
     }
 
     @Override
@@ -242,24 +236,15 @@ public final class GranularityIterator {
       }
       return getRange(start, end);
     }
-
-    Locale getLocale() {
-      return iteratorLocale;
-    }
   }
 
   private static class WordTextSegmentIterator extends CharacterTextSegmentIterator {
-    private static WordTextSegmentIterator instance;
-
     private WordTextSegmentIterator(Locale locale) {
       super(locale, BreakIterator.getWordInstance(locale));
     }
 
     private static WordTextSegmentIterator getInstance(Locale locale) {
-      if (instance == null || !instance.getLocale().equals(locale)) {
-        instance = new WordTextSegmentIterator(locale);
-      }
-      return instance;
+      return new WordTextSegmentIterator(locale);
     }
 
     @Override
@@ -367,16 +352,12 @@ public final class GranularityIterator {
   // classes to maintain easily because they have large logic.
   private static class LineTextSegmentIterator extends AbstractTextSegmentIterator {
 
-    private static class LazyHolder {
-      static final LineTextSegmentIterator INSTANCE = new LineTextSegmentIterator();
-    }
-
     private static final int INVALID_INDEX = -1;
 
     private LineTextSegmentIterator() {}
 
     private static LineTextSegmentIterator getInstance() {
-      return LineTextSegmentIterator.LazyHolder.INSTANCE;
+      return new LineTextSegmentIterator();
     }
 
     private AccessibilityNodeInfoCompat node;
@@ -588,12 +569,8 @@ public final class GranularityIterator {
   }
 
   private static class NativeLineTextSegmentIterator extends LineTextSegmentIterator {
-    private static class LazyHolder {
-      static final NativeLineTextSegmentIterator INSTANCE = new NativeLineTextSegmentIterator();
-    }
-
     private static NativeLineTextSegmentIterator getInstance() {
-      return NativeLineTextSegmentIterator.LazyHolder.INSTANCE;
+      return new NativeLineTextSegmentIterator();
     }
 
     private NativeLineTextSegmentIterator() {}
@@ -632,12 +609,8 @@ public final class GranularityIterator {
 
   private static class ParagraphTextSegmentIterator extends AbstractTextSegmentIterator {
 
-    private static class LazyHolder {
-      static final ParagraphTextSegmentIterator INSTANCE = new ParagraphTextSegmentIterator();
-    }
-
     private static ParagraphTextSegmentIterator getInstance() {
-      return ParagraphTextSegmentIterator.LazyHolder.INSTANCE;
+      return new ParagraphTextSegmentIterator();
     }
 
     @Override

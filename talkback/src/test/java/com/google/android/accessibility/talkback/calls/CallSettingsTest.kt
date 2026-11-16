@@ -49,6 +49,13 @@ class CallSettingsTest {
     prefs.edit().clear().commit()
   }
 
+  @Test fun neverConfiguredSettingsMatchTheDataClassDefaults() {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(RuntimeEnvironment.getApplication())
+    prefs.edit().clear().commit()
+    assertEquals(CallSettings(), CallSettings.read(prefs))
+    prefs.edit().clear().commit()
+  }
+
   @Test fun storedNumbersAreBoundedAndBothStorageTypesAreAccepted() {
     val context = RuntimeEnvironment.getApplication()
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)

@@ -377,61 +377,75 @@ public final class MenuAutomation {
       Pending session, RootProvider provider, AccessibilityEvent event, int type) {
     if (isScanType(type)) {
       List<AccessibilityNodeInfoCompat> roots = scanRoots(provider, event);
-      if (session.trayMode && seesForeignTray(session, roots)) {
-        // A tray is open, but its anchor names a different comment: pressing anything in
-        // it would act on the wrong comment, so the sequence aborts without a click.
-        LogUtils.v(TAG, "tray anchor mismatch: open tray belongs to another comment");
-        tryRestore(session, provider, /* speakFailure= */ true);
-        finish(session);
+      try {
+        return handleAwaitSheetScanned(session, provider, event, type, roots);
+      } finally {
+        recycleRoots(roots);
+      }
+    }
+    return isSuppressedType(type);
+  }
+
+  private static boolean handleAwaitSheetScanned(
+      Pending session,
+      RootProvider provider,
+      AccessibilityEvent event,
+      int type,
+      List<AccessibilityNodeInfoCompat> roots) {
+    if (session.trayMode && seesForeignTray(session, roots)) {
+      // A tray is open, but its anchor names a different comment: pressing anything in
+      // it would act on the wrong comment, so the sequence aborts without a click.
+      LogUtils.v(TAG, "tray anchor mismatch: open tray belongs to another comment");
+      tryRestore(session, provider, /* speakFailure= */ true);
+      finish(session);
+      return true;
+    }
+    AccessibilityNodeInfoCompat sheet = findSheet(session, roots);
+    if (sheet != null) {
+      if (session.trayMode && !session.sheetSeen) {
+        LogUtils.v(
+            TAG,
+            "tray sheet appeared afterMs=%d",
+            SystemClock.uptimeMillis() - session.beginTimeMs);
+        logTrayButtons(session, sheet);
+      }
+      session.sheetSeen = true;
+      if (tryClickTarget(session, sheet)) {
         return true;
       }
-      AccessibilityNodeInfoCompat sheet = findSheet(session, roots);
-      if (sheet != null) {
-        if (session.trayMode && !session.sheetSeen) {
-          LogUtils.v(
-              TAG,
-              "tray sheet appeared afterMs=%d",
-              SystemClock.uptimeMillis() - session.beginTimeMs);
-          logTrayButtons(session, sheet);
-        }
-        session.sheetSeen = true;
-        if (tryClickTarget(session, sheet)) {
-          return true;
-        }
-        if (session.sheetGrace == null) {
-          session.sheetGrace = () -> onSheetGrace(session);
-          session.handler.postDelayed(session.sheetGrace, SHEET_GRACE_MS);
-        }
-        return true;
+      if (session.sheetGrace == null) {
+        session.sheetGrace = () -> onSheetGrace(session);
+        session.handler.postDelayed(session.sheetGrace, SHEET_GRACE_MS);
       }
-      if (session.sheetSeen) {
-        // The sheet was open and the current window list no longer contains it, before
-        // any click: the user backed out. The window list is the evidence, so this is
-        // concluded on any scanned event type, not just window events.
+      return true;
+    }
+    if (session.sheetSeen) {
+      // The sheet was open and the current window list no longer contains it, before
+      // any click: the user backed out. The window list is the evidence, so this is
+      // concluded on any scanned event type, not just window events.
+      tryRestore(session, provider, /* speakFailure= */ false);
+      finish(session);
+      return true;
+    }
+    if (session.sheetContainerViewId == null
+        && session.windowEventSeen
+        && (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            || type == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+            || type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED)) {
+      // A window came and went without the sheet ever matching, and the feed is in
+      // front again: the user backed out before the sheet could be read. The flag is
+      // only raised by an earlier event, so the sheet's own opening event — whose
+      // snapshot may not contain its rows yet — never triggers this.
+      AccessibilityNodeInfoCompat active = provider.activeWindowRoot();
+      if (active != null && hasOriginRepresentative(active, session)) {
         tryRestore(session, provider, /* speakFailure= */ false);
         finish(session);
         return true;
       }
-      if (session.sheetContainerViewId == null
-          && session.windowEventSeen
-          && (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-              || type == AccessibilityEvent.TYPE_WINDOWS_CHANGED
-              || type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED)) {
-        // A window came and went without the sheet ever matching, and the feed is in
-        // front again: the user backed out before the sheet could be read. The flag is
-        // only raised by an earlier event, so the sheet's own opening event — whose
-        // snapshot may not contain its rows yet — never triggers this.
-        AccessibilityNodeInfoCompat active = provider.activeWindowRoot();
-        if (active != null && resolveOriginRepresentative(active, session) != null) {
-          tryRestore(session, provider, /* speakFailure= */ false);
-          finish(session);
-          return true;
-        }
-      }
-      if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-          || type == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
-        session.windowEventSeen = true;
-      }
+    }
+    if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        || type == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+      session.windowEventSeen = true;
     }
     return isSuppressedType(type);
   }
@@ -439,28 +453,43 @@ public final class MenuAutomation {
   private static boolean handleAwaitClose(
       Pending session, RootProvider provider, AccessibilityEvent event, int type) {
     if (isScanType(type)) {
-      boolean sheetGone = findSheet(session, scanRoots(provider, event)) == null;
-      if (sheetGone && !session.restoreFocusOnClose && !session.failureSpeechPending) {
-        // The sheet closed onto its follow-up UI (the reply composer), which is the
-        // intended result: end silently and let the new UI be announced, without
-        // pulling focus back to the row.
+      List<AccessibilityNodeInfoCompat> roots = scanRoots(provider, event);
+      try {
+        return handleAwaitCloseScanned(session, provider, event, type, roots);
+      } finally {
+        recycleRoots(roots);
+      }
+    }
+    return isSuppressedType(type);
+  }
+
+  private static boolean handleAwaitCloseScanned(
+      Pending session,
+      RootProvider provider,
+      AccessibilityEvent event,
+      int type,
+      List<AccessibilityNodeInfoCompat> roots) {
+    boolean sheetGone = findSheet(session, roots) == null;
+    if (sheetGone && !session.restoreFocusOnClose && !session.failureSpeechPending) {
+      // The sheet closed onto its follow-up UI (the reply composer), which is the
+      // intended result: end silently and let the new UI be announced, without
+      // pulling focus back to the row.
+      finish(session);
+      return false;
+    }
+    if (sheetGone) {
+      AccessibilityNodeInfoCompat active = provider.activeWindowRoot();
+      if (active != null && hasOriginRepresentative(active, session)) {
+        tryRestore(session, provider, session.failureSpeechPending);
+        finish(session);
+        return true;
+      }
+      if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+          || type == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+        // The sheet closed onto some other UI (the follow-up of the chosen item):
+        // the sequence ends silently and the new UI is announced as usual.
         finish(session);
         return false;
-      }
-      if (sheetGone) {
-        AccessibilityNodeInfoCompat active = provider.activeWindowRoot();
-        if (active != null && resolveOriginRepresentative(active, session) != null) {
-          tryRestore(session, provider, session.failureSpeechPending);
-          finish(session);
-          return true;
-        }
-        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-            || type == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
-          // The sheet closed onto some other UI (the follow-up of the chosen item):
-          // the sequence ends silently and the new UI is announced as usual.
-          finish(session);
-          return false;
-        }
       }
     }
     return isSuppressedType(type);
@@ -476,10 +505,15 @@ public final class MenuAutomation {
       onCloseSettle(session);
       return;
     }
-    boolean sheetOpen =
-        session.sheetSeen
-            || (session.lastProvider != null
-                && findSheet(session, session.lastProvider.windowRoots()) != null);
+    boolean sheetOpen = session.sheetSeen;
+    if (!sheetOpen && session.lastProvider != null) {
+      List<AccessibilityNodeInfoCompat> roots = session.lastProvider.windowRoots();
+      try {
+        sheetOpen = findSheet(session, roots) != null;
+      } finally {
+        recycleRoots(roots);
+      }
+    }
     if (sheetOpen) {
       startFailureClose(session);
     } else {
@@ -497,15 +531,24 @@ public final class MenuAutomation {
       return;
     }
     RootProvider provider = session.lastProvider;
-    AccessibilityNodeInfoCompat sheet =
-        provider == null ? null : findSheet(session, provider.windowRoots());
-    if (sheet == null) {
+    if (provider == null) {
       tryRestore(session, provider, /* speakFailure= */ false);
       finish(session);
       return;
     }
-    if (!tryClickTarget(session, sheet)) {
-      startFailureClose(session);
+    List<AccessibilityNodeInfoCompat> roots = provider.windowRoots();
+    try {
+      AccessibilityNodeInfoCompat sheet = findSheet(session, roots);
+      if (sheet == null) {
+        tryRestore(session, provider, /* speakFailure= */ false);
+        finish(session);
+        return;
+      }
+      if (!tryClickTarget(session, sheet)) {
+        startFailureClose(session);
+      }
+    } finally {
+      recycleRoots(roots);
     }
   }
 
@@ -514,12 +557,19 @@ public final class MenuAutomation {
       return;
     }
     RootProvider provider = session.lastProvider;
-    if (provider != null && findSheet(session, provider.windowRoots()) == null) {
-      AccessibilityNodeInfoCompat active = provider.activeWindowRoot();
-      if ((session.restoreFocusOnClose || session.failureSpeechPending)
-          && active != null
-          && resolveOriginRepresentative(active, session) != null) {
-        tryRestore(session, provider, session.failureSpeechPending);
+    if (provider != null) {
+      List<AccessibilityNodeInfoCompat> roots = provider.windowRoots();
+      try {
+        if (findSheet(session, roots) == null) {
+          AccessibilityNodeInfoCompat active = provider.activeWindowRoot();
+          if ((session.restoreFocusOnClose || session.failureSpeechPending)
+              && active != null
+              && hasOriginRepresentative(active, session)) {
+            tryRestore(session, provider, session.failureSpeechPending);
+          }
+        }
+      } finally {
+        recycleRoots(roots);
       }
     }
     finish(session);
@@ -552,14 +602,10 @@ public final class MenuAutomation {
             Feedback.nodeAction(row, AccessibilityNodeInfoCompat.ACTION_CLICK));
     if (session.trayMode) {
       LogUtils.v(TAG, "tray target click label=%s result=%b", sheetNodeLabel(row), clicked);
-      if (!clicked) {
-        // The tray's real button refused the action too: report the click as not done,
-        // so the grace and failure-close path takes over instead of waiting for a close
-        // that will never come.
-        return false;
-      }
     }
-    if (!clicked && session.sheetContainerViewId != null) {
+    if (!clicked) {
+      // A refused click is not a success: report it so the grace retry and failure-close
+      // path takes over instead of waiting for a close that will never come.
       return false;
     }
     session.stage = Stage.AWAIT_CLOSE;
@@ -648,9 +694,11 @@ public final class MenuAutomation {
       collect(root, nodes);
       for (AccessibilityNodeInfoCompat node : nodes) {
         if (labelViewId.equals(node.getViewIdResourceName())) {
+          recycleCollected(nodes, root);
           return root;
         }
       }
+      recycleCollected(nodes, root);
     }
     return null;
   }
@@ -668,7 +716,7 @@ public final class MenuAutomation {
       // The window the sequence started from holds the comment itself, whose own
       // reply button carries the same author anchor: the tray is a window of its
       // own, so the origin's window is never the tray.
-      if (resolveOriginRepresentative(root, session) != null) {
+      if (hasOriginRepresentative(root, session)) {
         continue;
       }
       if (findTrayRoot(List.of(root), session.trayHeaderText, session.trayAuthorName)
@@ -684,18 +732,33 @@ public final class MenuAutomation {
   }
 
   private static boolean hasPostTraySignature(AccessibilityNodeInfoCompat root) {
-    return trayTargetButton(root, new String[] {"Thích", "Bỏ thích"}) != null
-        && trayTargetButton(root, new String[] {"Bày tỏ cảm xúc"}) != null
-        && trayTargetButton(root, new String[] {"Bình luận"}) != null
-        && trayTargetButton(root, new String[] {"Chia sẻ"}) != null
-        && trayTargetButton(root, new String[] {FacebookFeedCollapseScript.TRAY_SIGNATURE}) != null;
+    String[][] labelSets = {
+      {"Thích", "Bỏ thích"},
+      {"Bày tỏ cảm xúc"},
+      {"Bình luận"},
+      {"Chia sẻ"},
+      {FacebookFeedCollapseScript.TRAY_SIGNATURE},
+    };
+    for (String[] labels : labelSets) {
+      AccessibilityNodeInfoCompat button = trayTargetButton(root, labels);
+      if (button == null) {
+        return false;
+      }
+      if (button != root) {
+        button.recycle();
+      }
+    }
+    return true;
   }
 
   private static @Nullable AccessibilityNodeInfoCompat findPopoverRoot(
       Pending session, List<AccessibilityNodeInfoCompat> roots) {
+    List<List<AccessibilityNodeInfoCompat>> scanned = new ArrayList<>();
     AccessibilityNodeInfoCompat found = null;
+    boolean ambiguous = false;
     for (AccessibilityNodeInfoCompat root : roots) {
       List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
+      scanned.add(nodes);
       collect(root, nodes);
       for (AccessibilityNodeInfoCompat node : nodes) {
         if (!session.sheetContainerViewId.equals(node.getViewIdResourceName())
@@ -711,24 +774,37 @@ public final class MenuAutomation {
         boolean originMatches = false;
         for (int i = 0; i < parent.getChildCount(); i++) {
           AccessibilityNodeInfoCompat sibling = parent.getChild(i);
-          if (sibling != null
-              && !sibling.equals(node)
+          if (sibling == null) {
+            continue;
+          }
+          if (!sibling.equals(node)
               && sibling.isVisibleToUser()
               && session.originLabel.contentEquals(ItemScan.spokenLabel(sibling))) {
             originMatches = true;
+            sibling.recycle();
             break;
           }
+          sibling.recycle();
         }
+        parent.recycle();
         if (!originMatches) {
           continue;
         }
         if (found != null && !found.equals(node)) {
-          return null;
+          ambiguous = true;
+          break;
         }
         found = node;
       }
+      if (ambiguous) {
+        break;
+      }
     }
-    return found;
+    AccessibilityNodeInfoCompat result = ambiguous ? null : found;
+    for (int i = 0; i < scanned.size(); i++) {
+      recycleCollected(scanned.get(i), roots.get(i), result);
+    }
+    return result;
   }
 
   /**
@@ -751,13 +827,16 @@ public final class MenuAutomation {
         for (CharSequence label : labelsOf(node)) {
           String text = label.toString().trim();
           if (headerText != null && headerText.equals(text)) {
+            recycleCollected(nodes, root);
             return root;
           }
           if (authorName != null && authorName.equals(anchoredReplyAuthor(text))) {
+            recycleCollected(nodes, root);
             return root;
           }
         }
       }
+      recycleCollected(nodes, root);
     }
     return null;
   }
@@ -825,7 +904,7 @@ public final class MenuAutomation {
       return false;
     }
     for (AccessibilityNodeInfoCompat root : roots) {
-      if (resolveOriginRepresentative(root, session) != null) {
+      if (hasOriginRepresentative(root, session)) {
         continue;
       }
       List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
@@ -847,6 +926,7 @@ public final class MenuAutomation {
           }
         }
       }
+      recycleCollected(nodes, root);
       if (trayShaped && foreignAuthor) {
         return true;
       }
@@ -878,6 +958,7 @@ public final class MenuAutomation {
     List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
     collect(trayRoot, nodes);
     AccessibilityNodeInfoCompat found = null;
+    boolean ambiguous = false;
     for (AccessibilityNodeInfoCompat node : nodes) {
       if (!"android.widget.Button".equals(node.getClassName())) {
         continue;
@@ -887,11 +968,14 @@ public final class MenuAutomation {
         continue;
       }
       if (found != null) {
-        return null;
+        ambiguous = true;
+        break;
       }
       found = node;
     }
-    return found;
+    AccessibilityNodeInfoCompat result = ambiguous ? null : found;
+    recycleCollected(nodes, trayRoot, result);
+    return result;
   }
 
   /** Logs the tray's buttons and their ACTION_CLICK support, once per sequence. */
@@ -914,6 +998,7 @@ public final class MenuAutomation {
           PerformActionUtils.isNodeSupportAction(
               node, AccessibilityNodeInfoCompat.ACTION_CLICK));
     }
+    recycleCollected(nodes, trayRoot);
   }
 
   /**
@@ -925,6 +1010,7 @@ public final class MenuAutomation {
     String target = targetLabel.trim();
     List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
     collect(sheetRoot, nodes);
+    AccessibilityNodeInfoCompat found = null;
     for (AccessibilityNodeInfoCompat node : nodes) {
       if (!labelViewId.equals(node.getViewIdResourceName())) {
         continue;
@@ -935,10 +1021,12 @@ public final class MenuAutomation {
       }
       AccessibilityNodeInfoCompat row = clickableRow(sheetRoot, node);
       if (row != null) {
-        return row;
+        found = row;
+        break;
       }
     }
-    return null;
+    recycleCollected(nodes, sheetRoot, found);
+    return found;
   }
 
   /**
@@ -965,14 +1053,15 @@ public final class MenuAutomation {
     }
     AccessibilityNodeInfoCompat row =
         uniqueToggleRow(sheetRoot, labelViewId, nodes, variants, /* cores= */ null);
-    if (row != null) {
-      return row;
+    if (row == null) {
+      List<String> cores = new ArrayList<>();
+      for (String core : stateCores) {
+        cores.add(normalizeLabel(core));
+      }
+      row = uniqueToggleRow(sheetRoot, labelViewId, nodes, /* variants= */ null, cores);
     }
-    List<String> cores = new ArrayList<>();
-    for (String core : stateCores) {
-      cores.add(normalizeLabel(core));
-    }
-    return uniqueToggleRow(sheetRoot, labelViewId, nodes, /* variants= */ null, cores);
+    recycleCollected(nodes, sheetRoot, row);
+    return row;
   }
 
   /**
@@ -1004,15 +1093,32 @@ public final class MenuAutomation {
         continue;
       }
       AccessibilityNodeInfoCompat row = clickableRow(sheetRoot, node);
-      if (row == null || row.equals(found)) {
+      if (row == null) {
+        continue;
+      }
+      if (row.equals(found)) {
+        recycleIfNotCollected(nodes, row);
         continue;
       }
       if (found != null) {
+        recycleIfNotCollected(nodes, found);
+        recycleIfNotCollected(nodes, row);
         return null;
       }
       found = row;
     }
     return found;
+  }
+
+  /** Recycles a row {@link #clickableRow} returned that the collected list does not hold. */
+  private static void recycleIfNotCollected(
+      List<AccessibilityNodeInfoCompat> nodes, AccessibilityNodeInfoCompat node) {
+    for (AccessibilityNodeInfoCompat listed : nodes) {
+      if (listed == node) {
+        return;
+      }
+    }
+    node.recycle();
   }
 
   private static boolean containsAnyCore(String label, List<String> cores) {
@@ -1036,15 +1142,22 @@ public final class MenuAutomation {
   /** The clickable row a sheet label lives in: its nearest clickable ancestor, or itself. */
   private static @Nullable AccessibilityNodeInfoCompat clickableRow(
       AccessibilityNodeInfoCompat sheetRoot, AccessibilityNodeInfoCompat labelNode) {
-    for (AccessibilityNodeInfoCompat current = labelNode;
-        current != null;
-        current = current.getParent()) {
+    AccessibilityNodeInfoCompat current = labelNode;
+    while (current != null) {
       if (current.isClickable()) {
         return current;
       }
       if (current.equals(sheetRoot)) {
+        if (current != labelNode) {
+          current.recycle();
+        }
         break;
       }
+      AccessibilityNodeInfoCompat parent = current.getParent();
+      if (current != labelNode) {
+        current.recycle();
+      }
+      current = parent;
     }
     return null;
   }
@@ -1067,6 +1180,7 @@ public final class MenuAutomation {
     collect(windowRoot, nodes);
     AccessibilityNodeInfoCompat labelOnlyMatch = null;
     long labelOnlyDistance = Long.MAX_VALUE;
+    AccessibilityNodeInfoCompat result = null;
     for (AccessibilityNodeInfoCompat node : nodes) {
       if (!CollapseEngine.isCollectionItem(node)) {
         continue;
@@ -1080,20 +1194,39 @@ public final class MenuAutomation {
       CharSequence label =
           session.trayMode ? item.composedLabel() : ItemScan.spokenLabel(item.representative());
       if (label == null || !session.originLabel.equals(label.toString())) {
+        recycleItemNodes(item, null);
         continue;
       }
       Rect bounds = new Rect();
       item.itemRoot().getBoundsInScreen(bounds);
       if (boundsClose(bounds, session.originBounds)) {
-        return item.representative();
+        result = item.representative();
+        recycleItemNodes(item, result);
+        break;
       }
       long distance = boundsDistance(bounds, session.originBounds);
       if (distance < labelOnlyDistance) {
+        if (labelOnlyMatch != null
+            && labelOnlyMatch != windowRoot
+            && labelOnlyMatch != item.representative()) {
+          labelOnlyMatch.recycle();
+        }
         labelOnlyDistance = distance;
         labelOnlyMatch = item.representative();
+        recycleItemNodes(item, labelOnlyMatch);
+      } else {
+        recycleItemNodes(item, null);
       }
     }
-    return labelOnlyMatch;
+    if (result == null) {
+      result = labelOnlyMatch;
+    } else if (labelOnlyMatch != null
+        && labelOnlyMatch != result
+        && labelOnlyMatch != windowRoot) {
+      labelOnlyMatch.recycle();
+    }
+    recycleCollected(nodes, windowRoot, result);
+    return result;
   }
 
   private static long boundsDistance(Rect a, Rect b) {
@@ -1118,17 +1251,98 @@ public final class MenuAutomation {
     }
   }
 
+  /**
+   * Recycles every node in a {@link #collect} list except the {@code keep} nodes, compared
+   * by identity. The collected root is always among the keeps: it belongs to the caller.
+   */
+  private static void recycleCollected(
+      List<AccessibilityNodeInfoCompat> nodes, AccessibilityNodeInfoCompat... keep) {
+    for (AccessibilityNodeInfoCompat node : nodes) {
+      boolean keepNode = false;
+      for (AccessibilityNodeInfoCompat kept : keep) {
+        if (kept != null && node == kept) {
+          keepNode = true;
+          break;
+        }
+      }
+      if (!keepNode) {
+        node.recycle();
+      }
+    }
+  }
+
+  /** Recycles window roots obtained from {@link #scanRoots} or a {@link RootProvider}. */
+  private static void recycleRoots(List<AccessibilityNodeInfoCompat> roots) {
+    for (AccessibilityNodeInfoCompat root : roots) {
+      root.recycle();
+    }
+  }
+
+  /**
+   * Whether the originating row re-resolves inside a window root. The representative is
+   * only ever used for the existence check, so it is recycled here.
+   */
+  private static boolean hasOriginRepresentative(
+      AccessibilityNodeInfoCompat windowRoot, Pending session) {
+    AccessibilityNodeInfoCompat representative =
+        resolveOriginRepresentative(windowRoot, session);
+    if (representative == null) {
+      return false;
+    }
+    if (representative != windowRoot) {
+      representative.recycle();
+    }
+    return true;
+  }
+
+  /**
+   * Recycles the nodes a dropped {@link CollapsedItem} retained, except its item root,
+   * which belongs to the caller, and an optional kept node. A node is recycled at most
+   * once.
+   */
+  private static void recycleItemNodes(
+      CollapsedItem item, @Nullable AccessibilityNodeInfoCompat keep) {
+    Set<AccessibilityNodeInfoCompat> seen = new HashSet<>();
+    recycleItemNode(item.representative(), item.itemRoot(), keep, seen);
+    for (CollapsedItem.ChildAction action : item.actions()) {
+      recycleItemNode(action.node, item.itemRoot(), keep, seen);
+    }
+    recycleItemNode(item.activationTarget(), item.itemRoot(), keep, seen);
+    recycleItemNode(item.selectionTarget(), item.itemRoot(), keep, seen);
+  }
+
+  private static void recycleItemNode(
+      @Nullable AccessibilityNodeInfoCompat node,
+      AccessibilityNodeInfoCompat itemRoot,
+      @Nullable AccessibilityNodeInfoCompat keep,
+      Set<AccessibilityNodeInfoCompat> seen) {
+    if (node == null || node == itemRoot || node == keep || !seen.add(node)) {
+      return;
+    }
+    node.recycle();
+  }
+
   private static List<AccessibilityNodeInfoCompat> scanRoots(
       RootProvider provider, AccessibilityEvent event) {
     List<AccessibilityNodeInfoCompat> roots = new ArrayList<>(provider.windowRoots());
     AccessibilityNodeInfo source = event.getSource();
     if (source != null) {
-      AccessibilityNodeInfoCompat root = AccessibilityNodeInfoCompat.wrap(source);
-      while (root.getParent() != null) {
-        root = root.getParent();
+      AccessibilityNodeInfoCompat sourceRoot = AccessibilityNodeInfoCompat.wrap(source);
+      AccessibilityNodeInfoCompat root = sourceRoot;
+      AccessibilityNodeInfoCompat parent = root.getParent();
+      while (parent != null) {
+        if (root != sourceRoot) {
+          root.recycle();
+        }
+        root = parent;
+        parent = root.getParent();
       }
       if (!roots.contains(root)) {
-        roots.add(root);
+        // The event's own node must never be recycled, so hand out a copy when the
+        // source itself is the top ancestor.
+        roots.add(root == sourceRoot ? AccessibilityNodeInfoCompat.obtain(root) : root);
+      } else if (root != sourceRoot) {
+        root.recycle();
       }
     }
     return roots;
@@ -1163,6 +1377,7 @@ public final class MenuAutomation {
         if (root != null) {
           roots.add(AccessibilityNodeInfoCompat.wrap(root));
         }
+        window.recycle();
       }
       return roots;
     }
@@ -1170,11 +1385,11 @@ public final class MenuAutomation {
     @Override
     public @Nullable AccessibilityNodeInfoCompat activeWindowRoot() {
       for (AccessibilityWindowInfo window : service.getWindows()) {
-        if (window.isActive()) {
-          AccessibilityNodeInfo root = window.getRoot();
-          if (root != null) {
-            return AccessibilityNodeInfoCompat.wrap(root);
-          }
+        boolean active = window.isActive();
+        AccessibilityNodeInfo root = active ? window.getRoot() : null;
+        window.recycle();
+        if (active && root != null) {
+          return AccessibilityNodeInfoCompat.wrap(root);
         }
       }
       return null;

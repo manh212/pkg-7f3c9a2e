@@ -236,7 +236,7 @@ public class DirectionalTraversalStrategy implements TraversalStrategy {
 
     Rect searchRect = new Rect();
     if (focusedNode != null) {
-      getSearchStartRect(focusedNode, direction, searchRect);
+      getSearchStartRect(focusedNode, root, direction, searchRect);
     } else if (direction == TraversalStrategy.SEARCH_FOCUS_LEFT) {
       searchRect.set(rootRect.right, rootRect.top, rootRect.right + 1, rootRect.bottom);
     } else if (direction == TraversalStrategy.SEARCH_FOCUS_RIGHT) {
@@ -282,12 +282,20 @@ public class DirectionalTraversalStrategy implements TraversalStrategy {
    *         B
    * </pre>
    */
-  private void getSearchStartRect(AccessibilityNodeInfoCompat node, int direction, Rect rect) {
+  private void getSearchStartRect(
+      AccessibilityNodeInfoCompat node,
+      @Nullable AccessibilityNodeInfoCompat root,
+      int direction,
+      Rect rect) {
     Rect focusedRect = new Rect();
     node.getBoundsInScreen(focusedRect);
 
     Rect rootBounds = new Rect();
-    root.getBoundsInScreen(rootBounds);
+    if (root != null) {
+      root.getBoundsInScreen(rootBounds);
+    } else {
+      rootBounds.set(focusedRect);
+    }
 
     switch (direction) {
       case TraversalStrategy.SEARCH_FOCUS_LEFT ->

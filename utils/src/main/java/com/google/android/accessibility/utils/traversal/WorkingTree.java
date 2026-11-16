@@ -55,10 +55,15 @@ public class WorkingTree {
 
   public void addChild(WorkingTree node) {
     children.add(node);
+    node.parent = this;
   }
 
   public boolean removeChild(WorkingTree child) {
-    return children.remove(child);
+    boolean removed = children.remove(child);
+    if (removed && child.parent == this) {
+      child.parent = null;
+    }
+    return removed;
   }
 
   /** Checks whether subTree is a descendant of this WorkingTree node. */
@@ -108,6 +113,10 @@ public class WorkingTree {
     }
 
     children.set(position, newChild);
+    if (swappedChild.parent == this) {
+      swappedChild.parent = null;
+    }
+    newChild.parent = this;
   }
 
   public @Nullable WorkingTree getNext() {
@@ -116,7 +125,12 @@ public class WorkingTree {
     }
 
     WorkingTree startNode = this;
+    Set<WorkingTree> visited = new HashSet<>();
     while (startNode != null) {
+      if (!visited.add(startNode)) {
+        LogUtils.w(TAG, "Looped ancestors line");
+        return null;
+      }
       WorkingTree nextSibling = startNode.getNextSibling();
       if (nextSibling != null) {
         return nextSibling;
@@ -183,8 +197,15 @@ public class WorkingTree {
 
   public WorkingTree getLastNode() {
     WorkingTree node = this;
+    Set<WorkingTree> visited = new HashSet<>();
+    visited.add(node);
     while (!node.children.isEmpty()) {
-      node = Iterables.getLast(node.children);
+      WorkingTree lastChild = Iterables.getLast(node.children);
+      if (!visited.add(lastChild)) {
+        LogUtils.w(TAG, "Looped children line");
+        break;
+      }
+      node = lastChild;
     }
 
     return node;
@@ -209,8 +230,14 @@ public class WorkingTree {
 
   public WorkingTree getRoot() {
     WorkingTree root = this;
+    Set<WorkingTree> visited = new HashSet<>();
+    visited.add(root);
     WorkingTree parent;
     while ((parent = root.getParent()) != null) {
+      if (!visited.add(parent)) {
+        LogUtils.w(TAG, "Looped ancestors line");
+        break;
+      }
       root = parent;
     }
 

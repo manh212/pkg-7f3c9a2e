@@ -71,8 +71,10 @@ object ThemeSounds {
       val path = paths[name] ?: return false
       if (path == NONE) return true
       val soundId = soundIds[path] ?: return false
+      if (soundId == 0) return false
+      val pool = pool ?: return false
       // A sound still loading is skipped rather than played late.
-      pool?.play(soundId, volume, volume, 1, 0, 1f)
+      pool.play(soundId, volume, volume, 1, 0, 1f)
       return true
     }
   }

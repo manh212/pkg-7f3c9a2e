@@ -96,7 +96,8 @@ object KeyboardCalls {
           Log.w(TAG, "${method.name} failed", e)
         }
       }
-      return unanswered(method)
+      // The change is posted, not yet run: do not claim it succeeded.
+      return if (method.returnType == java.lang.Boolean.TYPE) false else unanswered(method)
     }
     if (mainBusy) {
       return unanswered(method)
@@ -134,10 +135,7 @@ object KeyboardCalls {
       throw e.cause ?: e
     }
 
-  /**
-   * The answer to a call that didn't finish in time. A change still happens, so it succeeded, and a
-   * question has no answer.
-   */
+  /** The answer to a question that didn't finish in time. A question has no answer. */
   private fun unanswered(method: Method): Any? =
     when (method.returnType) {
       java.lang.Boolean.TYPE -> true

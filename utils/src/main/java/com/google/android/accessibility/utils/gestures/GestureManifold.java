@@ -154,11 +154,17 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
     for (GestureMatcher gestureDetector : gestures) {
       gestureDetector.onConfigurationChanged(context);
     }
+    for (GestureMatcher gestureDetector : multiFingerGestures) {
+      gestureDetector.onConfigurationChanged(context);
+    }
   }
 
   public void enableLogMotionEvent() {
     logMotionEvent = true;
     for (GestureMatcher gestureDetector : gestures) {
+      gestureDetector.enableLogMotionEvent();
+    }
+    for (GestureMatcher gestureDetector : multiFingerGestures) {
       gestureDetector.enableLogMotionEvent();
     }
   }
@@ -271,6 +277,9 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
     for (GestureMatcher matcher : gestures) {
       matcher.clear();
     }
+    for (GestureMatcher matcher : multiFingerGestures) {
+      matcher.clear();
+    }
   }
 
   public interface Listener {
@@ -303,7 +312,14 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
     eventList.add(event);
     AccessibilityGestureEvent gestureEvent =
         new AccessibilityGestureEvent(gestureId, displayId, eventList);
-    for (GestureMatcher matcher : gestures) {
+    cancelOtherMatchers(gestureId, event, gestures);
+    cancelOtherMatchers(gestureId, event, multiFingerGestures);
+    listener.onGestureCompleted(gestureEvent);
+  }
+
+  private void cancelOtherMatchers(
+      int gestureId, MotionEvent event, List<GestureMatcher> matchers) {
+    for (GestureMatcher matcher : matchers) {
       if (gestureId == GESTURE_TAP_UP_TOUCH_EXPLORE
           && matcher.bypassCancelByTapUpToTouchExplore()) {
 
@@ -321,7 +337,6 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
         matcher.cancelGesture(event, false);
       }
     }
-    listener.onGestureCompleted(gestureEvent);
   }
 
   public boolean isMultiFingerGesturesEnabled() {
@@ -333,6 +348,9 @@ public class GestureManifold implements GestureMatcher.StateChangeListener {
       singlePointerMoveMatchersReady = false;
       multiFingerGesturesEnabled = mode;
       if (mode) {
+        for (GestureMatcher gesture : multiFingerGestures) {
+          gesture.clear();
+        }
         gestures.addAll(multiFingerGestures);
       } else {
         gestures.removeAll(multiFingerGestures);

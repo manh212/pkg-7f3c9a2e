@@ -68,6 +68,9 @@ public class ScreenshotCaptureRequest extends Request {
   private final Handler handler = new Handler(Looper.getMainLooper());
   // Whether the focus indicator is hidden for this screenshot and must be shown again.
   private boolean focusHidden;
+  // The node copy is handed to the listener on success; on the paths where the listener
+  // never receives it, it is recycled exactly once here.
+  private boolean nodeRecycled;
 
   public ScreenshotCaptureRequest(
       AccessibilityService service,
@@ -77,7 +80,7 @@ public class ScreenshotCaptureRequest extends Request {
       boolean isUserRequested) {
     super(onPendingListener, SCREENSHOT_CAPTURE_TIMEOUT_MS);
     this.service = service;
-    this.node = node;
+    this.node = AccessibilityNodeInfoCompat.obtain(node);
     this.onFinishListener = onFinishListener;
     this.isUserRequested = isUserRequested;
   }
@@ -104,6 +107,14 @@ public class ScreenshotCaptureRequest extends Request {
     super.cancel();
     handler.removeCallbacksAndMessages(this);
     restoreFocus();
+    recycleNode();
+  }
+
+  private void recycleNode() {
+    if (!nodeRecycled) {
+      nodeRecycled = true;
+      node.recycle();
+    }
   }
 
   @RequiresApi(api = 30)
@@ -157,6 +168,7 @@ public class ScreenshotCaptureRequest extends Request {
       if (screenCapture != null) {
         screenCapture.recycle();
       }
+      recycleNode();
       return;
     }
     setEndTimestamp();

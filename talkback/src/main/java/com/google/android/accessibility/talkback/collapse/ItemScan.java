@@ -21,7 +21,11 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Role;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -55,6 +59,9 @@ public final class ItemScan {
   static @Nullable ItemScan of(AccessibilityNodeInfoCompat itemRoot) {
     List<AccessibilityNodeInfoCompat> descendants = new ArrayList<>();
     if (!collect(itemRoot, /* depth= */ 1, descendants)) {
+      for (AccessibilityNodeInfoCompat node : descendants) {
+        node.recycle();
+      }
       return null;
     }
     List<AccessibilityNodeInfoCompat> clickables = new ArrayList<>();
@@ -119,6 +126,29 @@ public final class ItemScan {
 
   public boolean hasScrollableDescendant() {
     return hasScrollableDescendant;
+  }
+
+  /** Recycles every scanned descendant. The item root is caller-owned and is never recycled. */
+  public void recycle() {
+    recycleExcept(null);
+  }
+
+  /**
+   * Recycles every scanned descendant except the {@code retained} nodes. The item root is
+   * caller-owned and is never recycled here. A node is recycled at most once.
+   */
+  public void recycleExcept(@Nullable Collection<AccessibilityNodeInfoCompat> retained) {
+    Set<AccessibilityNodeInfoCompat> kept = Collections.newSetFromMap(new IdentityHashMap<>());
+    if (retained != null) {
+      kept.addAll(retained);
+    }
+    Set<AccessibilityNodeInfoCompat> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+    for (AccessibilityNodeInfoCompat node : descendants) {
+      if (kept.contains(node) || !seen.add(node)) {
+        continue;
+      }
+      node.recycle();
+    }
   }
 
   /** Reading-order index of a node within {@link #descendants()}, or -1. */

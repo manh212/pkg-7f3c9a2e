@@ -120,10 +120,28 @@ public class CopySelectionTest {
   }
 
   @Test
-  public void textMovedOverBetweenTwoMovesIsSelected() {
+  public void aMoveOverUntraversedWordIsARangeOfItsOwn() {
     selection.move(row1, ROW1, 0, 5, true);
     selection.move(row1, ROW1, 10, 15, true);
-    assertEquals("Hello big world", selection.selectedText().toString());
+    assertEquals("Hello\nworld", selection.selectedText().toString());
+  }
+
+  @Test
+  public void aMoveFarFromTheLastRangeIsARangeOfItsOwn() {
+    String text = "Hello big world, this is a much longer sentence for testing";
+    selection.move(row1, text, 0, 5, true);
+    selection.move(row1, text, 52, 56, true);
+    assertEquals("Hello\ntest", selection.selectedText().toString());
+  }
+
+  @Test
+  public void selectAllWhenCopyingModeIsOffSelectsNothing() {
+    CopySelection off = new CopySelection();
+    assertEquals(
+        "",
+        off.selectAll(Arrays.asList(row1), Arrays.<CharSequence>asList(ROW1)).toString());
+    assertFalse(off.isActive());
+    assertFalse(off.hasContent());
   }
 
   @Test

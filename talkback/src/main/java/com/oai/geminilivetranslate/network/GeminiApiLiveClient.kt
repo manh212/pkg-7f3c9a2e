@@ -101,6 +101,9 @@ internal class GeminiApiLiveClient(
     }
 
     fun sendAudio(pcm16kMono: ByteArray): GeminiLiveClient.SendResult {
+        if (explicitlyClosed.get()) return GeminiLiveClient.SendResult.CLOSED
+        if (!setupComplete.get()) return GeminiLiveClient.SendResult.NOT_READY
+        if (socket == null) return GeminiLiveClient.SendResult.CLOSED
         if (pcm16kMono.isEmpty()) return GeminiLiveClient.SendResult.SENT
         val audio = JSONObject()
             .put("mimeType", INPUT_MIME)

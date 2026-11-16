@@ -26,6 +26,7 @@ import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 import androidx.annotation.Nullable;
 import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.Pipeline.FeedbackReturner;
@@ -118,7 +119,10 @@ public abstract class BaseDialog {
             && button != DialogInterface.BUTTON_NEUTRAL)) {
       return;
     }
-    dialog.getButton(button).setEnabled(enabled);
+    Button buttonView = dialog.getButton(button);
+    if (buttonView != null) {
+      buttonView.setEnabled(enabled);
+    }
   }
 
   /** Sets to {@code true} if focus on EditText and needs to launch IME automatically. */
@@ -183,9 +187,9 @@ public abstract class BaseDialog {
   /**
    * Returns and shows the dialog with ok/cancel button by default, or set string Id of neutral
    * button by {@link #setNeutralButtonStringRes(int)} to show neutral button for specifical
-   * function before call this function.
+   * function before call this function. Returns null when the dialog could not be shown.
    */
-  public A11yAlertDialogWrapper showDialog() {
+  public @Nullable A11yAlertDialogWrapper showDialog() {
     // Only show one dialog at a time.
     if (dialog != null && dialog.isShowing()) {
       return dialog;
@@ -269,7 +273,10 @@ public abstract class BaseDialog {
               + context.getClass());
     }
 
-    AlertDialogUtils.safeShow(dialog);
+    if (!AlertDialogUtils.safeShow(dialog)) {
+      dialog = null;
+      return null;
+    }
 
     registerServiceDialog(isSoftInputMode);
     return dialog;

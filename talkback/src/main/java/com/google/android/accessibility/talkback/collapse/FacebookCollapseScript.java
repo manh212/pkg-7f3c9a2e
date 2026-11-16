@@ -18,7 +18,6 @@ package com.google.android.accessibility.talkback.collapse;
 
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
-import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Role;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +57,7 @@ final class FacebookCollapseScript extends CollapseScript {
   private static final String FIELD_AUTHOR = "author";
   private static final String FIELD_TIME = "time";
   private static final String FIELD_BODY = "body";
+  private static final int MAX_LABEL_DEPTH = 12;
   private static final CollapseScript FEED_SCRIPT = new FacebookFeedCollapseScript();
 
   FacebookCollapseScript() {
@@ -216,36 +216,36 @@ final class FacebookCollapseScript extends CollapseScript {
     // action targets it instead — under strict conditions, so nothing else in the comment
     // changes target.
     AccessibilityNodeInfoCompat parent = node.getParent();
-    if (parent == null || parent.equals(scan.itemRoot())) {
+    if (parent == null) {
       return node;
     }
-    // The frame must be a focus stop carrying a label of its own, and must not be
-    // clickable itself: a clickable wrapper (the photo block) already takes its own press.
-    if (parent.isClickable()
-        || !parent.isFocusable()
-        || TextUtils.isEmpty(ItemScan.spokenLabel(parent))) {
+    ResolvedFields resolved = fieldsFor(scan);
+    boolean retarget =
+        !parent.equals(scan.itemRoot())
+            && !parent.isClickable()
+            && parent.isFocusable()
+            && !TextUtils.isEmpty(ItemScan.spokenLabel(parent))
+            && wrappedClickables(scan, parent) == 1
+            && !parent.equals(resolved.author)
+            && !parent.equals(resolved.time)
+            && !parent.equals(resolved.body);
+    if (!retarget) {
+      parent.recycle();
       return node;
     }
-    // The frame must wrap exactly this one button; a frame over several clickables is a
-    // shared container, not one action's face.
+    return parent;
+  }
+
+  /** The number of scanned clickables inside a node's subtree. */
+  private static int wrappedClickables(
+      ItemScan scan, AccessibilityNodeInfoCompat parent) {
     int wrappedClickables = 0;
     for (AccessibilityNodeInfoCompat clickable : scan.clickables()) {
       if (isWithin(clickable, parent)) {
         wrappedClickables++;
       }
     }
-    if (wrappedClickables != 1) {
-      return node;
-    }
-    // Content fields are not action blocks: a mention nested in the body text keeps its
-    // own target even though the text node around it is focusable and labelled.
-    ResolvedFields resolved = fieldsFor(scan);
-    if (parent.equals(resolved.author)
-        || parent.equals(resolved.time)
-        || parent.equals(resolved.body)) {
-      return node;
-    }
-    return parent;
+    return wrappedClickables;
   }
 
   /** Whether a node is an image or wraps one — the shape of an attached-photo block. */
@@ -318,9 +318,11 @@ final class FacebookCollapseScript extends CollapseScript {
       if (node.isFocusable()
           && !node.isClickable()
           && !TextUtils.isEmpty(ItemScan.spokenLabel(node))) {
+        recycleIfForeign(scan, cluster);
         return node;
       }
     }
+    recycleIfForeign(scan, cluster);
     return null;
   }
 
@@ -345,6 +347,7 @@ final class FacebookCollapseScript extends CollapseScript {
     AccessibilityNodeInfoCompat region =
         cluster == null ? null : lowestCommonAncestor(cluster, time);
     if (region == null) {
+      recycleIfForeign(scan, cluster);
       return null;
     }
     AccessibilityNodeInfoCompat shell = null;
@@ -355,21 +358,24 @@ final class FacebookCollapseScript extends CollapseScript {
         shells++;
       }
     }
-    if (shells == 1) {
-      return longestLabelIn(scan, shell);
-    }
     AccessibilityNodeInfoCompat body = null;
-    int longest = 0;
-    for (AccessibilityNodeInfoCompat node : scan.descendants()) {
-      if (!isWithin(node, region) || isFieldOrKin(node, avatar, author, time)) {
-        continue;
-      }
-      CharSequence label = ItemScan.spokenLabel(node);
-      if (!TextUtils.isEmpty(label) && label.length() > longest) {
-        longest = label.length();
-        body = node;
+    if (shells == 1) {
+      body = longestLabelIn(scan, shell);
+    } else {
+      int longest = 0;
+      for (AccessibilityNodeInfoCompat node : scan.descendants()) {
+        if (!isWithin(node, region) || isFieldOrKin(node, avatar, author, time)) {
+          continue;
+        }
+        CharSequence label = ItemScan.spokenLabel(node);
+        if (!TextUtils.isEmpty(label) && label.length() > longest) {
+          longest = label.length();
+          body = node;
+        }
       }
     }
+    recycleIfForeign(scan, region);
+    recycleIfForeign(scan, cluster);
     return body;
   }
 
@@ -399,9 +405,7 @@ final class FacebookCollapseScript extends CollapseScript {
       AccessibilityNodeInfoCompat time) {
     AccessibilityNodeInfoCompat[] fields = {avatar, author, time};
     for (AccessibilityNodeInfoCompat field : fields) {
-      if (node.equals(field)
-          || AccessibilityNodeInfoUtils.hasAncestor(node, field)
-          || AccessibilityNodeInfoUtils.hasAncestor(field, node)) {
+      if (isWithin(node, field) || isWithin(field, node)) {
         return true;
       }
     }
@@ -409,29 +413,89 @@ final class FacebookCollapseScript extends CollapseScript {
   }
 
   /** Whether a node is the subtree root itself or one of its descendants. */
-  private static boolean isWithin(
+  static boolean isWithin(
       AccessibilityNodeInfoCompat node, AccessibilityNodeInfoCompat subtreeRoot) {
-    return node.equals(subtreeRoot)
-        || AccessibilityNodeInfoUtils.hasAncestor(node, subtreeRoot);
+    AccessibilityNodeInfoCompat current = node;
+    while (current != null) {
+      if (current.equals(subtreeRoot)) {
+        if (current != node) {
+          current.recycle();
+        }
+        return true;
+      }
+      AccessibilityNodeInfoCompat parent = current.getParent();
+      if (current != node) {
+        current.recycle();
+      }
+      current = parent;
+    }
+    return false;
   }
 
   /** The lowest common ancestor of two nodes in the same tree, or null if there is none. */
   private static @Nullable AccessibilityNodeInfoCompat lowestCommonAncestor(
       AccessibilityNodeInfoCompat first, AccessibilityNodeInfoCompat second) {
-    List<AccessibilityNodeInfoCompat> chain = new ArrayList<>();
+    List<AccessibilityNodeInfoCompat> firstChain = new ArrayList<>();
     for (AccessibilityNodeInfoCompat node = first; node != null; node = node.getParent()) {
-      chain.add(node);
+      firstChain.add(node);
     }
+    List<AccessibilityNodeInfoCompat> secondChain = new ArrayList<>();
     for (AccessibilityNodeInfoCompat node = second; node != null; node = node.getParent()) {
-      if (chain.contains(node)) {
+      secondChain.add(node);
+      if (firstChain.contains(node)) {
+        recycleAllExcept(firstChain, first);
+        recycleAllExcept(secondChain, second, node);
         return node;
       }
     }
+    recycleAllExcept(firstChain, first);
+    recycleAllExcept(secondChain, second);
     return null;
+  }
+
+  /** Recycles every node in {@code nodes} except those equal to one of {@code keep}. */
+  private static void recycleAllExcept(
+      List<AccessibilityNodeInfoCompat> nodes, AccessibilityNodeInfoCompat... keep) {
+    for (AccessibilityNodeInfoCompat node : nodes) {
+      boolean keepNode = false;
+      for (AccessibilityNodeInfoCompat kept : keep) {
+        if (node.equals(kept)) {
+          keepNode = true;
+          break;
+        }
+      }
+      if (!keepNode) {
+        node.recycle();
+      }
+    }
+  }
+
+  /**
+   * Recycles a walked parent the scan does not own. A node the scan itself holds (the item
+   * root or one of its descendants) is left alone.
+   */
+  private static void recycleIfForeign(
+      ItemScan scan, @Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null || node == scan.itemRoot()) {
+      return;
+    }
+    for (AccessibilityNodeInfoCompat descendant : scan.descendants()) {
+      if (node == descendant) {
+        return;
+      }
+    }
+    node.recycle();
   }
 
   /** The longest spoken label in a node's subtree, or empty if it carries none. */
   private static CharSequence longestDescendantLabel(AccessibilityNodeInfoCompat node) {
+    return longestDescendantLabel(node, /* depth= */ 0);
+  }
+
+  private static CharSequence longestDescendantLabel(AccessibilityNodeInfoCompat node, int depth) {
+    if (depth > MAX_LABEL_DEPTH) {
+      return "";
+    }
     CharSequence best = "";
     for (int i = 0; i < node.getChildCount(); i++) {
       AccessibilityNodeInfoCompat child = node.getChild(i);
@@ -442,10 +506,11 @@ final class FacebookCollapseScript extends CollapseScript {
       if (label.length() > best.length()) {
         best = label;
       }
-      CharSequence nested = longestDescendantLabel(child);
+      CharSequence nested = longestDescendantLabel(child, depth + 1);
       if (nested.length() > best.length()) {
         best = nested;
       }
+      child.recycle();
     }
     return best;
   }

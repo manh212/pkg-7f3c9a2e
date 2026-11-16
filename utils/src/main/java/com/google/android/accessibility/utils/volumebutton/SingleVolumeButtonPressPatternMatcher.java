@@ -54,6 +54,9 @@ public class SingleVolumeButtonPressPatternMatcher extends VolumeButtonPatternMa
   }
 
   private void handleActionDownEvent(KeyEvent event) {
+    if (event.getRepeatCount() > 0) {
+      return;
+    }
     mAction = createAction(event);
   }
 

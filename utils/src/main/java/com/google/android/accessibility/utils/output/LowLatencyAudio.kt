@@ -311,7 +311,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         if (built == null) {
           // An engine can claim any format. One Backtalk cannot play is said the usual way.
           LogUtils.w(TAG, "Speech %s has unsupported format %d Hz %d ch %d", id, rate, channels, encoding)
-          if (streams.remove(this)) abandon(playerFailed = false)
+          if (streams.remove(this)) abandon(playerFailed = true)
           return
         }
         inChannels = channels
@@ -599,6 +599,14 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       held = false
       while (streams.isNotEmpty()) streams.removeFirst().finish(completed = false)
     }
+  }
+
+  /** Stops every sound clip playing, as well as every speech stream. */
+  fun stopSounds() {
+    synchronized(lock) {
+      clips.clear()
+    }
+    stopStreams()
   }
 
   /** The frames held speech has waiting, while held. */
@@ -1313,6 +1321,13 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       for (player in players) player.stopStreams()
     }
 
+    /** Stops every sound clip and speech stream of every player made so far. */
+    @JvmStatic
+    fun stopAllSounds() {
+      val players = synchronized(instances) { instances.values.toList() }
+      for (player in players) player.stopSounds()
+    }
+
     /**
      * Shuts down every player, releasing their tracks, for when the setting is turned off or the
      * service stops. Players are made again when next needed.
@@ -1398,9 +1413,14 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     fun get(context: Context, attributes: AudioAttributes): LowLatencyAudio? =
       synchronized(instances) {
         watchRoutes(context.applicationContext)
-        instances
-          .getOrPut(attributes.usage) { LowLatencyAudio(context.applicationContext, attributes) }
-          .takeIf { it.track != null && !it.broken }
+        val player =
+          instances.getOrPut(attributes.usage) { LowLatencyAudio(context.applicationContext, attributes) }
+        if (player.track == null || player.broken) {
+          instances.remove(attributes.usage)
+          null
+        } else {
+          player
+        }
       }
 
     /** Turns interleaved audio with [channels] channels into stereo frames. */

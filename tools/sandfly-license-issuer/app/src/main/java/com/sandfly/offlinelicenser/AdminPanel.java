@@ -141,7 +141,7 @@ final class AdminPanel {
         RecoveryProtocol.publicKey(IssuerKeys.publicKey())) : null;
   }
 
-  private static long revision(JSONObject entry) throws Exception {
+  static long revision(JSONObject entry) throws Exception {
     LicensePolicy previous = policy(entry);
     return previous == null ? 1 : previous.revision + 1;
   }

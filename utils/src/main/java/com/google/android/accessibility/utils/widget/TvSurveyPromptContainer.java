@@ -63,16 +63,28 @@ public class TvSurveyPromptContainer extends FrameLayout {
 
           @Override
           public void onChildViewRemoved(View parent, View child) {
-            if (hasSetFocus && TvSurveyPromptContainer.this.getChildCount() == 0) {
-              getRootView()
-                  .findViewById(R.id.preference_root)
-                  .setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
-              getRootView()
-                  .findViewById(R.id.action_bar_container)
-                  .setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+            if (TvSurveyPromptContainer.this.getChildCount() == 0) {
+              hasSetFocus = false;
+              setBackgroundImportantForAccessibility(
+                  View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
             }
           }
         });
+  }
+
+  private void setBackgroundImportantForAccessibility(int mode) {
+    View rootView = getRootView();
+    if (rootView == null) {
+      return;
+    }
+    View preferenceRoot = rootView.findViewById(R.id.preference_root);
+    if (preferenceRoot != null) {
+      preferenceRoot.setImportantForAccessibility(mode);
+    }
+    View actionBarContainer = rootView.findViewById(R.id.action_bar_container);
+    if (actionBarContainer != null) {
+      actionBarContainer.setImportantForAccessibility(mode);
+    }
   }
 
   /**
@@ -87,12 +99,8 @@ public class TvSurveyPromptContainer extends FrameLayout {
     }
     if (view.requestFocus()) {
       hasSetFocus = true;
-      getRootView()
-          .findViewById(R.id.preference_root)
-          .setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-      getRootView()
-          .findViewById(R.id.action_bar_container)
-          .setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+      setBackgroundImportantForAccessibility(
+          View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
     }
     return hasSetFocus;
   }

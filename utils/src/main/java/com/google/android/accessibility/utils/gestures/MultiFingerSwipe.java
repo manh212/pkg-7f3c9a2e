@@ -217,6 +217,15 @@ class MultiFingerSwipe extends GestureMatcher {
     }
   }
 
+  private int indexOfPointerId(int pointerId) {
+    for (int i = 0; i < pointerIds.length; i++) {
+      if (pointerIds[i] == pointerId) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   @Override
   protected void onPointerUp(EventId eventId, MotionEvent event) {
     if (!targetFingerCountReached) {
@@ -231,7 +240,7 @@ class MultiFingerSwipe extends GestureMatcher {
       cancelGesture(event);
       return;
     }
-    final int pointerIndex = Arrays.binarySearch(pointerIds, pointerId);
+    final int pointerIndex = indexOfPointerId(pointerId);
     if (pointerIndex < 0) {
       cancelGesture(event);
       return;
@@ -331,7 +340,7 @@ class MultiFingerSwipe extends GestureMatcher {
     currentFingerCount = 0;
     final int actionIndex = event.getActionIndex();
     final int pointerId = event.getPointerId(actionIndex);
-    final int pointerIndex = Arrays.binarySearch(pointerIds, pointerId);
+    final int pointerIndex = indexOfPointerId(pointerId);
     if (pointerIndex < 0) {
       cancelGesture(event);
       return;

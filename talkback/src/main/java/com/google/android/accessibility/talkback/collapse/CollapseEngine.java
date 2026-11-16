@@ -31,9 +31,12 @@ import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -141,9 +144,20 @@ public final class CollapseEngine {
     AccessibilityNodeInfoCompat current = node;
     for (int depth = 0; current != null && depth < MAX_ITEM_SEARCH_DEPTH; depth++) {
       if (isCollectionItem(current)) {
-        return match(script, current);
+        CollapsedItem item = match(script, current);
+        if (item == null && current != node) {
+          current.recycle();
+        }
+        return item;
       }
-      current = current.getParent();
+      AccessibilityNodeInfoCompat parent = current.getParent();
+      if (current != node) {
+        current.recycle();
+      }
+      current = parent;
+    }
+    if (current != null && current != node) {
+      current.recycle();
     }
     return null;
   }
@@ -170,7 +184,11 @@ public final class CollapseEngine {
       return null;
     }
     ItemScan scan = ItemScan.of(itemRoot);
-    if (scan == null || scan.hasEssentialDescendant() || scan.hasScrollableDescendant()) {
+    if (scan == null) {
+      return null;
+    }
+    if (scan.hasEssentialDescendant() || scan.hasScrollableDescendant()) {
+      scan.recycle();
       return null;
     }
     CollapsedItem item =
@@ -180,8 +198,33 @@ public final class CollapseEngine {
           case ROOT_MENU -> matchRootMenu(script, itemRoot);
           case COMPOSITE_TRAY -> matchCompositeTray(script, itemRoot, scan);
         };
-    CollapseScript fallback = script.fallbackScript();
-    return item != null || fallback == null ? item : match(fallback, itemRoot);
+    if (item == null) {
+      scan.recycle();
+      CollapseScript fallback = script.fallbackScript();
+      return fallback == null ? null : match(fallback, itemRoot);
+    }
+    scan.recycleExcept(retainedNodes(item));
+    return item;
+  }
+
+  /** The nodes a matched item keeps: everything else the scan collected is recycled. */
+  private static List<AccessibilityNodeInfoCompat> retainedNodes(CollapsedItem item) {
+    List<AccessibilityNodeInfoCompat> retained = new ArrayList<>();
+    if (item.representative() != null) {
+      retained.add(item.representative());
+    }
+    for (ChildAction action : item.actions()) {
+      if (action.node != null) {
+        retained.add(action.node);
+      }
+    }
+    if (item.activationTarget() != null) {
+      retained.add(item.activationTarget());
+    }
+    if (item.selectionTarget() != null) {
+      retained.add(item.selectionTarget());
+    }
+    return retained;
   }
 
   private static @Nullable CollapsedItem matchPrimaryChild(
@@ -208,7 +251,7 @@ public final class CollapseEngine {
       if (node.equals(primary)) {
         continue;
       }
-      if (AccessibilityNodeInfoUtils.hasAncestor(primary, node)) {
+      if (hasAncestor(primary, node)) {
         return null;
       }
       if (TextUtils.isEmpty(ItemScan.spokenLabel(node))
@@ -342,15 +385,36 @@ public final class CollapseEngine {
         return null;
       }
     }
-    return new CollapsedItem(
-        itemRoot,
-        itemRoot,
-        expandTray(
-            script, retargetActions(script, scan, withLongClickTwins(script, scan, clickActions))),
-        label.toString(),
-        activationTarget,
-        fieldNode(fields, script.selectionFieldId()),
-        script.pattern());
+    CollapsedItem item =
+        new CollapsedItem(
+            itemRoot,
+            itemRoot,
+            expandTray(
+                script,
+                retargetActions(script, scan, withLongClickTwins(script, scan, clickActions))),
+            label.toString(),
+            activationTarget,
+            fieldNode(fields, script.selectionFieldId()),
+            script.pattern());
+    recycleForeignFields(fields, scan, item);
+    return item;
+  }
+
+  /**
+   * Recycles field nodes the item does not keep and the scan does not own — foreign wrappers
+   * such as the feed script's header children. Scan descendants are left to the caller's
+   * recycleExcept, and a node the item keeps is never recycled.
+   */
+  private static void recycleForeignFields(
+      List<Field> fields, ItemScan scan, CollapsedItem item) {
+    Set<AccessibilityNodeInfoCompat> kept = Collections.newSetFromMap(new IdentityHashMap<>());
+    kept.addAll(retainedNodes(item));
+    kept.addAll(scan.descendants());
+    for (Field field : fields) {
+      if (field.node != null && !kept.contains(field.node)) {
+        field.node.recycle();
+      }
+    }
   }
 
   private static @Nullable CollapsedItem matchRootMenu(
@@ -394,7 +458,7 @@ public final class CollapseEngine {
     List<ChildAction> actions = new ArrayList<>();
     for (AccessibilityNodeInfoCompat node : scan.clickables()) {
       if (node.equals(body)
-          || AccessibilityNodeInfoUtils.hasAncestor(node, body)
+          || hasAncestor(node, body)
           || script.isTrayCounterpart(node)) {
         continue;
       }
@@ -416,8 +480,11 @@ public final class CollapseEngine {
     if (actions.size() > script.maxActions()) {
       return null;
     }
-    return new CollapsedItem(
-        itemRoot, itemRoot, actions, label.toString(), body, body, script.pattern());
+    CollapsedItem item =
+        new CollapsedItem(
+            itemRoot, itemRoot, actions, label.toString(), body, body, script.pattern());
+    recycleForeignFields(fields, scan, item);
+    return item;
   }
 
   /**
@@ -494,15 +561,22 @@ public final class CollapseEngine {
   /** The node itself if clickable, else its nearest clickable ancestor up to the item root. */
   private static @Nullable AccessibilityNodeInfoCompat closestClickable(
       AccessibilityNodeInfoCompat node, AccessibilityNodeInfoCompat itemRoot) {
-    for (AccessibilityNodeInfoCompat current = node;
-        current != null;
-        current = current.getParent()) {
+    AccessibilityNodeInfoCompat current = node;
+    while (current != null) {
       if (current.isClickable()) {
         return current;
       }
       if (current.equals(itemRoot)) {
+        if (current != node) {
+          current.recycle();
+        }
         return null;
       }
+      AccessibilityNodeInfoCompat parent = current.getParent();
+      if (current != node) {
+        current.recycle();
+      }
+      current = parent;
     }
     return null;
   }
@@ -538,13 +612,33 @@ public final class CollapseEngine {
     return retargeted;
   }
 
+  /**
+   * Whether {@code node} has {@code ancestor} among its strict ancestors, recycling the
+   * walked parents. Same answer as {@code AccessibilityNodeInfoUtils.hasAncestor}, without
+   * leaking the chain.
+   */
+  private static boolean hasAncestor(
+      AccessibilityNodeInfoCompat node, AccessibilityNodeInfoCompat ancestor) {
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    while (parent != null) {
+      if (parent.equals(ancestor)) {
+        parent.recycle();
+        return true;
+      }
+      AccessibilityNodeInfoCompat next = parent.getParent();
+      parent.recycle();
+      parent = next;
+    }
+    return false;
+  }
+
   private static List<ChildAction> dedupNestedSameLabel(List<ChildAction> actions) {
     List<ChildAction> kept = new ArrayList<>();
     for (ChildAction candidate : actions) {
       boolean duplicate = false;
       for (ChildAction earlier : kept) {
         if (TextUtils.equals(earlier.label, candidate.label)
-            && AccessibilityNodeInfoUtils.hasAncestor(candidate.node, earlier.node)) {
+            && hasAncestor(candidate.node, earlier.node)) {
           duplicate = true;
           break;
         }
@@ -582,10 +676,14 @@ public final class CollapseEngine {
     if (parent == null) {
       return false;
     }
-    int parentRole = Role.getRole(parent);
-    return parent.getCollectionInfo() != null
-        || parentRole == Role.ROLE_LIST
-        || parentRole == Role.ROLE_GRID;
+    try {
+      int parentRole = Role.getRole(parent);
+      return parent.getCollectionInfo() != null
+          || parentRole == Role.ROLE_LIST
+          || parentRole == Role.ROLE_GRID;
+    } finally {
+      parent.recycle();
+    }
   }
 
   private static long area(AccessibilityNodeInfoCompat node) {

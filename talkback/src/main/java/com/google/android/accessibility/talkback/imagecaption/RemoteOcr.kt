@@ -286,8 +286,8 @@ object RemoteOcr {
       }
     lastDiedBinding = maxOf(lastDiedBinding, died)
     for ((id, future) in pending) {
-      val on = sentOn[id] ?: 0
-      if (on in 1..died) future.complete(Reply(MSG_STOPPED, null))
+      val on = sentOn[id]
+      if (on == null || on in 1..died) future.complete(Reply(MSG_STOPPED, null))
     }
   }
 }

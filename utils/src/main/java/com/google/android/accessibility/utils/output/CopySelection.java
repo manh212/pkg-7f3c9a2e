@@ -163,6 +163,9 @@ public final class CopySelection {
   public CharSequence selectAll(
       List<AccessibilityNodeInfoCompat> items, List<CharSequence> itemTexts) {
     SpannableStringBuilder result = new SpannableStringBuilder();
+    if (!active) {
+      return result;
+    }
     for (int i = 0; i < items.size(); i++) {
       AccessibilityNodeInfoCompat item = items.get(i);
       CharSequence text = itemTexts.get(i);
@@ -179,7 +182,6 @@ public final class CopySelection {
       }
       current = new Range(item, text, 0, text.length());
       ranges.add(current);
-      active = true;
       appendLine(result, trim(text));
     }
     return result;
@@ -266,7 +268,25 @@ public final class CopySelection {
     if (!range.node.equals(node) || !range.text.toString().contentEquals(text)) {
       return false;
     }
-    return forward ? range.cursor <= high : range.cursor >= low;
+    if (forward) {
+      if (range.cursor > high) {
+        return false;
+      }
+      return range.cursor >= low || onlySeparators(text, range.cursor, low);
+    }
+    if (range.cursor < low) {
+      return false;
+    }
+    return range.cursor <= high || onlySeparators(text, high, range.cursor);
+  }
+
+  private static boolean onlySeparators(CharSequence text, int start, int end) {
+    for (int i = start; i < end; i++) {
+      if (Character.isLetterOrDigit(text.charAt(i))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** The text without whitespace at its ends, which a move over a word's edge brings in. */

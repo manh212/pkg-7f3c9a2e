@@ -112,8 +112,8 @@ public class TextToSpeechBubbleOverlay extends SimpleOverlay implements TextToSp
     ViewConfiguration viewConfiguration = ViewConfiguration.get(context);
     this.touchSlop = viewConfiguration.getScaledTouchSlop();
 
-    setupWindowParams();
     reInflateView();
+    setupWindowParams();
   }
 
   public boolean isDragging() {
@@ -268,7 +268,18 @@ public class TextToSpeechBubbleOverlay extends SimpleOverlay implements TextToSp
     final int bottomOffset =
         resources.getDimensionPixelSize(R.dimen.tts_bubble_overlay_window_bottom_offset);
 
-    params.y = screenHeight - params.height - bottomOffset;
+    params.y = screenHeight - measuredBubbleHeight(params, resources) - bottomOffset;
+  }
+
+  private int measuredBubbleHeight(WindowManager.LayoutParams params, Resources resources) {
+    if (rootView == null) {
+      return 0;
+    }
+    rootView.measure(
+        View.MeasureSpec.makeMeasureSpec(params.width, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(
+            resources.getDisplayMetrics().heightPixels, View.MeasureSpec.AT_MOST));
+    return rootView.getMeasuredHeight();
   }
 
   /**

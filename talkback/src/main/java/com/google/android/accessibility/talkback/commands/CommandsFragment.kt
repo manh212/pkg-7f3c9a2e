@@ -80,6 +80,16 @@ class CommandCategoryFragment : TalkbackBaseFragment() {
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     val manager = CommandBindings.keyComboManager(context)
     val model = manager.keyComboModel
+    val commandValues = category.commands.map { it.value }.toSet()
+    val staleKeys =
+      (0 until screen.preferenceCount)
+        .mapNotNull { screen.getPreference(it)?.key }
+        .filter {
+          it.startsWith("pref_command_") && it.removePrefix("pref_command_") !in commandValues
+        }
+    for (key in staleKeys) {
+      screen.findPreference<Preference>(key)?.let { screen.removePreference(it) }
+    }
     for (command in category.commands) {
       val names = gestures.filter { it.value(context, prefs) == command.value }.map { it.name }
       val shortcut =

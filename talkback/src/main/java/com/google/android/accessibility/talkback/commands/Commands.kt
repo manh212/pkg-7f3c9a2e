@@ -97,8 +97,6 @@ object Commands {
     return if (action == Key.ACTION_UNKNOWN) null else action
   }
 
-  @Volatile private var keyboardActions: Map<String, TalkBackPhysicalKeyboardShortcut>? = null
-
   /**
    * Returns the keyboard action that runs the command saved as [value], whether the command has a
    * keyboard action of its own or only the keyboard code performs it, or null.
@@ -108,17 +106,11 @@ object Commands {
     keyboardActionOf(context, value)?.let {
       return it
     }
-    val actions =
-      keyboardActions
-        ?: categoriesWithoutApps(context)
-          .flatMap { it.commands }
-          .mapNotNull { command -> command.keyboardAction?.let { command.value to it } }
-          .toMap()
-          .also { keyboardActions = it }
-    return actions[value]
+    return categoriesWithoutApps(context)
+      .flatMap { it.commands }
+      .mapNotNull { command -> command.keyboardAction?.let { command.value to it } }
+      .toMap()[value]
   }
-
-  @Volatile private var actionValues: Map<TalkBackPhysicalKeyboardShortcut, String>? = null
 
   /**
    * Returns the value of the command that the keyboard [action] runs: the command that has it as
@@ -126,15 +118,12 @@ object Commands {
    */
   @JvmStatic
   fun valueOfKeyboardAction(context: Context, action: TalkBackPhysicalKeyboardShortcut): String {
-    val values =
-      actionValues
-        ?: categoriesWithoutApps(context)
-          .flatMap { it.commands }
-          .mapNotNull { command -> command.keyboardAction?.let { it to command.value } }
-          .distinctBy { it.first }
-          .toMap()
-          .also { actionValues = it }
-    return values[action] ?: keyboardValue(context, action)
+    return categoriesWithoutApps(context)
+      .flatMap { it.commands }
+      .mapNotNull { command -> command.keyboardAction?.let { it to command.value } }
+      .distinctBy { it.first }
+      .toMap()[action]
+      ?: keyboardValue(context, action)
   }
 
   @JvmStatic

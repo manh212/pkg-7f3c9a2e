@@ -25,6 +25,7 @@ import static android.view.accessibility.AccessibilityEvent.WINDOWS_CHANGE_REMOV
 import static com.google.android.accessibility.utils.StringBuilderUtils.optionalTag;
 
 import android.accessibilityservice.AccessibilityService;
+import android.text.TextUtils;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -92,6 +93,16 @@ public class NonmodalAlertEventInterpreter implements AccessibilityEventListener
         // Don't reset state if we're not tracking or we're actively tracking a window alert.
         if (!tracking
             || trackedAlert.getWindowId() != AccessibilityWindowInfoUtils.WINDOW_ID_NONE) {
+          return;
+        }
+        // Only reset when the pane that disappeared is the tracked alert.
+        AccessibilityNodeInfoCompat eventSource = AccessibilityEventUtils.sourceCompat(event);
+        AccessibilityNodeInfoCompat alert = trackedAlert.getAlert();
+        if (eventSource == null
+            || alert == null
+            || (!eventSource.equals(alert)
+                && (eventSource.getWindowId() != alert.getWindowId()
+                    || !TextUtils.equals(eventSource.getPaneTitle(), trackedAlert.getTitle())))) {
           return;
         }
         trackedAlert.reset();

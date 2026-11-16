@@ -176,11 +176,11 @@ object ScreenElements {
   ) {
     val focused = if (keepFocus) focusedBounds else null
     clear()
+    val current = windows ?: return
     this.afterTap = afterTap
     hostWindowId = windowId
     hostPackage = packageName
     this.labels.putAll(labels)
-    val current = windows ?: return
     val sorted = inReadingOrder(elements)
     current.show(sorted)
     LogUtils.d(TAG, "Showing %d elements and %d labels over window %d of %s", elements.size, labels.size, windowId, packageName)
@@ -204,6 +204,9 @@ object ScreenElements {
   @JvmStatic
   fun clear() {
     handler.removeCallbacksAndMessages(REFOCUS_TOKEN)
+    handler.removeCallbacks(notify)
+    pendingPackage = null
+    pendingChange = null
     windows?.clear()
     labels.clear()
     afterTap = null
@@ -212,6 +215,8 @@ object ScreenElements {
     firstAppNode = null
     appNodes = emptyList()
     hostWindowId = -1
+    hostPackage = null
+    focusedBounds = null
   }
 
   /** The label given to the app's [node], or null. */
@@ -240,8 +245,13 @@ object ScreenElements {
     val service = windows?.service ?: return null
     if (!elementWindowIds.containsKey(index)) findWindows()
     val id = elementWindowIds[index] ?: return null
-    val window = service.windows.firstOrNull { it.id == id } ?: return null
-    return window.root?.let { AccessibilityNodeInfoCompat.wrap(it) }
+    val all = service.windows
+    try {
+      val window = all.firstOrNull { it.id == id } ?: return null
+      return window.root?.let { AccessibilityNodeInfoCompat.wrap(it) }
+    } finally {
+      all.forEach { it.recycle() }
+    }
   }
 
   /** Matches each element window to its element by its bounds. */
@@ -249,14 +259,19 @@ object ScreenElements {
     val current = windows ?: return
     val elements = current.elements
     val bounds = Rect()
-    for (window in current.service.windows) {
-      if (window.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
-      if (window.title?.toString() != ScreenElementWindows.WINDOW_TITLE) continue
-      window.getBoundsInScreen(bounds)
-      val index = elements.indices.firstOrNull { i ->
-        !elementWindowIds.containsKey(i) && elements[i].bounds == bounds
-      } ?: continue
-      elementWindowIds[index] = window.id
+    val all = current.service.windows
+    try {
+      for (window in all) {
+        if (window.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
+        if (window.title?.toString() != ScreenElementWindows.WINDOW_TITLE) continue
+        window.getBoundsInScreen(bounds)
+        val index = elements.indices.firstOrNull { i ->
+          !elementWindowIds.containsKey(i) && elements[i].bounds == bounds
+        } ?: continue
+        elementWindowIds[index] = window.id
+      }
+    } finally {
+      all.forEach { it.recycle() }
     }
   }
 
@@ -276,9 +291,14 @@ object ScreenElements {
   /** Whether the window with the elements is still the app window in front. */
   private fun hostInFront(): Boolean {
     val service = windows?.service ?: return true
-    val apps = service.windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-    val front = apps.firstOrNull { it.isActive } ?: apps.maxByOrNull { it.layer } ?: return true
-    return front.id == hostWindowId
+    val all = service.windows
+    try {
+      val apps = all.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+      val front = apps.firstOrNull { it.isActive } ?: apps.maxByOrNull { it.layer } ?: return true
+      return front.id == hostWindowId
+    } finally {
+      all.forEach { it.recycle() }
+    }
   }
 
   /** Whether the elements still need their anchors: call [setOrder] before navigating. */
@@ -435,7 +455,7 @@ object ScreenElements {
         focusedBounds =
           if (showing && isElementWindow(event.windowId)) {
             val index = elementWindowIds.entries.firstOrNull { it.value == event.windowId }?.key
-            index?.let { windows?.elements?.getOrNull(it)?.bounds }
+            index?.let { windows?.elements?.getOrNull(it)?.bounds?.let { Rect(it) } }
           } else {
             null
           }
@@ -480,8 +500,10 @@ object ScreenElements {
     val now = SystemClock.uptimeMillis()
     if (pendingChange == null) pendingSince = now
     // A window change outweighs a content change that is still waiting.
-    if (pendingChange != Change.WINDOW || pendingPackage != pkg) pendingChange = change
-    pendingPackage = pkg
+    if (pendingChange != Change.WINDOW || change == Change.WINDOW) {
+      pendingChange = change
+      pendingPackage = pkg
+    }
     handler.removeCallbacks(notify)
     // An app that never stops sending events still gets its screen checked.
     val delay = minOf(SETTLE_MS, pendingSince + MAX_WAIT_MS - now).coerceAtLeast(0)

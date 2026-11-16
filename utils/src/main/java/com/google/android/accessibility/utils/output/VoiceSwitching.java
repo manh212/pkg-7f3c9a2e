@@ -75,7 +75,16 @@ public final class VoiceSwitching {
           }
         }
       }
-      return result;
+      if (!result.isEmpty()) {
+        for (Voice voice : installed) {
+          if (!order.contains(voice.getName())
+              && (locale == null
+                  || locale.getLanguage().equals(voice.getLocale().getLanguage()))) {
+            result.add(voice);
+          }
+        }
+        return result;
+      }
     }
     for (Voice voice : installed) {
       if (locale == null || locale.getLanguage().equals(voice.getLocale().getLanguage())) {

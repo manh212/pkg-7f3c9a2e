@@ -32,6 +32,9 @@ import com.google.android.accessibility.utils.output.SpeechCachePlayer.SpeechInf
 import com.google.android.libraries.accessibility.utils.concurrent.HandlerExecutor;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -215,9 +218,23 @@ public class SpeechCacheManager {
   private File createSpeechFile(String utteranceId, SpeechInfo speechInfo, String engineName) {
     File engineDirectory = getEngineDirectory(engineName);
     if (engineDirectory != null) {
-      return new File(engineDirectory, utteranceId + "_" + speechInfo.text + ".wav");
+      return new File(engineDirectory, utteranceId + "_" + fileNameFor(speechInfo.text) + ".wav");
     }
     return null;
+  }
+
+  private static String fileNameFor(String text) {
+    try {
+      byte[] digest =
+          MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+      StringBuilder hex = new StringBuilder(digest.length * 2);
+      for (byte b : digest) {
+        hex.append(String.format(Locale.ROOT, "%02x", b & 0xFF));
+      }
+      return hex.toString();
+    } catch (NoSuchAlgorithmException e) {
+      return Integer.toHexString(text.hashCode());
+    }
   }
 
   @Nullable

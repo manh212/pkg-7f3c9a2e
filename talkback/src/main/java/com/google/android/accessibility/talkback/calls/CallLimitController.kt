@@ -54,8 +54,10 @@ object CallLimitController {
     if (key in CallLimitSettings.KEYS) {
       engine.cancelAll()
       armedAt = System.currentTimeMillis()
-      phoneStartedAt = 0L
-      finished.addAll(telecomCalls.keys)
+      armLegacy()
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        telecomCalls.keys.toList().forEach { armTelecomCall(it) }
+      }
     }
   }
 
@@ -147,6 +149,14 @@ object CallLimitController {
     if (hasManagedAccess(context) || !canUseLegacy(context) || phoneAmbiguous) return
     if (phoneStartedAt != 0L || !settings().appliesTo(phoneIncoming)) return
     phoneStartedAt = SystemClock.elapsedRealtime()
+    armLegacy()
+  }
+
+  private fun armLegacy() {
+    val context = context ?: return
+    if (phoneStartedAt == 0L || phoneState != TelephonyManager.CALL_STATE_OFFHOOK) return
+    if (hasManagedAccess(context) || !canUseLegacy(context) || phoneAmbiguous) return
+    if (!settings().appliesTo(phoneIncoming)) return
     val generation = ++phoneGeneration
     engine.start(PHONE, phoneIncoming, phoneStartedAt,
       { this.context === context && phoneGeneration == generation &&
@@ -182,6 +192,15 @@ object CallLimitController {
     if (state != Call.STATE_ACTIVE || call in finished) return
     val details = call.details
     if (details.creationTimeMillis < armedAt || details.connectTimeMillis <= 0) return
+    armTelecomCall(call)
+  }
+
+  @RequiresApi(Build.VERSION_CODES.S)
+  private fun armTelecomCall(call: Call) {
+    val context = context ?: return
+    if (telecomCalls[call] !in setOf(Call.STATE_ACTIVE, Call.STATE_HOLDING) || call in finished) return
+    val details = call.details
+    if (details.connectTimeMillis <= 0) return
     val incoming = when (details.callDirection) {
       Call.Details.DIRECTION_INCOMING -> true
       Call.Details.DIRECTION_OUTGOING -> false

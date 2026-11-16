@@ -111,7 +111,6 @@ import com.google.android.accessibility.talkback.focusmanagement.action.Navigati
 import com.google.android.accessibility.talkback.labeling.TalkBackLabelManager;
 import com.google.android.accessibility.talkback.preference.base.AutomaticDescriptionsFragment;
 import com.google.android.accessibility.talkback.training.TutorialInitiator;
-import com.google.android.accessibility.talkback.translation.AutoTranslationController;
 import com.google.android.accessibility.talkback.translation.LastUtteranceTranslator;
 import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryDialog;
 import com.google.android.accessibility.talkback.translation.SpeechHistoryDialog;
@@ -836,7 +835,6 @@ class Actors {
             case CONFIRM_DOWNLOAD_AND_PERFORM_CAPTIONS ->
                 imageCaptioner.confirmDownloadAndPerformCaption(imageCaption.target());
             case INITIALIZE_ICON_DETECTION -> imageCaptioner.initIconDetection();
-            case INITIALIZE_IMAGE_DESCRIPTION -> imageCaptioner.initImageDescription();
             case ONLINE_GEMINI_FEATURE_OPT_IN ->
                 imageCaptioner.geminiOptInForManualTrigger(
                     imageCaption.target(), imageCaption.featureType());
@@ -1008,7 +1006,6 @@ class Actors {
   }
 
   public void interruptAllFeedback(boolean stopTtsSpeechCompletely) {
-    AutoTranslationController.cancelPending();
     speaker.interrupt(stopTtsSpeechCompletely);
     soundAndVibration.interrupt();
   }

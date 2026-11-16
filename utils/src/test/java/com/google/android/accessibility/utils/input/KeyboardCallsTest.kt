@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -100,8 +101,8 @@ class KeyboardCallsTest {
 
   @Test
   fun changesMadeWhileTheMainThreadIsBusyStillHappenInOrder() {
-    assertTrue(fromKeyboard { connection.commitText("a", 1) })
-    assertTrue(fromKeyboard { connection.commitText("b", 1) })
+    assertFalse(fromKeyboard { connection.commitText("a", 1) })
+    assertFalse(fromKeyboard { connection.commitText("b", 1) })
     assertEquals(emptyList<String>(), calls)
 
     shadowOf(Looper.getMainLooper()).idle()

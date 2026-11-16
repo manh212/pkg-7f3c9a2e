@@ -77,6 +77,7 @@ public class VolumeButtonPatternDetector {
     patternMatchers.add(new SingleVolumeButtonPressPatternMatcher(LONG_PRESS_PATTERN, VOLUME_UP));
     patternMatchers.add(new SingleVolumeButtonPressPatternMatcher(LONG_PRESS_PATTERN, VOLUME_DOWN));
     patternMatchers.add(new SingleVolumeButtonPressPatternMatcher(LONG_PRESS_PATTERN, PLAY_PAUSE));
+    patternMatchers.add(new DoublePlayPauseButtonShortPressPatternMatcher());
   }
 
   public boolean onKeyEvent(KeyEvent keyEvent) {

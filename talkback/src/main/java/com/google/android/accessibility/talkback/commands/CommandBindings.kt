@@ -23,6 +23,8 @@ import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
+import com.google.android.accessibility.talkback.keyboard.ArrowKeyNav
+import com.google.android.accessibility.talkback.keyboard.ArrowKeyNavCommand
 import com.google.android.accessibility.talkback.keyboard.KeyComboManager
 import com.google.android.accessibility.talkback.keyboard.KeyComboModel
 import com.google.android.accessibility.talkback.preference.TalkBackPreferenceFilter
@@ -33,9 +35,17 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 object CommandBindings {
 
   /** A gesture that can run a command: its preference key in the current gesture set. */
-  class GestureSlot(val key: String, val name: CharSequence, private val defaultValue: String) {
+  class GestureSlot(
+    val key: String,
+    val name: CharSequence,
+    private val defaultValue: String,
+    private val fixedValue: String? = null,
+  ) {
     /** Returns the value of the command this gesture runs. */
     fun value(context: Context, prefs: SharedPreferences): String {
+      fixedValue?.let {
+        return it
+      }
       val value = prefs.getString(key, defaultValue) ?: defaultValue
       // Older values that the gesture list shows as other commands.
       return when (value) {
@@ -111,8 +121,41 @@ object CommandBindings {
       }
     }
 
+  /**
+   * Returns the arrow keys of arrow key navigation as slots: the slot's name is the keys that run
+   * the command, its value the command they run. The value is computed, not read from a
+   * preference — an arrow-key command runs a fixed command and only its keys can change. Entries
+   * with no keys assigned, and page moves, which run a scroll rather than a command, are left out.
+   */
   @JvmStatic
-  fun arrowKeys(context: Context): List<GestureSlot> = emptyList()
+  fun arrowKeys(context: Context): List<GestureSlot> {
+    val manager = keyComboManager(context)
+    return ArrowKeyNavCommand.entries.mapNotNull { command ->
+      val value = arrowKeyCommandValue(context, command) ?: return@mapNotNull null
+      val keys = ArrowKeyNav.keysFor(context, command)
+      if (keys == ArrowKeyNav.UNASSIGNED) {
+        return@mapNotNull null
+      }
+      GestureSlot(
+        key = "arrow_key_nav_slot_${command.name.lowercase()}",
+        name = manager.getArrowKeyNavKeysStringRepresentation(keys),
+        defaultValue = value,
+        fixedValue = value,
+      )
+    }
+  }
+
+  /** Returns the value of the command [command] runs, or null when it runs no command. */
+  private fun arrowKeyCommandValue(context: Context, command: ArrowKeyNavCommand): String? {
+    command.action?.let {
+      return Commands.valueOfKeyboardAction(context, it)
+    }
+    return if (command == ArrowKeyNavCommand.TOGGLE) {
+      context.getString(R.string.shortcut_value_toggle_arrow_key_nav)
+    } else {
+      null
+    }
+  }
 
   /** Returns the key combo manager of the running screen reader, or one for settings. */
   @JvmStatic

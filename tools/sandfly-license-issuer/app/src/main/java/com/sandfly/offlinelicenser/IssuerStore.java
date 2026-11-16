@@ -102,11 +102,15 @@ final class IssuerStore {
       java.util.Iterator<String> ids = incoming.keys();
       while (ids.hasNext()) {
         String id = ids.next();
-        JSONObject entry = incoming.getJSONObject(id);
-        if (!id.equals(RecoveryProtocol.deviceId(entry.getString("request")))) {
-          throw new IllegalArgumentException("Danh sách chứa định danh thiết bị không khớp.");
+        try {
+          JSONObject entry = incoming.getJSONObject(id);
+          if (!id.equals(RecoveryProtocol.deviceId(entry.getString("request")))) {
+            throw new IllegalArgumentException("Danh sách chứa định danh thiết bị không khớp.");
+          }
+          changed |= merge(records, entry, true, key);
+        } catch (Exception ignored) {
+          // One bad entry must not abort the whole import; the old copy stays.
         }
-        changed |= merge(records, entry, true, key);
       }
       if (changed) secrets.write("records", records.toString());
       JSONObject visible = new JSONObject();

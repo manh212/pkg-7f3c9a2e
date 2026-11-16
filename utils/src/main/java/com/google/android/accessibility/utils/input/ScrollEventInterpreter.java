@@ -203,7 +203,7 @@ public class ScrollEventInterpreter implements AccessibilityEventListener {
   // Member data
 
   // Inputs
-  private Supplier<ScrollActionRecord> scrollActorState;
+  private Supplier<ScrollActionRecord> scrollActorState = () -> null;
   private Supplier<ScrollActionRecord> finishedScrollRecord = () -> null;
   private final @Nullable AudioPlaybackMonitor audioPlaybackMonitor;
   private final @NonNull TouchMonitor touchMonitor;
@@ -559,8 +559,6 @@ public class ScrollEventInterpreter implements AccessibilityEventListener {
     private final int scrollX;
     private final int scrollY;
     private final int itemCount;
-    private final int scrollDeltaX;
-    private final int scrollDeltaY;
 
     PositionInfo(AccessibilityEvent event) {
       fromIndex = event.getFromIndex();
@@ -568,8 +566,6 @@ public class ScrollEventInterpreter implements AccessibilityEventListener {
       scrollX = event.getScrollX();
       scrollY = event.getScrollY();
       itemCount = event.getItemCount();
-      scrollDeltaX = AccessibilityEventUtils.getScrollDeltaX(event);
-      scrollDeltaY = AccessibilityEventUtils.getScrollDeltaY(event);
     }
 
     @Override
@@ -587,15 +583,12 @@ public class ScrollEventInterpreter implements AccessibilityEventListener {
           && (toIndex == that.toIndex)
           && (scrollX == that.scrollX)
           && (scrollY == that.scrollY)
-          && (itemCount == that.itemCount)
-          && (scrollDeltaY == that.scrollDeltaY)
-          && (scrollDeltaX == that.scrollDeltaX);
+          && (itemCount == that.itemCount);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(
-          fromIndex, toIndex, scrollX, scrollY, itemCount, scrollDeltaX, scrollDeltaY);
+      return Objects.hash(fromIndex, toIndex, scrollX, scrollY, itemCount);
     }
   }
 

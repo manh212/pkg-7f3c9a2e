@@ -278,6 +278,7 @@ public class FeedbackProcessingUtils {
     boolean chunked = false;
     for (int i = 0; i < item.getFragments().size(); ++i, chunked = false) {
       FeedbackFragment fragment = item.getFragments().get(i);
+      final int fragmentIndex = i;
       final CharSequence fragmentText = fragment.getText();
       int fragmentLength = fragmentText.length();
       if (TextUtils.isEmpty(fragmentText) || fragmentLength < MIN_CHUNK_LENGTH) {
@@ -295,10 +296,11 @@ public class FeedbackProcessingUtils {
           end = boundary.next();
           continue;
         }
-        item.addFlag(FeedbackItem.FLAG_CHUNKING_APPLIED);
         if (!aggressiveChunking) {
-          return;
+          end = boundary.next();
+          continue;
         }
+        item.addFlag(FeedbackItem.FLAG_CHUNKING_APPLIED);
         splitChunk(item, fragment, spanAndRanges, startOfUnsplitText, end, i + 1);
         startOfUnsplitText = end;
         chunked = true;
@@ -316,7 +318,7 @@ public class FeedbackProcessingUtils {
         i--;
         // Always replace the metadata from the original fragment on the
         // first fragment resulting from the split
-        copyFragmentMetadata(fragment, item.getFragments().get(0));
+        copyFragmentMetadata(fragment, item.getFragments().get(fragmentIndex));
       }
     }
   }
@@ -643,6 +645,7 @@ public class FeedbackProcessingUtils {
   private static void copyFragmentMetadata(FeedbackFragment from, FeedbackFragment to) {
     to.setSpeechParams(from.getSpeechParams());
     to.setNonSpeechParams(from.getNonSpeechParams());
+    to.setLocale(from.getLocale());
     for (int id : from.getEarcons()) {
       to.addEarcon(id);
     }

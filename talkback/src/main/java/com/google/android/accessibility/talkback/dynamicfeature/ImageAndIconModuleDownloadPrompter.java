@@ -61,7 +61,6 @@ public class ImageAndIconModuleDownloadPrompter extends ModuleDownloadPrompter {
 
   @Override
   protected boolean initModule() {
-    return returnFeedback(Feedback.initializeImageDescription())
-        & returnFeedback(Feedback.initializeIconDetection());
+    return returnFeedback(Feedback.initializeIconDetection());
   }
 }
