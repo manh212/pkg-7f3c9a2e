@@ -626,11 +626,11 @@ class VietnameseKeyboardService : InputMethodService() {
       return true
     }
     if (!dictationAvailable()) {
-      if (ownVoice) keySpeech.confirm(getString(R.string.dictation_unavailable), 0)
+      keySpeech.confirm(getString(R.string.dictation_unavailable), 0)
       return false
     }
     if (!dictationListen(::onDictatedText)) {
-      if (ownVoice) keySpeech.confirm(getString(R.string.dictation_unavailable), 0)
+      keySpeech.confirm(getString(R.string.dictation_unavailable), 0)
       return false
     }
     dictating = true
