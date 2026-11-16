@@ -14,6 +14,7 @@ import android.view.ViewConfiguration;
 import android.view.Display;
 import android.view.MotionEvent;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.gestures.GestureConfiguration;
@@ -498,6 +499,78 @@ public class ExtendedTouchBackendTest {
     dragMotion(MotionEvent.ACTION_MOVE, 2, 400, 420);
     assertEquals(List.of(0), touch.draggedPointers);
     assertTrue(service.gestures.isEmpty());
+  }
+
+  @Test public void anchoredSwipeUpDispatchesFromTouchExploration() {
+    exploreWithFirstFinger();
+    anchoredMotion(MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        400, 500, 460, 500);
+    holdTwoFingers();
+    anchoredMotion(MotionEvent.ACTION_MOVE, 400, 500, 460, 300);
+    anchoredMotion(MotionEvent.ACTION_POINTER_UP | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        400, 500, 460, 300);
+    motionAt(MotionEvent.ACTION_UP, 400, 500);
+    assertEquals(List.of(GestureShortcutMapping.ANCHORED_SWIPE_UP), service.gestures);
+    assertTrue(touch.draggedPointers.isEmpty());
+  }
+
+  @Test public void anchoredTapDispatchesFromTouchExploration() {
+    exploreWithFirstFinger();
+    anchoredMotion(MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        400, 500, 460, 500);
+    holdTwoFingers();
+    anchoredMotion(MotionEvent.ACTION_POINTER_UP | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        400, 500, 460, 500);
+    motionAt(MotionEvent.ACTION_UP, 400, 500);
+    assertEquals(List.of(GestureShortcutMapping.ANCHORED_TAP), service.gestures);
+    assertTrue(touch.draggedPointers.isEmpty());
+  }
+
+  @Test public void anchoredSwipeWithoutHoldDoesNotDispatchFromTouchExploration() {
+    exploreWithFirstFinger();
+    anchoredMotion(MotionEvent.ACTION_POINTER_DOWN | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        400, 500, 460, 500);
+    anchoredMotion(MotionEvent.ACTION_MOVE, 400, 500, 460, 300);
+    anchoredMotion(MotionEvent.ACTION_POINTER_UP | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        400, 500, 460, 300);
+    motionAt(MotionEvent.ACTION_UP, 400, 500);
+    assertTrue(service.gestures.isEmpty());
+    assertTrue(touch.draggedPointers.isEmpty());
+  }
+
+  private void exploreWithFirstFinger() {
+    setStationaryTouchDelay(100);
+    motionAt(MotionEvent.ACTION_DOWN, 400, 500);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS);
+    assertEquals(1, touch.explorationRequests);
+    touch.state = TouchInteractionController.STATE_TOUCH_EXPLORING;
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_EXPLORING);
+  }
+
+  private void holdTwoFingers() {
+    long holdMs = ViewConfiguration.getLongPressTimeout() + 50L;
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(holdMs, TimeUnit.MILLISECONDS);
+    time += holdMs;
+  }
+
+  private void anchoredMotion(int action, float x0, float y0, float x1, float y1) {
+    MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[2];
+    MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[2];
+    float[] xs = {x0, x1};
+    float[] ys = {y0, y1};
+    for (int i = 0; i < 2; i++) {
+      properties[i] = new MotionEvent.PointerProperties();
+      properties[i].id = i;
+      properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+      coords[i] = new MotionEvent.PointerCoords();
+      coords[i].x = xs[i];
+      coords[i].y = ys[i];
+      coords[i].pressure = 1;
+      coords[i].size = 1;
+    }
+    MotionEvent event = MotionEvent.obtain(100, time += 20, action, 2, properties, coords,
+        0, 0, 1, 1, 0, 0, 0, 0);
+    try { touch.callback.onMotionEvent(event); } finally { event.recycle(); }
   }
 
   private void dragMotion(int action, int count, float x, float y) {
