@@ -31,6 +31,7 @@ import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
 import com.google.android.accessibility.talkback.interpreters.ManualScrollInterpreter.ManualScrollInterpretation;
+import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter.EventInterpretation;
 import com.google.android.accessibility.utils.monitor.TouchMonitor;
@@ -79,6 +80,7 @@ public class AccessibilityFocusInterpreterTest {
 
   @Before
   public void setUp() {
+    FormFactorUtils.initialize(RuntimeEnvironment.getApplication());
     Context context = RuntimeEnvironment.getApplication();
     AccessibilityFocusMonitor focusMonitor =
         new AccessibilityFocusMonitor(
