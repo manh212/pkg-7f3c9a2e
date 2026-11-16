@@ -879,7 +879,7 @@ object Commands {
           R.string.shortcut_value_print_performance_stats,
           R.string.shortcut_print_performance_stats,
           available =
-            prefs.getBoolean(context.getString(R.string.pref_performance_stats_key), false),
+            prefs.getBoolean(context.getString(R.string.pref_performance_stats_key), true),
         )
         gesture(
           R.string.shortcut_value_report_gesture,
