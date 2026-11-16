@@ -41,7 +41,7 @@ object BrowseModeApps {
       context.getString(R.string.pref_browse_mode_per_app_key),
       context.resources.getBoolean(R.bool.pref_browse_mode_per_app_default),
     )
-    val selected = if (previous) PER_APP else NONE
+    val selected = if (previous) PER_APP else ALWAYS
     prefs.edit { putString(PREF_MODE, selected) }
     return selected
   }
