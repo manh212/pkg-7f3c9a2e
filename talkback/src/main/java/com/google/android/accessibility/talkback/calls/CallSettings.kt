@@ -40,9 +40,9 @@ data class CallSettings(
         prefs.all[key]?.toString()?.toIntOrNull() ?: default
       return CallSettings(
         announce = prefs.getBoolean(ANNOUNCE, true),
-        duration = prefs.getBoolean(DURATION, false),
+        duration = prefs.getBoolean(DURATION, true),
         intervalSeconds = number(INTERVAL, 0).coerceIn(0, 3600),
-        repeats = number(REPEATS, 0).coerceIn(0, 10),
+        repeats = number(REPEATS, 3).coerceIn(0, 10),
         voiceProfile = prefs.getString(VOICE, "").orEmpty(),
         quietHours = prefs.getBoolean(QUIET, false),
         quietStart = number(START, 23 * 60).coerceIn(0, 1439),
