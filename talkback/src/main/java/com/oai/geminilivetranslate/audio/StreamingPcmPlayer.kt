@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 class StreamingPcmPlayer(
     private val sampleRate: Int,
     private val bufferBytes: Int,
-    queueCapacity: Int,
+    private val queueCapacity: Int,
     private val initialJitterChunks: Int = 1,
     private val usage: Int = AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY,
     private val logger: SessionLogger? = null,
