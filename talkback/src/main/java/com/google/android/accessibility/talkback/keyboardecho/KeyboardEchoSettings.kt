@@ -44,7 +44,14 @@ object KeyboardEchoSettings {
   @TextEventFilter.KeyboardEchoType
   fun read(prefs: SharedPreferences, res: Resources, input: TypingInput): Int =
     prefs.getString(key(res, input), null)?.toIntOrNull()
-      ?: res.getString(R.string.pref_keyboard_echo_default).toInt()
+      ?: res.getString(
+          if (input == TypingInput.ON_SCREEN_KEYBOARD) {
+            R.string.pref_keyboard_echo_on_screen_default
+          } else {
+            R.string.pref_keyboard_echo_default
+          },
+        )
+        .toInt()
 
   /** Returns the name of the echo setting for [input], such as "Physical keyboard echo". */
   @JvmStatic
