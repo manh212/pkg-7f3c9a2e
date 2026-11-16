@@ -339,6 +339,7 @@ public class VoiceProfilesTest {
 
   @Test
   public void equalizerOffKeepsGainsAndFiltersNothing() {
+    SpeechEqualizer.setOn(prefs, "", true);
     int[] gains = SpeechEqualizer.Preset.CLARITY.gains();
     SpeechEqualizer.save(prefs, "", gains);
     assertTrue(Arrays.equals(gains, SpeechEqualizer.inUse(prefs)));

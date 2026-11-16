@@ -109,6 +109,7 @@ public class SpeechControllerImplTest {
   @Before
   public void setUp() {
     context = RuntimeEnvironment.getApplication();
+    setAlwaysInterruptPreference(false);
     LastSpokenTextHolder.clearSpokenHistoryForTest();
     failoverTts = new RecordingFailoverTts(context);
     activeTts = failoverTts;
