@@ -48,8 +48,11 @@ public class PausableExecutorService extends AbstractListeningExecutorService {
   }
 
   @Override
-  public List<Runnable> shutdownNow() {
-    return delegate.shutdownNow();
+  public synchronized List<Runnable> shutdownNow() {
+    List<Runnable> dropped = new ArrayList<>(queue);
+    queue.clear();
+    dropped.addAll(delegate.shutdownNow());
+    return dropped;
   }
 
   @Override
@@ -67,9 +70,12 @@ public class PausableExecutorService extends AbstractListeningExecutorService {
 
   public synchronized void resume() {
     paused = false;
-    for (Runnable runnable : queue) {
-      delegate.execute(runnable);
+    try {
+      for (Runnable runnable : queue) {
+        delegate.execute(runnable);
+      }
+    } finally {
+      queue.clear();
     }
-    queue.clear();
   }
 }

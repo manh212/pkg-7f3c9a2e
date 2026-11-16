@@ -63,8 +63,6 @@ public class PreemptingExecutorService extends AbstractListeningExecutorService 
 
   @Override
   public final void execute(Runnable runnable) {
-    Future<?> future =
-        (runnable instanceof Future) ? (Future<?>) runnable : new FutureTask<>(runnable, false);
     synchronized (this) {
       if (enqueuedTask != null) {
         // We interrupt regardless of preemptRunning, because this handles the edge case when the
@@ -73,25 +71,41 @@ public class PreemptingExecutorService extends AbstractListeningExecutorService 
         enqueuedTask.cancel(true);
         enqueuedTask = null;
       }
-      delegate.execute(
-          () -> {
-            synchronized (this) {
-              if (Thread.currentThread().isInterrupted()) {
-                // This case may (rarely) arise when the enqueuedTask has been canceled just after
-                // the delegate has picked up the task. We preserve the interrupted status because
-                // we cannot throw an InterruptedException from a Runnable.
-                return;
-              } else {
-                // If we don't allow preempting a running task, set enqueuedTask to null so it
-                // cannot be canceled after this point.
-                if (!preemptRunning) {
-                  enqueuedTask = null;
-                }
-              }
-            }
-            runnable.run();
-          });
-      enqueuedTask = future;
+      if (runnable instanceof Future) {
+        delegate.execute(guarded(runnable));
+        enqueuedTask = (Future<?>) runnable;
+      } else {
+        // Submit the FutureTask itself, so cancel(true) acts on the work that actually runs:
+        // cancelling an orphan FutureTask that is never submitted neither removes the queued
+        // work nor interrupts a running one.
+        FutureTask<?> futureTask = new FutureTask<>(guarded(runnable), null);
+        delegate.execute(futureTask);
+        enqueuedTask = futureTask;
+      }
     }
+  }
+
+  /**
+   * The work to run, guarded so a task cancelled just after the delegate picks it up does not
+   * run, and so a task that may not preempt a running one stops being cancellable once it starts.
+   */
+  private Runnable guarded(Runnable runnable) {
+    return () -> {
+      synchronized (this) {
+        if (Thread.currentThread().isInterrupted()) {
+          // This case may (rarely) arise when the enqueuedTask has been canceled just after
+          // the delegate has picked up the task. We preserve the interrupted status because
+          // we cannot throw an InterruptedException from a Runnable.
+          return;
+        } else {
+          // If we don't allow preempting a running task, set enqueuedTask to null so it
+          // cannot be canceled after this point.
+          if (!preemptRunning) {
+            enqueuedTask = null;
+          }
+        }
+      }
+      runnable.run();
+    };
   }
 }

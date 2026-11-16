@@ -5,7 +5,9 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.WindowManager.BadTokenException;
 import androidx.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Utils for thread checking and running items on the main thread. */
@@ -14,9 +16,14 @@ public class ThreadUtils {
   private static final Handler mainThreadHandler = new Handler(Looper.getMainLooper());
 
   // Contains the mapping from the runnable provided to ThreadUtils via #runOnMainThreadDelayed to
-  // the wrapped runnable posted to the mainThreadHandler by ThreadUtils. We need to store this
+  // the wrapped runnables posted to the mainThreadHandler by ThreadUtils. One runnable may be
+  // posted several times, so each post gets its own wrapped runnable. We need to store this
   // information to remove the specified runnable when #removeCallbacks is called.
-  private static final Map<Runnable, Runnable> wrappedRunnableMap = new HashMap<>();
+  // Guarded by wrappedRunnableMapLock: every access to the map and to the lists it holds runs
+  // under this lock, because posts, removals and the wrappers' own cleanup run on any thread.
+  private static final Object wrappedRunnableMapLock = new Object();
+
+  private static final Map<Runnable, List<Runnable>> wrappedRunnableMap = new HashMap<>();
 
   /** Checks to see if the current thread is the main thread. */
   public static boolean isMainThread() {
@@ -49,10 +56,14 @@ public class ThreadUtils {
    */
   public static void runOnMainThreadDelayed(
       Shutdownable shutdownable, Runnable runnable, long delayMilliseconds) {
-    Runnable wrappedRunnable = wrappedRunnableMap.get(runnable);
-    if (wrappedRunnable == null) {
-      wrappedRunnable = getWrappedRunnable(shutdownable, runnable);
-      wrappedRunnableMap.put(runnable, wrappedRunnable);
+    Runnable wrappedRunnable = getWrappedRunnable(shutdownable, runnable);
+    synchronized (wrappedRunnableMapLock) {
+      List<Runnable> wrappedRunnables = wrappedRunnableMap.get(runnable);
+      if (wrappedRunnables == null) {
+        wrappedRunnables = new ArrayList<>();
+        wrappedRunnableMap.put(runnable, wrappedRunnables);
+      }
+      wrappedRunnables.add(wrappedRunnable);
     }
     mainThreadHandler.postDelayed(wrappedRunnable, delayMilliseconds);
   }
@@ -63,9 +74,14 @@ public class ThreadUtils {
    * @param runnable The runnable that should be removed from the main thread handler's queue
    */
   public static void removeCallbacks(Runnable runnable) {
-    Runnable wrappedRunnable = wrappedRunnableMap.get(runnable);
-    if (wrappedRunnable != null) {
-      mainThreadHandler.removeCallbacks(wrappedRunnable);
+    List<Runnable> wrappedRunnables;
+    synchronized (wrappedRunnableMapLock) {
+      wrappedRunnables = wrappedRunnableMap.remove(runnable);
+    }
+    if (wrappedRunnables != null) {
+      for (Runnable wrappedRunnable : wrappedRunnables) {
+        mainThreadHandler.removeCallbacks(wrappedRunnable);
+      }
     }
   }
 
@@ -90,7 +106,7 @@ public class ThreadUtils {
    */
   public static void ignoreExceptionIfShuttingDown(
       Shutdownable shutdownable, RuntimeException exception, String logOutputIfIgnored) {
-    if (!shutdownable.isActive()) {
+    if (shutdownable == null || !shutdownable.isActive()) {
       Log.e(ThreadUtils.class.toString(), String.format("%s %s", logOutputIfIgnored, exception));
     } else {
       Log.d("ThreadUtils", "exception not ignored because service is active.");
@@ -99,18 +115,29 @@ public class ThreadUtils {
   }
 
   private static Runnable getWrappedRunnable(Shutdownable shutdownable, Runnable runnable) {
-    return () -> {
-      try {
-        runnable.run();
-      } catch (BadTokenException | IllegalStateException exception) {
-        ignoreExceptionIfShuttingDown(
-            shutdownable,
-            exception,
-            "Exception while trying to run runnable on main thread during shutdown. Ignoring.");
-      } finally {
-        wrappedRunnableMap.remove(runnable);
-      }
-    };
+    final Runnable[] self = new Runnable[1];
+    self[0] =
+        () -> {
+          try {
+            runnable.run();
+          } catch (BadTokenException | IllegalStateException exception) {
+            ignoreExceptionIfShuttingDown(
+                shutdownable,
+                exception,
+                "Exception while trying to run runnable on main thread during shutdown. Ignoring.");
+          } finally {
+            synchronized (wrappedRunnableMapLock) {
+              List<Runnable> wrappedRunnables = wrappedRunnableMap.get(runnable);
+              if (wrappedRunnables != null) {
+                wrappedRunnables.remove(self[0]);
+                if (wrappedRunnables.isEmpty()) {
+                  wrappedRunnableMap.remove(runnable);
+                }
+              }
+            }
+          }
+        };
+    return self[0];
   }
 
   /**
