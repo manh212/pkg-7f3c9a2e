@@ -476,7 +476,7 @@ public final class QuickActionSections {
             "pref_resume_talkback",
             R.array.pref_resume_backtalk_entries,
             R.array.pref_resume_backtalk_values,
-            "KEYGUARD"));
+            "SCREEN_ON"));
   }
 
   private static List<QuickAction> menuActions() {
@@ -498,7 +498,7 @@ public final class QuickActionSections {
             QuickActionPerformer.PERFORMER_SOUNDBACK_VOLUME_SLIDER),
         // Resolved value of R.string.pref_vibration_key; no Java constant exists.
         QuickAction.toggle(
-            Section.SOUND, R.string.title_pref_vibration, "pref_vibration", true),
+            Section.SOUND, R.string.title_pref_vibration, "pref_vibration", false),
         QuickAction.cycleSpecial(
             Section.SOUND,
             R.string.title_pref_sound_themes,
