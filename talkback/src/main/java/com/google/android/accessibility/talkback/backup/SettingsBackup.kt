@@ -383,6 +383,7 @@ object SettingsBackup {
         }
       }
       for ((key, value) in values) {
+        if (!replaceMissing && prefs.contains(key)) continue
         @Suppress("UNCHECKED_CAST")
         when (value) {
           is Boolean -> editor.putBoolean(key, value)
@@ -461,7 +462,7 @@ object SettingsBackup {
   }
 
   /**
-   * Raises every existing install to the medium event-processing level, once. Very low drops
+   * Raises every existing install to the low event-processing level, once. Very low drops
    * progress updates and announcements that are not tied to the user's own touch, which left
    * progress bars silent. The reset runs a single time; a level the user picks afterwards in
    * the developer settings is left alone.
@@ -472,7 +473,7 @@ object SettingsBackup {
       SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
     if (statePrefs.getBoolean(EVENT_PROCESSING_LEVEL_RESET, false)) return
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
-    if (!prefs.edit().putString(KEY_EVENT_PROCESSING_LEVEL, "medium").commit()) {
+    if (!prefs.edit().putString(KEY_EVENT_PROCESSING_LEVEL, "low").commit()) {
       LogUtils.e(TAG, "Cannot raise the event processing level")
       return
     }
@@ -500,7 +501,7 @@ object SettingsBackup {
         context.getString(R.string.pref_verbosity_preset_value_custom), key)
     if (!prefs.edit()
         .putString(key, UsageHintMode.ACTIONS_ONLY)
-        .putString(customKey, UsageHintMode.ACTIONS_ONLY)
+        .putString(customKey, UsageHintMode.OFF)
         .commit()) {
       LogUtils.e(TAG, "Cannot set usage hints to actions only")
       return
