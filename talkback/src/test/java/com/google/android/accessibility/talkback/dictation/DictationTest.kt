@@ -73,7 +73,14 @@ class DictationTest {
     val detector = AudioSpeechDetector()
     repeat(10) { assertFalse(detector.isSpeechLevel(100.0)) }
     val detections = (1..40).count { detector.isSpeechLevel(1500.0) }
-    assertTrue(detections <= 2)
+    // Audit bug 300: the steady-noise cutoff is STEADY_NOISE_FRAMES = 30 frames (~3 s),
+    // not 4 — a held vowel must keep counting as speech past the old 0.4 s cutoff, and
+    // only a genuinely constant level is eventually treated as noise. Of the 40 steady
+    // frames, the first 2 confirm loudness and frames 3..30 still detect (28 detections);
+    // from frame 31 on the steady-frame count has reached 30 and detection stops.
+    // The range fails both ways: <= 2 would mean the old 4-frame cutoff is back, and
+    // > 28 would mean the 30-frame cutoff no longer stops steady noise in this window.
+    assertTrue(detections in 3..28)
     repeat(10) { assertFalse(detector.isSpeechLevel(1500.0)) }
   }
 
