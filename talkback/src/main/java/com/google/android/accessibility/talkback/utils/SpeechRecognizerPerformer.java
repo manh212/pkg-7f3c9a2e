@@ -41,6 +41,7 @@ import android.text.TextUtils;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.content.ContextCompat;
+import androidx.core.os.LocaleListCompat;
 import com.google.android.accessibility.talkback.dictation.SandflyDictation;
 import com.google.android.accessibility.talkback.permission.PermissionUtils;
 import com.google.android.accessibility.utils.DelayHandler;
@@ -49,6 +50,7 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
+import java.util.Locale;
 import kotlin.Unit;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -524,13 +526,16 @@ public class SpeechRecognizerPerformer {
 
   /** Create and initialize the recognition intent. */
   private void createRecognizerIntent() {
-    // Works without wifi, but provides many extra partial results. Respects the system language.
+    Locale appLocale = LocaleListCompat.getAdjustedDefault().get(0);
+    String languageTag =
+        appLocale != null ? appLocale.toLanguageTag() : Locale.getDefault().toLanguageTag();
     recognizerIntent =
         new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.getPackageName())
             .putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag);
   }
 
   /** Creates RecognitionListener and connects recognition listener to speech recognizer. */
