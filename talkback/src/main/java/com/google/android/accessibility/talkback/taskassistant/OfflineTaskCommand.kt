@@ -1,0 +1,99 @@
+package com.google.android.accessibility.talkback.taskassistant
+
+import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandPhoneNumbers
+import java.text.Normalizer
+import java.util.Locale
+
+internal sealed interface OfflineTaskCommand {
+  data class Open(val app: String) : OfflineTaskCommand
+  data class Click(val label: String) : OfflineTaskCommand
+  data class Scroll(val forward: Boolean, val count: Int) : OfflineTaskCommand
+  data class Navigate(val action: TaskOperation) : OfflineTaskCommand
+  data class YouTube(val openApp: Boolean, val query: String?, val openFirst: Boolean) :
+    OfflineTaskCommand
+  data object FirstVideo : OfflineTaskCommand
+  data class Draft(val app: MessageApp, val recipient: String, val text: String) :
+    OfflineTaskCommand
+  data object AskMessageApp : OfflineTaskCommand
+  data class Call(val recipient: String, val number: String?) : OfflineTaskCommand
+  data object AskCallTarget : OfflineTaskCommand
+
+  enum class MessageApp { ZALO, SMS }
+
+  companion object {
+    private const val DRAFT = "(?:soan|viet|tao)\\s+tin\\s+nhan"
+    private const val APP = "(zalo|sms|tin\\s+nhan\\s+mac\\s+dinh)"
+    private const val BODY =
+      "(?:(?:\\s*[,;:]\\s*|\\s+(?:voi\\s+)?noi\\s+dung\\s*[: ]\\s*|\\s+(?:rang|bao)\\s+)(.+))?"
+    private val draftBefore =
+      Regex("$DRAFT\\s+(?:(?:tren|trong|qua|bang|cho)\\s+)?$APP\\s+(?:cho|toi|den)\\s+(.+?)$BODY", RegexOption.DOT_MATCHES_ALL)
+    private val draftAfter =
+      Regex("$DRAFT\\s+(?:cho|toi|den)\\s+(.+?)\\s+(?:tren|trong|qua|bang)\\s+$APP$BODY", RegexOption.DOT_MATCHES_ALL)
+    private val call = Regex("(?:goi(?:\\s+dien)?|quay\\s+so)(?:\\s+(?:cho|toi|den))?(?:\\s+so)?(?:\\s+(.+))?")
+    private val open = Regex("(?:mo|vao|khoi\\s+dong)\\s+(?:ung\\s+dung\\s+)?(.+)")
+    private val click = Regex("(?:bam|nhan|cham|chon)(?:\\s+(?:vao|nut|muc))*\\s+(.+)")
+    private const val FIRST =
+      "(?:(?:mo|bam|nhan|chon)(?:\\s+vao)?\\s+(?:ket\\s+qua|video)(?:\\s+dau\\s+tien|\\s+(?:thu\\s+)?nhat))"
+    private val first = Regex(FIRST)
+    private val youtube = Regex(
+      "(?:(?:mo|vao)\\s+(?:ung\\s+dung\\s+)?(you\\s*tube)[,\\s]+(?:(?:roi|sau\\s+do)[,\\s]+)?)?" +
+        "(?:tim(?:\\s+kiem)?(?:\\s+tren\\s+you\\s*tube)?\\s+(.+?))(?:\\s+tren\\s+you\\s*tube)?" +
+        "(?:[,\\s]+(?:roi|sau\\s+do)[,\\s]+($FIRST))?",
+    )
+    private val openSearch = Regex(
+      "(?:mo|vao)\\s+you\\s*tube[,\\s]+(?:(?:roi|sau\\s+do)[,\\s]+)?" +
+        "(?:bam|nhan|cham|chon)(?:\\s+(?:vao|nut))*\\s+tim\\s+kiem",
+    )
+    private val scroll = Regex("(?:cuon|vuot)\\s+(len|xuong)(?:\\s+(\\d{1,2}|mot|hai|ba|bon|nam)\\s+lan)?")
+    private val draftStart = Regex("^$DRAFT(?:\\s|$)")
+
+    fun parse(goal: String): OfflineTaskCommand? {
+      val raw = Normalizer.normalize(goal.trim(), Normalizer.Form.NFC)
+      val folded = fold(raw)
+      if (raw.length != folded.length) return null
+      fun MatchResult.part(index: Int): String = groups[index]?.range?.let { raw.substring(it) }?.trim().orEmpty()
+      fun MatchResult.recipient(index: Int): String = part(index).trimEnd('.', '!', '?').trimEnd()
+
+      draftBefore.matchEntire(folded)?.let {
+        return Draft(messageApp(it.groupValues[1]), it.recipient(2), it.part(3))
+      }
+      draftAfter.matchEntire(folded)?.let {
+        return Draft(messageApp(it.groupValues[2]), it.recipient(1), it.part(3))
+      }
+      if (draftStart.containsMatchIn(folded)) return AskMessageApp
+      val command = folded.trimEnd('.', '!', '?').trimEnd()
+      call.matchEntire(command)?.let {
+        val recipient = it.part(1)
+        return if (recipient.isBlank()) AskCallTarget
+        else Call(recipient, VoiceCommandPhoneNumbers.parseNumber(recipient))
+      }
+      if (first.matches(command)) return FirstVideo
+      if (openSearch.matches(command)) return YouTube(openApp = true, query = null, openFirst = false)
+      youtube.matchEntire(command)?.let {
+        val specifiesApp = it.groups[1] != null || Regex("\\btren\\s+you\\s*tube\\b").containsMatchIn(folded)
+        if (specifiesApp || it.groups[3] != null) {
+          return YouTube(specifiesApp, it.part(2), it.groups[3] != null)
+        }
+      }
+      open.matchEntire(command)?.let { return Open(it.part(1)) }
+      click.matchEntire(command)?.let { return Click(it.part(1)) }
+      scroll.matchEntire(command)?.let {
+        val count = it.groupValues[2].let { word ->
+          word.toIntOrNull() ?: listOf("mot", "hai", "ba", "bon", "nam").indexOf(word).plus(1).coerceAtLeast(1)
+        }
+        if (count in 1..10) return Scroll(it.groupValues[1] == "xuong", count)
+      }
+      return when (command) {
+        "quay lai", "tro lai", "lui lai" -> Navigate(TaskOperation.BACK)
+        "ve man hinh chinh", "man hinh chinh", "ve trang chu" -> Navigate(TaskOperation.HOME)
+        else -> null
+      }
+    }
+
+    private fun messageApp(text: String) = if (text == "zalo") MessageApp.ZALO else MessageApp.SMS
+
+    private fun fold(text: String): String =
+      Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace(Regex("\\p{M}+"), "").replace('đ', 'd')
+  }
+}

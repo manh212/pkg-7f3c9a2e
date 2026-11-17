@@ -17,6 +17,15 @@ data class TaskNode(
   val role: String,
   val actions: Set<String>,
   val checked: Boolean? = null,
+  val parent: String? = null,
+  val text: String = "",
+  val hint: String = "",
+  val description: String = "",
+  val top: Int = 0,
+  val left: Int = 0,
+  val row: Int? = null,
+  val collection: Boolean = false,
+  val focused: Boolean = false,
 ) {
   fun json(): JSONObject = JSONObject().put("id", id).put("label", label)
     .put("view_id", viewId).put("role", role).put("actions", JSONArray(actions.toList()))

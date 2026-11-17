@@ -38,6 +38,15 @@ object SandflyDictation {
     return dictation.listen(onText)
   }
 
+  fun listenOfflineTask(onText: (String?) -> Unit) {
+    val dictation = instance
+    if (dictation == null) onText(null) else dictation.listenOfflineTask(onText)
+  }
+
+  fun cancelOfflineTask() {
+    instance?.cancelOfflineTask()
+  }
+
   @JvmStatic
   fun cancel() {
     instance?.cancelListening()

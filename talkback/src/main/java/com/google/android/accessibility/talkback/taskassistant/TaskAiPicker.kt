@@ -158,8 +158,9 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
       settings.text = context.getString(R.string.task_configure_service, context.getString(service.label))
       model.isEnabled = !loading && TaskAiCatalog.canConnect(prefs, service)
       reload.isEnabled = model.isEnabled
-      status.text = if (loading) context.getString(R.string.task_models_loading) else failure ?: problem()
+      val modelStatus = if (loading) context.getString(R.string.task_models_loading) else failure ?: problem()
         ?: context.getString(R.string.task_models_count, availableModels(service).size)
+      status.text = "$modelStatus\n${context.getString(R.string.task_data_notice)}"
       return
     }
     val selected = TaskAiCatalog.localModel(prefs)
@@ -181,7 +182,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
       manager.state is LocalModelManager.State.Failed && !installed -> context.getString(R.string.task_download_failed,
         downloadFailure((manager.state as LocalModelManager.State.Failed).failure))
       installed -> context.getString(R.string.task_model_installed, size(selected.sizeBytes))
-      else -> problem() + " · " + size(selected.sizeBytes)
+      else -> context.getString(R.string.task_offline_optional_model, size(selected.sizeBytes))
     }
   }
 
@@ -230,7 +231,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
 
   private fun loadModels(openAfter: Boolean) {
     val service = TaskAiCatalog.provider(prefs)
-    if (loading || !TaskAiCatalog.canConnect(prefs, service)) return
+    if (TaskAiCatalog.isLocal(prefs) || loading || !TaskAiCatalog.canConnect(prefs, service)) return
     val token = ++generation
     val scope = TaskModelDirectory.currentScope(prefs, service)
     loading = true

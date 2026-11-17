@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.actor.voicecommands
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.Build
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.timer.CountdownAlarm
 
@@ -506,7 +507,9 @@ object VoiceCommandActions {
   fun getMediaVolumePercent(context: Context): Int {
     val audioManager = context.getSystemService(AudioManager::class.java) ?: return 0
     val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-    val min = audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC)
+    val min = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC)
+    } else 0
     if (max <= min) return 0
     val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
     return ((current - min) * 100 + (max - min) / 2) / (max - min)
@@ -517,7 +520,9 @@ object VoiceCommandActions {
   fun setMediaVolumePercent(context: Context, percent: Int) {
     val audioManager = context.getSystemService(AudioManager::class.java) ?: return
     val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-    val min = audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC)
+    val min = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC)
+    } else 0
     val index = min + ((max - min) * percent + 50) / 100
     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, index.coerceIn(min, max), 0)
   }

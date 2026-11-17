@@ -1,6 +1,7 @@
 package com.google.android.accessibility.talkback.taskassistant
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Rect
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -13,7 +14,7 @@ data class CapturedTaskScreen(val screen: TaskScreen, val windowId: Int, val han
 class TaskScreenReader(private val service: AccessibilityService) {
   private val sequence = AtomicLong()
 
-  fun read(): CapturedTaskScreen {
+  fun read(includeStructure: Boolean = false): CapturedTaskScreen {
     val windows = service.windows.orEmpty().filter {
       it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY && it.type != AccessibilityWindowInfo.TYPE_INPUT_METHOD
     }
@@ -23,38 +24,67 @@ class TaskScreenReader(private val service: AccessibilityService) {
     val root = window.root?.let(AccessibilityNodeInfoCompat::wrap) ?: error("Ứng dụng chưa cung cấp nội dung màn hình")
     val nodes = mutableListOf<TaskNode>()
     val handles = LinkedHashMap<String, AccessibilityNodeInfoCompat>()
-    val pending = ArrayDeque(listOf(root))
+    val pending = ArrayDeque<Pair<AccessibilityNodeInfoCompat, String?>>()
+    pending.addLast(root to null)
     var visited = 0
     val deadline = SystemClock.uptimeMillis() + 2500
-    while (pending.isNotEmpty() && visited++ < 1800 && nodes.size < 300 && SystemClock.uptimeMillis() < deadline) {
-      val node = pending.removeFirst()
-      if (!node.isVisibleToUser) continue
-      if (!isPrivateInput(node)) {
-        val actions = linkedSetOf<String>()
-        val supported = node.actionList.map { it.id }.toSet()
-        if (node.isEnabled) {
-          if (AccessibilityNodeInfo.ACTION_CLICK in supported || node.isClickable) actions += "click"
-          if (AccessibilityNodeInfo.ACTION_LONG_CLICK in supported || node.isLongClickable) actions += "long_click"
-          if (AccessibilityNodeInfo.ACTION_SET_TEXT in supported && node.isEditable) actions += "set_text"
-          if (AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_IME_ENTER.id in supported) actions += "press_enter"
-          if (AccessibilityNodeInfo.ACTION_SCROLL_FORWARD in supported) actions += "scroll_forward"
-          if (AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD in supported) actions += "scroll_backward"
-        }
-        val label = label(node, actions.isNotEmpty())
-        if (label.isNotBlank() || actions.isNotEmpty()) {
-          val id = "n${nodes.size}"
-          nodes += TaskNode(id, label, node.viewIdResourceName.orEmpty(), node.className?.toString()?.substringAfterLast('.').orEmpty(),
-            actions, if (node.isCheckable) node.isChecked else null)
-          handles[id] = node
-        }
+    val nodeLimit = if (includeStructure) 600 else 300
+    while (pending.isNotEmpty() && visited++ < 1800 && nodes.size < nodeLimit && SystemClock.uptimeMillis() < deadline) {
+      val (node, parent) = pending.removeFirst()
+      if (!node.isVisibleToUser || isPrivateInput(node)) continue
+      var childParent = parent
+      val actions = linkedSetOf<String>()
+      val supported = node.actionList.map { it.id }.toSet()
+      if (node.isEnabled) {
+        if (AccessibilityNodeInfo.ACTION_CLICK in supported || node.isClickable) actions += "click"
+        if (AccessibilityNodeInfo.ACTION_LONG_CLICK in supported || node.isLongClickable) actions += "long_click"
+        if (AccessibilityNodeInfo.ACTION_SET_TEXT in supported && node.isEditable) actions += "set_text"
+        if (AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_IME_ENTER.id in supported) actions += "press_enter"
+        if (AccessibilityNodeInfo.ACTION_SCROLL_FORWARD in supported) actions += "scroll_forward"
+        if (AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD in supported) actions += "scroll_backward"
       }
-      if (!isPrivateInput(node)) for (index in 0 until node.childCount) node.getChild(index)?.let(pending::addLast)
+      val label = label(node, actions.isNotEmpty())
+      if (includeStructure || label.isNotBlank() || actions.isNotEmpty()) {
+        val id = "n${nodes.size}"
+        val item = TaskNode(id, label, node.viewIdResourceName.orEmpty(),
+          node.className?.toString()?.substringAfterLast('.').orEmpty(),
+          actions, if (node.isCheckable) node.isChecked else null)
+        nodes += if (includeStructure) withStructure(item, node, parent) else item
+        handles[id] = node
+        childParent = id
+      }
+      for (index in 0 until node.childCount) {
+        node.getChild(index)?.let { pending.addLast(it to childParent) }
+      }
     }
     val packageName = root.packageName?.toString() ?: error("Không xác định được ứng dụng")
     val title = window.title?.toString().orEmpty()
-    val signature = "$packageName:${window.id}:$title:${nodes.joinToString { it.json().toString() }}"
-    val fingerprint = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it) }
+    val fingerprint = if (includeStructure) "" else {
+      val signature = "$packageName:${window.id}:$title:${nodes.joinToString { it.json().toString() }}"
+      MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
     return CapturedTaskScreen(TaskScreen(sequence.incrementAndGet(), packageName, title, fingerprint, nodes, pending.isNotEmpty()), window.id, handles)
+  }
+
+  private fun withStructure(
+    item: TaskNode,
+    node: AccessibilityNodeInfoCompat,
+    parent: String?,
+  ): TaskNode {
+    val bounds = Rect().also(node::getBoundsInScreen)
+    return item.copy(
+      parent = parent,
+      text = if (node.isShowingHintText) "" else node.text?.toString().orEmpty(),
+      hint = node.hintText?.toString().orEmpty().ifBlank {
+        if (node.isShowingHintText) node.text?.toString().orEmpty() else ""
+      },
+      description = node.contentDescription?.toString().orEmpty(),
+      top = bounds.top,
+      left = bounds.left,
+      row = node.collectionItemInfo?.rowIndex?.takeIf { it >= 0 },
+      collection = node.collectionInfo != null || node.isScrollable,
+      focused = node.isFocused,
+    )
   }
 
   private fun isPrivateInput(node: AccessibilityNodeInfoCompat): Boolean = node.isPassword ||
@@ -80,14 +110,39 @@ class TaskScreenReader(private val service: AccessibilityService) {
     return parts.distinct().joinToString("; ").take(400)
   }
 
-  fun perform(capture: CapturedTaskScreen, step: TaskStep): Boolean {
-    val node = capture.handles[step.node] ?: return false
+  fun matches(capture: CapturedTaskScreen, id: String): Boolean {
+    val node = capture.handles[id] ?: return false
     if (!node.refresh() || !node.isVisibleToUser || !node.isEnabled || isPrivateInput(node) || node.windowId != capture.windowId ||
       node.packageName?.toString() != capture.screen.packageName) return false
-    val expected = capture.screen.nodes.firstOrNull { it.id == step.node } ?: return false
-    if (label(node, expected.actions.isNotEmpty()) != expected.label ||
-      node.viewIdResourceName.orEmpty() != expected.viewId ||
-      (if (node.isCheckable) node.isChecked else null) != expected.checked) return false
+    val expected = capture.screen.nodes.firstOrNull { it.id == id } ?: return false
+    return label(node, expected.actions.isNotEmpty()) == expected.label &&
+      node.viewIdResourceName.orEmpty() == expected.viewId &&
+      (if (node.isCheckable) node.isChecked else null) == expected.checked
+  }
+
+  fun clickSearchKey(capture: CapturedTaskScreen, fieldId: String): Boolean {
+    if (!matches(capture, fieldId) || capture.handles[fieldId]?.isFocused != true) return false
+    val keyboard = service.windows.orEmpty().singleOrNull {
+      it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD
+    } ?: return false
+    val root = keyboard.root?.let(AccessibilityNodeInfoCompat::wrap) ?: return false
+    val pending = ArrayDeque(listOf(root))
+    val buttons = mutableListOf<AccessibilityNodeInfoCompat>()
+    var visited = 0
+    while (pending.isNotEmpty() && visited++ < 200) {
+      val node = pending.removeFirst()
+      if (!node.isVisibleToUser) continue
+      if (node.isEnabled && node.isClickable && listOfNotNull(node.text, node.contentDescription)
+          .any { TaskProtocol.normalize(it.toString()) in setOf("search", "tim kiem") }) buttons += node
+      for (index in 0 until node.childCount) node.getChild(index)?.let(pending::addLast)
+    }
+    if (pending.isNotEmpty()) return false
+    return buttons.singleOrNull()?.performAction(AccessibilityNodeInfoCompat.ACTION_CLICK) == true
+  }
+
+  fun perform(capture: CapturedTaskScreen, step: TaskStep): Boolean {
+    val node = capture.handles[step.node] ?: return false
+    if (!matches(capture, step.node)) return false
     val id = when (step.operation) {
       TaskOperation.CLICK -> AccessibilityNodeInfo.ACTION_CLICK
       TaskOperation.LONG_CLICK -> AccessibilityNodeInfo.ACTION_LONG_CLICK

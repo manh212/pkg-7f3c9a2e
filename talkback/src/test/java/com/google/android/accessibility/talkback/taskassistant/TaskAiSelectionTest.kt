@@ -12,6 +12,15 @@ import com.google.android.accessibility.talkback.actor.gemini.local.OnDeviceAiSe
 import org.junit.Test
 
 class TaskAiSelectionTest {
+  @Test fun unconfiguredTasksDefaultOfflineAndExplicitOnlineSelectionPersists() {
+    val prefs = FakeSharedPreferences()
+    assertTrue(TaskAiCatalog.isLocal(prefs))
+    TaskAiCatalog.setLocal(prefs, false)
+    assertFalse(TaskAiCatalog.isLocal(prefs))
+    TaskAiCatalog.setLocal(prefs, true)
+    assertTrue(TaskAiCatalog.isLocal(prefs))
+  }
+
   @Test fun taskSelectionLeavesOtherFeaturesAndCredentialsUnchanged() {
     val prefs = FakeSharedPreferences()
     AiProvider.OPENAI.setApiKey(prefs, "existing-key")

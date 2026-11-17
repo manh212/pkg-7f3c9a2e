@@ -51,6 +51,37 @@ interactive nodes and relevant app names, and marks incomplete catalogs. This
 reduces prefill work but is not an exact tokenizer count. Goals that cannot fit
 are rejected rather than silently shortened.
 
+## Offline commands on master
+
+An unconfigured installation starts in Offline mode. Choosing Online switches
+to the selected provider. Offline typed commands are available immediately.
+Offline speech uses the shared Vietnamese Zipformer download and passes the
+transcript directly to the interpreter. Download the speech model once from
+the spoken input button. The configured Meridian license still applies.
+
+Examples for the direct interpreter:
+
+- `Vào YouTube rồi nhấn tìm kiếm`
+- `Mở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên`
+- `Soạn tin nhắn Zalo cho Lan nội dung Mình đến muộn 15 phút`
+- `Soạn tin nhắn cho Lan trên Zalo`
+- `Soạn tin nhắn SMS cho Lan, Mình đến muộn 15 phút`
+- `Gọi cho mẹ` or `Gọi đến số` followed by a number
+- `Cuộn xuống hai lần`, `Quay lại`, `Đặt báo thức lúc 6 giờ 30 sáng`
+
+Messaging follows the app named in the command. Zalo drafts require a single
+matching recipient, the matching chat header, and an identifiable message
+field. An existing draft is preserved. SMS opens the system composer. Both
+leave the draft for the user to send. Calls show the existing confirmation
+dialog. When multiple phone numbers match a name, the user chooses the number
+first. Calls and services such as YouTube or Zalo need their own connections.
+
+The direct workflow uses accessibility events and bounded screen checks.
+Target selection takes account of the current app, node labels and tree
+relationships. If an installed local planner handles an unfamiliar phrasing,
+it can launch apps, navigate or operate a labeled search control. The offline
+workflow keeps speech and screen content on the phone.
+
 ## Execution
 
 The controller observes the active non-overlay window, sends bounded accessibility

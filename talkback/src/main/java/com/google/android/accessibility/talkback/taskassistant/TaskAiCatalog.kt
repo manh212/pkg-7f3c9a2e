@@ -20,7 +20,8 @@ object TaskAiCatalog {
   const val PREF_LOCAL = "pref_task_assistant_local_model"
 
   fun isLocal(prefs: SharedPreferences): Boolean = prefs.getString(PREF_MODE, null)?.let { it == "local" }
-    ?: prefs.getString(PREF_CHOICE, "").orEmpty().startsWith("local:")
+    ?: prefs.getString(PREF_CHOICE, null)?.let { it.startsWith("local:") }
+    ?: true
 
   fun setLocal(prefs: SharedPreferences, local: Boolean) {
     prefs.edit().putString(PREF_MODE, if (local) "local" else "cloud").apply()

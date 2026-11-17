@@ -104,7 +104,8 @@ class AiDictation(
     object : Runnable {
       override fun run() {
         if (phase != Phase.RECORDING) return
-        val wait = silenceLimitMs(onText != null, speechHeard, DictationSettings.autoStopMs(prefs))
+        val setting = if (offlineTask) OFFLINE_TASK_PAUSE_MS else DictationSettings.autoStopMs(prefs)
+        val wait = silenceLimitMs(onText != null, speechHeard, setting)
         if (wait <= 0) return
         val now = SystemClock.elapsedRealtime()
         val silent = now - lastSpeechAt
@@ -118,6 +119,7 @@ class AiDictation(
     }
 
   private var onText: ((String?) -> Unit)? = null
+  private var offlineTask = false
 
   init {
     SandflyDictation.instance = this
@@ -206,7 +208,15 @@ class AiDictation(
     return true
   }
 
-  fun listen(callback: (String?) -> Unit): Boolean {
+  fun listen(callback: (String?) -> Unit): Boolean = listen(false, callback)
+
+  fun listenOfflineTask(callback: (String?) -> Unit): Boolean = listen(true, callback)
+
+  fun cancelOfflineTask() {
+    if (offlineTask) cancelListening()
+  }
+
+  private fun listen(task: Boolean, callback: (String?) -> Unit): Boolean {
     if (!com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.allows(service, "dictation")) {
       callback(null)
       return false
@@ -214,7 +224,7 @@ class AiDictation(
     if (phase != Phase.IDLE) {
       // A dictation into a field goes on; an earlier listen stops. Either way this caller is
       // answered, or it would wait for good.
-      if (onText != null) start(null)
+      if (!task && !offlineTask && onText != null) start(null)
       callback(null)
       return false
     }
@@ -229,8 +239,11 @@ class AiDictation(
     field = null
     translateMode = false
     onText = callback
-    if (!startRecording(DictationSettings.effectiveRecognition(service, prefs))) {
+    offlineTask = task
+    val engine = if (task) Recognition.ZIPFORMER else DictationSettings.effectiveRecognition(service, prefs)
+    if (!startRecording(engine)) {
       onText = null
+      offlineTask = false
       handler.removeCallbacks(autoStop)
       speak(service.getString(R.string.dictation_unavailable))
       callback(null)
@@ -464,6 +477,11 @@ class AiDictation(
       deliver(null)
       return
     }
+    if (offlineTask) {
+      finish()
+      deliver(heard)
+      return
+    }
     val translating = translateMode && target != null
     // Online emoji enrichment is optional and is never sent for passwords.
     val emoji = target != null && !target.isPassword && !translating && DictationSettings.addOnlineEmoji(prefs)
@@ -598,7 +616,7 @@ class AiDictation(
       pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_down))
     }
     // For the next dictation: a language pack downloaded since the last one is used from then on.
-    if (phase != Phase.IDLE) GoogleSpeechLanguages.refresh(service)
+    if (phase != Phase.IDLE && !offlineTask) GoogleSpeechLanguages.refresh(service)
     phase = Phase.IDLE
     translateMode = false
     giveUp = null
@@ -646,6 +664,7 @@ class AiDictation(
   private fun deliver(text: String?) {
     val callback = onText ?: return
     onText = null
+    offlineTask = false
     callback(text)
   }
 
@@ -691,6 +710,8 @@ class AiDictation(
     private const val TAG = "AiDictation"
 
     private const val AUTO_STOP_CHECK_MS = 250L
+
+    private const val OFFLINE_TASK_PAUSE_MS = 1_200L
 
     const val LISTEN_PAUSE_MS = 4_000L
 

@@ -39,11 +39,14 @@ object VoiceCommandCallDialog {
    * caller can say why no call started.
    */
   @JvmStatic
-  fun show(context: Context, number: String, onDialFallback: () -> Unit) {
+  @JvmOverloads
+  fun show(context: Context, number: String, onDialFallback: () -> Unit, contactName: String = "") {
+    val destination = listOf(contactName, VoiceCommandPhoneNumbers.grouped(number))
+      .filter { it.isNotBlank() }.joinToString("\n")
     val dialog =
       AlertDialog.Builder(context)
         .setTitle(R.string.voice_call_confirm_title)
-        .setMessage(VoiceCommandPhoneNumbers.grouped(number))
+        .setMessage(destination)
         .setNegativeButton(android.R.string.cancel, null)
         .setPositiveButton(R.string.voice_call_action) { _, _ ->
           placeCall(context, number, onDialFallback)

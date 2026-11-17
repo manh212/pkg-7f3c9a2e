@@ -38,7 +38,7 @@ class TaskAssistantFragment : TalkBackPreferenceFragment(R.xml.task_assistant_pr
       val prefs = SharedPreferencesUtils.getSharedPreferences(context)
       findPreference<Preference>("task_assistant_ai")?.summary = TaskAiCatalog.selected(context)?.label
         ?: if (TaskAiCatalog.isLocal(prefs)) {
-          "${TaskAiCatalog.localModel(prefs).name} · ${context.getString(R.string.task_not_downloaded)}"
+          context.getString(R.string.task_local)
         } else context.getString(R.string.task_ai_missing)
     }
   }

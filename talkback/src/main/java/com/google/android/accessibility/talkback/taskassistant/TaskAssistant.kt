@@ -10,13 +10,15 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.dictation.SandflyDictation
+import com.google.android.accessibility.talkback.dictation.ZipformerModels
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.utils.material.MaterialComponentUtils
 import com.google.android.accessibility.utils.Performance
+import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.widget.DialogUtils
 import com.google.android.accessibility.utils.widget.KeyboardSafeEditText
@@ -28,13 +30,17 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   private val worker = Executors.newSingleThreadExecutor()
   private val epoch = AtomicLong()
   private val reader = TaskScreenReader(service)
-  private val planner = TaskPlanner(service)
+  private val plannerHandle = lazy { TaskPlanner(service) }
+  private val planner by plannerHandle
+  private val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+  private val offline = OfflineTaskRunner(service, main, worker, reader, ::canOperate, ::apps, ::announce)
   private var engine: TaskEngine? = null
   private var ai: TaskAiChoice? = null
   private var dialog: AlertDialog? = null
   private var draft = ""
   private var closed = false
   private var voicePending = false
+  private var voiceOffline = false
   private var voiceGeneration = 0L
   private val consumedKeys = mutableSetOf<Int>()
   private var lastState = TaskState.IDLE
@@ -48,8 +54,8 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
 
   fun show() {
     if (closed || dialog?.isShowing == true) return
-    voicePending = false
-    voiceGeneration++
+    cancelVoice()
+    offline.cancel()
     if (engine?.busy == true) engine?.cancel()
     if (engine?.state == TaskState.PAUSED) { showPaused(); return }
     showEntry()
@@ -74,12 +80,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       setText(R.string.task_speak)
       setOnClickListener {
         draft = field.text.toString()
-        dismissDialog()
-        voicePending = true
-        val voiceToken = ++voiceGeneration
-        runCatching {
-          service.startActivity(Intent(service, TaskVoiceInputActivity::class.java).putExtra(TaskVoiceInputActivity.REQUEST_TOKEN, voiceToken).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }.onFailure { voicePending = false; announce(service.getString(R.string.task_voice_unavailable)); showEntry() }
+        speakGoal()
       }
     })
     val picker = TaskAiPicker(service) { provider ->
@@ -88,7 +89,6 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       TaskAiPicker.openSettings(service, provider)
     }
     content.addView(picker)
-    content.addView(TextView(service).apply { setText(R.string.task_data_notice) })
     val builder = MaterialComponentUtils.alertDialogBuilder(service).setTitle(R.string.task_title).setView(ScrollView(service).apply { addView(content) })
       .setPositiveButton(R.string.task_start, null).setNegativeButton(R.string.task_close, null)
     val shown = display(builder) { draft = field.text.toString() }
@@ -96,20 +96,95 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       val goal = field.text.toString().trim()
       if (goal.isEmpty()) { field.error = service.getString(R.string.task_goal); return@setOnClickListener }
       if (goal.length > 4000) { field.error = service.getString(R.string.task_goal_too_long); return@setOnClickListener }
-      startGoal(goal, picker)?.let(::announce)
+      startGoal(goal, TaskAiCatalog.isLocal(prefs), picker)?.let {
+        if (dialog == null) showEntry()
+        announce(it)
+      }
     }
   }
 
-  private fun startGoal(goal: String, picker: TaskAiPicker? = null): String? {
+  private fun speakGoal() {
+    val local = TaskAiCatalog.isLocal(prefs)
+    if (local) {
+      val models = ZipformerModels.get(service)
+      if (!models.isInstalled()) {
+        if (models.state is ZipformerModels.State.Downloading) {
+          announce(service.getString(R.string.task_offline_voice_downloading))
+          return
+        }
+        display(MaterialComponentUtils.alertDialogBuilder(service).setTitle(R.string.task_offline_voice_download)
+          .setMessage(R.string.task_offline_voice_download_message)
+          .setPositiveButton(R.string.task_download_model) { _, _ ->
+            models.startDownload()
+            showEntry()
+          }
+          .setNegativeButton(R.string.task_cancel, null), ::showEntry)
+        return
+      }
+    }
+    dismissDialog()
+    voicePending = true
+    voiceOffline = local
+    val token = ++voiceGeneration
+    if (local) {
+      SandflyDictation.listenOfflineTask { text -> main.post { voiceResult(token, text) } }
+    } else {
+      runCatching {
+        service.startActivity(Intent(service, TaskVoiceInputActivity::class.java)
+          .putExtra(TaskVoiceInputActivity.REQUEST_TOKEN, token).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      }.onFailure { voiceResult(token, null) }
+    }
+  }
+
+  private fun cancelVoice() {
+    val cancelRecording = voicePending && voiceOffline
+    voicePending = false
+    voiceGeneration++
+    if (cancelRecording) SandflyDictation.cancelOfflineTask()
+  }
+
+  private fun voiceResult(token: Long, text: String?) {
+    if (!voicePending || voiceGeneration != token || closed || engine?.active == true) return
+    val local = voiceOffline
+    voicePending = false
+    if (text != null) draft = text
+    val continueTask = Runnable {
+      if (closed || voiceGeneration != token || engine?.active == true) return@Runnable
+      val goal = text?.trim().orEmpty()
+      val problem = when {
+        goal.length > 4000 -> service.getString(R.string.task_goal_too_long)
+        goal.isBlank() -> service.getString(R.string.task_voice_unavailable)
+        else -> startGoal(goal, local)
+      }
+      if (problem != null) {
+        showEntry()
+        announce(problem)
+      }
+    }
+    if (local) main.post(continueTask) else main.postDelayed(continueTask, 350)
+  }
+
+  private fun startGoal(goal: String, local: Boolean, picker: TaskAiPicker? = null): String? {
+    if (!canOperate()) return service.getString(R.string.task_offline_interrupted)
+    if (local != TaskAiCatalog.isLocal(prefs)) return service.getString(R.string.task_voice_unavailable)
+    draft = goal
+    if (local) {
+      dismissDialog()
+      offline.cancel()
+      if (engine?.active == true) engine?.cancel()
+      if (offline.start(goal)) return null
+    }
     val choice = TaskAiCatalog.selected(service)
     val problem = (picker ?: TaskAiPicker(service)).problem()
-    if (choice == null || problem != null) return problem ?: service.getString(R.string.task_ai_missing)
-    draft = goal
+    if (choice == null || problem != null) {
+      return if (local) service.getString(R.string.task_offline_unknown)
+      else problem ?: service.getString(R.string.task_ai_missing)
+    }
     TaskAiCatalog.select(service, choice)
     ai = choice
     dismissDialog()
-    voicePending = false
-    voiceGeneration++
+    cancelVoice()
+    offline.cancel()
     if (engine?.active == true) engine?.cancel()
     engine = TaskEngine(this, apps())
     engine?.start(goal)
@@ -143,6 +218,11 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
 
   private fun userInput(): Boolean {
     if (dialog != null) return false
+    if (offline.active) {
+      offline.cancel()
+      announce(service.getString(R.string.task_offline_interrupted))
+      return true
+    }
     if (engine?.busy != true) return false
     engine?.cancel()
     return true
@@ -158,6 +238,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   private fun event(event: AccessibilityEvent) {
     if (engine?.busy == true && !canOperate()) { engine?.pause(); return }
     if (event.eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START) userInput()
+    offline.event(event)
   }
 
   private fun canOperate(): Boolean = TalkBackService.isServiceActive() && !PauseController.isPaused() &&
@@ -188,6 +269,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
 
   override fun execute(screen: TaskScreen, step: TaskStep, done: (TaskExecution) -> Unit) {
     val token = epoch.get()
+    val localPlanner = ai?.provider == null
     worker.execute {
       val outcome = runCatching {
         val fresh = reader.read()
@@ -200,6 +282,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
             else -> resolveTarget(screen, step, fresh)?.let { step.copy(node = it) }
           }
           if (effective == null) TaskExecution.STALE
+          else if (localPlanner && !isOfflinePlannerAction(fresh.screen, effective)) TaskExecution.FAILED
           else {
             val performed = when (effective.operation) {
               TaskOperation.OPEN_APP -> service.packageManager.getLaunchIntentForPackage(effective.packageName)?.let {
@@ -218,6 +301,18 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       }.getOrDefault(TaskExecution.FAILED)
       main.post { if (!closed && epoch.get() == token) done(outcome) }
     }
+  }
+
+  private fun isOfflinePlannerAction(screen: TaskScreen, step: TaskStep): Boolean = when (step.operation) {
+    TaskOperation.OPEN_APP, TaskOperation.BACK, TaskOperation.HOME, TaskOperation.WAIT,
+    TaskOperation.SCROLL_FORWARD, TaskOperation.SCROLL_BACKWARD -> true
+    TaskOperation.CLICK, TaskOperation.SET_TEXT, TaskOperation.PRESS_ENTER -> {
+      val node = screen.nodes.firstOrNull { it.id == step.node }
+      node?.label?.split("; ")?.any {
+        TaskProtocol.normalize(it) in setOf("tim kiem", "search", "search youtube", "tim kiem tren youtube")
+      } == true
+    }
+    else -> false
   }
 
   private fun resolveLabeled(fresh: CapturedTaskScreen, step: TaskStep): String? {
@@ -267,14 +362,16 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
 
   override fun cancelOperations() {
     epoch.incrementAndGet()
-    planner.cancel()
+    if (plannerHandle.isInitialized()) planner.cancel()
     dismissDialog()
   }
 
   private fun close() {
     closed = true
+    cancelVoice()
+    offline.cancel()
     engine?.cancel()
-    planner.close()
+    if (plannerHandle.isInitialized()) planner.close()
     worker.shutdownNow()
     dismissDialog()
   }
@@ -296,22 +393,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     @JvmStatic fun closeService() { instance?.close(); instance = null }
 
     @JvmStatic fun onVoiceResult(token: Long, text: String?) {
-      val controller = instance ?: return
-      if (!controller.voicePending || controller.voiceGeneration != token || controller.closed || controller.engine?.active == true) return
-      controller.voicePending = false
-      if (text != null) controller.draft = text
-      controller.main.postDelayed({
-        if (controller.closed || controller.voiceGeneration != token || controller.engine?.active == true) return@postDelayed
-        val goal = text?.trim().orEmpty()
-        if (goal.isNotEmpty() && goal.length <= 4000) {
-          val problem = controller.startGoal(goal)
-          if (problem == null) return@postDelayed
-          controller.announce(problem)
-        } else if (goal.length > 4000) {
-          controller.announce(controller.service.getString(R.string.task_goal_too_long))
-        }
-        controller.showEntry()
-      }, 350)
+      instance?.voiceResult(token, text)
     }
   }
 }

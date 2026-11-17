@@ -50,4 +50,21 @@
     <string name="task_not_downloaded">Chưa tải</string>
     <string name="task_model_incompatible">Chưa hỗ trợ giao việc</string>
     <string name="task_download_confirm">Tải %1$s về điện thoại? Dung lượng tệp khoảng %2$s. Việc tải cần kết nối mạng; sau khi tải xong có thể dùng ngoại tuyến.</string>
+    <string name="task_offline_voice_download">Tải nhận giọng tiếng Việt</string>
+    <string name="task_offline_voice_download_message">Cần mạng để tải khoảng 34 MB. Sau khi tải, giọng nói được xử lý trên điện thoại.</string>
+    <string name="task_offline_voice_downloading">Đang tải nhận giọng tiếng Việt</string>
+    <string name="task_offline_optional_model">Có thể dùng lệnh có sẵn ngay. Mô hình bổ sung khoảng %1$s.</string>
+    <string name="task_offline_unknown">Chưa hiểu yêu cầu. Hãy thử một lệnh cụ thể, ví dụ Mở YouTube.</string>
+    <string name="task_offline_interrupted">Đã dừng tác vụ</string>
+    <string name="task_offline_draft_ready">Đã soạn tin nhắn</string>
+    <string name="task_offline_existing_draft">Cuộc trò chuyện đã có nội dung đang soạn</string>
+    <string name="task_offline_message_app">Hãy nói ứng dụng và người nhận, ví dụ Soạn tin nhắn Zalo cho Lan.</string>
+    <string name="task_offline_call_target">Hãy nói tên người cần gọi hoặc số điện thoại.</string>
+    <string name="task_offline_target_unavailable">Chưa tìm được mục phù hợp để thực hiện</string>
+    <string name="task_offline_target_ambiguous">Có nhiều mục trùng tên. Hãy chọn đúng mục trên màn hình.</string>
+    <string name="task_offline_contacts_permission">Cần quyền danh bạ để tìm theo tên. Bạn cũng có thể nói số điện thoại.</string>
+    <string name="task_offline_contact_missing">Chưa tìm được người nhận</string>
+    <string name="task_offline_choose_contact">Chọn người nhận hoặc số điện thoại</string>
+    <string name="task_offline_alarm_set">Đã đặt báo thức</string>
+    <string name="task_offline_volume_set">Đã điều chỉnh âm lượng</string>
 </resources>

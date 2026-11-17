@@ -17,7 +17,9 @@ object TaskPrompt {
       Allowed actions: ${TaskOperation.entries.joinToString { it.wire }}.
       Use only listed node ids with supported actions, and listed app packages. Never use coordinates, code or URLs.
       Names may appear in Vietnamese or English (Cài đặt = Settings); match by meaning, not exact wording.
-      open_app needs package. set_text needs text with the complete requested value. Do not overwrite unrelated content.
+      open_app needs package. In this mode the host only allows launching apps, Back, Home, scrolling,
+      waiting, and clicking or entering text in a labeled search control. Do not use these actions to
+      send messages or place calls. set_text needs text with the complete requested value.
       Never return ask and never ask the user anything. Never enter passwords, OTPs or credentials.
       done needs node, exact evidence substring from its CURRENT label, message in Vietnamese, and checked for a checkable node.
       Verify the user goal against actual current state. Action success alone is not completion. Never invent evidence.
