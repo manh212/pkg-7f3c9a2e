@@ -184,6 +184,7 @@ public class FocusProcessorForLogicalNavigation {
   private boolean reachEdge = false;
 
   private static boolean wrapAround = true;
+  private static boolean autoSwitchPage = false;
 
   /** The last node that was scrolled while navigating with native macro granularity. */
   private @Nullable AccessibilityNodeInfoCompat lastScrolledNodeForNativeMacroGranularity;
@@ -264,6 +265,9 @@ public class FocusProcessorForLogicalNavigation {
 
   public static void setWrapAround(boolean wrap) {
     wrapAround = wrap;
+  }
+  public static void setAutoSwitchPage(boolean autoSwitch) {
+    autoSwitchPage = autoSwitch;
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -3088,6 +3092,10 @@ public class FocusProcessorForLogicalNavigation {
       return REVEAL_NONE;
     }
     AccessibilityNodeInfoCompat scrollableNode = scrollableNodeInfo.getNode();
+
+    if (!autoSwitchPage && Role.getRole(scrollableNode) == Role.ROLE_PAGER) {
+      return REVEAL_NONE;
+    }
 
     // Don't try to scroll the pivot when ignoring all descendants from the pivot.
     if (scrollableNode.equals(pivot) && ignoreDescendantsOfPivot) {
