@@ -162,6 +162,7 @@ pref_audio_ducking_menu_setting_key
 pref_audio_output_device
 pref_auto_enter_table_navigation_key
 pref_auto_image_captioning_key
+pref_auto_switch_page_key
 pref_auto_update_check
 pref_back_tap_sensitivity
 pref_backup_reset_screen
