@@ -23,6 +23,8 @@
     <string name="text_editor_save_failed">Không lưu được tệp</string>
     <string name="text_editor_word_count">Số từ và ký tự</string>
     <string name="text_editor_word_count_message">%1$d từ, %2$d ký tự</string>
+    <string name="text_editor_open_file_failed">Không mở được tệp</string>
+    <string name="text_editor_open_file_too_large">Tệp quá lớn, không mở được</string>
     <string name="text_editor_empty_clipboard">Bộ nhớ tạm trống</string>
     <string name="text_editor_no_other_documents">Không có văn bản khác</string>
 </resources>
