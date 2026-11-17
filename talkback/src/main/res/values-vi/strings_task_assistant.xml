@@ -6,7 +6,7 @@
     <string name="task_speak">Nói yêu cầu</string>
     <string name="task_start">Thực hiện</string>
     <string name="task_close">Đóng</string>
-    <string name="task_ai">AI cho giao việc</string>
+    <string name="task_ai">Cài đặt giao việc</string>
     <string name="task_ai_missing">Chọn một dịch vụ AI đã cấu hình hoặc mô hình đã tải</string>
     <string name="task_data_notice">Nội dung màn hình được gửi đến AI đã chọn để thực hiện yêu cầu.</string>
     <string name="task_voice_unavailable">Không mở được nhận dạng giọng nói</string>
@@ -70,4 +70,5 @@
     <string name="task_offline_voice_not_downloaded">Chưa tải xong nhận giọng tiếng Việt · khoảng 34 MB</string>
     <string name="task_offline_voice_pause">Tạm dừng tải nhận giọng tiếng Việt</string>
     <string name="task_control_examples">Mở Zalo\nNhấn Tìm kiếm\nNhấn giữ tên mục\nChọn mục thứ ba\nCuộn xuống hai lần\nQuay lại\nVề màn hình chính\nĐóng bàn phím\nMở ứng dụng gần đây\nMở thông báo\nMở cài đặt nhanh\nBật tên công tắc\nTắt tên công tắc\nNhập Xin chào\nNhập vào ô Tìm kiếm nội dung Lan\nThêm mình đến muộn\nChọn tất cả\nSao chép\nCắt văn bản\nDán\nXóa nội dung\nTìm kiếm nhạc Trịnh\nMở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên\nMở video thứ hai\nSoạn tin nhắn Zalo cho Lan nội dung Mình đến muộn\nSoạn tin nhắn SMS cho Lan nội dung Mình đến muộn\nGọi cho mẹ\nGọi đến số 0901234567\nMở Zalo rồi nhấn Tìm kiếm\n\nNhập hoặc nói yêu cầu, kiểm tra chữ rồi bấm Thực hiện.</string>
+    <string name="task_offline_voice_settings">Hãy mở Cài đặt giao việc để tải nhận giọng tiếng Việt.</string>
 </resources>

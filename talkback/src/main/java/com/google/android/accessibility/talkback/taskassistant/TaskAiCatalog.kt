@@ -3,11 +3,13 @@ package com.google.android.accessibility.talkback.taskassistant
 import android.content.Context
 import android.content.SharedPreferences
 import com.google.android.accessibility.talkback.BuildConfig
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.actor.gemini.AiProvider
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalModel
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalModelManager
+import com.google.android.accessibility.talkback.actor.gemini.local.OnDeviceAiSettings
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 data class TaskAiChoice(val id: String, val label: String, val model: String, val provider: AiProvider?)
@@ -62,6 +64,26 @@ object TaskAiCatalog {
   fun setLocalModel(prefs: SharedPreferences, model: LocalModel) {
     require(model.writesJson)
     prefs.edit().putString(PREF_LOCAL, model.id).apply()
+  }
+
+  fun problem(context: Context): String? {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    if (isLocal(prefs)) {
+      val model = localModel(prefs)
+      if (!model.writesJson) return context.getString(R.string.task_model_incompatible)
+      val manager = LocalModelManager.get(context)
+      val support = manager.support(model)
+      if (support != OnDeviceAiSettings.Support.OK &&
+          !(support == OnDeviceAiSettings.Support.NOT_ENOUGH_RAM && OnDeviceAiSettings.ignoreMemoryLimits(prefs))) {
+        return context.getString(R.string.task_local_unsupported)
+      }
+      if (!manager.store.isInstalled(model)) return context.getString(R.string.task_model_not_downloaded)
+    } else {
+      val provider = provider(prefs)
+      if (!canConnect(prefs, provider)) return context.getString(R.string.task_service_not_ready)
+      if (model(prefs, provider).isEmpty()) return context.getString(R.string.task_choose_model)
+    }
+    return null
   }
 
   fun selected(context: Context): TaskAiChoice? {

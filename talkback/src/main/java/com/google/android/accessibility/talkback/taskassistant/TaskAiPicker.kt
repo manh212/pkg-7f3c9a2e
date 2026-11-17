@@ -46,6 +46,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
   private val download = Button(context)
   private val settings = Button(context)
   private val status = TextView(context)
+  private val commands = Button(context)
   private val speechDownload = Button(context)
   private val speechStatus = TextView(context)
   private var generation = 0L
@@ -72,7 +73,12 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
     provider.contentDescription = context.getString(R.string.task_service)
     provider.adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, providers.map { context.getString(it.label) })
     provider.setSelection(providers.indexOf(TaskAiCatalog.provider(prefs)).coerceAtLeast(0))
-    listOf(mode, speechDownload, speechStatus, provider, model, reload, download, settings, status).forEach(::addView)
+    listOf(mode, speechDownload, speechStatus, provider, model, reload, download, settings, status, commands).forEach(::addView)
+    commands.setText(R.string.task_control_commands)
+    commands.setOnClickListener {
+      show(MaterialComponentUtils.alertDialogBuilder(context).setTitle(R.string.task_control_commands)
+        .setMessage(R.string.task_control_examples).setPositiveButton(R.string.task_close, null))
+    }
     speechDownload.setOnClickListener {
       if (speechModels.state is ZipformerModels.State.Downloading) speechModels.cancelDownload()
       else if (!speechModels.isInstalled()) {
@@ -148,22 +154,11 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
       availableModels(service).isEmpty() && !loading) loadModels(false)
   }
 
-  fun problem(): String? {
-    if (TaskAiCatalog.isLocal(prefs)) {
-      val selected = TaskAiCatalog.localModel(prefs)
-      if (!selected.writesJson) return context.getString(R.string.task_model_incompatible)
-      if (support(selected) != OnDeviceAiSettings.Support.OK) return context.getString(R.string.task_local_unsupported)
-      if (!manager.store.isInstalled(selected)) return context.getString(R.string.task_model_not_downloaded)
-    } else {
-      val service = TaskAiCatalog.provider(prefs)
-      if (!TaskAiCatalog.canConnect(prefs, service)) return context.getString(R.string.task_service_not_ready)
-      if (TaskAiCatalog.model(prefs, service).isEmpty()) return context.getString(R.string.task_choose_model)
-    }
-    return null
-  }
+  fun problem(): String? = TaskAiCatalog.problem(context)
 
   private fun refresh() {
     val local = TaskAiCatalog.isLocal(prefs)
+    commands.visibility = if (local) VISIBLE else GONE
     refreshSpeech()
     provider.visibility = if (local) GONE else VISIBLE
     reload.visibility = if (local) GONE else VISIBLE

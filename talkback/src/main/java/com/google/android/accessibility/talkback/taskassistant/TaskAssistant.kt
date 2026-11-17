@@ -84,21 +84,6 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
         speakGoal()
       }
     })
-    val picker = TaskAiPicker(service) { provider ->
-      draft = field.text.toString()
-      dismissDialog()
-      TaskAiPicker.openSettings(service, provider)
-    }
-    content.addView(picker)
-    content.addView(Button(service).apply {
-      setText(R.string.task_control_commands)
-      setOnClickListener {
-        draft = field.text.toString()
-        display(MaterialComponentUtils.alertDialogBuilder(service)
-          .setTitle(R.string.task_control_commands).setMessage(R.string.task_control_examples)
-          .setPositiveButton(R.string.task_close, null), ::showEntry)
-      }
-    })
     val builder = MaterialComponentUtils.alertDialogBuilder(service).setTitle(R.string.task_title).setView(ScrollView(service).apply { addView(content) })
       .setPositiveButton(R.string.task_start, null).setNegativeButton(R.string.task_close, null)
     val shown = display(builder) { draft = field.text.toString() }
@@ -106,7 +91,8 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       val goal = field.text.toString().trim()
       if (goal.isEmpty()) { field.error = service.getString(R.string.task_goal); return@setOnClickListener }
       if (goal.length > 4000) { field.error = service.getString(R.string.task_goal_too_long); return@setOnClickListener }
-      startGoal(goal, TaskAiCatalog.isLocal(prefs), picker)?.let {
+      startGoal(goal, TaskAiCatalog.isLocal(prefs))?.let {
+        if (dialog === shown) field.error = it
         if (dialog == null) showEntry()
         announce(it)
       }
@@ -118,17 +104,8 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     if (local) {
       val models = ZipformerModels.get(service)
       if (!models.isInstalled()) {
-        if (models.state is ZipformerModels.State.Downloading) {
-          announce(service.getString(R.string.task_offline_voice_downloading))
-          return
-        }
-        display(MaterialComponentUtils.alertDialogBuilder(service).setTitle(R.string.task_offline_voice_download)
-          .setMessage(R.string.task_offline_voice_download_message)
-          .setPositiveButton(R.string.task_download_model) { _, _ ->
-            models.startDownload()
-            showEntry()
-          }
-          .setNegativeButton(R.string.task_cancel, null), ::showEntry)
+        announce(service.getString(if (models.state is ZipformerModels.State.Downloading)
+          R.string.task_offline_voice_downloading else R.string.task_offline_voice_settings))
         return
       }
     }
@@ -168,7 +145,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     if (voiceOffline) main.post(review) else main.postDelayed(review, 350)
   }
 
-  private fun startGoal(goal: String, local: Boolean, picker: TaskAiPicker? = null): String? {
+  private fun startGoal(goal: String, local: Boolean): String? {
     if (!canOperate()) return service.getString(R.string.task_offline_interrupted)
     if (local != TaskAiCatalog.isLocal(prefs)) return service.getString(R.string.task_voice_unavailable)
     draft = goal
@@ -179,7 +156,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       if (offline.start(goal)) return null
     }
     val choice = TaskAiCatalog.selected(service)
-    val problem = (picker ?: TaskAiPicker(service)).problem()
+    val problem = TaskAiCatalog.problem(service)
     if (choice == null || problem != null) {
       return if (local) service.getString(R.string.task_offline_unknown)
       else problem ?: service.getString(R.string.task_ai_missing)

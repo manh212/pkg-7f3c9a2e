@@ -57,7 +57,7 @@ An unconfigured installation starts in Offline mode. Choosing Online switches
 to the selected provider. Offline typed commands are available immediately.
 Offline speech uses the shared Vietnamese Zipformer download and passes the
 transcript directly to the interpreter. Download the speech model once from
-the spoken input button or the Offline picker. The picker shows the speech
+**Cài đặt giao việc**. The settings picker shows the speech
 model separately from the optional AI model, with download progress, failure
 and installed states. Completion updates the visible status and its polite
 accessibility announcement. The configured Meridian license still applies.
@@ -78,7 +78,9 @@ Examples for the direct interpreter:
 - `Mở ứng dụng gần đây`, `Mở thông báo`, `Mở cài đặt nhanh`
 - `Mở Zalo rồi nhấn Tìm kiếm`
 
-The **Lệnh điều khiển** button on the entry form lists these control commands.
+The entry form contains the request field, **Nói yêu cầu**, and **Thực hiện**.
+Processing mode, model selection, speech downloads and the **Lệnh điều khiển**
+list are available under **Cài đặt giao việc** in task settings.
 The interpreter supports screen interaction. Alarm scheduling and direct volume
 adjustment belong to the existing phone voice commands.
 Text input and search preserve dictated content, including connector words.
