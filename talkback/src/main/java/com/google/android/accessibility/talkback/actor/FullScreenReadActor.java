@@ -265,6 +265,9 @@ public class FullScreenReadActor {
   /** Stops any pending continuous reading mode. */
   public void stopContinuousReadingMode() {
     setReadingState(STATE_STOPPED);
+    if (wakeLock.isHeld()) {
+      wakeLock.release();
+    }
   }
 
   /** Ignore the pause speech and reset the continuous reading pause node. */
@@ -367,6 +370,9 @@ public class FullScreenReadActor {
       pausedNode = null;
       if (isPreviousActive() && speechController.isContinuousReadingPaused()) {
         setReadingState(STATE_READING_FROM_NEXT);
+        if (!wakeLock.isHeld()) {
+          wakeLock.acquire();
+        }
       }
     }
   }
