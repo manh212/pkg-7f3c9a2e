@@ -21,6 +21,7 @@ import android.os.Build;
 import com.google.android.accessibility.talkback.backup.SettingsBackup;
 import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager;
 import com.google.android.accessibility.talkback.migration.SettingsImporter;
+import com.google.android.accessibility.talkback.notifications.PerformanceProfile;
 import com.google.android.accessibility.talkback.report.CrashLog;
 import com.google.android.accessibility.talkback.training.PageConfigMapperImpl;
 import com.google.android.accessibility.talkback.training.TalkBackDisabledWarmingDialogImpl;
@@ -30,6 +31,7 @@ import com.google.android.accessibility.talkback.training.content.TutorialConten
 import com.google.android.accessibility.talkback.trainingcommon.TrainingActivityInterfaceInjector;
 import com.google.android.accessibility.talkback.trainingcommon.content.TutorialContentInterfaceInjector;
 import com.google.android.accessibility.utils.FormFactorUtils;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 
 /** A top level Application for TalkBack. */
 public class TalkBackApplication extends Application {
@@ -47,6 +49,7 @@ public class TalkBackApplication extends Application {
       SettingsBackup.applyInitialDefaultsIfNeeded(this);
       SettingsBackup.applyEventProcessingLevelResetIfNeeded(this);
       SettingsBackup.applyUsageHintsResetIfNeeded(this);
+      PerformanceProfile.migrateStoredProfile(SharedPreferencesUtils.getSharedPreferences(this));
       DeviceLicenseManager.prepareDirectBoot(this);
     }
 

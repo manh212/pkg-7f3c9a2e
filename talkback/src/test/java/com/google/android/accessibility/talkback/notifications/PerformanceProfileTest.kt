@@ -78,7 +78,7 @@ class PerformanceProfileTest {
     assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
     assertTrue(prefs.getBoolean("pref_prepare_second_ahead_speech", false))
     assertTrue(prefs.getBoolean("pref_order_cache", false))
-    assertTrue(prefs.getBoolean("pref_split_control_speech", false))
+    assertFalse(prefs.getBoolean("pref_split_control_speech", true))
     for (feature in LatencyExperiments.Feature.values()) {
       assertEquals(
         feature.key,
@@ -96,11 +96,36 @@ class PerformanceProfileTest {
   @Test
   fun reapplyingSpeedRepairsValuesLeftByAnEarlierSelection() {
     PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
-    prefs.edit().putBoolean("pref_prepare_adjacent_speech", false).apply()
+    prefs.edit()
+      .putBoolean("pref_prepare_adjacent_speech", false)
+      .putBoolean("pref_split_control_speech", true)
+      .apply()
 
     PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
 
     assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
+    assertFalse(prefs.getBoolean("pref_split_control_speech", true))
+  }
+
+  @Test
+  fun upgradingAnExistingSpeedProfileTurnsOffSplitSpeechOnce() {
+    prefs.edit()
+      .putString(PerformanceProfile.KEY, PerformanceProfile.SPEED)
+      .putInt("pref_performance_profile_version", 1)
+      .putBoolean("pref_split_control_speech", true)
+      .putBoolean("pref_prepare_adjacent_speech", false)
+      .apply()
+
+    PerformanceProfile.migrateStoredProfile(prefs)
+
+    assertEquals(PerformanceProfile.SPEED, PerformanceProfile.storedProfile(prefs))
+    assertFalse(prefs.getBoolean("pref_split_control_speech", true))
+    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
+
+    prefs.edit().putBoolean("pref_split_control_speech", true).apply()
+    PerformanceProfile.migrateStoredProfile(prefs)
+
+    assertTrue(prefs.getBoolean("pref_split_control_speech", false))
   }
 
   @Test

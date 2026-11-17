@@ -25,7 +25,8 @@ object PerformanceProfile {
   const val ENERGY = "energy"
 
   private const val CHOICE_VERSION_KEY = "pref_performance_profile_version"
-  private const val CHOICE_VERSION = 1
+  private const val FIRST_CHOICE_VERSION = 1
+  private const val CHOICE_VERSION = 2
 
   private const val DISABLE_LATENCY_EXTRAS_KEY = "pref_disable_latency_extras"
   private const val DISABLE_LATENCY_PINNED_KEY = "pref_disable_latency_pinned"
@@ -40,7 +41,17 @@ object PerformanceProfile {
   /** The stored profile, or null when none was ever picked, the stored value is unknown, or it was recorded before explicit choice was required. */
   fun storedProfile(preferences: SharedPreferences): String? =
     preferences.getString(KEY, null)?.takeIf { it == SPEED || it == ENERGY }
-      ?.takeIf { preferences.getInt(CHOICE_VERSION_KEY, 0) == CHOICE_VERSION }
+      ?.takeIf { preferences.getInt(CHOICE_VERSION_KEY, 0) in FIRST_CHOICE_VERSION..CHOICE_VERSION }
+
+  @JvmStatic
+  fun migrateStoredProfile(preferences: SharedPreferences) {
+    if (preferences.getInt(CHOICE_VERSION_KEY, 0) != FIRST_CHOICE_VERSION) return
+    val profile = storedProfile(preferences) ?: return
+    preferences.edit().apply {
+      if (profile == SPEED) putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
+      putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
+    }.apply()
+  }
 
   /** Writes the profile's values in one edit. Anything other than [ENERGY] applies speed. */
   fun apply(preferences: SharedPreferences, profile: String) {
@@ -51,7 +62,7 @@ object PerformanceProfile {
       putBoolean(PREPARE_ADJACENT_KEY, speed)
       putBoolean(PREPARE_SECOND_AHEAD_KEY, speed)
       putBoolean(ORDER_CACHE_KEY, speed)
-      putBoolean(SPLIT_CONTROL_SPEECH_KEY, speed)
+      putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
       for (feature in LatencyExperiments.Feature.values()) {
         putBoolean(feature.key, speed && feature.defaultEnabled)
       }
