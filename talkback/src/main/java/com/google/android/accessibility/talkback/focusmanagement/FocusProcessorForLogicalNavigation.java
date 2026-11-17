@@ -275,7 +275,7 @@ public class FocusProcessorForLogicalNavigation {
       return true;
     }
     CharSequence className = node.getClassName();
-    return className != null && className.toString("ViewPager");
+    return className != null && className.toString().contains("ViewPager");
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
