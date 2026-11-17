@@ -97,7 +97,7 @@ object SettingsImporter {
     val provider = context.packageManager.resolveContentProvider(authority, 0)
     if (provider == null || provider.packageName != AppIdMove.OLD_PACKAGE) {
       LogUtils.w(TAG, "The old app cannot share its settings, so none are imported")
-      return
+      return emptyList()
     }
     val base = Uri.Builder().scheme("content").authority(authority).build()
     val paths = listFiles(context, base)
