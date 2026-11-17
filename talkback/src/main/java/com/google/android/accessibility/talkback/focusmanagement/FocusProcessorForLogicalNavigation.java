@@ -270,6 +270,14 @@ public class FocusProcessorForLogicalNavigation {
     autoSwitchPage = autoSwitch;
   }
 
+  private static boolean isPager(AccessibilityNodeInfoCompat node) {
+    if (Role.getRole(node) == Role.ROLE_PAGER) {
+      return true;
+    }
+    CharSequence className = node.getClassName();
+    return className != null && className.toString("ViewPager");
+  }
+
   ///////////////////////////////////////////////////////////////////////////////////////////////
   // Methods
   public boolean onNavigationAction(NavigationAction navigationAction, EventId eventId) {
@@ -3093,7 +3101,7 @@ public class FocusProcessorForLogicalNavigation {
     }
     AccessibilityNodeInfoCompat scrollableNode = scrollableNodeInfo.getNode();
 
-    if (!autoSwitchPage && Role.getRole(scrollableNode) == Role.ROLE_PAGER) {
+    if (!autoSwitchPage && isPager(scrollableNode)) {
       return REVEAL_NONE;
     }
 
