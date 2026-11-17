@@ -26,6 +26,11 @@
       android:summary="@string/summary_pref_wrap_around"
       android:title="@string/title_pref_wrap_around" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_auto_switch_page_default"
+      android:key="@string/pref_auto_switch_page_key"
+      android:summary="@string/summary_pref_auto_switch_page"
+      android:title="@string/title_pref_auto_switch_page" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_collapse_list_item_actions_default"
       android:key="@string/pref_collapse_list_item_actions_key"
       android:summary="@string/summary_pref_collapse_list_item_actions"
