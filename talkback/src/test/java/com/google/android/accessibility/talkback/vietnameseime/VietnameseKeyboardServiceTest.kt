@@ -1082,6 +1082,39 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun deleteWordAfterSpaceDeletesTheSpaceFirst() {
+    setEcho(PREF_ECHO_WORDS)
+    text.append("hello ")
+    Selection.setSelection(text, 6)
+    startEditor { initialSelStart = 6; initialSelEnd = 6 }
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.WORD)
+
+    press("Xóa")
+
+    assertEquals("hello", text.toString())
+    assertEquals(listOf(removed(service.getString(R.string.vietnamese_ime_space))), spoken)
+
+    press("Xóa")
+
+    assertEquals("", text.toString())
+    assertEquals(removed("hello"), spoken.last())
+    SelectorController.updateSettingPrefForGranularity(service, CursorGranularity.CHARACTER)
+  }
+
+  @Test
+  fun spaceReadsWordBeforeCursorEvenWhenWordWasNotTracked() {
+    setEcho(PREF_ECHO_WORDS)
+    text.append("hello")
+    Selection.setSelection(text, 5)
+    startEditor { initialSelStart = 5; initialSelEnd = 5 }
+
+    press("Dấu cách")
+
+    assertEquals("hello ", text.toString())
+    assertEquals(listOf("hello"), spoken)
+  }
+
+  @Test
   fun singleTapModeSingleTapDeleteDeletesOneCharacter() {
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     text.append("hello world")
