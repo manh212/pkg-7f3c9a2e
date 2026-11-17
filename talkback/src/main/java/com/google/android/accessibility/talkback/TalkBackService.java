@@ -4046,6 +4046,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     AutomaticTranslation.update(this);
     FocusProcessorForLogicalNavigation.setWrapAround(
         getBooleanPref(R.string.pref_wrap_around_key, R.bool.pref_wrap_around_default));
+    FocusProcessorForLogicalNavigation.setAutoSwitchPage(
+        getBooleanPref(
+            R.string.pref_auto_switch_page_key, R.bool.pref_auto_switch_page_default));
     SpeechDictionary.load(this, prefs);
     AppGestures.load(prefs);
     GestureProfiles.load(prefs);
