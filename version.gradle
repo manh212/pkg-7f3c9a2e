@@ -20,8 +20,10 @@ def gitOutput = { List<String> args ->
 }
 // Meridian's build number is the number of commits since the last commit before Meridian numbered
 // its own builds, so the first one is build 1. The publish job in .github/workflows/build.yml
-// counts the same way.
-def buildNumberBase = "699e30f8e359e5e047e15149ddc407ea9ca13107"
+// counts the same way. The base was moved back on 2026-11-17 after master was reset to build 2406:
+// without this the next build would have been 2413, below the 2464 already installed on phones,
+// and Android would refuse the update. With this base the next build is 2466.
+def buildNumberBase = "bd967df3072c00f35f310cb11ee8f4c433f1d58a"
 def commitCount = gitOutput(['rev-list', '--count', "${buildNumberBase}..HEAD"])
 def commitHash = gitOutput(['rev-parse', 'HEAD'])
 def buildRef = providers.environmentVariable("GITHUB_REF").getOrElse("")
