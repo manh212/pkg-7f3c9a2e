@@ -15,6 +15,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.dictation.SandflyDictation
 import com.google.android.accessibility.talkback.dictation.ZipformerModels
+import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.utils.material.MaterialComponentUtils
 import com.google.android.accessibility.utils.Performance
@@ -242,6 +243,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   }
 
   private fun canOperate(): Boolean = TalkBackService.isServiceActive() && !PauseController.isPaused() &&
+    !DeviceLicenseManager.restricted(service) &&
     service.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked != true
 
   override fun observe(done: (Result<TaskScreen>) -> Unit) {

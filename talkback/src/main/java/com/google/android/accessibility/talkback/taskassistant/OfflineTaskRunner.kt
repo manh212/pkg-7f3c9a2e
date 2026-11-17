@@ -230,7 +230,9 @@ internal class OfflineTaskRunner(
       }
       if (now - current.recipientCandidateSince < RECIPIENT_STABILITY_MS) return OfflineTaskScreen.Decision.Wait
     }
-    if (run !== current || !canOperate()) return OfflineTaskScreen.Decision.Wait
+    if (run !== current || SystemClock.uptimeMillis() >= current.deadline || !canOperate()) {
+      return OfflineTaskScreen.Decision.Wait
+    }
     if (decision.guard != null && !reader.matches(capture, decision.guard)) return OfflineTaskScreen.Decision.Wait
     val performed = reader.perform(capture, decision.step) ||
       (step is OfflineScreenStep.SubmitYouTube && decision.step.operation == TaskOperation.PRESS_ENTER &&
