@@ -64,6 +64,10 @@
     <string name="task_offline_contacts_permission">Cần quyền danh bạ để tìm theo tên. Bạn cũng có thể nói số điện thoại.</string>
     <string name="task_offline_contact_missing">Chưa tìm được người nhận</string>
     <string name="task_offline_choose_contact">Chọn người nhận hoặc số điện thoại</string>
-    <string name="task_offline_alarm_set">Đã đặt báo thức</string>
-    <string name="task_offline_volume_set">Đã điều chỉnh âm lượng</string>
+    <string name="task_control_commands">Lệnh điều khiển</string>
+    <string name="task_offline_voice_model">Nhận giọng tiếng Việt</string>
+    <string name="task_offline_voice_ready">Đã tải nhận giọng tiếng Việt thành công</string>
+    <string name="task_offline_voice_not_downloaded">Chưa tải xong nhận giọng tiếng Việt · khoảng 34 MB</string>
+    <string name="task_offline_voice_pause">Tạm dừng tải nhận giọng tiếng Việt</string>
+    <string name="task_control_examples">Mở Zalo\nNhấn Tìm kiếm\nNhấn giữ tên mục\nChọn mục thứ ba\nCuộn xuống hai lần\nQuay lại\nVề màn hình chính\nĐóng bàn phím\nMở ứng dụng gần đây\nMở thông báo\nMở cài đặt nhanh\nBật tên công tắc\nTắt tên công tắc\nNhập Xin chào\nNhập vào ô Tìm kiếm nội dung Lan\nThêm mình đến muộn\nChọn tất cả\nSao chép\nCắt văn bản\nDán\nXóa nội dung\nTìm kiếm nhạc Trịnh\nMở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên\nMở video thứ hai\nSoạn tin nhắn Zalo cho Lan nội dung Mình đến muộn\nSoạn tin nhắn SMS cho Lan nội dung Mình đến muộn\nGọi cho mẹ\nGọi đến số 0901234567\nMở Zalo rồi nhấn Tìm kiếm\n\nNhập hoặc nói yêu cầu, kiểm tra chữ rồi bấm Thực hiện.</string>
 </resources>

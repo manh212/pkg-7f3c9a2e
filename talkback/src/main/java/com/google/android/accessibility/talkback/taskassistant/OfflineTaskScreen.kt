@@ -12,11 +12,22 @@ internal sealed interface OfflineScreenStep {
   data class Open(val app: String) : OfflineScreenStep
   data class Navigate(val action: TaskOperation) : OfflineScreenStep
   data class ClickLabel(val label: String) : OfflineScreenStep
+  data class LongClickLabel(val label: String) : OfflineScreenStep
+  data class Input(val text: String, val label: String, val append: Boolean) : OfflineScreenStep
+  data class VerifyInput(val text: String, val label: String) : OfflineScreenStep
+  data class Edit(val action: OfflineTextAction) : OfflineScreenStep
+  data class Toggle(val label: String, val checked: Boolean) : OfflineScreenStep
+  data class VerifyToggle(val label: String, val checked: Boolean) : OfflineScreenStep
+  data class Item(val index: Int) : OfflineScreenStep
+  data class Panel(val panel: OfflinePanel) : OfflineScreenStep
+  data object SearchCurrent : OfflineScreenStep
+  data class EnterCurrentQuery(val query: String) : OfflineScreenStep
+  data class SubmitSearch(val query: String) : OfflineScreenStep
   data class Scroll(val forward: Boolean) : OfflineScreenStep
   data class Search(val packageName: String) : OfflineScreenStep
   data class EnterQuery(val packageName: String, val query: String) : OfflineScreenStep
   data class SubmitYouTube(val query: String) : OfflineScreenStep
-  data class FirstVideo(val query: String?) : OfflineScreenStep
+  data class FirstVideo(val query: String?, val index: Int = 1) : OfflineScreenStep
   data class ZaloRecipient(val name: String) : OfflineScreenStep
   data class ZaloDraft(val name: String, val text: String) : OfflineScreenStep
   data class VerifyZaloDraft(val name: String, val text: String) : OfflineScreenStep
@@ -25,6 +36,7 @@ internal sealed interface OfflineScreenStep {
 internal class OfflineTaskScreen(private val screen: TaskScreen) {
   sealed interface Decision {
     data class Act(val step: TaskStep, val guard: String? = null) : Decision
+    data class Edit(val node: String, val action: OfflineTextAction) : Decision
     data object Ready : Decision
     data object Wait : Decision
     data object Ambiguous : Decision
@@ -39,28 +51,102 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
 
   fun decide(step: OfflineScreenStep): Decision = when (step) {
     is OfflineScreenStep.ClickLabel -> clickLabel(step.label)
+    is OfflineScreenStep.LongClickLabel -> clickLabel(step.label, TaskOperation.LONG_CLICK)
+    is OfflineScreenStep.Input -> input(step.text, step.label, step.append)
+    is OfflineScreenStep.VerifyInput -> verifyInput(step.text, step.label)
+    is OfflineScreenStep.Edit -> edit(step.action)
+    is OfflineScreenStep.Toggle -> toggle(step.label, step.checked, verify = false)
+    is OfflineScreenStep.VerifyToggle -> toggle(step.label, step.checked, verify = true)
+    is OfflineScreenStep.Item -> if (screen.packageName == YOUTUBE) firstVideo(null, step.index) else item(step.index)
+    OfflineScreenStep.SearchCurrent -> search()
+    is OfflineScreenStep.EnterCurrentQuery -> enterQuery(step.query)
+    is OfflineScreenStep.SubmitSearch -> submitSearch(step.query)
     is OfflineScreenStep.Scroll -> scroll(step.forward)
     is OfflineScreenStep.Search -> inApp(step.packageName) { search() }
     is OfflineScreenStep.EnterQuery -> inApp(step.packageName) { enterQuery(step.query) }
-    is OfflineScreenStep.SubmitYouTube -> inApp(YOUTUBE) { submitYouTube(step.query) }
-    is OfflineScreenStep.FirstVideo -> inApp(YOUTUBE) { firstVideo(step.query) }
+    is OfflineScreenStep.SubmitYouTube -> inApp(YOUTUBE) { submitSearch(step.query) }
+    is OfflineScreenStep.FirstVideo -> inApp(YOUTUBE) { firstVideo(step.query, step.index) }
     is OfflineScreenStep.ZaloRecipient -> inApp(ZALO) { zaloRecipient(step.name) }
     is OfflineScreenStep.ZaloDraft -> inApp(ZALO) { zaloDraft(step.name, step.text, verify = false) }
     is OfflineScreenStep.VerifyZaloDraft -> inApp(ZALO) { zaloDraft(step.name, step.text, verify = true) }
-    is OfflineScreenStep.Open, is OfflineScreenStep.Navigate -> Decision.Unavailable
+    is OfflineScreenStep.Open, is OfflineScreenStep.Navigate, is OfflineScreenStep.Panel -> Decision.Unavailable
   }
 
   private fun inApp(packageName: String, decide: () -> Decision): Decision =
     if (screen.packageName == packageName) decide() else Decision.Wait
 
-  private fun clickLabel(label: String): Decision {
+  private fun clickLabel(label: String, action: TaskOperation = CLICK): Decision {
     val wanted = normalize(label)
     if (Regex("^(gui|send|goi|call|xoa|delete|pay|thanh toan)( |$)").containsMatchIn(wanted)) {
       return Decision.Unavailable
     }
     val matches = nodes.filter { labeled(it) { name -> normalize(name) == wanted } }
-    if (wanted in searchLabels && screen.packageName in setOf(YOUTUBE, ZALO)) return search()
-    return clickUnique(matches.mapNotNull(::clickable).distinctBy { it.id })
+    if (action == CLICK && wanted in searchLabels) return search()
+    val targets = matches.mapNotNull { target(it, action.wire) }.distinctBy { it.id }
+    return when (targets.size) {
+      0 -> Decision.Wait
+      1 -> act(action, targets.single())
+      else -> Decision.Ambiguous
+    }
+  }
+
+  private fun editor(label: String): List<TaskNode> {
+    val editable = nodes.filter { SET_TEXT.wire in it.actions }
+    if (label.isNotBlank()) return editable.filter { labeled(it) { name -> equalNames(name, label) } }
+    val focused = editable.filter { it.focused }
+    return focused.ifEmpty { editable }
+  }
+
+  private fun input(text: String, label: String, append: Boolean): Decision {
+    val editors = editor(label)
+    if (editors.size > 1) return Decision.Ambiguous
+    val field = editors.singleOrNull() ?: return Decision.Wait
+    val result = if (append && field.text.isNotEmpty()) {
+      field.text + (if (field.text.last().isWhitespace() || text.firstOrNull()?.isWhitespace() == true) "" else " ") + text
+    } else text
+    if (result == field.text) return Decision.Ready
+    return act(SET_TEXT, field, result)
+  }
+
+  private fun verifyInput(text: String, label: String): Decision {
+    val editors = editor(label)
+    if (editors.size > 1) return Decision.Ambiguous
+    return if (editors.singleOrNull()?.text == text) Decision.Ready else Decision.Wait
+  }
+
+  private fun edit(action: OfflineTextAction): Decision {
+    val editors = editor("")
+    if (editors.size > 1) return Decision.Ambiguous
+    val field = editors.singleOrNull() ?: return Decision.Wait
+    if (action == OfflineTextAction.CLEAR) return input("", "", false)
+    return Decision.Edit(field.id, action)
+  }
+
+  private fun toggle(label: String, checked: Boolean, verify: Boolean): Decision {
+    val matches = nodes.filter { labeled(it) { name -> normalize(name) == normalize(label) } }
+      .flatMap { node ->
+        (sequenceOf(node) + ancestors(node).take(3)).filter { it.checked != null }.toList()
+      }.distinctBy { it.id }
+    if (matches.size > 1) return Decision.Ambiguous
+    val node = matches.singleOrNull() ?: return Decision.Wait
+    if (node.checked == checked) return Decision.Ready
+    if (verify) return Decision.Wait
+    val target = clickable(node) ?: return Decision.Unavailable
+    return act(CLICK, target, guard = node.id)
+  }
+
+  private fun item(index: Int): Decision {
+    if (screen.truncated) return Decision.Wait
+    val lists = nodes.filter { it.collection && ancestors(it).none { parent -> parent.collection } }
+    val candidates = lists.mapNotNull { list ->
+      val rows = nodes.filter { node ->
+        CLICK.wire in node.actions && ancestors(node).any { it.id == list.id }
+      }
+      rows.filter { node -> ancestors(node).none { parent -> rows.any { it.id == parent.id } } }
+        .sortedWith(compareBy<TaskNode> { rowIndex(it, list) ?: Int.MAX_VALUE }
+          .thenBy { it.top }.thenBy { it.left }).getOrNull(index - 1)
+    }.distinctBy { it.id }
+    return clickUnique(candidates)
   }
 
   private fun scroll(forward: Boolean): Decision {
@@ -92,7 +178,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     return if (equalNames(field.text, query)) Decision.Ready else act(SET_TEXT, field, query)
   }
 
-  private fun submitYouTube(query: String): Decision {
+  private fun submitSearch(query: String): Decision {
     val fields = searchFields().filter { equalNames(it.text, query) }
     if (fields.size > 1) return Decision.Ambiguous
     val field = fields.singleOrNull() ?: return Decision.Wait
@@ -106,7 +192,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     }
   }
 
-  private fun firstVideo(query: String?): Decision {
+  private fun firstVideo(query: String?, index: Int): Decision {
     if (screen.truncated) return Decision.Wait
     val explicitResults = nodes.filter { it.collection && it.viewId.contains("search_result", ignoreCase = true) }
     val filters = nodes.any { labeled(it) { name ->
@@ -126,7 +212,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
       if (videos.isEmpty()) return@mapNotNull null
       val rows = videos.filter { video -> ancestors(video).none { parent -> videos.any { it.id == parent.id } } }
       rows.sortedWith(compareBy<TaskNode> { rowIndex(it, list) ?: Int.MAX_VALUE }
-        .thenBy { it.top }.thenBy { it.left }).firstOrNull()
+        .thenBy { it.top }.thenBy { it.left }).getOrNull(index - 1)
     }.distinctBy { it.id }
     return clickUnique(candidates)
   }
@@ -183,8 +269,11 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
         setOf("search_button", "search_edit_text", "search_src_text", "search_query", "search_box")
 
   private fun clickable(node: TaskNode): TaskNode? =
+    target(node, CLICK.wire)
+
+  private fun target(node: TaskNode, action: String): TaskNode? =
     (sequenceOf(node) + ancestors(node).take(4)).takeWhile { !it.collection }
-      .firstOrNull { CLICK.wire in it.actions }
+      .firstOrNull { action in it.actions }
 
   private fun clickUnique(options: List<TaskNode>): Decision = when (options.size) {
     0 -> Decision.Wait

@@ -25,6 +25,7 @@ import com.google.android.accessibility.talkback.actor.gemini.GeminiModel
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalModel
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalModelManager
 import com.google.android.accessibility.talkback.actor.gemini.local.OnDeviceAiSettings
+import com.google.android.accessibility.talkback.dictation.ZipformerModels
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.material.MaterialComponentUtils
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors
 class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit = { openSettings(context, it) }) : LinearLayout(context) {
   private val prefs = SharedPreferencesUtils.getSharedPreferences(context)
   private val manager = LocalModelManager.get(context)
+  private val speechModels = ZipformerModels.get(context)
   private val main = Handler(Looper.getMainLooper())
   private val providers = AiProvider.entries.filter { it != AiProvider.NONE }
   private val mode = Spinner(context)
@@ -44,6 +46,8 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
   private val download = Button(context)
   private val settings = Button(context)
   private val status = TextView(context)
+  private val speechDownload = Button(context)
+  private val speechStatus = TextView(context)
   private var generation = 0L
   private var loading = false
   private var failure: String? = null
@@ -51,6 +55,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
   private var cachedScope = ""
   private var cachedModels = emptyList<TaskRemoteModel>()
   private val listener: () -> Unit = { if (isAttachedToWindow) refresh() }
+  private val speechListener: () -> Unit = { if (isAttachedToWindow) refreshSpeech() }
   private val preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
     if (key?.contains("api_key") == true || key == AiProvider.PREF_OTHER_ADDRESS || key == GeminiModel.PREF_KEY ||
       AiProvider.entries.any { it.modelPref == key }) {
@@ -67,7 +72,17 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
     provider.contentDescription = context.getString(R.string.task_service)
     provider.adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, providers.map { context.getString(it.label) })
     provider.setSelection(providers.indexOf(TaskAiCatalog.provider(prefs)).coerceAtLeast(0))
-    listOf(mode, provider, model, reload, download, settings, status).forEach(::addView)
+    listOf(mode, speechDownload, speechStatus, provider, model, reload, download, settings, status).forEach(::addView)
+    speechDownload.setOnClickListener {
+      if (speechModels.state is ZipformerModels.State.Downloading) speechModels.cancelDownload()
+      else if (!speechModels.isInstalled()) {
+        show(MaterialComponentUtils.alertDialogBuilder(context)
+          .setTitle(R.string.task_offline_voice_download)
+          .setMessage(R.string.task_offline_voice_download_message)
+          .setPositiveButton(R.string.task_download_model) { _, _ -> speechModels.startDownload(); refreshSpeech() }
+          .setNegativeButton(R.string.task_close, null))
+      }
+    }
     reload.setText(R.string.task_reload_models)
     model.setOnClickListener { if (TaskAiCatalog.isLocal(prefs)) chooseLocal() else chooseCloud() }
     reload.setOnClickListener { loadModels(true) }
@@ -100,6 +115,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     manager.addListener(listener)
+    speechModels.addListener(speechListener)
     prefs.registerOnSharedPreferenceChangeListener(preferencesListener)
     refresh()
     autoLoad()
@@ -108,6 +124,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
   override fun onDetachedFromWindow() {
     invalidateLoad()
     manager.removeListener(listener)
+    speechModels.removeListener(speechListener)
     prefs.unregisterOnSharedPreferenceChangeListener(preferencesListener)
     child?.dismiss()
     child = null
@@ -147,6 +164,7 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
 
   private fun refresh() {
     val local = TaskAiCatalog.isLocal(prefs)
+    refreshSpeech()
     provider.visibility = if (local) GONE else VISIBLE
     reload.visibility = if (local) GONE else VISIBLE
     settings.visibility = if (local) GONE else VISIBLE
@@ -183,6 +201,31 @@ class TaskAiPicker(context: Context, private val configure: (AiProvider) -> Unit
         downloadFailure((manager.state as LocalModelManager.State.Failed).failure))
       installed -> context.getString(R.string.task_model_installed, size(selected.sizeBytes))
       else -> context.getString(R.string.task_offline_optional_model, size(selected.sizeBytes))
+    }
+  }
+
+  private fun refreshSpeech() {
+    val local = TaskAiCatalog.isLocal(prefs)
+    speechDownload.visibility = if (local) VISIBLE else GONE
+    speechStatus.visibility = if (local) VISIBLE else GONE
+    val installed = speechModels.isInstalled()
+    val state = speechModels.state
+    val downloading = state as? ZipformerModels.State.Downloading
+    speechDownload.setText(when {
+      downloading != null -> R.string.task_offline_voice_pause
+      installed -> R.string.task_offline_voice_model
+      else -> R.string.task_offline_voice_download
+    })
+    speechDownload.isEnabled = !installed || downloading != null
+    speechStatus.accessibilityLiveRegion = if (downloading == null) View.ACCESSIBILITY_LIVE_REGION_POLITE
+      else View.ACCESSIBILITY_LIVE_REGION_NONE
+    speechStatus.text = when {
+      installed -> context.getString(R.string.task_offline_voice_ready)
+      downloading != null -> context.getString(R.string.task_download_progress, "Nhận giọng tiếng Việt",
+        speechModels.percent(downloading), size(downloading.bytes), size(ZipformerModels.TOTAL_BYTES))
+      state is ZipformerModels.State.Failed -> context.getString(R.string.task_download_failed,
+        downloadFailure(state.failure))
+      else -> context.getString(R.string.task_offline_voice_not_downloaded)
     }
   }
 

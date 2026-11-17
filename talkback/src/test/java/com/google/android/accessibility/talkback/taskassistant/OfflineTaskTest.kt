@@ -1,6 +1,7 @@
 package com.google.android.accessibility.talkback.taskassistant
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OfflineTaskTest {
@@ -40,11 +41,61 @@ class OfflineTaskTest {
       OfflineTaskCommand.YouTube(true, "Ngày chưa giông bão", true),
       OfflineTaskCommand.parse("Mở YouTube, tìm Ngày chưa giông bão rồi mở video đầu tiên"),
     )
-    assertEquals(OfflineTaskCommand.FirstVideo, OfflineTaskCommand.parse("Nhấn vào kết quả đầu tiên"))
+    assertEquals(OfflineTaskCommand.Item(1), OfflineTaskCommand.parse("Nhấn vào kết quả đầu tiên"))
     assertEquals(
-      OfflineTaskCommand.FirstVideo,
+      OfflineTaskCommand.Item(1),
       OfflineTaskCommand.parse("Nhấn vào kết quả tìm kiếm đầu tiên"),
     )
+  }
+
+  @Test fun controlChainsKeepTypedContentAndValidateEveryStep() {
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Open("Zalo"),
+      OfflineTaskCommand.Click("Tìm kiếm"))), OfflineTaskCommand.parse("Mở Zalo rồi nhấn Tìm kiếm"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Click("Tin nhắn"),
+      OfflineTaskCommand.Input("Mình xong rồi về!"))),
+      OfflineTaskCommand.parse("Nhấn Tin nhắn rồi nhập Mình xong rồi về!"))
+    assertEquals(OfflineTaskCommand.Input("Mình xong rồi về!"),
+      OfflineTaskCommand.parse("Nhập Mình xong rồi về!"))
+    assertNull(OfflineTaskCommand.parse("Mở Zalo rồi làm chuyện chưa biết"))
+    assertNull(OfflineTaskCommand.parse("Đặt báo thức lúc 6 giờ 30 sáng"))
+    assertNull(OfflineTaskCommand.parse("Tăng âm lượng 20 phần trăm"))
+  }
+
+  @Test fun expandedControlsCarryTheCorrectTargetsAndActions() {
+    assertEquals(OfflineTaskCommand.LongClick("Lan"), OfflineTaskCommand.parse("Nhấn giữ Lan"))
+    assertEquals(OfflineTaskCommand.Input("Lan", "Tìm kiếm"),
+      OfflineTaskCommand.parse("Nhập vào ô Tìm kiếm nội dung Lan"))
+    assertEquals(OfflineTaskCommand.Input("mình đến muộn", append = true),
+      OfflineTaskCommand.parse("Thêm mình đến muộn"))
+    assertEquals(OfflineTaskCommand.Edit(OfflineTextAction.SELECT_ALL), OfflineTaskCommand.parse("Chọn tất cả"))
+    assertEquals(OfflineTaskCommand.Video(2), OfflineTaskCommand.parse("Mở video thứ hai"))
+    assertEquals(OfflineTaskCommand.Item(3), OfflineTaskCommand.parse("Chọn mục thứ ba"))
+    assertEquals(OfflineTaskCommand.Toggle("Phụ đề", true), OfflineTaskCommand.parse("Bật Phụ đề"))
+    assertEquals(OfflineTaskCommand.Panel(OfflinePanel.RECENTS), OfflineTaskCommand.parse("Mở ứng dụng gần đây"))
+  }
+
+  @Test fun inputUsesTheNamedOrFocusedFieldAndVerifiesItsFullText() {
+    val first = node("one", "Tên", "set_text").copy(text = "Lan", focused = true)
+    val second = node("two", "Tin nhắn", "set_text").copy(text = "Xin chào")
+    val screen = zalo(first, second)
+    val decision = screen.decide(OfflineScreenStep.Input("Lan!", "Tin nhắn", true)) as OfflineTaskScreen.Decision.Act
+    assertEquals("two", decision.step.node)
+    assertEquals("Xin chào Lan!", decision.step.text)
+    assertEquals("one", (screen.decide(OfflineScreenStep.Input("Mai", "", false)) as OfflineTaskScreen.Decision.Act).step.node)
+    assertEquals(OfflineTaskScreen.Decision.Ready, zalo(second.copy(text = "Xin chào Lan!"))
+      .decide(OfflineScreenStep.VerifyInput("Xin chào Lan!", "Tin nhắn")))
+    assertEquals(OfflineTaskScreen.Decision.Ambiguous, zalo(first.copy(focused = false), second)
+      .decide(OfflineScreenStep.Input("Mai", "", false)))
+  }
+
+  @Test fun switchingUsesCheckedStateAndDoesNotToggleAnAlreadyCorrectSwitch() {
+    val switch = node("switch", "Phụ đề", "click").copy(checked = false)
+    assertEquals(TaskOperation.CLICK, (zalo(switch).decide(OfflineScreenStep.Toggle("Phụ đề", true))
+      as OfflineTaskScreen.Decision.Act).step.operation)
+    assertEquals(OfflineTaskScreen.Decision.Wait, zalo(switch)
+      .decide(OfflineScreenStep.VerifyToggle("Phụ đề", true)))
+    assertEquals(OfflineTaskScreen.Decision.Ready, zalo(switch.copy(checked = true))
+      .decide(OfflineScreenStep.Toggle("Phụ đề", true)))
   }
 
   @Test fun nameMatchesUseTheSearchFieldAndRejectDuplicateRows() {

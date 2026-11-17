@@ -90,6 +90,15 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
       TaskAiPicker.openSettings(service, provider)
     }
     content.addView(picker)
+    content.addView(Button(service).apply {
+      setText(R.string.task_control_commands)
+      setOnClickListener {
+        draft = field.text.toString()
+        display(MaterialComponentUtils.alertDialogBuilder(service)
+          .setTitle(R.string.task_control_commands).setMessage(R.string.task_control_examples)
+          .setPositiveButton(R.string.task_close, null), ::showEntry)
+      }
+    })
     val builder = MaterialComponentUtils.alertDialogBuilder(service).setTitle(R.string.task_title).setView(ScrollView(service).apply { addView(content) })
       .setPositiveButton(R.string.task_start, null).setNegativeButton(R.string.task_close, null)
     val shown = display(builder) { draft = field.text.toString() }
@@ -146,23 +155,17 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
 
   private fun voiceResult(token: Long, text: String?) {
     if (!voicePending || voiceGeneration != token || closed || engine?.active == true) return
-    val local = voiceOffline
     voicePending = false
     if (text != null) draft = text
-    val continueTask = Runnable {
+    val review = Runnable {
       if (closed || voiceGeneration != token || engine?.active == true) return@Runnable
-      val goal = text?.trim().orEmpty()
-      val problem = when {
-        goal.length > 4000 -> service.getString(R.string.task_goal_too_long)
-        goal.isBlank() -> service.getString(R.string.task_voice_unavailable)
-        else -> startGoal(goal, local)
-      }
-      if (problem != null) {
-        showEntry()
-        announce(problem)
+      showEntry()
+      when {
+        draft.length > 4000 -> announce(service.getString(R.string.task_goal_too_long))
+        text.isNullOrBlank() -> announce(service.getString(R.string.task_voice_unavailable))
       }
     }
-    if (local) main.post(continueTask) else main.postDelayed(continueTask, 350)
+    if (voiceOffline) main.post(review) else main.postDelayed(review, 350)
   }
 
   private fun startGoal(goal: String, local: Boolean, picker: TaskAiPicker? = null): String? {

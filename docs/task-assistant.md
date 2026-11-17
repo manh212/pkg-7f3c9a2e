@@ -16,9 +16,9 @@ current master build. The branch requires a fetched `origin/master` reference.
 
 Open **Giao việc cho Meridian** from the Meridian menu or Apps settings. Users can
 also assign the action to a gesture; no default gesture is replaced. Type a
-Vietnamese goal or use the system speech recognizer, review the recognized text,
-choose an AI, then press **Thực hiện**. Speech recognition availability depends
-on the recognition service installed on the phone.
+Vietnamese goal or dictate it, review and edit the recognized text,
+choose the processing mode, then press **Thực hiện**. Both online and offline
+voice input return to the entry form. Only **Thực hiện** starts a task.
 
 The shared picker in the entry form and task settings provides Online and Offline
 modes. Online mode exposes the service, selected model, configuration link and a
@@ -57,7 +57,10 @@ An unconfigured installation starts in Offline mode. Choosing Online switches
 to the selected provider. Offline typed commands are available immediately.
 Offline speech uses the shared Vietnamese Zipformer download and passes the
 transcript directly to the interpreter. Download the speech model once from
-the spoken input button. The configured Meridian license still applies.
+the spoken input button or the Offline picker. The picker shows the speech
+model separately from the optional AI model, with download progress, failure
+and installed states. Completion updates the visible status and its polite
+accessibility announcement. The configured Meridian license still applies.
 
 Examples for the direct interpreter:
 
@@ -67,7 +70,20 @@ Examples for the direct interpreter:
 - `Soạn tin nhắn cho Lan trên Zalo`
 - `Soạn tin nhắn SMS cho Lan, Mình đến muộn 15 phút`
 - `Gọi cho mẹ` or `Gọi đến số` followed by a number
-- `Cuộn xuống hai lần`, `Quay lại`, `Đặt báo thức lúc 6 giờ 30 sáng`
+- `Cuộn xuống hai lần`, `Quay lại`, `Đóng bàn phím`
+- `Nhấn giữ tên mục`, `Chọn mục thứ ba`, `Mở video thứ hai`
+- `Nhập vào ô Tìm kiếm nội dung Lan`, `Thêm mình đến muộn`
+- `Chọn tất cả`, `Sao chép`, `Cắt văn bản`, `Dán`, `Xóa nội dung`
+- `Bật tên công tắc`, `Tắt tên công tắc`
+- `Mở ứng dụng gần đây`, `Mở thông báo`, `Mở cài đặt nhanh`
+- `Mở Zalo rồi nhấn Tìm kiếm`
+
+The **Lệnh điều khiển** button on the entry form lists these control commands.
+The interpreter supports screen interaction. Alarm scheduling and direct volume
+adjustment belong to the existing phone voice commands.
+Text input and search preserve dictated content, including connector words.
+Multi-step control commands are validated before execution. Text replacement
+and switch changes are checked against a fresh screen before continuing.
 
 Messaging follows the app named in the command. Zalo drafts require a single
 matching recipient, the matching chat header, and an identifiable message

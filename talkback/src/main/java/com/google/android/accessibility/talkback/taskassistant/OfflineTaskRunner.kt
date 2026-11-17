@@ -13,14 +13,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
-import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandActions
 import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandCallDialog
-import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandParameters
-import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandParameters.PercentKind
 import com.google.android.accessibility.talkback.actor.voicecommands.VoiceCommandPhoneNumbers
 import com.google.android.accessibility.talkback.calls.CallPermissions
-import com.google.android.accessibility.talkback.selector.SpeechVolumeControl
-import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.material.MaterialComponentUtils
 import com.google.android.accessibility.utils.widget.DialogUtils
 import java.util.concurrent.Executor
@@ -47,27 +42,12 @@ internal class OfflineTaskRunner(
   @Volatile private var run: Run? = null
   private var contactDialog: AlertDialog? = null
   private val next = Runnable { run?.let(::advance) }
-  private val voiceKeywords by lazy { VoiceCommandParameters.Keywords.from(service) }
 
   val active: Boolean get() = run != null
 
   fun start(goal: String): Boolean {
-    val command = OfflineTaskCommand.parse(goal) ?: return runSystemCommand(goal)
+    val command = OfflineTaskCommand.parse(goal) ?: return false
     val steps = when (command) {
-      is OfflineTaskCommand.Open -> listOf(OfflineScreenStep.Open(command.app))
-      is OfflineTaskCommand.Click -> listOf(OfflineScreenStep.ClickLabel(command.label))
-      is OfflineTaskCommand.Scroll -> List(command.count) { OfflineScreenStep.Scroll(command.forward) }
-      is OfflineTaskCommand.Navigate -> listOf(OfflineScreenStep.Navigate(command.action))
-      is OfflineTaskCommand.YouTube -> buildList {
-        if (command.openApp) add(OfflineScreenStep.Open(OfflineTaskScreen.YOUTUBE))
-        add(OfflineScreenStep.Search(OfflineTaskScreen.YOUTUBE))
-        command.query?.let {
-          add(OfflineScreenStep.EnterQuery(OfflineTaskScreen.YOUTUBE, it))
-          add(OfflineScreenStep.SubmitYouTube(it))
-        }
-        if (command.openFirst) add(OfflineScreenStep.FirstVideo(command.query))
-      }
-      OfflineTaskCommand.FirstVideo -> listOf(OfflineScreenStep.FirstVideo(null))
       is OfflineTaskCommand.Draft -> {
         if (command.app == OfflineTaskCommand.MessageApp.SMS) {
           withNumber(command.recipient, VoiceCommandPhoneNumbers.parseNumber(command.recipient)) {
@@ -100,6 +80,7 @@ internal class OfflineTaskRunner(
         announce(service.getString(R.string.task_offline_call_target))
         return true
       }
+      else -> screenSteps(command) ?: return false
     }
     val current = Run(ArrayDeque(steps), command is OfflineTaskCommand.Draft && command.text.isNotBlank())
     run = current
@@ -107,34 +88,35 @@ internal class OfflineTaskRunner(
     return true
   }
 
-  private fun runSystemCommand(goal: String): Boolean {
-    val spoken = goal.replace(Regex("^đặt\\s+", RegexOption.IGNORE_CASE), "")
-      .replace(Regex("(giờ)\\s+rưỡi", RegexOption.IGNORE_CASE), "$1 30")
-    val duration = VoiceCommandParameters.parseClockAlarmMillis(
-      spoken, voiceKeywords, System.currentTimeMillis(),
-    ) ?: VoiceCommandParameters.parseDurationMillis(spoken, voiceKeywords)
-    if (duration != null) {
-      VoiceCommandActions.startCountdownAlarm(service, duration)
-      announce(service.getString(R.string.task_offline_alarm_set))
-      return true
+  private fun screenSteps(command: OfflineTaskCommand): List<OfflineScreenStep>? {
+    return when (command) {
+      is OfflineTaskCommand.Open -> listOf(OfflineScreenStep.Open(command.app))
+      is OfflineTaskCommand.Click -> listOf(OfflineScreenStep.ClickLabel(command.label))
+      is OfflineTaskCommand.Scroll -> List(command.count) { OfflineScreenStep.Scroll(command.forward) }
+      is OfflineTaskCommand.Navigate -> listOf(OfflineScreenStep.Navigate(command.action))
+      is OfflineTaskCommand.YouTube -> buildList {
+        if (command.openApp) add(OfflineScreenStep.Open(OfflineTaskScreen.YOUTUBE))
+        add(OfflineScreenStep.Search(OfflineTaskScreen.YOUTUBE))
+        command.query?.let {
+          add(OfflineScreenStep.EnterQuery(OfflineTaskScreen.YOUTUBE, it))
+          add(OfflineScreenStep.SubmitYouTube(it))
+        }
+        if (command.openFirst) add(OfflineScreenStep.FirstVideo(command.query))
+      }
+      OfflineTaskCommand.FirstVideo -> listOf(OfflineScreenStep.FirstVideo(null))
+      is OfflineTaskCommand.LongClick -> listOf(OfflineScreenStep.LongClickLabel(command.label))
+      is OfflineTaskCommand.Input -> listOf(OfflineScreenStep.Input(command.text, command.label, command.append))
+      is OfflineTaskCommand.Edit -> listOf(OfflineScreenStep.Edit(command.action))
+      is OfflineTaskCommand.Toggle -> listOf(OfflineScreenStep.Toggle(command.label, command.checked),
+        OfflineScreenStep.VerifyToggle(command.label, command.checked))
+      is OfflineTaskCommand.Item -> listOf(OfflineScreenStep.Item(command.index))
+      is OfflineTaskCommand.Video -> listOf(OfflineScreenStep.FirstVideo(null, command.index))
+      is OfflineTaskCommand.Search -> listOf(OfflineScreenStep.SearchCurrent,
+        OfflineScreenStep.EnterCurrentQuery(command.query), OfflineScreenStep.SubmitSearch(command.query))
+      is OfflineTaskCommand.Panel -> listOf(OfflineScreenStep.Panel(command.panel))
+      is OfflineTaskCommand.Sequence -> command.commands.flatMap { screenSteps(it) ?: return null }
+      else -> null
     }
-    val percent = VoiceCommandParameters.parsePercent(goal, voiceKeywords)
-    val relative = if (percent == null) VoiceCommandParameters.parseRelativePercent(goal, voiceKeywords) else null
-    val kind = percent?.kind ?: relative?.kind ?: return false
-    val prefs = SharedPreferencesUtils.getSharedPreferences(service)
-    val baseline = when (kind) {
-      PercentKind.SPEECH_VOLUME -> SpeechVolumeControl.get(service, prefs)
-      PercentKind.MEDIA_VOLUME -> VoiceCommandActions.getMediaVolumePercent(service)
-      PercentKind.SPEECH_RATE -> return false
-    }
-    val target = percent?.value ?: (baseline + relative!!.delta).coerceIn(0, 100)
-    when (kind) {
-      PercentKind.SPEECH_VOLUME -> SpeechVolumeControl.set(service, prefs, target)
-      PercentKind.MEDIA_VOLUME -> VoiceCommandActions.setMediaVolumePercent(service, target)
-      PercentKind.SPEECH_RATE -> return false
-    }
-    announce(service.getString(R.string.task_offline_volume_set))
-    return true
   }
 
   fun event(event: AccessibilityEvent) {
@@ -199,7 +181,7 @@ internal class OfflineTaskRunner(
           OfflineTaskScreen.Decision.Ambiguous -> finish(R.string.task_offline_target_ambiguous)
           OfflineTaskScreen.Decision.Unavailable -> finish(R.string.task_offline_target_unavailable)
           OfflineTaskScreen.Decision.ExistingDraft -> finish(R.string.task_offline_existing_draft)
-          is OfflineTaskScreen.Decision.Act -> error("Unresolved offline action")
+          is OfflineTaskScreen.Decision.Act, is OfflineTaskScreen.Decision.Edit -> error("Unresolved offline action")
         }
       }
     }
@@ -212,9 +194,21 @@ internal class OfflineTaskRunner(
       else AccessibilityService.GLOBAL_ACTION_BACK
       return performed(run === current && canOperate() && service.performGlobalAction(action))
     }
+    if (step is OfflineScreenStep.Panel) {
+      val action = when (step.panel) {
+        OfflinePanel.RECENTS -> AccessibilityService.GLOBAL_ACTION_RECENTS
+        OfflinePanel.NOTIFICATIONS -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
+        OfflinePanel.QUICK_SETTINGS -> AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS
+      }
+      return performed(run === current && canOperate() && service.performGlobalAction(action))
+    }
     val capture = runCatching { reader.read(includeStructure = true) }.getOrNull()
       ?: return OfflineTaskScreen.Decision.Wait
     val decision = OfflineTaskScreen(capture.screen).decide(step)
+    if (decision is OfflineTaskScreen.Decision.Edit) {
+      if (run !== current || !canOperate()) return OfflineTaskScreen.Decision.Wait
+      return performed(reader.edit(capture, decision.node, decision.action))
+    }
     if (decision !is OfflineTaskScreen.Decision.Act) {
       current.recipientCandidate = null
       return decision
@@ -235,9 +229,16 @@ internal class OfflineTaskRunner(
     }
     if (decision.guard != null && !reader.matches(capture, decision.guard)) return OfflineTaskScreen.Decision.Wait
     val performed = reader.perform(capture, decision.step) ||
-      (step is OfflineScreenStep.SubmitYouTube && decision.step.operation == TaskOperation.PRESS_ENTER &&
+      ((step is OfflineScreenStep.SubmitYouTube || step is OfflineScreenStep.SubmitSearch) &&
+        decision.step.operation == TaskOperation.PRESS_ENTER &&
         run === current && canOperate() && reader.clickSearchKey(capture, decision.step.node))
-    return if (performed) OfflineTaskScreen.Decision.Ready else OfflineTaskScreen.Decision.Wait
+    if (!performed) return OfflineTaskScreen.Decision.Wait
+    if (step is OfflineScreenStep.Input) {
+      current.steps.add(1, OfflineScreenStep.VerifyInput(decision.step.text, step.label))
+    } else if (step is OfflineScreenStep.Edit && step.action == OfflineTextAction.CLEAR) {
+      current.steps.add(1, OfflineScreenStep.VerifyInput("", ""))
+    }
+    return OfflineTaskScreen.Decision.Ready
   }
 
   private fun openApp(current: Run, name: String): OfflineTaskScreen.Decision {
