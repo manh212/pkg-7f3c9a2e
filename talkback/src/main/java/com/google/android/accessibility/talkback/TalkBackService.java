@@ -2074,6 +2074,9 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   public boolean shouldAdjustSpeechVolumeWhileSpeaking() {
+    if (isEditingText()) {
+      return false;
+    }
     return speechController != null
         && pipeline != null
         && speechController.isSpeaking()
@@ -2082,6 +2085,14 @@ public class TalkBackService extends AccessibilityServiceCompat
         && getBooleanPref(
             R.string.pref_volume_keys_adjust_speech_while_speaking_key,
             R.bool.pref_volume_keys_adjust_speech_while_speaking_default);
+  }
+
+  private boolean isEditingText() {
+    AccessibilityNodeInfoCompat focus =
+        accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
+    return focus != null
+        && (focus.isEditable()
+            || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focus) != null);
   }
 
   public void adjustSpeechVolumeWhileSpeaking(boolean increase) {
