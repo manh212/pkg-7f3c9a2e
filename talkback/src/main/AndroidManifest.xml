@@ -512,6 +512,41 @@
             android:theme="@style/NotificationListTheme"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Opens a supported text file in the standalone text editor. -->
+        <activity
+            android:name="com.google.android.accessibility.talkback.texteditor.TextFileOpenActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/text_editor_title"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter android:label="@string/text_editor_title">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/rtf" />
+                <data android:mimeType="text/rtf" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+            </intent-filter>
+            <intent-filter android:label="@string/text_editor_title">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.csv" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.htm" />
+                <data android:pathPattern=".*\\.rtf" />
+                <data android:pathPattern=".*\\.docx" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name="com.google.android.accessibility.talkback.textcorrection.TextCorrectionActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|fontScale"
