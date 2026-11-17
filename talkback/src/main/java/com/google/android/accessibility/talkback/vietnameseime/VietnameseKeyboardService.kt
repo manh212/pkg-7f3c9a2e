@@ -700,7 +700,9 @@ class VietnameseKeyboardService : InputMethodService() {
     if (letter.isLetter() && vietnamese && telexAllowed &&
       composeLetter(connection, capitalized, speakAt, typedKey = letter)) return true
     wordLost = false
-    val finished = if (wordCharacter) "" else completedWord()
+    val finished = if (wordCharacter) "" else completedWord().ifEmpty {
+      adjacentWord(connection, beforeCursor = true)
+    }
     if (!commitText(connection, capitalized.toString())) return false
     if (wordCharacter) {
       rememberShortcutKey(letter, word.isEmpty())
@@ -1004,6 +1006,9 @@ class VietnameseKeyboardService : InputMethodService() {
     var before = adjacentWord(connection, beforeCursor = true)
     val after = if (currentWord) adjacentWord(connection, beforeCursor = false) else ""
     if (before.isEmpty() && after.isEmpty()) {
+      if (connection.getTextBeforeCursor(1, 0)?.singleOrNull()?.isWhitespace() == true) {
+        return delete(connection, announceDeletion, speakAt)
+      }
       if (!currentWord) return true
       before = adjacentWord(connection, beforeCursor = true, skipWhitespace = true)
       if (before.isEmpty()) return delete(connection, announceDeletion, speakAt)
@@ -1194,7 +1199,9 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun speakDeletedText(text: String, speakAt: Long) {
-    keySpeech.confirm(getString(R.string.template_text_removed, keyNames.spokenName(text)), speakAt)
+    val spoken =
+      if (text == " ") getString(R.string.vietnamese_ime_space) else keyNames.spokenName(text)
+    keySpeech.confirm(getString(R.string.template_text_removed, spoken), speakAt)
   }
 
   private fun submitKeySpeech(label: String, started: () -> Unit, completed: () -> Unit): Boolean {

@@ -624,6 +624,7 @@ internal class VietnameseKeyboardView(
     }
     state.deleteRepeated = true
     lastDeleteTapMs = -1
+    releaseAnnouncement(true)
     if (!isKeyEnabled(key) || !activate(DELETE, 0)) {
       deleteRepeatPointer = null
       return
