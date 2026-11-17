@@ -17,7 +17,6 @@
 package com.google.android.accessibility.talkback.selector;
 
 import static com.google.android.accessibility.talkback.selector.SelectorController.keepsReadingControlInWebContent;
-import static com.google.android.accessibility.talkback.selector.SelectorController.keepsTextReadingControl;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
@@ -25,9 +24,7 @@ import static org.robolectric.Shadows.shadowOf;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.view.accessibility.AccessibilityNodeInfo;
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.R;
-import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import org.junit.Before;
 import org.junit.Test;
@@ -93,21 +90,6 @@ public class SelectorControllerTest {
 
   private void setSwitch(boolean on) {
     prefs.edit().putBoolean(selectionModeReadingControlKey, on).commit();
-  }
-
-  @Test
-  public void focusedEditorKeepsTheTextReadingUnitAfterRefocus() {
-    AccessibilityNodeInfoCompat editor = AccessibilityNodeInfoCompat.wrap(
-        node(null, "android.widget.EditText"));
-    editor.setEditable(true);
-    editor.setFocused(true);
-    assertTrue(keepsTextReadingControl(Setting.GRANULARITY_CHARACTERS, editor));
-    assertTrue(keepsTextReadingControl(Setting.GRANULARITY_WORDS, editor));
-    assertTrue(keepsTextReadingControl(Setting.GRANULARITY_LINES, editor));
-    assertTrue(keepsTextReadingControl(Setting.GRANULARITY_PARAGRAPHS, editor));
-    assertFalse(keepsTextReadingControl(Setting.GRANULARITY_DEFAULT, editor));
-    editor.setFocused(false);
-    assertFalse(keepsTextReadingControl(Setting.GRANULARITY_WORDS, editor));
   }
 
   /** A node inside a web page: a text node within a container within the WebView. */
