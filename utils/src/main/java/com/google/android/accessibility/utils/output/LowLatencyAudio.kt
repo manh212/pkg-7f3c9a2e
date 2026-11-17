@@ -601,12 +601,11 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     }
   }
 
-  /** Stops every sound clip playing, as well as every speech stream. */
+  /** Stops every sound clip playing. */
   fun stopSounds() {
     synchronized(lock) {
       clips.clear()
     }
-    stopStreams()
   }
 
   /** The frames held speech has waiting, while held. */
@@ -1321,7 +1320,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       for (player in players) player.stopStreams()
     }
 
-    /** Stops every sound clip and speech stream of every player made so far. */
+    /** Stops every sound clip of every player made so far. */
     @JvmStatic
     fun stopAllSounds() {
       val players = synchronized(instances) { instances.values.toList() }

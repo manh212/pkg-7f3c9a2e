@@ -597,8 +597,12 @@ public class Pipeline implements AccessibilityEventListener, AccessibilityEventI
   }
 
   public void interruptAllFeedback(boolean stopTtsSpeechCompletely) {
+    interruptAllFeedback(stopTtsSpeechCompletely, /* stopSounds= */ true);
+  }
+
+  void interruptAllFeedback(boolean stopTtsSpeechCompletely, boolean stopSounds) {
     cancelAllDelays();
-    actors.interruptAllFeedback(stopTtsSpeechCompletely);
+    actors.interruptAllFeedback(stopTtsSpeechCompletely, stopSounds);
   }
 
   public void shutdown() {

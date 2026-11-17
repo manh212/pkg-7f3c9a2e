@@ -355,30 +355,6 @@ object SettingsBackup {
         edits += Triple(prefs, name, decoded)
       }
     }
-    for ((prefs, name, values) in edits) {
-      val editor = prefs.edit()
-      for (key in prefs.all.keys) {
-        if (replaceMissing && key !in values && !isSecretKey(key) && !isSkipped(context, null, key)) {
-          editor.remove(key)
-        }
-      }
-      for ((key, value) in values) {
-        if (!replaceMissing && prefs.contains(key)) continue
-        @Suppress("UNCHECKED_CAST")
-        when (value) {
-          is Boolean -> editor.putBoolean(key, value)
-          is Int -> editor.putInt(key, value)
-          is Long -> editor.putLong(key, value)
-          is Float -> editor.putFloat(key, value)
-          is String -> editor.putString(key, value)
-          is Set<*> -> editor.putStringSet(key, value as Set<String>)
-        }
-      }
-      if (!editor.commit()) {
-        LogUtils.e(TAG, "Cannot save the imported settings in %s", name)
-        return false
-      }
-    }
     if (documents != null && !EditorDocuments.restoreBackup(context, documents.toString())) {
       LogUtils.e(TAG, "Cannot restore the editor documents")
       return false
@@ -410,6 +386,30 @@ object SettingsBackup {
     if (scripts != null && !restoreScriptsBackup(context, scripts)) {
       LogUtils.e(TAG, "Cannot restore the scripts")
       return false
+    }
+    for ((prefs, name, values) in edits) {
+      val editor = prefs.edit()
+      for (key in prefs.all.keys) {
+        if (replaceMissing && key !in values && !isSecretKey(key) && !isSkipped(context, null, key)) {
+          editor.remove(key)
+        }
+      }
+      for ((key, value) in values) {
+        if (!replaceMissing && prefs.contains(key)) continue
+        @Suppress("UNCHECKED_CAST")
+        when (value) {
+          is Boolean -> editor.putBoolean(key, value)
+          is Int -> editor.putInt(key, value)
+          is Long -> editor.putLong(key, value)
+          is Float -> editor.putFloat(key, value)
+          is String -> editor.putString(key, value)
+          is Set<*> -> editor.putStringSet(key, value as Set<String>)
+        }
+      }
+      if (!editor.commit()) {
+        LogUtils.e(TAG, "Cannot save the imported settings in %s", name)
+        return false
+      }
     }
     return true
   }

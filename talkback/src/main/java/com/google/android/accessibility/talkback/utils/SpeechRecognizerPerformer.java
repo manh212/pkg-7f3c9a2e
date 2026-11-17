@@ -20,8 +20,9 @@ import static android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
 import static android.speech.SpeechRecognizer.ERROR_NO_MATCH;
 import static android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY;
 import static android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
-import static androidx.core.content.ContextCompat.RECEIVER_EXPORTED;
+import static androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED;
 import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.ACTION_DONE;
+import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.ACTION_REJECTED;
 import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.GRANT_RESULTS;
 import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.PERMISSIONS;
 
@@ -48,6 +49,7 @@ import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.Arrays;
 import java.util.List;
 import kotlin.Unit;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -546,10 +548,10 @@ public class SpeechRecognizerPerformer {
   @VisibleForTesting
   protected void getMicPermission() {
     // Creates an intent filter for broadcast receiver.
-    IntentFilter filter = new IntentFilter();
-    filter.addAction(ACTION_DONE);
     if (!micPermissionReceiverRegistered) {
-      ContextCompat.registerReceiver(context, receiver, filter, RECEIVER_EXPORTED);
+      IntentFilter filter = new IntentFilter(ACTION_DONE);
+      filter.addAction(ACTION_REJECTED);
+      ContextCompat.registerReceiver(context, receiver, filter, RECEIVER_NOT_EXPORTED);
       micPermissionReceiverRegistered = true;
     }
     PermissionUtils.requestPermissions(context, permission.RECORD_AUDIO);
@@ -562,6 +564,10 @@ public class SpeechRecognizerPerformer {
         /** Broadcast to start speech recognition if the user accepts. */
         @Override
         public void onReceive(Context context, Intent intent) {
+          String[] permissions = intent.getStringArrayExtra(PERMISSIONS);
+          if (permissions == null || !Arrays.asList(permissions).contains(permission.RECORD_AUDIO)) {
+            return;
+          }
           if (micPermissionReceiverRegistered) {
             micPermissionReceiverRegistered = false;
             context.unregisterReceiver(receiver);
@@ -570,13 +576,11 @@ public class SpeechRecognizerPerformer {
             LogUtils.e(TAG, "onReceive:Speech listener's not set.");
             return;
           }
-          String[] permissions = intent.getStringArrayExtra(PERMISSIONS);
           int[] grantResults = intent.getIntArrayExtra(GRANT_RESULTS);
-          if (permissions == null || grantResults == null) {
-            return;
+          if (grantResults == null) {
+            grantResults = new int[0];
           }
-          // If the mic permission request is accepted by the user.
-          for (int i = 0; i < permissions.length; i++) {
+          for (int i = 0; i < Math.min(permissions.length, grantResults.length); i++) {
             if (TextUtils.equals(permissions[i], permission.RECORD_AUDIO)
                 && grantResults[i] == PackageManager.PERMISSION_GRANTED) {
               hasMicPermission = true;

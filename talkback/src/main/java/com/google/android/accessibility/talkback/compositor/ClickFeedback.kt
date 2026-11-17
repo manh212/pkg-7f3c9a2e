@@ -35,13 +35,13 @@ class ClickFeedback(
   fun click(target: AccessibilityNodeInfoCompat, eventId: EventId?, click: () -> Boolean): Boolean {
     compositor.giveClickCues(eventId)
 
-    val items = itemsWithState(target) ?: return click()
+    val items = itemsWithState(target)
     try {
-      val before = stateOf(items)
+      val before = items?.let(::stateOf)
       val start = SystemClock.uptimeMillis()
       val success = click()
       val sent = SENT.add(start, SystemClock.uptimeMillis(), target.packageName?.toString())
-      if (!success) {
+      if (!success || items == null) {
         return success
       }
 
@@ -56,7 +56,7 @@ class ClickFeedback(
       compositor.sayClickState(after.node, after.text, eventId)
       return true
     } finally {
-      items.forEach { it.recycle() }
+      items?.forEach { it.recycle() }
     }
   }
 

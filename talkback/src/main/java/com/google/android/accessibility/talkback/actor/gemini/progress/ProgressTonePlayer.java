@@ -24,15 +24,14 @@ public class ProgressTonePlayer {
 
   @Nullable private InfiniteIterator<Tone> tones;
   private long endTimeMs;
-  @Nullable private Runnable delayedPlayRunnable;
 
   /**
    * @param toneProvider provides the set of tones to play for each invocation of {@link
-   *     #play(boolean)}
+   *     #play(boolean, boolean)}
    * @param tonePlayer given a Tone, actually plays the sound via the feedback {@link Pipeline}
    * @param timeoutDelayMsSupplier how long to play tones before timing out, read on each play
    * @param onTimeoutListener called after timeoutDelayMs is reached after calling {@link
-   *     #play(boolean)}
+   *     #play(boolean, boolean)}
    */
   public ProgressTonePlayer(
       ProgressToneProvider toneProvider,
@@ -50,7 +49,7 @@ public class ProgressTonePlayer {
 
   /**
    * @param toneProvider provides the set of tones to play for each invocation of {@link
-   *     #play(boolean)}
+   *     #play(boolean, boolean)}
    * @param tonePlayer given a Tone, actually plays the sound via the feedback {@link Pipeline}
    * @param timeoutDelayMsSupplier how long to play tones before timing out, read on each play
    * @param onTimeoutListener called after timeoutDelayMs is reached
@@ -83,61 +82,36 @@ public class ProgressTonePlayer {
   public void play(boolean playTone, boolean delayPlayTone) {
     stop();
     long timeoutDelayMs = timeoutDelayMsSupplier.get();
-    long timeoutMs = currentTimeMsSupplier.get() + timeoutDelayMs;
+    endTimeMs = currentTimeMsSupplier.get() + timeoutDelayMs;
+    handler.postDelayed(onTimeoutListener, timeoutDelayMs);
     if (!playTone) {
-      tones = null;
-      handler.postDelayed(onTimeoutListener, timeoutDelayMs);
       return;
     }
-
     tones = toneProvider.getNextToneGroup();
     if (delayPlayTone) {
-      delayedPlayRunnable = () -> playTonesInternal(timeoutMs);
-      handler.postDelayed(delayedPlayRunnable, DELAY_PLAY_TONE_MS);
-      return;
+      handler.postDelayed(playNextToneRunnable, DELAY_PLAY_TONE_MS);
+    } else {
+      playNextTone();
     }
-
-    playTonesInternal(timeoutMs);
   }
 
   /** Stops playback and cancels pending tones. Does not call onTimeoutListener. */
   public void stop() {
     stopTones();
-    handler.removeCallbacksAndMessages(null);
+    handler.removeCallbacks(onTimeoutListener);
   }
 
   public void stopTones() {
     tones = null;
     handler.removeCallbacks(playNextToneRunnable);
-    handler.removeCallbacks(onTimeoutListener);
-    if (delayedPlayRunnable != null) {
-      handler.removeCallbacks(delayedPlayRunnable);
-    }
   }
 
   private final Runnable playNextToneRunnable = this::playNextTone;
 
-  private void playTonesInternal(long endTimeMs) {
-    this.endTimeMs = endTimeMs;
-    playNextTone();
-  }
-
   private void playNextTone() {
-    if (currentTimeMsSupplier.get() >= endTimeMs) {
-      onTimeoutListener.run();
+    if (tones == null || currentTimeMsSupplier.get() >= endTimeMs) {
       return;
     }
-
-    if (tones == null) {
-      long timeoutMs = endTimeMs - currentTimeMsSupplier.get();
-      if (timeoutMs > 0) {
-        handler.postDelayed(onTimeoutListener, timeoutMs);
-      } else {
-        onTimeoutListener.run();
-      }
-      return;
-    }
-
     Tone tone = tones.next();
     tonePlayer.accept(tone);
     handler.postDelayed(playNextToneRunnable, tone.delayMs);

@@ -19,12 +19,6 @@ package com.google.android.accessibility.talkback.notifications
 import android.content.SharedPreferences
 import com.google.android.accessibility.utils.LatencyExperiments
 
-/**
- * The initial setup's performance configuration: speed keeps every Developer performance option
- * as it is, energy turns them all off. Speed writes only the marker, so it never touches a
- * value the user set; energy writes every key, so switching to energy leaves no stale value
- * behind. The marker records which profile was picked.
- */
 object PerformanceProfile {
   const val KEY = "pref_performance_profile"
   const val SPEED = "speed"
@@ -40,7 +34,8 @@ object PerformanceProfile {
   private const val ORDER_CACHE_KEY = "pref_order_cache"
   private const val SPLIT_CONTROL_SPEECH_KEY = "pref_split_control_speech"
   private const val EVENT_PROCESSING_LEVEL_KEY = "pref_event_processing_level"
-  private const val EVENT_PROCESSING_LEVEL_LOW = "low"
+  private const val SPEED_EVENT_PROCESSING_LEVEL = "low"
+  private const val ENERGY_EVENT_PROCESSING_LEVEL = "very_low"
 
   /** The stored profile, or null when none was ever picked, the stored value is unknown, or it was recorded before explicit choice was required. */
   fun storedProfile(preferences: SharedPreferences): String? =
@@ -49,29 +44,26 @@ object PerformanceProfile {
 
   /** Writes the profile's values in one edit. Anything other than [ENERGY] applies speed. */
   fun apply(preferences: SharedPreferences, profile: String) {
-    if (profile != ENERGY) {
-      preferences.edit().apply {
-        putString(KEY, SPEED)
-        putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
-      }.apply()
-      return
-    }
+    val speed = profile != ENERGY
     preferences.edit().apply {
-      putBoolean(DISABLE_LATENCY_EXTRAS_KEY, true)
-      putBoolean(DISABLE_LATENCY_PINNED_KEY, true)
-      putBoolean(PREPARE_ADJACENT_KEY, false)
-      putBoolean(PREPARE_SECOND_AHEAD_KEY, false)
-      putBoolean(ORDER_CACHE_KEY, false)
-      putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
+      putBoolean(DISABLE_LATENCY_EXTRAS_KEY, !speed)
+      putBoolean(DISABLE_LATENCY_PINNED_KEY, !speed)
+      putBoolean(PREPARE_ADJACENT_KEY, speed)
+      putBoolean(PREPARE_SECOND_AHEAD_KEY, speed)
+      putBoolean(ORDER_CACHE_KEY, speed)
+      putBoolean(SPLIT_CONTROL_SPEECH_KEY, speed)
       for (feature in LatencyExperiments.Feature.values()) {
-        putBoolean(feature.key, false)
+        putBoolean(feature.key, speed && feature.defaultEnabled)
       }
-      putString(EVENT_PROCESSING_LEVEL_KEY, EVENT_PROCESSING_LEVEL_LOW)
+      putString(
+        EVENT_PROCESSING_LEVEL_KEY,
+        if (speed) SPEED_EVENT_PROCESSING_LEVEL else ENERGY_EVENT_PROCESSING_LEVEL,
+      )
       putInt(
         LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY,
         LatencyExperiments.defaultStationaryTouchDelayMs(),
       )
-      putString(KEY, ENERGY)
+      putString(KEY, if (speed) SPEED else ENERGY)
       putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
     }.apply()
   }

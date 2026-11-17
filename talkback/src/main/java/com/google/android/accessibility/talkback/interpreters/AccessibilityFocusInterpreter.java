@@ -137,7 +137,7 @@ public class AccessibilityFocusInterpreter
           pageScrolledFocusStrip = false;
           if (interpretation != null) {
             handleManualScroll(interpretation, stripScrolled);
-            if (webFocusRecoveryScroll != interpretation && interpretation != webScroll) {
+            if (interpretation != webScroll) {
               recycleScrollEvent(interpretation);
             }
           }
@@ -237,19 +237,31 @@ public class AccessibilityFocusInterpreter
     if (pendingManualScroll == null
         || interpretation.scrolledHoldsFocus()
         || !pendingManualScroll.scrolledHoldsFocus()) {
-      if (pendingManualScroll != null
-          && pendingManualScroll != webScroll
-          && pendingManualScroll != webFocusRecoveryScroll) {
-        recycleScrollEvent(pendingManualScroll);
-      }
-      pendingManualScroll =
-          ManualScrollInterpretation.create(
-              interpretation.eventId(),
-              AccessibilityEvent.obtain(interpretation.event()),
-              interpretation.direction(),
-              interpretation.scrolledHoldsFocus());
+      setPendingManualScroll(copyScrollEvent(interpretation));
     }
     schedulePendingManualScroll();
+  }
+
+  private void setPendingManualScroll(@Nullable ManualScrollInterpretation nextScroll) {
+    if (pendingManualScroll != nextScroll && pendingManualScroll != webScroll) {
+      recycleScrollEvent(pendingManualScroll);
+    }
+    pendingManualScroll = nextScroll;
+  }
+
+  private void setWebScroll(@Nullable ManualScrollInterpretation nextScroll) {
+    if (webScroll != pendingManualScroll) {
+      recycleScrollEvent(webScroll);
+    }
+    webScroll = nextScroll;
+  }
+
+  private static ManualScrollInterpretation copyScrollEvent(ManualScrollInterpretation scroll) {
+    return ManualScrollInterpretation.create(
+        scroll.eventId(),
+        AccessibilityEvent.obtain(scroll.event()),
+        scroll.direction(),
+        scroll.scrolledHoldsFocus());
   }
 
   private static void recycleScrollEvent(@Nullable ManualScrollInterpretation interpretation) {
@@ -293,27 +305,19 @@ public class AccessibilityFocusInterpreter
       webScrollTouchStart = touchStart;
       webScrolled = scrolled;
       webScrolledSideways = sideways;
-      webScroll = null;
+      setWebScroll(null);
     }
     if (sideways && !webScrolledSideways && !scrolled.equals(webScrolled)) {
       webStrip = scrolled;
     }
     if (scrolled.equals(webScrolled)) {
-      if (webScroll != null && webScroll != webFocusRecoveryScroll) {
-        recycleScrollEvent(webScroll);
-      }
-      webScroll =
-          ManualScrollInterpretation.create(
-              interpretation.eventId(),
-              AccessibilityEvent.obtain(interpretation.event()),
-              interpretation.direction(),
-              interpretation.scrolledHoldsFocus());
+      setWebScroll(copyScrollEvent(interpretation));
     } else if (webScroll != null && interpretation.scrolledHoldsFocus() && sideways) {
       pageScrolledFocusStrip = true;
     } else {
       return true;
     }
-    pendingManualScroll = webScroll;
+    setPendingManualScroll(webScroll);
     schedulePendingManualScroll();
     return true;
   }
@@ -384,7 +388,7 @@ public class AccessibilityFocusInterpreter
   private long webFocusRecoveryFocusTime;
 
   private final Runnable continueWebFocusRecovery =
-      () -> runWebFocusRecovery(/* yieldToInput= */ true, /* recycleScrollOnFinish= */ true);
+      () -> runWebFocusRecovery(/* yieldToInput= */ true);
 
   private boolean startWebFocusRecovery(
       ManualScrollInterpretation interpretation,
@@ -468,13 +472,13 @@ public class AccessibilityFocusInterpreter
       ManualScrollInterpretation interpretation, WebFocusRecovery recovery) {
     cancelWebFocusRecovery();
     webFocusRecovery = recovery;
-    webFocusRecoveryScroll = interpretation;
+    webFocusRecoveryScroll = copyScrollEvent(interpretation);
     webFocusRecoveryStartTime = SystemClock.uptimeMillis();
     webFocusRecoveryFocusTime = lastFocusActionTime();
-    runWebFocusRecovery(/* yieldToInput= */ true, /* recycleScrollOnFinish= */ false);
+    runWebFocusRecovery(/* yieldToInput= */ true);
   }
 
-  private void runWebFocusRecovery(boolean yieldToInput, boolean recycleScrollOnFinish) {
+  private void runWebFocusRecovery(boolean yieldToInput) {
     WebFocusRecovery recovery = webFocusRecovery;
     ManualScrollInterpretation interpretation = webFocusRecoveryScroll;
     if (recovery == null || interpretation == null) {
@@ -530,9 +534,7 @@ public class AccessibilityFocusInterpreter
         default -> {}
       }
     } finally {
-      if (recycleScrollOnFinish) {
-        recycleScrollEvent(interpretation);
-      }
+      recycleScrollEvent(interpretation);
     }
   }
 
@@ -552,7 +554,7 @@ public class AccessibilityFocusInterpreter
       handlePendingManualScroll.run();
     }
     if (webFocusRecovery != null) {
-      runWebFocusRecovery(/* yieldToInput= */ false, /* recycleScrollOnFinish= */ true);
+      runWebFocusRecovery(/* yieldToInput= */ false);
     }
   }
 
@@ -574,20 +576,9 @@ public class AccessibilityFocusInterpreter
 
   public void onSuspendInfrastructure() {
     handler.removeCallbacks(handlePendingManualScroll);
-    ManualScrollInterpretation recoveryScroll = webFocusRecoveryScroll;
     cancelWebFocusRecovery();
-    if (pendingManualScroll != null
-        && pendingManualScroll != webScroll
-        && pendingManualScroll != recoveryScroll) {
-      recycleScrollEvent(pendingManualScroll);
-    }
-    if (webScroll != null
-        && webScroll != pendingManualScroll
-        && webScroll != recoveryScroll) {
-      recycleScrollEvent(webScroll);
-    }
-    pendingManualScroll = null;
-    webScroll = null;
+    setPendingManualScroll(null);
+    setWebScroll(null);
     webScrolled = null;
     webStrip = null;
     pageScrolledFocusStrip = false;

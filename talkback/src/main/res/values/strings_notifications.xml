@@ -315,11 +315,11 @@
     <!-- The performance step: the two profiles, each with what it does. Choosing applies at once and moves the walk on. -->
     <string name="timer_setup_performance_detail">Chọn cách Meridian cân bằng giữa tốc độ và pin. %1$s: %2$s. %3$s: %4$s. Lựa chọn được áp dụng ngay và thiết lập tiếp tục.</string>
     <!-- Action of the performance step: keeps the profile showing and moves the walk on. -->
-    <string name="timer_setup_performance_keep">Giữ cấu hình này và tiếp tục</string>
+    <string name="timer_setup_performance_keep">Áp dụng cấu hình này</string>
     <!-- Performance profile: speed first, as it is today. -->
     <string name="timer_setup_performance_speed">Ưu tiên tốc độ</string>
     <!-- What the speed profile does. -->
-    <string name="timer_setup_performance_speed_detail">Giữ nguyên như hiện tại, mọi tính năng tăng tốc đều bật</string>
+    <string name="timer_setup_performance_speed_detail">Bật các tùy chọn tăng tốc trong Cài đặt nhà phát triển</string>
     <!-- Performance profile: battery first. -->
     <string name="timer_setup_performance_energy">Ưu tiên năng lượng</string>
     <!-- What the energy profile does. -->

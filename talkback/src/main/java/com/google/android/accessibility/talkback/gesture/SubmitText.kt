@@ -16,7 +16,8 @@ object SubmitText {
     val words = sendWords()
     val send = SendButtonFinder.find(field, words)
     if (send != null) return send.performAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && field.isFocused) {
+    if (!field.isFocused) return false
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       val action = field.actionList.firstOrNull { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id }
       if (action != null && isSendLabel(action.label, words)) {
         return field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)

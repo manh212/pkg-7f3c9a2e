@@ -1006,8 +1006,16 @@ class Actors {
   }
 
   public void interruptAllFeedback(boolean stopTtsSpeechCompletely) {
+    interruptAllFeedback(stopTtsSpeechCompletely, /* stopSounds= */ true);
+  }
+
+  void interruptAllFeedback(boolean stopTtsSpeechCompletely, boolean stopSounds) {
     speaker.interrupt(stopTtsSpeechCompletely);
-    soundAndVibration.interrupt();
+    if (stopSounds) {
+      soundAndVibration.interrupt();
+    } else {
+      soundAndVibration.interruptVibration();
+    }
   }
 
   public void interruptSoundAndVibration() {

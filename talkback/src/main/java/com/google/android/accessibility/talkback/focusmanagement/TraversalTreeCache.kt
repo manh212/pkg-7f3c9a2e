@@ -553,12 +553,12 @@ object TraversalTreeCache {
     val savedRoot = root ?: return false
     val windowId = event.windowId
     if (WindowCachePolicy.isForeignContentChange(event, savedRoot.windowId)) return false
-    if ((cacheOnly || LatencyExperiments.Feature.SCOPED_CACHE.enabled()) &&
-      !WindowCachePolicy.affectsOrder(event, savedRoot.windowId)) return false
+    val ignoreOrderChange = (cacheOnly || LatencyExperiments.Feature.SCOPED_CACHE.enabled()) &&
+      !WindowCachePolicy.affectsOrder(event, savedRoot.windowId)
     if (affectsWindow(event, savedRoot.windowId)) {
       val changes = event.contentChangeTypes
       val nonStructuralChanges =
-        if (regionGraceEnabled) NON_STRUCTURAL_CHANGES_WITH_DESCRIPTION
+        if (regionGraceEnabled || ignoreOrderChange) NON_STRUCTURAL_CHANGES_WITH_DESCRIPTION
         else NON_STRUCTURAL_CHANGES
       if (
         type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
@@ -576,6 +576,7 @@ object TraversalTreeCache {
         }
         return false
       }
+      if (ignoreOrderChange) return false
       clear(
         if (LogUtils.shouldLog(Log.DEBUG)) {
           AccessibilityEvent.eventTypeToString(type) +

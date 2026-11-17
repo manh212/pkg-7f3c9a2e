@@ -255,7 +255,8 @@ public class VoiceActionMonitor implements VoiceActionDelegate {
   private void interruptTalkBackAudio(@VoiceActionSource int source) {
     LogUtils.v(
         TAG, "Interrupt TalkBack audio. voice action source=%s", voiceActionSourceToString(source));
-    service.interruptAllFeedback(false /* stopTtsSpeechCompletely */);
+    service.interruptAllFeedback(
+        /* stopTtsSpeechCompletely= */ false, /* stopSounds= */ source != MEDIA_RECORDER);
   }
 
   public void onTtsReady() {

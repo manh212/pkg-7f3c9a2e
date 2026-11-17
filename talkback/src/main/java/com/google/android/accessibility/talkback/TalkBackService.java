@@ -2471,13 +2471,17 @@ public class TalkBackService extends AccessibilityServiceCompat
   // Interrupts all Talkback feedback. Stops speech from other apps if stopTtsSpeechCompletely
   // is true.
   public void interruptAllFeedback(boolean stopTtsSpeechCompletely) {
+    interruptAllFeedback(stopTtsSpeechCompletely, /* stopSounds= */ true);
+  }
+
+  void interruptAllFeedback(boolean stopTtsSpeechCompletely, boolean stopSounds) {
     CallAnnouncements.stopSpeech();
     if (fullScreenReadActor != null) {
       fullScreenReadActor.interrupt();
     }
 
     if (pipeline != null) {
-      pipeline.interruptAllFeedback(stopTtsSpeechCompletely);
+      pipeline.interruptAllFeedback(stopTtsSpeechCompletely, stopSounds);
     }
   }
 

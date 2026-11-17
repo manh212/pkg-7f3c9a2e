@@ -44,8 +44,13 @@ class PerformanceProfileTest {
 
   @Test
   fun energy_turnsEverythingOff() {
+    PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
     PerformanceProfile.apply(prefs, PerformanceProfile.ENERGY)
 
+    assertEnergyProfile()
+  }
+
+  private fun assertEnergyProfile() {
     assertTrue(prefs.getBoolean("pref_disable_latency_extras", false))
     assertTrue(prefs.getBoolean("pref_disable_latency_pinned", false))
     assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
@@ -55,7 +60,7 @@ class PerformanceProfileTest {
     for (feature in LatencyExperiments.Feature.values()) {
       assertFalse(feature.key, prefs.getBoolean(feature.key, true))
     }
-    assertEquals("low", prefs.getString("pref_event_processing_level", null))
+    assertEquals("very_low", prefs.getString("pref_event_processing_level", null))
     assertEquals(
       100,
       prefs.getInt(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY, 0),
@@ -64,40 +69,38 @@ class PerformanceProfileTest {
   }
 
   @Test
-  fun speed_keepsTheCurrentValues() {
-    prefs.edit().apply {
-      putBoolean("pref_prepare_adjacent_speech", false)
-      putBoolean("pref_disable_latency_extras", true)
-      putString("pref_event_processing_level", "medium")
-    }.apply()
-    PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
-
-    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
-    assertTrue(prefs.getBoolean("pref_disable_latency_extras", false))
-    assertEquals("medium", prefs.getString("pref_event_processing_level", null))
-    for (feature in LatencyExperiments.Feature.values()) {
-      assertFalse(feature.key, prefs.contains(feature.key))
-    }
-    assertFalse(prefs.contains("pref_split_control_speech"))
-    assertEquals(PerformanceProfile.SPEED, PerformanceProfile.storedProfile(prefs))
-  }
-
-  @Test
-  fun switchingToSpeed_keepsTheEnergyValues() {
+  fun profilesApplyAllAccelerationOptionsInBothDirections() {
     PerformanceProfile.apply(prefs, PerformanceProfile.ENERGY)
     PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
 
-    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
+    assertFalse(prefs.getBoolean("pref_disable_latency_extras", true))
+    assertFalse(prefs.getBoolean("pref_disable_latency_pinned", true))
+    assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
+    assertTrue(prefs.getBoolean("pref_prepare_second_ahead_speech", false))
+    assertTrue(prefs.getBoolean("pref_order_cache", false))
+    assertTrue(prefs.getBoolean("pref_split_control_speech", false))
     for (feature in LatencyExperiments.Feature.values()) {
-      assertFalse(feature.key, prefs.getBoolean(feature.key, true))
+      assertEquals(
+        feature.key,
+        feature.defaultEnabled,
+        prefs.getBoolean(feature.key, !feature.defaultEnabled),
+      )
     }
     assertEquals("low", prefs.getString("pref_event_processing_level", null))
     assertEquals(PerformanceProfile.SPEED, PerformanceProfile.storedProfile(prefs))
 
     PerformanceProfile.apply(prefs, PerformanceProfile.ENERGY)
+    assertEnergyProfile()
+  }
 
-    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
-    assertEquals(PerformanceProfile.ENERGY, PerformanceProfile.storedProfile(prefs))
+  @Test
+  fun reapplyingSpeedRepairsValuesLeftByAnEarlierSelection() {
+    PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
+    prefs.edit().putBoolean("pref_prepare_adjacent_speech", false).apply()
+
+    PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
+
+    assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
   }
 
   @Test
@@ -125,8 +128,8 @@ class PerformanceProfileTest {
     prefs.edit().putBoolean("pref_prepare_adjacent_speech", false).apply()
     PerformanceProfile.apply(prefs, "unknown")
 
-    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
-    assertFalse(prefs.contains("pref_disable_latency_extras"))
+    assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
+    assertFalse(prefs.getBoolean("pref_disable_latency_extras", true))
     assertEquals(PerformanceProfile.SPEED, PerformanceProfile.storedProfile(prefs))
   }
 }

@@ -698,7 +698,7 @@ public class FeedbackController {
     }
   }
 
-  /** Interrupts all ongoing feedback. */
+  /** Interrupts sound clips and vibration. */
   public void interrupt() {
     mSoundPool.autoPause();
     mPendingPlays.clear();
@@ -706,6 +706,10 @@ public class FeedbackController {
     if (mSpatialSoundPlayer != null) {
       mSpatialSoundPlayer.stop();
     }
+    interruptVibration();
+  }
+
+  public void interruptVibration() {
     VIBRATION_EXECUTOR.execute(mVibrator::cancel);
   }
 

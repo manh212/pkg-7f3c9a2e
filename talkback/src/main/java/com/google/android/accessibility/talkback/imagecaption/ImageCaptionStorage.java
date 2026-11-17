@@ -34,7 +34,7 @@ public class ImageCaptionStorage {
 
   private static final String TAG = "ImageCaptionStorage";
   private static final int RESULT_CAPACITY = 500;
-  public static final boolean ENABLE_CACHE_MECHANISM = true;
+  public static final boolean ENABLE_CACHE_MECHANISM = false;
 
   private final LimitedCapacityCache imageNodes;
   private @MonotonicNonNull IconAnnotationsDetector iconAnnotationsDetector;

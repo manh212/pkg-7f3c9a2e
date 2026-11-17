@@ -278,35 +278,29 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         onPerformanceProfileSelected(steps.size, index)
       }
     )
+    category.action(getString(R.string.timer_setup_performance_keep)) {
+      applyPerformanceProfile(steps.size, currentPerformanceProfileIndex())
+    }
     if (flow.reviewing) {
       category.action(getString(R.string.timer_setup_back)) {
         flow.backToSummary(steps.size)
         rebuild()
       }
     } else {
-      category.action(getString(R.string.timer_setup_performance_keep)) {
-        keepPerformanceProfile(steps.size)
-      }
       category.action(getString(R.string.timer_setup_exit)) { leave() }
     }
   }
 
   private fun onPerformanceProfileSelected(stepCount: Int, index: Int) {
     if (index == currentPerformanceProfileIndex()) return
+    applyPerformanceProfile(stepCount, index)
+  }
+
+  private fun applyPerformanceProfile(stepCount: Int, index: Int) {
     val profile = PerformanceChoice.entries[index].profile
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
     PerformanceProfile.apply(prefs, profile)
     flow.chooseProfile(stepCount)
-    rebuild()
-  }
-
-  private fun keepPerformanceProfile(stepCount: Int) {
-    val profile = PerformanceChoice.entries[currentPerformanceProfileIndex()].profile
-    val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
-    if (PerformanceProfile.storedProfile(prefs) != profile) {
-      PerformanceProfile.apply(prefs, profile)
-    }
-    flow.skip()
     rebuild()
   }
 
@@ -403,17 +397,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
       ),
       Step(
         R.string.timer_setup_performance_title,
-        status = {
-          if (
-            PerformanceProfile.storedProfile(
-              SharedPreferencesUtils.getSharedPreferences(it)
-            ) != null
-          ) {
-            Status.GRANTED
-          } else {
-            Status.MISSING
-          }
-        },
+        status = { Status.MISSING },
         choice = true,
         choiceKind = ChoiceKind.PERFORMANCE,
         summaryText = { currentPerformanceProfileName() },
@@ -673,6 +657,7 @@ private class PerformancePreference(
     super.onBindViewHolder(holder)
     val spinner = holder.findViewById(R.id.timer_setup_performance_spinner) as Spinner
     spinner.contentDescription = context.getString(R.string.timer_setup_performance_title)
+    spinner.onItemSelectedListener = null
     spinner.adapter =
       ArrayAdapter(
           context,

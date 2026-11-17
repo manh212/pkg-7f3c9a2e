@@ -39,6 +39,7 @@ import com.google.android.accessibility.talkback.update.Updater
 import com.google.android.accessibility.talkback.utils.VerbosityPreferences
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.io.File
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -511,6 +512,18 @@ class SettingsBackupTest {
 
     assertEquals(listOf("Kept"), EditorDocuments.documents().map { it.name })
     EditorDocuments.clear()
+  }
+
+  @Test
+  fun damagedCustomLabelsLeavePreferencesUntouched() {
+    prefs.edit().putString("a_string", "from_backup").commit()
+    val backup = JSONObject(SettingsBackup.export(context))
+      .put("customLabels", JSONArray().put(JSONObject()))
+    prefs.edit().putString("a_string", "on_phone").putBoolean("added_later", true).commit()
+
+    assertFalse(SettingsBackup.import(context, backup.toString()))
+    assertEquals("on_phone", prefs.getString("a_string", null))
+    assertTrue(prefs.getBoolean("added_later", false))
   }
 
   @Test

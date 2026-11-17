@@ -25,7 +25,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
@@ -42,16 +42,13 @@ object SettingsImporter {
   // A failed copy is tried again on the next starts, but not forever.
   private const val MAX_ATTEMPTS = 3
   private const val TEMP_SUFFIX = ".import"
-  // How long the first start waits for the import before starting without it. The
-  // import still finishes in the background, and its outcome is recorded.
+  private data class StagedFile(val target: File, val temp: File, val path: String)
+
   private const val IMPORT_WAIT_TIMEOUT_MS = 5_000L
 
   /**
    * Imports the old app's settings, once. Call it first thing in Application.onCreate. The
-   * provider query and file copies run on a background thread, so a slow or unresponsive
-   * old app cannot block the first start; the caller waits for it only up to
-   * [IMPORT_WAIT_TIMEOUT_MS], so the preferences are still loaded after the import in
-   * the usual case.
+   * provider query and staging run on a background thread; only startup publishes the copies.
    */
   @JvmStatic
   fun importIfNeeded(application: Application) {
@@ -68,35 +65,22 @@ object SettingsImporter {
       LogUtils.i(TAG, "The user is locked, so settings are imported later")
       return
     }
-    val finished = CountDownLatch(1)
-    Thread(
-        {
-          try {
-            val attempts = state.getInt(KEY_ATTEMPTS, 0) + 1
-            val done =
-              try {
-                importFromOldApp(context)
-                true
-              } catch (e: Exception) {
-                LogUtils.e(TAG, "Cannot import settings from %s: %s", AppIdMove.OLD_PACKAGE, e)
-                attempts >= MAX_ATTEMPTS
-              }
-            state.edit().putInt(KEY_ATTEMPTS, attempts).putBoolean(KEY_DONE, done).commit()
-          } finally {
-            finished.countDown()
-          }
-        },
-        "settings-import",
-      )
-      .start()
-    try {
-      if (!finished.await(IMPORT_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-        LogUtils.w(TAG, "Settings import is still running, starting without it")
+    val attempts = state.getInt(KEY_ATTEMPTS, 0) + 1
+    val pending = CompletableFuture.supplyAsync { prepareImport(context) }
+    val imported =
+      try {
+        val files = pending.get(IMPORT_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        if (files.isNotEmpty()) publishImport(context, files)
+        true
+      } catch (e: Exception) {
+        if (e is InterruptedException) Thread.currentThread().interrupt()
+        LogUtils.e(TAG, "Cannot import settings from %s: %s", AppIdMove.OLD_PACKAGE, e)
+        false
+      } finally {
+        pending.thenAccept { files -> files.forEach { it.temp.delete() } }
       }
-    } catch (e: InterruptedException) {
-      Thread.currentThread().interrupt()
-      LogUtils.w(TAG, "Settings import wait interrupted, starting without it")
-    }
+    state.edit().putInt(KEY_ATTEMPTS, attempts)
+      .putBoolean(KEY_DONE, imported || attempts >= MAX_ATTEMPTS).commit()
   }
 
   /** Returns true if SandFly is installed, signed with its own key. */
@@ -104,10 +88,10 @@ object SettingsImporter {
   fun isOldAppInstalled(context: Context): Boolean =
     AppIdMove.isSignedBy(context.packageManager, AppIdMove.OLD_PACKAGE, AppIdMove.OLD_CERT_SHA256)
 
-  private fun importFromOldApp(context: Context) {
+  private fun prepareImport(context: Context): List<StagedFile> {
     if (!isOldAppInstalled(context)) {
       LogUtils.i(TAG, "SandFly is not installed, so there are no settings to import")
-      return
+      return emptyList()
     }
     val authority = AppIdMove.authority(AppIdMove.OLD_PACKAGE)
     val provider = context.packageManager.resolveContentProvider(authority, 0)
@@ -121,41 +105,60 @@ object SettingsImporter {
     val prefsDir =
       File(context.createDeviceProtectedStorageContext().dataDir, MigrationFiles.PREFS_DIR)
     val database = context.getDatabasePath(MigrationFiles.LABELS_DATABASE)
-    if (paths.any { it.startsWith(MigrationFiles.DATABASES_DIR + "/") }) {
-      // Nothing has opened the database yet, so its files can be replaced.
-      for (suffix in listOf("", "-wal", "-shm", "-journal")) {
+    val files = mutableListOf<StagedFile>()
+    try {
+      for (path in paths) {
+        val (directory, name) = MigrationFiles.parse(path) ?: continue
+        val target =
+          when (directory) {
+            MigrationFiles.PREFS_DIR -> {
+              val targetName =
+                MigrationFiles.importedPrefsName(name, AppIdMove.OLD_PACKAGE, context.packageName)
+                  ?: continue
+              File(prefsDir, targetName)
+            }
+            MigrationFiles.SCRIPTS_DIR -> scriptTarget(context, name)
+            MigrationFiles.FILES_DIR -> targetIn(context.filesDir, name)
+            MigrationFiles.DEVICE_FILES_DIR ->
+              targetIn(context.createDeviceProtectedStorageContext().filesDir, name)
+            else -> File(database.parentFile, name)
+          }
+        val uri =
+          base
+            .buildUpon()
+            .appendPath(AppIdMove.PATH_FILE)
+            .appendPath(directory)
+            .apply { name.split('/').forEach { appendPath(it) } }
+            .build()
+        val parent = requireNotNull(target.parentFile)
+        parent.mkdirs()
+        val temp = File.createTempFile("meridian-", TEMP_SUFFIX, parent)
+        files += StagedFile(target, temp, path)
+        val input =
+          context.contentResolver.openInputStream(uri) ?: throw IOException("Cannot open $uri")
+        input.use { source -> temp.outputStream().use { source.copyTo(it) } }
+      }
+      return files
+    } catch (error: Exception) {
+      files.forEach { it.temp.delete() }
+      throw error
+    }
+  }
+
+  private fun publishImport(context: Context, files: List<StagedFile>) {
+    val database = context.getDatabasePath(MigrationFiles.LABELS_DATABASE)
+    if (files.any { it.path.startsWith(MigrationFiles.DATABASES_DIR + "/") }) {
+      for (suffix in listOf("-wal", "-shm", "-journal")) {
         File(database.path + suffix).delete()
       }
     }
-
-    val imported = mutableListOf<String>()
-    for (path in paths) {
-      val (directory, name) = MigrationFiles.parse(path) ?: continue
-      val target =
-        when (directory) {
-          MigrationFiles.PREFS_DIR -> {
-            val targetName =
-              MigrationFiles.importedPrefsName(name, AppIdMove.OLD_PACKAGE, context.packageName)
-                ?: continue
-            // A backup file would win over the copy when the preferences load.
-            File(prefsDir, "$targetName.bak").delete()
-            File(prefsDir, targetName)
-          }
-          MigrationFiles.SCRIPTS_DIR -> scriptTarget(context, name)
-          MigrationFiles.FILES_DIR -> targetIn(context.filesDir, name)
-          MigrationFiles.DEVICE_FILES_DIR ->
-            targetIn(context.createDeviceProtectedStorageContext().filesDir, name)
-          else -> File(database.parentFile, name)
-        }
-      val uri =
-        base
-          .buildUpon()
-          .appendPath(AppIdMove.PATH_FILE)
-          .appendPath(directory)
-          .apply { name.split('/').forEach { appendPath(it) } }
-          .build()
-      copy(context, uri, target)
-      imported.add("$path (${target.length()} bytes)")
+    for ((target, temp, path) in files) {
+      if (!temp.renameTo(target)) {
+        throw IOException("Cannot move $temp to $target")
+      }
+      if (path.startsWith(MigrationFiles.PREFS_DIR + "/")) {
+        File(target.path + ".bak").delete()
+      }
     }
 
     // Loads the default preferences from the copy, which is the first load in this process.
@@ -167,9 +170,9 @@ object SettingsImporter {
     LogUtils.i(
       TAG,
       "Imported %d files from %s: %s",
-      imported.size,
+      files.size,
       AppIdMove.OLD_PACKAGE,
-      imported.joinToString(", "),
+      files.joinToString(", ") { "${it.path} (${it.target.length()} bytes)" },
     )
   }
 
@@ -185,22 +188,6 @@ object SettingsImporter {
           add(it.getString(column))
         }
       }
-    }
-  }
-
-  /** Copies through a temporary file, so a failed copy leaves no partial file behind. */
-  private fun copy(context: Context, uri: Uri, target: File) {
-    target.parentFile?.mkdirs()
-    val temp = File(target.path + TEMP_SUFFIX)
-    try {
-      val input =
-        context.contentResolver.openInputStream(uri) ?: throw IOException("Cannot open $uri")
-      input.use { source -> temp.outputStream().use { source.copyTo(it) } }
-      if (!temp.renameTo(target)) {
-        throw IOException("Cannot move $temp to $target")
-      }
-    } finally {
-      temp.delete()
     }
   }
 

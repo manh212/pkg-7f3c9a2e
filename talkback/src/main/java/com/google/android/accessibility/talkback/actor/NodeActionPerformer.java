@@ -15,6 +15,7 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Node action performer. */
@@ -22,7 +23,7 @@ public class NodeActionPerformer {
 
   private static final String TAG = "NodeActionPerformer";
 
-  private @Nullable NodeActionRecord actionRecord = null;
+  private final AtomicReference<NodeActionRecord> actionRecord = new AtomicReference<>();
   private final @Nullable ClickFeedback clickFeedback;
 
   public NodeActionPerformer() {
@@ -70,8 +71,8 @@ public class NodeActionPerformer {
 
   /** Limited read-only interface to pull state data. */
   public class StateReader {
-    public NodeActionRecord getNodeActionRecord() {
-      return NodeActionPerformer.this.actionRecord;
+    public @Nullable NodeActionRecord getNodeActionRecord() {
+      return actionRecord.get();
     }
   }
 
@@ -92,13 +93,12 @@ public class NodeActionPerformer {
     long time = SystemClock.uptimeMillis();
     if (nodeAction.actionId() == AccessibilityNodeInfoCompat.ACTION_CLICK
         && AccessibilityNodeInfoUtils.isKeyboard(nodeActionTarget.getCompat())) {
+      NodeActionRecord record = new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time);
+      actionRecord.set(record);
       keyClicks.execute(
           () -> {
-            if (nodeActionTarget.performAction(
-                nodeAction.actionId(), nodeAction.args(), eventId)) {
-              setNodeActionRecord(
-                  new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
-            } else {
+            if (!nodeActionTarget.performAction(nodeAction.actionId(), nodeAction.args(), eventId)) {
+              actionRecord.compareAndSet(record, null);
               LogUtils.w(TAG, "The keyboard did not take the click on %s", nodeActionTarget);
             }
           });
@@ -121,12 +121,8 @@ public class NodeActionPerformer {
         .onAccessibilityActionPerformed(
             eventId, nodeAction.actionId(), time, success, nodeActionTarget);
     if (success) {
-      setNodeActionRecord(new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
+      actionRecord.set(new NodeActionRecord(nodeAction.actionId(), nodeActionTarget, time));
     }
     return success;
-  }
-
-  private void setNodeActionRecord(NodeActionRecord record) {
-    actionRecord = record;
   }
 }

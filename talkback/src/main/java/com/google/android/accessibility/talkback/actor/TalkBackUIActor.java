@@ -3,8 +3,12 @@ package com.google.android.accessibility.talkback.actor;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -28,6 +32,9 @@ public class TalkBackUIActor {
     GESTURE_OR_KEYBOARD_ACTION_OVERLAY,
   }
 
+  private static final long MESSAGE_DURATION_MS = 2500;
+
+  private final Handler handler = new Handler(Looper.getMainLooper());
   private final Context context;
   private final Map<Type, SimpleOverlay> overlays = new EnumMap<>(Type.class);
   private final Map<Type, TextView> messageViews = new EnumMap<>(Type.class);
@@ -45,12 +52,18 @@ public class TalkBackUIActor {
     TextView messageView = getMessageView(type);
     CharSequence message = talkBackUI.message();
     messageView.setText(message == null ? "" : message);
+    handler.removeCallbacksAndMessages(type);
     SimpleOverlay overlay = overlays.get(type);
     overlay.show();
-    return overlay.isVisible();
+    if (!overlay.isVisible()) {
+      return false;
+    }
+    handler.postAtTime(() -> hide(type), type, SystemClock.uptimeMillis() + MESSAGE_DURATION_MS);
+    return true;
   }
 
   public boolean hide(Type type) {
+    handler.removeCallbacksAndMessages(type);
     SimpleOverlay overlay = overlays.get(type);
     if (overlay != null) {
       overlay.hide();
@@ -95,6 +108,7 @@ public class TalkBackUIActor {
     params.height = WindowManager.LayoutParams.MATCH_PARENT;
     overlay.setParams(params);
     messageView = new TextView(context);
+    messageView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     messageView.setTextColor(Color.WHITE);
     messageView.setBackgroundColor(Color.argb(0xCC, 0x00, 0x00, 0x00));
     messageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
