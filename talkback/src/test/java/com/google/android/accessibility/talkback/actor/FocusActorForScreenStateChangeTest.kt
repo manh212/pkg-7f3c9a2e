@@ -165,6 +165,36 @@ class FocusActorForScreenStateChangeTest {
     assertEquals(1, RootsShadow.rootRequests)
   }
 
+  @Test
+  fun focusLastPutInAListIsRestoredWhenItsRowMoves() {
+    // The row the user left is a collection item, so the cached node is not reused as-is, and
+    // the row has moved, so the path search lands on another row with the same text at the
+    // recorded position. Restoring must still land on the row the user left, because the
+    // cached node still shows its recorded text.
+    val root = root()
+    val app = window(APP, AccessibilityWindowInfo.TYPE_APPLICATION, root)
+    shadowOf(service).setWindows(listOf(app))
+    val list = collection(app, root)
+    val first = row(app, list, "Play", Rect(100, 1000, 980, 1150), refresh = true)
+    row(app, list, "Other", Rect(100, 1150, 980, 1300))
+    row(app, list, "Play", Rect(100, 1300, 980, 1450))
+    history.onAccessibilityFocusAction(first, focusInfo(), 1, screen(app))
+
+    // The list is laid out again with another row at the recorded position and the row the
+    // user left moved to the end.
+    val newRoot = root()
+    val newList = collection(app, newRoot)
+    row(app, newList, "Play", Rect(100, 1000, 980, 1150))
+    row(app, newList, "Play", Rect(100, 1150, 980, 1300))
+    shadowOf(newList).addChild(first.unwrap())
+    shadowOf(app).setRoot(newRoot)
+
+    assertTrue(restore(app))
+    assertEquals(listOf(first), focused)
+    // One root serves to find the node and to check that the node is still in the window.
+    assertEquals(1, RootsShadow.rootRequests)
+  }
+
   /** Restores the last focus into [active], counting only the roots that fetches. */
   private fun restore(active: AccessibilityWindowInfo): Boolean {
     RootsShadow.rootRequests = 0
@@ -206,6 +236,48 @@ class FocusActorForScreenStateChangeTest {
     shadowOf(node).setAccessibilityWindowInfo(window)
     shadowOf(node).setRefreshReturnValue(true)
     shadowOf(root).addChild(node)
+    return AccessibilityNodeInfoCompat.wrap(node)
+  }
+
+  /** A list in the window, whose rows are collection items. */
+  private fun collection(
+    window: AccessibilityWindowInfo,
+    root: AccessibilityNodeInfo,
+  ): AccessibilityNodeInfo {
+    val list = AccessibilityNodeInfo.obtain(View(service))
+    list.packageName = APP_PACKAGE
+    list.className = "androidx.recyclerview.widget.RecyclerView"
+    list.collectionInfo = AccessibilityNodeInfo.CollectionInfo.obtain(3, 1, false)
+    list.isVisibleToUser = true
+    list.setBoundsInScreen(Rect(0, 0, 1080, 2340))
+    shadowOf(list).setAccessibilityWindowInfo(window)
+    shadowOf(list).setRefreshReturnValue(false)
+    shadowOf(root).addChild(list)
+    return list
+  }
+
+  /** A focusable row in the list. Only the row the user left refreshes. */
+  private fun row(
+    window: AccessibilityWindowInfo,
+    list: AccessibilityNodeInfo,
+    text: String,
+    bounds: Rect,
+    refresh: Boolean = false,
+  ): AccessibilityNodeInfoCompat {
+    val node = AccessibilityNodeInfo.obtain(View(service))
+    node.packageName = APP_PACKAGE
+    node.className = "android.widget.LinearLayout"
+    node.text = text
+    node.isVisibleToUser = true
+    node.isEnabled = true
+    node.isClickable = true
+    node.isFocusable = true
+    node.collectionItemInfo =
+      AccessibilityNodeInfo.CollectionItemInfo.obtain(0, 1, 0, 1, false)
+    node.setBoundsInScreen(bounds)
+    shadowOf(node).setAccessibilityWindowInfo(window)
+    shadowOf(node).setRefreshReturnValue(refresh)
+    shadowOf(list).addChild(node)
     return AccessibilityNodeInfoCompat.wrap(node)
   }
 
