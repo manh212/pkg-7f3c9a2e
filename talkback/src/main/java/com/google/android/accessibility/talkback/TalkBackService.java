@@ -1940,20 +1940,20 @@ public class TalkBackService extends AccessibilityServiceCompat
    */
   public int resolveVolumeKeyUse(boolean triggerModifierPressed) {
     int use = VOLUME_KEY_CHANGES_VOLUME;
-    boolean canUse =
+    boolean baseCanUse =
         (volumeKeysAdjustSliders || volumeKeysMoveCursor)
             && isServiceActive()
-            && !isTouchInteracting()
             && !triggerModifierPressed
                 && !pipeline.getActorState().getContinuousRead().isActive()
             && ringerModeAndScreenMonitor != null
             && ringerModeAndScreenMonitor.isInteractive();
+    boolean canUse = baseCanUse && !isTouchInteracting();
     if (canUse
         && volumeKeysAdjustSliders
         && Role.getRole(accessibilityFocusMonitor.getSupportedAdjustableNode())
             == Role.ROLE_SEEK_CONTROL) {
       use = VOLUME_KEY_ADJUSTS_SLIDER;
-    } else if (canUse && volumeKeysMoveCursor) {
+    } else if (baseCanUse && volumeKeysMoveCursor) {
       AccessibilityNodeInfoCompat focus =
           accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
       if (focus != null && focus.isEditable()) {
@@ -1966,6 +1966,11 @@ public class TalkBackService extends AccessibilityServiceCompat
   /** Carries out a use {@link #resolveVolumeKeyUse} decided, for one press or one repeat of it. */
   public void performVolumeKeyUse(int use, boolean isUp) {
     if (use == VOLUME_KEY_MOVES_CURSOR) {
+      CursorGranularity granularity =
+          SelectorController.selectionGranularityOf(SelectorController.getCurrentSetting(this));
+      if (granularity == null) {
+        granularity = CursorGranularity.CHARACTER;
+      }
       pipeline
           .getFeedbackReturner()
           .returnFeedback(
@@ -1975,7 +1980,7 @@ public class TalkBackService extends AccessibilityServiceCompat
                           ? TraversalStrategy.SEARCH_FOCUS_BACKWARD
                           : TraversalStrategy.SEARCH_FOCUS_FORWARD)
                   .setInputMode(InputModeTracker.INPUT_MODE_KEYBOARD)
-                  .setGranularity(CursorGranularity.CHARACTER));
+                  .setGranularity(granularity));
       return;
     }
     if (use == VOLUME_KEY_ADJUSTS_SLIDER) {
