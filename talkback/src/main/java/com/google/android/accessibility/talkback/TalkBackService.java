@@ -178,7 +178,6 @@ import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCa
 import com.google.android.accessibility.talkback.focusmanagement.AsyncTraversalOrder;
 import com.google.android.accessibility.talkback.eventprocessor.BackgroundEventGate;
 import com.google.android.accessibility.talkback.eventprocessor.EventProcessingStats;
-import com.google.android.accessibility.talkback.compositor.roledescription.RoleDescriptionExtractor;
 import com.google.android.accessibility.talkback.focusmanagement.WindowNodePrefetcher;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.TouchExplorationInterpreter;
@@ -4083,7 +4082,6 @@ public class TalkBackService extends AccessibilityServiceCompat
       PreparedFocusSpeech.clear();
     }
     FailoverTextToSpeech.splitAtFirstSeparatorEnabled = splitControlSpeech;
-    RoleDescriptionExtractor.setSplitControlSpeechEnabled(splitControlSpeech);
     ProcessorEventQueue.setFocusPriorityEnabled(pinnedLatencyEnabled);
     ProcessorEventQueue.setProcessingLevel(
         prefs.getString("pref_event_processing_level", "low"));
