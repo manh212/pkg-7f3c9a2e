@@ -1585,6 +1585,8 @@
     <string name="template_lift_to_activate_changed">Nhấc ngón tay để kích hoạt: <xliff:g id="mode">%1$s</xliff:g></string>
     <string name="title_pref_wrap_around">Quay vòng</string>
     <string name="summary_pref_wrap_around">Vuốt qua mục cuối cùng sẽ chuyển đến mục đầu tiên, và vuốt qua mục đầu tiên sẽ chuyển đến mục cuối cùng. Khi tắt, một âm thanh sẽ phát ở cuối.</string>
+    <string name="title_pref_auto_switch_page">Tự động chuyển trang</string>
+    <string name="summary_pref_auto_switch_page">Khi bật, vuốt qua mục cuối cùng trên một trang sẽ chuyển sang trang kế tiếp. Khi tắt, điều hướng ở lại trong trang hiện tại.</string>
     <string name="title_pref_collapse_list_item_actions">Sử dụng danh sách thao tác cho các ứng dụng được hỗ trợ</string>
     <string name="summary_pref_collapse_list_item_actions">Trong các ứng dụng được hỗ trợ, mỗi mục danh sách chỉ còn một điểm dừng, và các nút của mục chuyển vào chế độ điều khiển Thao tác.</string>
     <string name="title_collapse_action_long_press">%1$s, nhấn giữ</string>
