@@ -183,6 +183,15 @@ public class FocusActionRecord {
         : null;
   }
 
+  private static boolean isCachedNodeReusable(
+      FocusActionRecord focusActionRecord, AccessibilityNodeInfoCompat node) {
+    if (!focusActionRecord.collectionItem
+        && !AccessibilityNodeInfoUtils.isInCollection(node)) {
+      return true;
+    }
+    return focusActionRecord.getNodePathDescription().matchesLeafText(node);
+  }
+
   /**
    * Returns the focusable node from the focus record with the following priority:
    *
@@ -226,12 +235,11 @@ public class FocusActionRecord {
         return uniqueIdNode;
       }
     }
-    // 2. Focused node match. Don't use cached node if it's in collection because collection reuse
-    // views.
+    // 2. Focused node match. A collection node is reused only when it still shows the recorded
+    // text, so a view recycled to different content is never mistaken for the row the user left.
     if (lastFocusedNode.refresh()
         && AccessibilityNodeInfoUtils.shouldFocusNode(lastFocusedNode)
-        && !focusActionRecord.collectionItem
-        && !AccessibilityNodeInfoUtils.isInCollection(lastFocusedNode)) {
+        && isCachedNodeReusable(focusActionRecord, lastFocusedNode)) {
       LogUtils.d(
           TAG,
           "getFocusableNodeFromFocusRecord from focused node in focusActionRecord=%s",
