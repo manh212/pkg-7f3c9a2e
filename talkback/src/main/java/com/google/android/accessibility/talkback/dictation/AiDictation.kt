@@ -50,7 +50,6 @@ import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.IOException
-import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
@@ -290,8 +289,9 @@ class AiDictation(
           speechLevelMarginDb = DictationSettings.recognizerSpeechMarginDb(prefs),
           localeTag =
             if (translateMode) DictationSettings.translationSource(prefs)
-            else Locale.getDefault().toLanguageTag(),
+            else GoogleSpeechLanguages.appLocale().toLanguageTag(),
         )
+      GoogleSpeechLanguages.downloadIfMissing(service)
       if (!recognizer.start()) return false
       continuous = recognizer
       return true

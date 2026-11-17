@@ -31,7 +31,6 @@ import com.google.android.accessibility.talkback.actor.gemini.local.ModelFiles
 import com.google.android.accessibility.talkback.dictation.DictationSettings.Recognition
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
-import java.util.Locale
 
 /**
  * Dictation settings: how speech is recognized, and the AI service that corrects dictation.
@@ -125,12 +124,12 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       "pref_dictation_translation",
     ).forEach { key -> findPreference<Preference>(key)?.isVisible = advancedExpanded }
     googleDownloadPref.title =
-      getString(R.string.dictation_google_download, Locale.getDefault().displayLanguage)
+      getString(R.string.dictation_google_download, GoogleSpeechLanguages.appLocale().displayLanguage)
     googleDownloadPref.isVisible =
       advancedExpanded &&
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         DictationSettings.googleInstalled(context) &&
-        GoogleSpeechLanguages.hasPhoneLanguage() == false
+        GoogleSpeechLanguages.hasAppLanguage() == false
 
     findPreference<Preference>(DictationSettings.PREF_SPEECH_THRESHOLD)?.summary =
       speechThresholdSummary(DictationSettings.speechThresholdDbfs(prefs))

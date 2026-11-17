@@ -27,7 +27,6 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import com.google.android.libraries.accessibility.utils.log.LogUtils
-import java.util.Locale
 
 /**
  * Android speech recognition that goes on until [stop]: each time the recognizer ends after a
@@ -43,7 +42,7 @@ internal class ContinuousRecognition(
 
   private val onSpeech: () -> Unit = {},
   private val speechLevelMarginDb: Float = 6.0f,
-  private val localeTag: String = Locale.getDefault().toLanguageTag(),
+  private val localeTag: String = GoogleSpeechLanguages.appLocale().toLanguageTag(),
 ) : RecognitionListener {
   private var recognizer: SpeechRecognizer? = null
   private val parts = mutableListOf<String>()
