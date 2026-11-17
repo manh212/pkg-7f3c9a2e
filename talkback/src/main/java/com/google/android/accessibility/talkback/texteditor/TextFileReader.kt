@@ -46,6 +46,8 @@ object TextFileReader {
       "application/rtf", "text/rtf" -> return TextFileFormat.RTF
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ->
         return TextFileFormat.DOCX
+      null, "", "application/octet-stream" -> {}
+      else -> return null
     }
     return when (fileName?.substringAfterLast('.', "")?.lowercase()) {
       "txt", "text" -> TextFileFormat.TXT
