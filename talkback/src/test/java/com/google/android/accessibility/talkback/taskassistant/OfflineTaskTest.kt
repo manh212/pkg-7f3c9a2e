@@ -14,6 +14,10 @@ class OfflineTaskTest {
       OfflineTaskCommand.parse("Soạn tin nhắn cho Lan trên Zalo"),
     )
     assertEquals(
+      OfflineTaskCommand.Draft(OfflineTaskCommand.MessageApp.ZALO, "Lan", ""),
+      OfflineTaskCommand.parse("Soạn tin nhắn cho Zalo cho Lan"),
+    )
+    assertEquals(
       OfflineTaskCommand.Draft(OfflineTaskCommand.MessageApp.SMS, "0901234567", "Mình tới."),
       OfflineTaskCommand.parse("Viết tin nhắn SMS cho 0901234567, Mình tới."),
     )
@@ -37,6 +41,10 @@ class OfflineTaskTest {
       OfflineTaskCommand.parse("Mở YouTube, tìm Ngày chưa giông bão rồi mở video đầu tiên"),
     )
     assertEquals(OfflineTaskCommand.FirstVideo, OfflineTaskCommand.parse("Nhấn vào kết quả đầu tiên"))
+    assertEquals(
+      OfflineTaskCommand.FirstVideo,
+      OfflineTaskCommand.parse("Nhấn vào kết quả tìm kiếm đầu tiên"),
+    )
   }
 
   @Test fun nameMatchesUseTheSearchFieldAndRejectDuplicateRows() {

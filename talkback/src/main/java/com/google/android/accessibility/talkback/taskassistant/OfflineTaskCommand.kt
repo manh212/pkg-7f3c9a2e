@@ -33,7 +33,7 @@ internal sealed interface OfflineTaskCommand {
     private val open = Regex("(?:mo|vao|khoi\\s+dong)\\s+(?:ung\\s+dung\\s+)?(.+)")
     private val click = Regex("(?:bam|nhan|cham|chon)(?:\\s+(?:vao|nut|muc))*\\s+(.+)")
     private const val FIRST =
-      "(?:(?:mo|bam|nhan|chon)(?:\\s+vao)?\\s+(?:ket\\s+qua|video)(?:\\s+dau\\s+tien|\\s+(?:thu\\s+)?nhat))"
+      "(?:(?:mo|bam|nhan|chon)(?:\\s+vao)?\\s+(?:ket\\s+qua(?:\\s+tim\\s+kiem)?|video)(?:\\s+dau\\s+tien|\\s+(?:thu\\s+)?nhat))"
     private val first = Regex(FIRST)
     private val youtube = Regex(
       "(?:(?:mo|vao)\\s+(?:ung\\s+dung\\s+)?(you\\s*tube)[,\\s]+(?:(?:roi|sau\\s+do)[,\\s]+)?)?" +
