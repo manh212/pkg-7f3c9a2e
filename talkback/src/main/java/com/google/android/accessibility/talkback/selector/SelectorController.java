@@ -1449,9 +1449,8 @@ public class SelectorController implements UserInputEventListener {
       return;
     }
     AccessibilityNodeInfoCompat focusedNode = AccessibilityNodeInfoCompat.wrap(nodeInfo);
-    if (keepsTextReadingControl(currentSetting, focusedNode)
-        || (isTextReadingControl(currentSetting)
-            && accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null)) {
+    if (isTextReadingControl(currentSetting)
+        && accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null) {
       return;
     }
     if (actionsSettingActivatedForEditText
@@ -1931,10 +1930,6 @@ public class SelectorController implements UserInputEventListener {
   private boolean isEditingContext(AccessibilityNodeInfoCompat node) {
     return Role.getRole(node) == Role.ROLE_EDIT_TEXT
         || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(node) != null;
-  }
-
-  static boolean keepsTextReadingControl(Setting setting, AccessibilityNodeInfoCompat node) {
-    return isTextReadingControl(setting) && node.isFocused() && node.isEditable();
   }
 
   private static boolean isTextReadingControl(Setting setting) {
