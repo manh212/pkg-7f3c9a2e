@@ -19,18 +19,13 @@ package com.google.android.accessibility.talkback.notifications
 import android.content.SharedPreferences
 import com.google.android.accessibility.utils.LatencyExperiments
 
-/**
- * The initial setup's performance configuration: speed keeps every Developer performance option
- * as it is, energy turns them all off. Both directions write every key, so switching profiles
- * leaves no stale value behind. The marker records which profile was picked.
- */
 object PerformanceProfile {
   const val KEY = "pref_performance_profile"
   const val SPEED = "speed"
   const val ENERGY = "energy"
 
   private const val CHOICE_VERSION_KEY = "pref_performance_profile_version"
-  private const val CHOICE_VERSION = 1
+  private const val CHOICE_VERSION = 2
 
   private const val DISABLE_LATENCY_EXTRAS_KEY = "pref_disable_latency_extras"
   private const val DISABLE_LATENCY_PINNED_KEY = "pref_disable_latency_pinned"
@@ -44,7 +39,7 @@ object PerformanceProfile {
   /** The stored profile, or null when none was ever picked, the stored value is unknown, or it was recorded before explicit choice was required. */
   fun storedProfile(preferences: SharedPreferences): String? =
     preferences.getString(KEY, null)?.takeIf { it == SPEED || it == ENERGY }
-      ?.takeIf { preferences.getInt(CHOICE_VERSION_KEY, 0) == CHOICE_VERSION }
+      ?.takeIf { preferences.getInt(CHOICE_VERSION_KEY, 0) in 1..CHOICE_VERSION }
 
   /** Writes the profile's values in one edit. Anything other than [ENERGY] applies speed. */
   fun apply(preferences: SharedPreferences, profile: String) {

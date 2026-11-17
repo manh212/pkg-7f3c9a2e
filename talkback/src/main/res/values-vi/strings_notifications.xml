@@ -156,9 +156,9 @@
     <string name="timer_setup_language_keep">Giữ ngôn ngữ này và tiếp tục</string>
     <string name="timer_setup_performance_title">Cấu hình hiệu suất</string>
     <string name="timer_setup_performance_detail">Chọn cách Meridian cân bằng giữa tốc độ và pin. %1$s: %2$s. %3$s: %4$s. Lựa chọn được áp dụng ngay và thiết lập tiếp tục.</string>
-    <string name="timer_setup_performance_keep">Giữ cấu hình này và tiếp tục</string>
+    <string name="timer_setup_performance_keep">Áp dụng cấu hình này</string>
     <string name="timer_setup_performance_speed">Ưu tiên tốc độ</string>
-    <string name="timer_setup_performance_speed_detail">Giữ nguyên như hiện tại, mọi tính năng tăng tốc đều bật</string>
+    <string name="timer_setup_performance_speed_detail">Bật các tùy chọn tăng tốc trong Cài đặt nhà phát triển</string>
     <string name="timer_setup_performance_energy">Ưu tiên năng lượng</string>
     <string name="timer_setup_performance_energy_detail">Tắt các tính năng tăng tốc trong Cài đặt nhà phát triển để tiết kiệm pin</string>
     <string name="timer_setup_battery_title">Miễn trừ tối ưu pin Android</string>

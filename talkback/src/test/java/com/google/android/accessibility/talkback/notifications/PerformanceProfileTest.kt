@@ -110,6 +110,38 @@ class PerformanceProfileTest {
   }
 
   @Test
+  fun reapplyingTheSelectedProfileRestoresSettingsAndTurnsOffSplitSpeech() {
+    for (profile in listOf(PerformanceProfile.SPEED, PerformanceProfile.ENERGY)) {
+      val speed = profile == PerformanceProfile.SPEED
+      PerformanceProfile.apply(prefs, profile)
+      prefs.edit()
+        .putBoolean("pref_disable_latency_extras", speed)
+        .putBoolean("pref_prepare_adjacent_speech", !speed)
+        .putBoolean("pref_split_control_speech", true)
+        .putString("pref_event_processing_level", "high")
+        .apply()
+
+      PerformanceProfile.apply(prefs, profile)
+
+      assertEquals(profile, PerformanceProfile.storedProfile(prefs))
+      assertEquals(!speed, prefs.getBoolean("pref_disable_latency_extras", speed))
+      assertEquals(speed, prefs.getBoolean("pref_prepare_adjacent_speech", !speed))
+      assertFalse(prefs.getBoolean("pref_split_control_speech", true))
+      assertEquals("low", prefs.getString("pref_event_processing_level", null))
+    }
+  }
+
+  @Test
+  fun storedProfile_preservesExplicitChoicesFromAnEarlierBuild() {
+    prefs.edit()
+      .putString(PerformanceProfile.KEY, PerformanceProfile.ENERGY)
+      .putInt("pref_performance_profile_version", 1)
+      .apply()
+
+    assertEquals(PerformanceProfile.ENERGY, PerformanceProfile.storedProfile(prefs))
+  }
+
+  @Test
   fun storedProfile_isNullUntilAPickedProfileIsStored() {
     assertNull(PerformanceProfile.storedProfile(prefs))
 
