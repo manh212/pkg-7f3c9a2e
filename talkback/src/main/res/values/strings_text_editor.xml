@@ -31,6 +31,9 @@
     <string name="text_editor_word_count">Word and character count</string>
     <!-- The counts shown by Word and character count. [CHAR LIMIT=NONE] -->
     <string name="text_editor_word_count_message">%1$d words, %2$d characters</string>
+    <!-- Spoken when a text file opened from another app cannot be read, or is too large. [CHAR LIMIT=NONE] -->
+    <string name="text_editor_open_file_failed">Could not open the file</string>
+    <string name="text_editor_open_file_too_large">The file is too large to open</string>
     <!-- Spoken when there is nothing to paste or no other document to open. [CHAR LIMIT=NONE] -->
     <string name="text_editor_empty_clipboard">The clipboard is empty</string>
     <string name="text_editor_no_other_documents">No other documents</string>
