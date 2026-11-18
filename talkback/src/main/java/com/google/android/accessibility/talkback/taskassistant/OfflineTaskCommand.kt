@@ -92,16 +92,35 @@ internal sealed interface OfflineTaskCommand {
         return Item(index, it.groupValues[1] == "video")
       }
       search.matchEntire(command)?.let { return Search(content(it.part(1))) }
-      longClick.matchEntire(command)?.let { return LongClick(it.part(1)) }
-      toggle.matchEntire(command)?.let { return Toggle(it.part(2), it.groupValues[1] == "bat") }
-      click.matchEntire(command)?.let { return Click(it.part(1)) }
-      open.matchEntire(command)?.let { return Click(it.part(1)) }
-      drag.matchEntire(command)?.let { return Drag(it.part(1), it.groupValues[2].substringAfterLast(' ')) }
+      longClick.matchEntire(command)?.let {
+        val label = it.part(1)
+        if (!fillerOnly(label)) return LongClick(label)
+      }
+      toggle.matchEntire(command)?.let {
+        if (!fillerOnly(it.part(2))) return Toggle(it.part(2), it.groupValues[1] == "bat")
+      }
+      click.matchEntire(command)?.let {
+        val label = it.part(1)
+        if (!fillerOnly(label)) return Click(label)
+      }
+      open.matchEntire(command)?.let {
+        val label = it.part(1)
+        if (!fillerOnly(label)) return Click(label)
+      }
+      drag.matchEntire(command)?.let {
+        val label = it.part(1)
+        if (!fillerOnly(label)) return Drag(label, it.groupValues[2].substringAfterLast(' '))
+      }
       scroll.matchEntire(command)?.let {
         val count = ordinal(it.groupValues[2].ifBlank { "mot" }) ?: return null
         if (count <= 10) return Scroll(it.groupValues[1] == "xuong", count)
       }
       return null
+    }
+
+    private fun fillerOnly(label: String): Boolean {
+      val words = fold(label).trim().split(Regex("\\s+"))
+      return words.isNotEmpty() && words.all { it in setOf("vao", "nut", "muc") }
     }
 
     private fun ordinal(word: String): Int? = when (word) {

@@ -83,17 +83,23 @@ internal class OfflineTaskScreen(private val screen: TaskScreen, private val app
     }
   }
 
-  private fun bestNodes(wanted: String): List<TaskNode> =
-    TaskProtocol.topScored(nodes) { nodeScore(it, wanted) }
+  private fun bestNodes(wanted: String, candidates: List<TaskNode> = nodes): List<TaskNode> {
+    val own = TaskProtocol.topScored(candidates) { nodeScore(it, wanted) }
+    if (own.isNotEmpty()) return own
+    return TaskProtocol.topScored(candidates) { joinedLabelScore(it, wanted) }
+  }
 
   private fun nodeScore(node: TaskNode, wanted: String): Int =
-    sequenceOf(node.text, node.hint, node.description, node.label)
-      .flatMap { it.splitToSequence("; ") }
+    listOf(node.text, node.hint, node.description)
+      .maxOfOrNull { TaskProtocol.labelScore(wanted, it) } ?: 0
+
+  private fun joinedLabelScore(node: TaskNode, wanted: String): Int =
+    node.label.splitToSequence("; ")
       .maxOfOrNull { TaskProtocol.labelScore(wanted, it) } ?: 0
 
   private fun editor(label: String): List<TaskNode> {
     val editable = nodes.filter { SET_TEXT.wire in it.actions }
-    if (label.isNotBlank()) return TaskProtocol.topScored(editable) { nodeScore(it, label) }
+    if (label.isNotBlank()) return bestNodes(label, editable)
     val focused = editable.filter { it.focused }
     return focused.ifEmpty { editable }
   }
