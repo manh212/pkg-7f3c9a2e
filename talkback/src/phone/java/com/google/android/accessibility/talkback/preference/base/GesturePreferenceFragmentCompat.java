@@ -46,6 +46,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory;
 import com.google.android.accessibility.material.preference.AccessibilitySuiteRadioButtonPreference;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.gesture.TapTextActions;
+import com.google.android.accessibility.talkback.gesture.TapTextEditor;
 import com.google.android.accessibility.talkback.preference.base.GestureListPreference.ActionItem;
 import com.google.android.accessibility.utils.PreferenceSettingsUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -71,6 +73,7 @@ public class GesturePreferenceFragmentCompat extends TalkbackBaseFragment {
   private String[] gestureKeys;
   private CharSequence[] gestureLabels;
   private AlertDialog assignmentDialog;
+  private AlertDialog tapTextDialog;
 
   private static final String GESTURE_TITLE = "GESTURE_TITLE";
   private static final String GESTURE_INITIAL_VALUE = "GESTURE_INITIAL_VALUE";
@@ -87,6 +90,10 @@ public class GesturePreferenceFragmentCompat extends TalkbackBaseFragment {
         public boolean onPreferenceClick(Preference preference) {
 
           ActionItem item = (ActionItem) items[preference.getOrder()];
+          if (TapTextActions.isSentinel(item.value)) {
+            showTapTextEditor();
+            return true;
+          }
           if (gestureKeys != null && gestureLabels != null) {
             showGestureAssignment(item);
             return true;
@@ -162,6 +169,29 @@ public class GesturePreferenceFragmentCompat extends TalkbackBaseFragment {
             .show();
   }
 
+  /**
+   * Asks for the label and press type of a "Tự nhấn trên màn hình" action, then saves it. When
+   * several gestures are being assigned at once, the user then picks which gesture runs it;
+   * otherwise it is saved to this gesture. The dialog opens with the gesture's current action
+   * filled in, so picking the action again edits it.
+   */
+  private void showTapTextEditor() {
+    tapTextDialog =
+        TapTextEditor.show(
+            requireContext(),
+            initialValue,
+            composed -> {
+              if (gestureKeys != null && gestureLabels != null) {
+                String text = TapTextActions.label(requireContext(), composed);
+                showGestureAssignment(
+                    new ActionItem(text == null ? composed : text, composed, TYPE_ACTION_ITEM));
+              } else {
+                GestureListPreference.save(getContext(), preferenceKey, composed);
+                popBackStack();
+              }
+            });
+  }
+
   @Override
   public View onCreateView(
       LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -208,6 +238,10 @@ public class GesturePreferenceFragmentCompat extends TalkbackBaseFragment {
     if (assignmentDialog != null) {
       assignmentDialog.dismiss();
       assignmentDialog = null;
+    }
+    if (tapTextDialog != null) {
+      tapTextDialog.dismiss();
+      tapTextDialog = null;
     }
     super.onDestroyView();
   }
