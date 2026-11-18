@@ -7,16 +7,19 @@
       android:summary="@string/volume_keys_managed_summary"
       android:title="@string/volume_keys_managed_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:dependency="pref_volume_keys_managed"
       android:fragment="com.google.android.accessibility.talkback.volume.VolumeKeyUpSettingsFragment"
       android:key="pref_volume_up_screen"
       android:persistent="false"
       android:title="@string/volume_key_up_category" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:dependency="pref_volume_keys_managed"
       android:fragment="com.google.android.accessibility.talkback.volume.VolumeKeyDownSettingsFragment"
       android:key="pref_volume_down_screen"
       android:persistent="false"
       android:title="@string/volume_key_down_category" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:dependency="pref_volume_keys_managed"
       android:fragment="com.google.android.accessibility.talkback.volume.VolumeKeyBothSettingsFragment"
       android:key="pref_volume_both_screen"
       android:persistent="false"
