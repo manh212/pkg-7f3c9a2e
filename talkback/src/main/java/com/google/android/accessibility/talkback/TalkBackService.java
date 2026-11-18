@@ -170,6 +170,7 @@ import com.google.android.accessibility.talkback.flags.Flags;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForLogicalNavigation;
+import com.google.android.accessibility.talkback.focusmanagement.ScrollAhead;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForScreenStateChange;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration;
 import com.google.android.accessibility.talkback.focusmanagement.SingleTapTypingController;
@@ -1327,6 +1328,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (ShizukuClipboard.isReadToast(event)) {
       return;
     }
+    if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+      FocusProcessorForLogicalNavigation.onScrollEventReceived(event);
+    }
+    ScrollAhead.onAccessibilityEvent(event);
     if (scriptHost != null) {
       scriptHost.onAccessibilityEvent(event);
     }
@@ -1735,6 +1740,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     if (keyEvent.getAction() == KeyEvent.ACTION_DOWN) {
       RecentUserInput.mark();
+      ScrollAhead.cancelAll("key");
       if (gestureController != null) {
         gestureController.onUserInputStarted();
       }
