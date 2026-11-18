@@ -38,7 +38,6 @@ internal class OfflineTaskRunner(
     is OfflineTaskCommand.Click -> listOf(OfflineScreenStep.ClickLabel(command.label))
     is OfflineTaskCommand.LongClick -> listOf(OfflineScreenStep.LongClickLabel(command.label))
     is OfflineTaskCommand.Input -> listOf(OfflineScreenStep.Input(command.text, command.label, command.append))
-    is OfflineTaskCommand.Edit -> listOf(OfflineScreenStep.Edit(command.action))
     is OfflineTaskCommand.Toggle -> listOf(OfflineScreenStep.Toggle(command.label, command.checked),
       OfflineScreenStep.VerifyToggle(command.label, command.checked))
     is OfflineTaskCommand.Item -> listOf(OfflineScreenStep.Item(command.index, command.video))
@@ -106,7 +105,7 @@ internal class OfflineTaskRunner(
           }
           OfflineTaskScreen.Decision.Ambiguous -> finish(R.string.task_offline_target_ambiguous)
           OfflineTaskScreen.Decision.Unavailable -> finish(R.string.task_offline_target_unavailable)
-          is OfflineTaskScreen.Decision.Act, is OfflineTaskScreen.Decision.Edit -> error("Unresolved offline action")
+          is OfflineTaskScreen.Decision.Act -> error("Unresolved offline action")
         }
       }
     }
@@ -116,10 +115,6 @@ internal class OfflineTaskRunner(
     val capture = runCatching { reader.read(includeStructure = true) }.getOrNull()
       ?: return OfflineTaskScreen.Decision.Wait
     val decision = OfflineTaskScreen(capture.screen).decide(step)
-    if (decision is OfflineTaskScreen.Decision.Edit) {
-      if (run !== current || !canOperate()) return OfflineTaskScreen.Decision.Wait
-      return performed(reader.edit(capture, decision.node, decision.action))
-    }
     if (decision !is OfflineTaskScreen.Decision.Act) {
       return decision
     }
@@ -134,8 +129,6 @@ internal class OfflineTaskRunner(
     if (!performed) return OfflineTaskScreen.Decision.Wait
     if (step is OfflineScreenStep.Input) {
       current.steps.add(1, OfflineScreenStep.VerifyInput(decision.step.text, step.label))
-    } else if (step is OfflineScreenStep.Edit && step.action == OfflineTextAction.CLEAR) {
-      current.steps.add(1, OfflineScreenStep.VerifyInput("", ""))
     }
     return OfflineTaskScreen.Decision.Ready
   }
@@ -144,9 +137,6 @@ internal class OfflineTaskRunner(
     cancel()
     if (message != null) announce(service.getString(message))
   }
-
-  private fun performed(success: Boolean): OfflineTaskScreen.Decision =
-    if (success) OfflineTaskScreen.Decision.Ready else OfflineTaskScreen.Decision.Unavailable
 
   companion object {
     private const val STEP_TIMEOUT_MS = 8_000L

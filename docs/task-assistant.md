@@ -69,7 +69,7 @@ Examples for the screen interpreter:
 - `Nhập "Mình xong rồi nhấn nút Gửi" rồi nhấn Gửi`
 - `Nhấn giữ tên mục`, `Chọn mục thứ ba`, `Cuộn xuống hai lần`
 - `Nhập vào ô Tin nhắn nội dung Mình đến muộn`
-- `Chọn tất cả`, `Sao chép`, `Cắt văn bản`, `Dán`, `Xóa nội dung`
+- `Nhấn Sao chép` when the copy control is visible
 - `Bật tên công tắc`, `Tắt tên công tắc`
 - `Mở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên`
 
@@ -78,10 +78,9 @@ Processing mode, model selection, speech downloads and screen-command examples
 are available under **Cài đặt giao việc** in task settings.
 
 Every task action uses the visible accessibility tree. `Mở YouTube` clicks its
-visible icon. `Nhấn Trang chủ` clicks a visible button with that name. The task
-controller does not dispatch gesture catalog actions, launch intents, contact
-lookups or direct phone calls. Those functions belong to the voice-command
-feature. Screen commands can explicitly click **Gửi** after entering text.
+visible icon. `Nhấn Trang chủ` clicks a visible button with that name. The task controller resolves each step against the current visible nodes.
+The voice-command feature handles gesture catalog actions, contact lookups and
+direct phone calls. Screen commands can explicitly click **Gửi** after entering text.
 
 The interpreter splits multi-step requests at commas, `rồi` or `sau đó` when a
 screen command follows. Quoted text preserves command-like words literally.

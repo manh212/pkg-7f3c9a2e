@@ -13,7 +13,6 @@ internal sealed interface OfflineScreenStep {
   data class LongClickLabel(val label: String) : OfflineScreenStep
   data class Input(val text: String, val label: String, val append: Boolean) : OfflineScreenStep
   data class VerifyInput(val text: String, val label: String) : OfflineScreenStep
-  data class Edit(val action: OfflineTextAction) : OfflineScreenStep
   data class Toggle(val label: String, val checked: Boolean) : OfflineScreenStep
   data class VerifyToggle(val label: String, val checked: Boolean) : OfflineScreenStep
   data class Item(val index: Int, val video: Boolean = false) : OfflineScreenStep
@@ -26,7 +25,6 @@ internal sealed interface OfflineScreenStep {
 internal class OfflineTaskScreen(private val screen: TaskScreen) {
   sealed interface Decision {
     data class Act(val step: TaskStep, val guard: String? = null) : Decision
-    data class Edit(val node: String, val action: OfflineTextAction) : Decision
     data object Ready : Decision
     data object Wait : Decision
     data object Ambiguous : Decision
@@ -42,7 +40,6 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     is OfflineScreenStep.LongClickLabel -> clickLabel(step.label, TaskOperation.LONG_CLICK)
     is OfflineScreenStep.Input -> input(step.text, step.label, step.append)
     is OfflineScreenStep.VerifyInput -> verifyInput(step.text, step.label)
-    is OfflineScreenStep.Edit -> edit(step.action)
     is OfflineScreenStep.Toggle -> toggle(step.label, step.checked, verify = false)
     is OfflineScreenStep.VerifyToggle -> toggle(step.label, step.checked, verify = true)
     is OfflineScreenStep.Item -> if (step.video || screen.packageName == YOUTUBE) firstVideo(null, step.index) else item(step.index)
@@ -89,14 +86,6 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     val editors = editor(label)
     if (editors.size > 1) return Decision.Ambiguous
     return if (editors.singleOrNull()?.text == text) Decision.Ready else Decision.Wait
-  }
-
-  private fun edit(action: OfflineTextAction): Decision {
-    val editors = editor("")
-    if (editors.size > 1) return Decision.Ambiguous
-    val field = editors.singleOrNull() ?: return Decision.Wait
-    if (action == OfflineTextAction.CLEAR) return input("", "", false)
-    return Decision.Edit(field.id, action)
   }
 
   private fun toggle(label: String, checked: Boolean, verify: Boolean): Decision {

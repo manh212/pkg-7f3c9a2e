@@ -7,7 +7,6 @@ internal sealed interface OfflineTaskCommand {
   data class Click(val label: String) : OfflineTaskCommand
   data class LongClick(val label: String) : OfflineTaskCommand
   data class Input(val text: String, val label: String = "", val append: Boolean = false) : OfflineTaskCommand
-  data class Edit(val action: OfflineTextAction) : OfflineTaskCommand
   data class Toggle(val label: String, val checked: Boolean) : OfflineTaskCommand
   data class Item(val index: Int, val video: Boolean = false) : OfflineTaskCommand
   data class Search(val query: String) : OfflineTaskCommand
@@ -26,7 +25,7 @@ internal sealed interface OfflineTaskCommand {
     private val search = Regex("tim(?:\\s+kiem)?\\s+(.+)", RegexOption.DOT_MATCHES_ALL)
     private val connector = Regex("\\s*[,;]\\s*|\\s+(?:roi|sau\\s+do)\\s+")
     private val quoted = Regex("\"[^\"]*\"|“[^”]*”", RegexOption.DOT_MATCHES_ALL)
-    private val commandStart = Regex("^(?:nhan|bam|cham|chon|mo|vao|tim|nhap|dien|viet|soan|them|bat|tat|cuon|vuot|giu|sao\\s+chep|cat|dan|xoa\\s+(?:noi\\s+dung|van\\s+ban|het\\s+chu))\\b")
+    private val commandStart = Regex("^(?:nhan|bam|cham|chon|mo|vao|tim|nhap|dien|viet|soan|them|bat|tat|cuon|vuot|giu)\\b")
     private val click = Regex("(?:bam|nhan|cham|chon)(?:\\s+(?:vao|nut|muc))*\\s+(.+)")
     private val scroll = Regex("(?:cuon|vuot)\\s+(len|xuong)(?:\\s+(\\d{1,2}|mot|hai|ba|bon|nam)\\s+lan)?")
 
@@ -62,13 +61,6 @@ internal sealed interface OfflineTaskCommand {
       append.matchEntire(folded)?.let { return Input(content(it.part(1)), append = true) }
       input.matchEntire(folded)?.let { return Input(content(it.part(1))) }
       val command = folded.trimEnd('.', '!', '?').trimEnd()
-      when (command) {
-        "sao chep", "sao chep van ban" -> return Edit(OfflineTextAction.COPY)
-        "cat", "cat van ban" -> return Edit(OfflineTextAction.CUT)
-        "dan", "dan van ban" -> return Edit(OfflineTextAction.PASTE)
-        "chon tat ca", "chon toan bo" -> return Edit(OfflineTextAction.SELECT_ALL)
-        "xoa noi dung", "xoa van ban", "xoa het chu" -> return Edit(OfflineTextAction.CLEAR)
-      }
       item.matchEntire(command)?.let {
         val index = ordinal(it.groupValues[2]) ?: return null
         return Item(index, it.groupValues[1] == "video")
@@ -102,5 +94,3 @@ internal sealed interface OfflineTaskCommand {
         .replace(Regex("\\p{M}+"), "").replace('đ', 'd')
   }
 }
-
-internal enum class OfflineTextAction { COPY, CUT, PASTE, SELECT_ALL, CLEAR }

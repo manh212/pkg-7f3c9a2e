@@ -33,6 +33,8 @@ class OfflineTaskTest {
     assertNull(OfflineTaskCommand.parse("Đặt báo thức lúc 6 giờ 30 sáng"))
     assertNull(OfflineTaskCommand.parse("Tăng âm lượng 20 phần trăm"))
     assertNull(OfflineTaskCommand.parse("Về màn hình chính"))
+    assertNull(OfflineTaskCommand.parse("Sao chép"))
+    assertNull(OfflineTaskCommand.parse("Dán"))
     assertNull(OfflineTaskCommand.parse("Nhấn Gửi rồi làm chuyện chưa biết"))
   }
 
@@ -49,7 +51,6 @@ class OfflineTaskTest {
       OfflineTaskCommand.parse("Nhập vào ô Tìm kiếm nội dung Lan"))
     assertEquals(OfflineTaskCommand.Input("mình đến muộn", append = true),
       OfflineTaskCommand.parse("Thêm mình đến muộn"))
-    assertEquals(OfflineTaskCommand.Edit(OfflineTextAction.SELECT_ALL), OfflineTaskCommand.parse("Chọn tất cả"))
     assertEquals(OfflineTaskCommand.Item(2, true), OfflineTaskCommand.parse("Mở video thứ hai"))
     assertEquals(OfflineTaskCommand.Item(3), OfflineTaskCommand.parse("Chọn mục thứ ba"))
     assertEquals(OfflineTaskCommand.Toggle("Phụ đề", true), OfflineTaskCommand.parse("Bật Phụ đề"))

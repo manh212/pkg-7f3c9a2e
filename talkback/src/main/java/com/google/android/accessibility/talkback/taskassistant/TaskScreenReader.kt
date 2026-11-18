@@ -157,31 +157,4 @@ class TaskScreenReader(private val service: AccessibilityService) {
     } else null
     return node.performAction(id, args)
   }
-
-  internal fun edit(capture: CapturedTaskScreen, nodeId: String, action: OfflineTextAction): Boolean {
-    if (!matches(capture, nodeId)) return false
-    val node = capture.handles[nodeId] ?: return false
-    if (!node.isEditable) return false
-    val supported = node.actionList.map { it.id }.toSet()
-    val operation = when (action) {
-      OfflineTextAction.COPY -> AccessibilityNodeInfo.ACTION_COPY
-      OfflineTextAction.CUT -> AccessibilityNodeInfo.ACTION_CUT
-      OfflineTextAction.PASTE -> AccessibilityNodeInfo.ACTION_PASTE
-      OfflineTextAction.SELECT_ALL -> AccessibilityNodeInfo.ACTION_SET_SELECTION
-      OfflineTextAction.CLEAR -> return false
-    }
-    if (operation !in supported) return false
-    if (action == OfflineTextAction.SELECT_ALL ||
-        (action in setOf(OfflineTextAction.COPY, OfflineTextAction.CUT) &&
-          node.textSelectionStart == node.textSelectionEnd)) {
-      if (AccessibilityNodeInfo.ACTION_SET_SELECTION !in supported) return false
-      val selection = android.os.Bundle().apply {
-        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
-        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, node.text?.length ?: 0)
-      }
-      if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection)) return false
-      if (action == OfflineTextAction.SELECT_ALL) return true
-    }
-    return node.performAction(operation)
-  }
 }
