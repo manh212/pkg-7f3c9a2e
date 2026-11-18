@@ -25,7 +25,6 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.dictation.SandflyDictation
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
-import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.keyboardecho.KeyboardEchoSettings
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.talkback.selector.SelectorController
@@ -525,8 +524,7 @@ class VietnameseKeyboardService : InputMethodService() {
     keyboard?.apply {
       typingMethod = method
       timing = this@VietnameseKeyboardService.timing
-      speakHoveredKeys =
-        ownVoice && method != DIRECT_SILENT_TYPING && method != SINGLE_TAP_TO_TYPE
+      speakHoveredKeys = ownVoice && method != DIRECT_SILENT_TYPING
       hasCommitAnnouncement = ::hasCommitAnnouncement
       layoutSetting = layout
       sizePortraitPercent = this@VietnameseKeyboardService.sizePortraitPercent
