@@ -1117,6 +1117,19 @@ public class BrailleKeyboardService extends InputMethodService {
         return BrailleMeridianBridge.isAvailable();
     }
 
+    /**
+     * Whether the text is going into Messenger (com.facebook.orca). Messenger's message field
+     * sends no TYPE_VIEW_TEXT_CHANGED events when text is committed — only selection changes —
+     * so the screen reader can never echo typed text there, even though {@link
+     * #screenReaderEchoesTypedText()} says it will. In Messenger only, the keyboard therefore
+     * owns the echo itself. Everywhere else the keyboard stays silent and lets the screen
+     * reader echo, so no word is ever spoken twice.
+     */
+    private boolean isMessengerTarget() {
+        EditorInfo editorInfo = getCurrentInputEditorInfo();
+        return editorInfo != null && "com.facebook.orca".equals(editorInfo.packageName);
+    }
+
     private void addDotToPendingChord(int dotNumber, View sourceView) {
         if (dotNumber < 1 || dotNumber > 6) return;
 
@@ -1560,7 +1573,7 @@ public class BrailleKeyboardService extends InputMethodService {
                 if (!commitToEditor(ic, " ")) return;
                 lastSpaceTimeMs = now;
                 triggerFeedback(imeCanvasView, 30L, ToneGenerator.TONE_PROP_ACK, 50, SOUND_SLOT_SPACE);
-                if (!screenReaderEchoesTypedText()) {
+                if (!screenReaderEchoesTypedText() || isMessengerTarget()) {
                     if (!hidePasswordInSpeech() && (echoMode == ECHO_CHAR_AND_WORD || echoMode == ECHO_WORD_ONLY) && completedWord.length() > 0) {
                         speak(completedWord, true);
                     } else {
