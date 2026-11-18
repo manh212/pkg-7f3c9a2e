@@ -105,6 +105,15 @@ class TelexTest {
   }
 
   @Test
+  fun shapeKeyReshapesALoneTonedVowel() {
+    assertEquals("ồ", type("ofo"))
+    assertEquals("ầ", type("afa"))
+    assertEquals("ề", type("efe"))
+    assertEquals("ố", type("oso"))
+    assertEquals("ổ", type("oro"))
+  }
+
+  @Test
   fun toneKeyLetterAfterSameLetterAppends() {
     assertEquals("massage", type("masssage"))
     assertEquals("Massage", type("Masssage"))
