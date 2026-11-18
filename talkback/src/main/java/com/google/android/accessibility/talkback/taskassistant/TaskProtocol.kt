@@ -74,6 +74,52 @@ object TaskProtocol {
 
   val dragDirections = setOf("len", "xuong", "trai", "phai")
 
+  fun labelScore(wanted: String, candidate: String): Int {
+    val a = normalize(wanted)
+    val b = normalize(candidate)
+    if (a.isEmpty() || b.isEmpty()) return if (a == b) 3 else 0
+    if (a == b) return 3
+    if (a.contains(b) || b.contains(a)) return 2
+    val compactA = a.filter { it.isLetterOrDigit() }
+    val compactB = b.filter { it.isLetterOrDigit() }
+    if (compactA.isNotEmpty() && compactB.isNotEmpty() &&
+      (compactA == compactB || compactA.contains(compactB) || compactB.contains(compactA))) return 2
+    if (compactA.length < 4 || compactB.length < 4) return 0
+    return if (editDistance(compactA, compactB) <= 2) 1 else 0
+  }
+
+  fun <T> topScored(candidates: List<T>, score: (T) -> Int): List<T> {
+    var best = 0
+    val top = mutableListOf<T>()
+    for (candidate in candidates) {
+      val value = score(candidate)
+      if (value == 0) continue
+      if (value > best) {
+        best = value
+        top.clear()
+        top += candidate
+      } else if (value == best) top += candidate
+    }
+    return top
+  }
+
+  private fun editDistance(a: String, b: String): Int {
+    if (kotlin.math.abs(a.length - b.length) > 2) return Int.MAX_VALUE
+    var prev = IntArray(b.length + 1) { it }
+    var cur = IntArray(b.length + 1)
+    for (i in 1..a.length) {
+      cur[0] = i
+      for (j in 1..b.length) {
+        cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1,
+          prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+      }
+      val tmp = prev
+      prev = cur
+      cur = tmp
+    }
+    return prev[b.length]
+  }
+
   sealed interface TaskPlan {
     data class Single(val step: TaskStep) : TaskPlan
     data class Sequence(val steps: List<TaskStep>) : TaskPlan

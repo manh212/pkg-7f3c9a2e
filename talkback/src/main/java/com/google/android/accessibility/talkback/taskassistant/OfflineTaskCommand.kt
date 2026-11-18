@@ -27,6 +27,7 @@ internal sealed interface OfflineTaskCommand {
     private val connector = Regex("\\s*[,;]\\s*|\\s+(?:roi|sau\\s+do)\\s+")
     private val quoted = Regex("\"[^\"]*\"|“[^”]*”", RegexOption.DOT_MATCHES_ALL)
     private val commandStart = Regex("^(?:nhan|bam|cham|chon|mo|vao|tim|nhap|dien|viet|soan|them|bat|tat|cuon|vuot|giu|keo)\\b")
+    private val verbStart = Regex("\\b(?:nhan|bam|cham|chon|mo|vao|tim|nhap|dien|viet|soan|them|bat|tat|cuon|vuot|giu|keo)\\b")
     private val click = Regex("(?:bam|nhan|cham|chon)(?:\\s+(?:vao|nut|muc))*\\s+(.+)")
     private val scroll = Regex("(?:cuon|vuot)\\s+(len|xuong)(?:\\s+(\\d{1,2}|mot|hai|ba|bon|nam)\\s+lan)?")
     private val drag = Regex("(?:keo|vuot)(?:\\s+(?:vao|nut|muc))*\\s+(.+?)\\s+(len|xuong|(?:sang|qua)\\s+trai|(?:sang|qua)\\s+phai|trai|phai)")
@@ -41,17 +42,40 @@ internal sealed interface OfflineTaskCommand {
       for (separator in connector.findAll(folded)) {
         if (protected.any { separator.range.first in it }) continue
         val tail = folded.substring(separator.range.last + 1).trimStart()
-        val before = parseSingle(raw.substring(start, separator.range.first))
+        val before = segment(raw.substring(start, separator.range.first))
         if (!commandStart.containsMatchIn(tail)) {
-          if (before !is Input && before !is Search && separator.value.trim() !in setOf(",", ";")) return null
+          if (before?.lastOrNull() !is Input && before?.lastOrNull() !is Search &&
+              separator.value.trim() !in setOf(",", ";")) return null
           continue
         }
         parts += before ?: return null
         if (parts.size >= 20) return null
         start = separator.range.last + 1
       }
-      parts += parseSingle(raw.substring(start)) ?: return null
+      parts += segment(raw.substring(start)) ?: return null
+      if (parts.size > 20) return null
       return parts.singleOrNull() ?: Sequence(parts)
+    }
+
+    private fun segment(text: String): List<OfflineTaskCommand>? {
+      val raw = text.trim()
+      if (raw.isEmpty()) return null
+      val single = parseSingle(raw)
+      if (single is Input || single is Search) return listOf(single)
+      val folded = fold(raw)
+      if (raw.length != folded.length) return null
+      val protected = quoted.findAll(raw).map { it.range }.toList()
+      for (match in verbStart.findAll(folded)) {
+        val pos = match.range.first
+        if (pos == 0 || protected.any { pos in it }) continue
+        val head = parseSingle(raw.substring(0, pos)) ?: continue
+        if (head is Input || head is Search) continue
+        val tail = parse(raw.substring(pos)) ?: continue
+        val commands = listOf(head) + (if (tail is Sequence) tail.commands else listOf(tail))
+        if (commands.size > 20) return null
+        return commands
+      }
+      return single?.let { listOf(it) }
     }
 
     private fun parseSingle(goal: String): OfflineTaskCommand? {

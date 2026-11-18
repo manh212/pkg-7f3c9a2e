@@ -303,11 +303,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     val a = TaskProtocol.normalize(fresh)
     val b = TaskProtocol.normalize(planned)
     if (a.isEmpty() || b.isEmpty()) return a == b
-    if (a == b || a.contains(b) || b.contains(a)) return true
-    val compactA = a.filter { it.isLetterOrDigit() }
-    val compactB = b.filter { it.isLetterOrDigit() }
-    return compactA.isNotEmpty() && compactB.isNotEmpty() &&
-      (compactA == compactB || compactA.contains(compactB) || compactB.contains(compactA))
+    return TaskProtocol.labelScore(b, a) > 0
   }
 
   override fun changed(state: TaskState, message: String) {

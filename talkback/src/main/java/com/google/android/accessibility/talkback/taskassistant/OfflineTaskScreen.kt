@@ -53,12 +53,8 @@ internal class OfflineTaskScreen(private val screen: TaskScreen, private val app
 
   private fun clickLabel(label: String, action: TaskOperation = CLICK): Decision {
     val wanted = normalize(label)
-    val direct = nodes.filter { node ->
-      listOf(node.text, node.description, node.hint).any { normalize(it) == wanted }
-    }
-    val matches = direct.ifEmpty { nodes.filter { labeled(it) { name -> normalize(name) == wanted } } }
     if (action == CLICK && wanted in searchLabels) return search()
-    val targets = matches.mapNotNull { target(it, action.wire) }.distinctBy { it.id }
+    val targets = bestNodes(wanted).mapNotNull { target(it, action.wire) }.distinctBy { it.id }
     return when (targets.size) {
       0 -> if (action == CLICK) openApp(wanted) else Decision.Wait
       1 -> act(action, targets.single())
@@ -68,7 +64,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen, private val app
 
   private fun openApp(wanted: String): Decision {
     if (wanted.isBlank()) return Decision.Wait
-    val matches = apps.filter { normalize(it.name) == wanted }
+    val matches = TaskProtocol.topScored(apps) { TaskProtocol.labelScore(wanted, it.name) }
     return when (matches.size) {
       0 -> Decision.Wait
       1 -> Decision.Act(TaskStep(screen.id, TaskOperation.OPEN_APP, "", matches.single().packageName))
@@ -79,7 +75,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen, private val app
   private fun drag(label: String, direction: String): Decision {
     if (direction !in TaskProtocol.dragDirections) return Decision.Unavailable
     val wanted = normalize(label)
-    val matches = nodes.filter { labeled(it) { name -> normalize(name) == wanted } }
+    val matches = bestNodes(wanted)
     return when (matches.size) {
       0 -> Decision.Wait
       1 -> act(TaskOperation.DRAG, matches.single(), direction)
@@ -87,9 +83,17 @@ internal class OfflineTaskScreen(private val screen: TaskScreen, private val app
     }
   }
 
+  private fun bestNodes(wanted: String): List<TaskNode> =
+    TaskProtocol.topScored(nodes) { nodeScore(it, wanted) }
+
+  private fun nodeScore(node: TaskNode, wanted: String): Int =
+    sequenceOf(node.text, node.hint, node.description, node.label)
+      .flatMap { it.splitToSequence("; ") }
+      .maxOfOrNull { TaskProtocol.labelScore(wanted, it) } ?: 0
+
   private fun editor(label: String): List<TaskNode> {
     val editable = nodes.filter { SET_TEXT.wire in it.actions }
-    if (label.isNotBlank()) return editable.filter { labeled(it) { name -> equalNames(name, label) } }
+    if (label.isNotBlank()) return TaskProtocol.topScored(editable) { nodeScore(it, label) }
     val focused = editable.filter { it.focused }
     return focused.ifEmpty { editable }
   }
@@ -112,7 +116,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen, private val app
   }
 
   private fun toggle(label: String, checked: Boolean, verify: Boolean): Decision {
-    val matches = nodes.filter { labeled(it) { name -> normalize(name) == normalize(label) } }
+    val matches = bestNodes(label)
       .flatMap { node ->
         (sequenceOf(node) + ancestors(node).take(3)).filter { it.checked != null }.toList()
       }.distinctBy { it.id }
