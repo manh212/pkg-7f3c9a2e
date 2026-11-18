@@ -92,7 +92,7 @@ class AiDictation(
     )
   private var phase = Phase.IDLE
   private var speechSilenced = false
-  private var field: AccessibilityNodeInfoCompat? = null
+  private var editorTarget: AccessibilityNodeInfoCompat? = null
   private var translateMode = false
 
   @Volatile private var recordingStartedAt = 0L
@@ -202,7 +202,7 @@ class AiDictation(
       speak(service.getString(R.string.dictation_unavailable))
       return false
     }
-    field = AccessibilityNodeInfoCompat.obtain(target)
+    editorTarget = AccessibilityNodeInfoCompat.obtain(target)
     phase = Phase.RECORDING
     service.updateDictationDoubleTapFlag()
     pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_up))
@@ -245,7 +245,7 @@ class AiDictation(
       callback(null)
       return false
     }
-    field = null
+    editorTarget = null
     translateMode = false
     onText = callback
     offlineTask = task
@@ -271,7 +271,7 @@ class AiDictation(
     get() = phase != Phase.IDLE && onText != null
 
   val isTextRecording: Boolean
-    get() = phase == Phase.RECORDING && (field != null || keyboardDictation)
+    get() = phase == Phase.RECORDING && (editorTarget != null || keyboardDictation)
 
   fun stopTextRecording(): Boolean {
     if (!isTextRecording) return false
@@ -492,7 +492,7 @@ class AiDictation(
   }
 
   private fun recognized(text: String, cleaned: Boolean) {
-    val target = field
+    val target = editorTarget
     val heard = text.trim()
     if ((target == null && onText == null) || heard.isEmpty()) {
       finish()
@@ -539,7 +539,7 @@ class AiDictation(
       generation++
       finish()
       if (translating) {
-        field = null
+        editorTarget = null
         speak(service.getString(R.string.dictation_translation_failed))
       } else {
         if (target == null && !keyboardDictation) speak(service.getString(R.string.dictation_not_corrected))
@@ -587,7 +587,7 @@ class AiDictation(
         ) {
           type(target, edited)
         } else if (translating) {
-          field = null
+          editorTarget = null
           speak(service.getString(R.string.dictation_translation_failed))
         } else {
           if (target == null && !keyboardDictation) speak(service.getString(R.string.dictation_not_corrected))
@@ -659,7 +659,7 @@ class AiDictation(
     live?.cancel()
     live = null
     transcriber?.cancel()
-    field = null
+    editorTarget = null
     finish()
     deliver(null)
   }
@@ -677,7 +677,7 @@ class AiDictation(
     restoreSpeech()
     // Not finish()'s chime and unsilencing, as SandFly is turning off.
     phase = Phase.IDLE
-    field = null
+    editorTarget = null
     finish()
     deliver(null)
     worker.shutdown()
@@ -700,7 +700,7 @@ class AiDictation(
   }
 
   private fun type(target: AccessibilityNodeInfoCompat?, text: String) {
-    field = null
+    editorTarget = null
     if (target == null) {
       deliver(text.ifEmpty { null })
       return
