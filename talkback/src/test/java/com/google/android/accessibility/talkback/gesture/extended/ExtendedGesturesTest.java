@@ -67,7 +67,7 @@ public class ExtendedGesturesTest {
     assertFalse(ExtendedGestures.isEnabled(prefs));
   }
 
-  @Test public void switchIsInsideGestureSettingsAndAssignmentsStayInTheExistingTwoFingerGroup() throws Exception {
+  @Test public void switchIsInsideGestureSettingsAndAssignmentsStayInTheTwoFingerTwoStrokeGroup() throws Exception {
     assertTrue(keys(R.xml.gesture_preferences).contains(ExtendedGestures.ENABLED));
     assertFalse(keys(R.xml.touch_activation_preferences).contains(ExtendedGestures.ENABLED));
     assertFalse(keys(R.xml.settings_group_navigation).contains(ExtendedGestures.ENABLED));
@@ -81,7 +81,7 @@ public class ExtendedGesturesTest {
         if (parser.getName().endsWith("PreferenceCategory")) category = key;
         if (key.startsWith("pref_extended_gesture_")) {
           count++;
-          assertEquals(context.getString(R.string.pref_category_2finger_shortcuts_key), category);
+          assertEquals(context.getString(R.string.pref_category_2finger_extended_shortcuts_key), category);
           assertEquals(context.getString(R.string.shortcut_value_unassigned), resourceText(parser, "defaultValue"));
           assertTrue(names.add(key));
         }
