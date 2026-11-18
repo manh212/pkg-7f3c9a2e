@@ -1001,14 +1001,12 @@
     <string name="reset_gesture_settings_title">Reset gesture settings</string>
     <!-- Label for the group of one finger gestures. [CHAR_LIMIT=60] -->
     <string name="one_finger_gestures_title">1 finger</string>
-    <!-- Label for the group of one finger back & forth gestures. [CHAR_LIMIT=90] -->
-    <string name="one_finger_back_forth_gestures_title">1 finger back-and-forth</string>
-    <!-- Label for the group of one finger angle gestures. [CHAR_LIMIT=75] -->
-    <string name="one_finger_angle_gestures_title">1 finger angle</string>
     <!-- Title of the group of gestures that slide one finger in from an edge of the screen. [CHAR_LIMIT=40] -->
     <string name="edge_gestures_title">Edges</string>
     <!-- Label for the group of two finger gestures. [CHAR_LIMIT=60] -->
     <string name="two_finger_gestures_title">2 fingers</string>
+    <!-- Label for the group of two finger two-stroke gestures. [CHAR_LIMIT=60] -->
+    <string name="two_finger_extended_gestures_title">2 fingers, two-stroke</string>
     <!-- Label for the group of three finger gestures. [CHAR_LIMIT=63] -->
     <string name="three_finger_gestures_title">3 fingers</string>
     <!-- Label for the group of four finger gestures. [CHAR_LIMIT=60] -->
