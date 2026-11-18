@@ -269,7 +269,8 @@ class VietnameseKeyboardService : InputMethodService() {
       !event.isAltPressed && !event.isMetaPressed && !event.isFunctionPressed && !event.isSymPressed) {
       val unicode = event.unicodeChar
       val composed = when {
-        unicode == ' '.code && expandShortcut(connection, null) -> true
+        unicode != 0 && !unicode.toChar().isLetterOrDigit() && !unicode.toChar().isISOControl() &&
+          expandShortcut(connection, null, unicode.toChar()) -> true
         !vietnamese -> false
         unicode in 'a'.code..'z'.code || unicode in 'A'.code..'Z'.code ->
           composeLetter(connection, unicode.toChar(), null)
@@ -705,7 +706,8 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun type(connection: InputConnection, letter: Char, speakAt: Long): Boolean {
-    if (letter == ' ' && expandShortcut(connection, speakAt)) return true
+    if (!letter.isLetterOrDigit() && !letter.isISOControl() &&
+      expandShortcut(connection, speakAt, letter)) return true
     if (letter == ' ' && !composing && doubleSpacePeriod && telexAllowed &&
       selectionStart == cursor && tryDoubleSpacePeriod(connection)) {
       if (echoesCharacters()) speakEnteredCharacter('.', speakAt)
@@ -763,7 +765,9 @@ class VietnameseKeyboardService : InputMethodService() {
     shortcutKeys = previous?.takeIf { it.length < longestShortcut }?.plus(key)
   }
 
-  private fun expandShortcut(connection: InputConnection, speakAt: Long?): Boolean {
+  private fun expandShortcut(
+    connection: InputConnection, speakAt: Long?, trigger: Char = ' ',
+  ): Boolean {
     if (!telexAllowed || shortcuts.isEmpty()) return false
     val before = connection.getTextBeforeCursor(maxOf(longestShortcut, word.length) + 2, 0) ?: return false
     val code = WORD_BEFORE_CURSOR.find(before)?.value ?: return false
@@ -780,7 +784,7 @@ class VietnameseKeyboardService : InputMethodService() {
     try {
       if (!existingComposition && !connection.setComposingRegion(start, start + code.length)) return false
       if (speakAt != null) markEdit()
-      if (!connection.commitText(replacement + " ", 1)) {
+      if (!connection.commitText(replacement + trigger, 1)) {
         if (!existingComposition) {
           connection.finishComposingText()
           resetWord()
