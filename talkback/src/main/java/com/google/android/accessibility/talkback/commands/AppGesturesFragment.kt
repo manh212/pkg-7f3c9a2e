@@ -17,11 +17,14 @@
 package com.google.android.accessibility.talkback.commands
 
 import android.os.Bundle
+import androidx.appcompat.app.AlertDialog
 import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.gesture.AppGestures
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
+import com.google.android.accessibility.talkback.gesture.TapTextActions
+import com.google.android.accessibility.talkback.gesture.TapTextEditor
 import com.google.android.accessibility.talkback.keyboard.KeyComboModel
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.notifications.NotificationReader
@@ -82,11 +85,20 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
   // Records the keys of a new keyboard shortcut, while its dialog is open.
   private var recorder: KeyboardShortcutDialogPreference? = null
 
+  // The dialog that asks for a tap-text label, while it is open.
+  private var tapTextDialog: AlertDialog? = null
+
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     preferenceManager.setStorageDeviceProtected()
     // Read from the Gestures screen, which the screen built in code then replaces.
     slots = readGestures(this)
     super.onCreatePreferences(savedInstanceState, rootKey)
+  }
+
+  override fun onDestroyView() {
+    tapTextDialog?.dismiss()
+    tapTextDialog = null
+    super.onDestroyView()
   }
 
   private val app: AppGestures.App?
@@ -99,9 +111,10 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
     val gestures = app?.gestures.orEmpty()
     val gestureCategory = screen.category(R.string.command_gestures)
     gestureCategory.createAction(getString(R.string.command_add_gesture)) { chooseGesture() }
+    gestureCategory.createAction(getString(R.string.tap_text_add)) { addTapText() }
     for (slot in slots) {
       val value = gestures[baseKey(slot)] ?: continue
-      entry(gestureCategory, slot.name, value, { chooseCommand { assignGesture(slot, it) } }) {
+      entry(gestureCategory, slot.name, value, { chooseCommand(value) { assignGesture(slot, it) } }) {
         save(gestures = gestures - baseKey(slot))
       }
     }
@@ -157,7 +170,24 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
     val context = requireContext()
     val names = slots.map { "${it.name}: ${label(it.value(context, prefs))}" }
     choose(getString(R.string.command_choose_gesture), names) { index ->
-      chooseCommand { assignGesture(slots[index], it) }
+      val slot = slots[index]
+      chooseCommand(app?.gestures?.get(baseKey(slot))) { assignGesture(slot, it) }
+    }
+  }
+
+  /** Adds a "Tự nhấn trên màn hình" action: the label first, then the gesture that runs it. */
+  private fun addTapText() {
+    tapTextDialog = TapTextEditor.show(requireContext(), null) { composed ->
+      chooseSlot { slot -> assignGesture(slot, composed) }
+    }
+  }
+
+  /** Asks which gesture runs the new action, and gives its slot to [then]. */
+  private fun chooseSlot(then: (CommandBindings.GestureSlot) -> Unit) {
+    val context = requireContext()
+    val names = slots.map { "${it.name}: ${label(it.value(context, prefs))}" }
+    choose(getString(R.string.tap_text_choose_gesture), names) { index ->
+      then(slots[index])
     }
   }
 
@@ -168,15 +198,20 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
     dialog.setRecordListener { keyCombo ->
       recorder = null
       if (keyCombo.keyComboCode != KeyComboModel.KEY_COMBO_CODE_UNASSIGNED.toLong()) {
-        chooseCommand { assignKeys(AppGestures.keyName(keyCombo), it) }
+        val name = AppGestures.keyName(keyCombo)
+        chooseCommand(app?.keys?.get(name)) { assignKeys(name, it) }
       }
     }
     recorder = dialog
     dialog.showRecordDialog()
   }
 
-  /** Asks for a command, first its group, and gives its value to [then]. */
-  private fun chooseCommand(then: (String) -> Unit) {
+  /**
+   * Asks for a command, first its group, and gives its value to [then]. When "Tự nhấn trên
+   * màn hình" is picked, the label and press type are asked first instead, opening with
+   * [currentValue] when it already is one of these actions, so picking it again edits it.
+   */
+  private fun chooseCommand(currentValue: String? = null, then: (String) -> Unit) {
     val context = requireContext()
     val categories = Commands.categories(context)
     val groups = listOf(getString(R.string.keycombo_unassigned)) + categories.map { getString(it.titleRes) }
@@ -186,7 +221,14 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
         return@choose
       }
       val commands = categories[group - 1].commands
-      choose(groups[group], commands.map { it.label }) { then(commands[it].value) }
+      choose(groups[group], commands.map { it.label }) {
+        val value = commands[it].value
+        if (TapTextActions.isSentinel(value)) {
+          tapTextDialog = TapTextEditor.show(context, currentValue) { composed -> then(composed) }
+        } else {
+          then(value)
+        }
+      }
     }
   }
 

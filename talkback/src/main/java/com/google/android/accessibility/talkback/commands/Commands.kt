@@ -27,6 +27,7 @@ import com.google.android.accessibility.talkback.gesture.GestureProfiles
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader
 import com.google.android.accessibility.talkback.gesture.NavigationGestureActions
 import com.google.android.accessibility.talkback.gesture.OpenAppActions
+import com.google.android.accessibility.talkback.gesture.TapTextActions
 import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboardShortcut
 import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboardShortcut as Key
 import com.google.android.accessibility.talkback.sandflyai.SandflyAi
@@ -152,6 +153,9 @@ object Commands {
     OpenAppActions.label(context, value)?.let {
       return Command(value, it, keyboardAction = null)
     }
+    TapTextActions.label(context, value)?.let {
+      return Command(value, it, keyboardAction = null)
+    }
     gestureProfileLabel(context, value)?.let {
       return Command(value, it, keyboardAction = null)
     }
@@ -170,6 +174,9 @@ object Commands {
       return null
     }
     OpenAppActions.label(context, value)?.let {
+      return it
+    }
+    TapTextActions.label(context, value)?.let {
       return it
     }
     gestureProfileLabel(context, value)?.let {

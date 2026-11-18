@@ -17,12 +17,14 @@
 package com.google.android.accessibility.talkback.commands
 
 import android.os.Bundle
+import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.gesture.GestureProfiles
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
+import com.google.android.accessibility.talkback.gesture.TapTextEditor
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.preference.base.GestureListPreference
 
@@ -79,11 +81,20 @@ class GestureProfileFragment : NotificationCodeFragment(R.string.title_pref_gest
 
   private var categories: List<CommandBindings.GestureCategory> = emptyList()
 
+  // The dialog that asks for a tap-text label, while it is open.
+  private var tapTextDialog: AlertDialog? = null
+
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     preferenceManager.setStorageDeviceProtected()
 
     categories = readGestureCategories(this)
     super.onCreatePreferences(savedInstanceState, rootKey)
+  }
+
+  override fun onDestroyView() {
+    tapTextDialog?.dismiss()
+    tapTextDialog = null
+    super.onDestroyView()
   }
 
   private val profile: GestureProfiles.Profile?
@@ -116,6 +127,7 @@ class GestureProfileFragment : NotificationCodeFragment(R.string.title_pref_gest
         activity?.onBackPressedDispatcher?.onBackPressed()
       }
     }
+    screen.createAction(getString(R.string.tap_text_add)) { addTapText() }
 
     val context = requireContext()
     for (category in categories) {
@@ -181,6 +193,22 @@ class GestureProfileFragment : NotificationCodeFragment(R.string.title_pref_gest
   private fun update(change: (GestureProfiles.Profile) -> GestureProfiles.Profile) {
     GestureProfiles.write(prefs, GestureProfiles.read(prefs).map { if (it.id == id) change(it) else it })
     rebuild()
+  }
+
+  /** Adds a "Tự nhấn trên màn hình" action: the label first, then the gesture that runs it. */
+  private fun addTapText() {
+    tapTextDialog = TapTextEditor.show(requireContext(), null) { composed ->
+      val slots = categories.flatMap { it.gestures }
+      choose(getString(R.string.tap_text_choose_gesture), slots.map { it.name }) { index ->
+        val slot = slots[index]
+        GestureListPreference.save(
+          requireContext(),
+          GestureProfiles.rowKey(id, GestureShortcutMapping.getPrefKeyWithGestureSet(slot.key, 0)),
+          composed,
+        )
+        rebuild()
+      }
+    }
   }
 
   companion object {
