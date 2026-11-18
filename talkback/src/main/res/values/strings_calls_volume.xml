@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="volume_both_action_title" translatable="false">Nhấn đồng thời hai phím âm lượng</string>
-  <string name="volume_multi_enabled_title" translatable="false">Bật hoặc tắt nhấn nhiều lần phím âm lượng</string>
   <string name="value_resume_screen_off" translatable="false">Khi màn hình tắt</string>
   <string name="message_resume_screen_off" translatable="false">Để tiếp tục, hãy nhấn vào thông báo Meridian đang tạm dừng, nhấn nhanh phím giảm âm lượng 3 lần hoặc tắt màn hình.</string>
   <string name="call_settings_title" translatable="false">Cài đặt cuộc gọi</string>
