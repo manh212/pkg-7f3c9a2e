@@ -20,6 +20,18 @@ class TaskPromptTest {
     assertTrue(nodes.any { it.id == step.node })
   }
 
+  @Test fun goalMatchingNodesSurviveTruncation() {
+    val nodes = (0 until 299).map { TaskNode("n$it", "Mục không liên quan ".repeat(25), "view-$it", "Button", setOf("click"), false) } +
+      TaskNode("n299", "Zalo", "zalo", "Button", setOf("click"), false)
+    val screen = TaskScreen(45, "example.app", "Màn hình chính", "fresh", nodes)
+    val prompt = TaskPrompt.local("Mở Zalo", screen, emptyList(), emptyList())
+    assertTrue(prompt.toByteArray().size <= TaskPrompt.MAX_LOCAL_BYTES)
+    val visible = JSONObject(prompt.substringAfter("\nSCREEN: "))
+    val labels = (0 until visible.getJSONArray("nodes").length())
+      .map { visible.getJSONArray("nodes").getJSONObject(it).getString("label") }
+    assertTrue(labels.any { it.contains("Zalo") })
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun goalsTooLargeForTheBudgetAreRejectedInsteadOfSilentlyTruncated() {
     TaskPrompt.local("Yêu cầu tiếng Việt ".repeat(1000), TaskScreen(1, "app", "", "fresh", emptyList()), emptyList(), emptyList())

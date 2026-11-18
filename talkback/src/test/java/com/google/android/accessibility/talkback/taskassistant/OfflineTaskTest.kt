@@ -5,6 +5,41 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OfflineTaskTest {
+  @Test fun dragMovesANamedItemInADirection() {
+    assertEquals(OfflineTaskCommand.Drag("Wi-Fi", "len"), OfflineTaskCommand.parse("Kéo Wi-Fi lên"))
+    assertEquals(OfflineTaskCommand.Drag("Lan", "phai"), OfflineTaskCommand.parse("Kéo Lan sang phải"))
+    assertEquals(OfflineTaskCommand.Drag("Lan", "trai"), OfflineTaskCommand.parse("Kéo Lan qua trái"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Drag("Wi-Fi", "len"),
+      OfflineTaskCommand.Click("Lưu"))),
+      OfflineTaskCommand.parse("Kéo Wi-Fi lên rồi nhấn Lưu"))
+  }
+
+  @Test fun dragTargetsTheVisibleItemByLabel() {
+    val decision = screen(node("wifi", "Wi-Fi", "click"))
+      .decide(OfflineScreenStep.Drag("Wi-Fi", "len")) as OfflineTaskScreen.Decision.Act
+    assertEquals("wifi", decision.step.node)
+    assertEquals(TaskOperation.DRAG, decision.step.operation)
+    assertEquals("len", decision.step.text)
+    assertEquals(OfflineTaskScreen.Decision.Wait,
+      screen(node("other", "Bluetooth", "click")).decide(OfflineScreenStep.Drag("Wi-Fi", "len")))
+  }
+
+  @Test fun openingAnAppFallsBackToTheLauncherCatalog() {
+    val zalo = TaskApp("com.zalo", "Zalo")
+    val request = OfflineScreenStep.ClickLabel("Zalo")
+    val decision = screenWithApps(listOf(zalo)).decide(request) as OfflineTaskScreen.Decision.Act
+    assertEquals(TaskOperation.OPEN_APP, decision.step.operation)
+    assertEquals("com.zalo", decision.step.packageName)
+    assertEquals("", decision.step.node)
+    assertEquals(OfflineTaskScreen.Decision.Wait, screenWithApps(emptyList()).decide(request))
+    assertEquals(OfflineTaskScreen.Decision.Ambiguous,
+      screenWithApps(listOf(zalo, TaskApp("com.zalo2", "Zalo"))).decide(request))
+    val visible = screenWithApps(listOf(zalo), node("icon", "Zalo", "click"))
+      .decide(request) as OfflineTaskScreen.Decision.Act
+    assertEquals(TaskOperation.CLICK, visible.step.operation)
+    assertEquals("icon", visible.step.node)
+  }
+
   @Test fun textThenSendThenHomeIsASequenceOfScreenActions() {
     assertEquals(OfflineTaskCommand.Sequence(listOf(
       OfflineTaskCommand.Input("Mình đến muộn 15 phút"),
@@ -108,6 +143,9 @@ class OfflineTaskTest {
 
   private fun screen(vararg nodes: TaskNode) =
     OfflineTaskScreen(TaskScreen(1, "example.app", "", "", nodes.toList()))
+
+  private fun screenWithApps(apps: List<TaskApp>, vararg nodes: TaskNode) =
+    OfflineTaskScreen(TaskScreen(1, "example.app", "", "", nodes.toList()), apps)
 
   private fun node(id: String, label: String, action: String = "") =
     TaskNode(id, label, "", "", setOf(action).filter { it.isNotBlank() }.toSet())

@@ -84,6 +84,30 @@ class TaskProtocolTest {
     assertEquals("Phụ đề", steps[0].label)
   }
 
+  @Test fun dragStepsNeedALabelAndADirection() {
+    val plan = TaskProtocol.parsePlan(
+      """{"snapshot":7,"steps":[{"action":"drag","label":"Wi-Fi","text":"len"}]}""", screen, apps)
+    assertTrue(plan is TaskProtocol.TaskPlan.Sequence)
+    val steps = (plan as TaskProtocol.TaskPlan.Sequence).steps
+    assertEquals(1, steps.size)
+    assertEquals(TaskOperation.DRAG, steps[0].operation)
+    assertEquals("Wi-Fi", steps[0].label)
+    assertEquals("len", steps[0].text)
+    rejectPlan("""{"snapshot":7,"steps":[{"action":"drag","label":"Wi-Fi"}]}""")
+    rejectPlan("""{"snapshot":7,"steps":[{"action":"drag","label":"Wi-Fi","text":"cheo"}]}""")
+    rejectPlan("""{"snapshot":7,"steps":[{"action":"drag","text":"len"}]}""")
+  }
+
+  @Test fun singleDragAndNavigationStepsDoNotNeedANodeAction() {
+    val drag = parse("""{"snapshot":7,"action":"drag","node":"n0","text":"xuong"}""")
+    assertEquals(TaskOperation.DRAG, drag.operation)
+    assertEquals("xuong", drag.text)
+    assertEquals(TaskOperation.BACK, parse("""{"snapshot":7,"action":"back"}""").operation)
+    assertEquals(TaskOperation.HOME, parse("""{"snapshot":7,"action":"home"}""").operation)
+    reject("""{"snapshot":7,"action":"drag","node":"n9","text":"len"}""")
+    reject("""{"snapshot":7,"action":"drag","node":"n0","text":"cheo"}""")
+  }
+
   @Test fun sequenceWithABadFirstStepStillFails() {
     rejectPlan("""{"snapshot":7,"steps":[{"action":"set_text","text":"x"},{"action":"click","label":"Phụ đề"}]}""")
   }
