@@ -207,7 +207,7 @@ class TaskScreenReader(private val service: AccessibilityService) {
     val path = Path().apply { moveTo(centerX, centerY); lineTo(endX, endY) }
     val gesture = GestureDescription.Builder()
       .addStroke(GestureDescription.StrokeDescription(path, 0, DRAG_MS)).build()
-    if (!service.dispatchGesture(gesture, null)) return false
+    if (!service.dispatchGesture(gesture, null, null)) return false
     SystemClock.sleep(DRAG_MS + 100)
     return true
   }
