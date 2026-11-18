@@ -2079,11 +2079,18 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (isEditingText()) {
       return false;
     }
-    return speechController != null
-        && pipeline != null
-        && speechController.isSpeaking()
-        && pipeline.getActorState().getSpeechState()
-            .isSpeakingOrQueuedAndNotSourceIsVolumeAnnouncement()
+    if (pipeline == null) {
+      return false;
+    }
+    // "While reading" means continuous reading is active, or speech is speaking or queued.
+    // Do NOT require audio to be playing at this instant: during reading the TTS audio has
+    // gaps (utterance boundaries, punctuation pauses), and a press in a gap must still adjust
+    // the speech volume, not the media volume.
+    boolean reading =
+        pipeline.getActorState().getContinuousRead().isActive()
+            || pipeline.getActorState().getSpeechState()
+                .isSpeakingOrQueuedAndNotSourceIsVolumeAnnouncement();
+    return reading
         && getBooleanPref(
             R.string.pref_volume_keys_adjust_speech_while_speaking_key,
             R.bool.pref_volume_keys_adjust_speech_while_speaking_default);
@@ -2101,6 +2108,46 @@ public class TalkBackService extends AccessibilityServiceCompat
     AudioManager audioManager = getSystemService(AudioManager.class);
     if (audioManager == null) return;
     changeContextualVolume(audioManager, AudioManager.STREAM_ACCESSIBILITY, increase);
+    announceSpeechVolumePercent(audioManager);
+  }
+
+  /**
+   * Speaks the accessibility-stream volume as a percentage after a speech-volume adjustment,
+   * like {@link #adjustContextualVolume(boolean, boolean)} does. The announcement deliberately
+   * omits {@link FeedbackItem#FLAG_SOURCE_IS_VOLUME_CONTROL}: that flag would make the speech
+   * state report "not speaking" while the percentage is playing, so a second press during the
+   * announcement would adjust the media volume instead of the speech volume.
+   */
+  private void announceSpeechVolumePercent(AudioManager audioManager) {
+    if (pipeline == null
+        || !getBooleanPref(
+            R.string.pref_speak_volume_changes_key, R.bool.pref_speak_volume_changes_default)) {
+      return;
+    }
+    int min =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+            ? audioManager.getStreamMinVolume(AudioManager.STREAM_ACCESSIBILITY)
+            : 0;
+    int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ACCESSIBILITY);
+    if (max <= min) {
+      return;
+    }
+    int percent =
+        Math.round(
+            100f * (audioManager.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY) - min)
+                / (max - min));
+    pipeline
+        .getFeedbackReturner()
+        .returnFeedback(
+            EVENT_ID_UNTRACKED,
+            Feedback.speech(
+                getString(R.string.template_volume_percent, percent),
+                SpeakOptions.create()
+                    .setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT)
+                    .setFlags(
+                        FeedbackItem.FLAG_NO_HISTORY
+                            | FeedbackItem.FLAG_FORCE_FEEDBACK_ALL
+                            | FeedbackItem.FLAG_SKIP_DUPLICATE)));
   }
 
   public void adjustUnmanagedVolumeKey(boolean increase, boolean touching) {
