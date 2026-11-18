@@ -65,7 +65,7 @@ public class RoleDescriptionExtractorTest {
             AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_PERCENT, 0, 100, 50));
     info.addAction(
         new AccessibilityNodeInfo.AccessibilityAction(
-            AccessibilityNodeInfo.ACTION_SET_PROGRESS, null));
+            AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(), null));
     info.setAccessibilityFocused(focused);
     return AccessibilityNodeInfoCompat.wrap(info);
   }
