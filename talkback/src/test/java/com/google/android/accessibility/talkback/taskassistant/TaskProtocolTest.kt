@@ -108,6 +108,15 @@ class TaskProtocolTest {
     reject("""{"snapshot":7,"action":"drag","node":"n0","text":"cheo"}""")
   }
 
+  @Test fun fuzzyLabelsForgiveSmallMistakes() {
+    assertEquals(3, TaskProtocol.labelScore("Wi-Fi", "Wi-Fi"))
+    assertEquals(2, TaskProtocol.labelScore("Cài", "Cài đặt"))
+    assertEquals(2, TaskProtocol.labelScore("WiFi", "Wi-Fi"))
+    assertEquals(1, TaskProtocol.labelScore("Sa lô", "Zalo"))
+    assertEquals(0, TaskProtocol.labelScore("Lan", "Mai"))
+    assertEquals(0, TaskProtocol.labelScore("", "Zalo"))
+  }
+
   @Test fun sequenceWithABadFirstStepStillFails() {
     rejectPlan("""{"snapshot":7,"steps":[{"action":"set_text","text":"x"},{"action":"click","label":"Phụ đề"}]}""")
   }

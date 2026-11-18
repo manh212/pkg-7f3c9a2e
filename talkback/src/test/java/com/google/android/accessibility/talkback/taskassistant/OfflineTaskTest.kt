@@ -40,6 +40,52 @@ class OfflineTaskTest {
     assertEquals("icon", visible.step.node)
   }
 
+  @Test fun jammedCommandsSplitAtVerbBoundaries() {
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Click("Cài đặt"),
+      OfflineTaskCommand.Click("Wi-Fi"), OfflineTaskCommand.Toggle("Wi-Fi", false))),
+      OfflineTaskCommand.parse("Vào Cài đặt rồi vào Wi-Fi tắt Wi-Fi"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Click("Gửi"),
+      OfflineTaskCommand.Input("Xin chào"))),
+      OfflineTaskCommand.parse("Nhấn Gửi nhập Xin chào"))
+  }
+
+  @Test fun verbsInsideLabelsAndContentDoNotSplit() {
+    assertEquals(OfflineTaskCommand.Input("Mình tắt đèn"),
+      OfflineTaskCommand.parse("Nhập Mình tắt đèn"))
+    assertEquals(OfflineTaskCommand.Click("Bật đèn"),
+      OfflineTaskCommand.parse("Nhấn vào nút Bật đèn"))
+    assertEquals(OfflineTaskCommand.Click("lựa chọn"),
+      OfflineTaskCommand.parse("Nhấn lựa chọn"))
+  }
+
+  @Test fun slightlyMisspokenLabelsStillFindTheirTarget() {
+    val settings = screen(node("settings", "Cài đặt", "click"))
+    assertEquals("settings", (settings.decide(OfflineScreenStep.ClickLabel("Cài"))
+      as OfflineTaskScreen.Decision.Act).step.node)
+    val zalo = screen(node("zalo", "Zalo", "click"))
+    assertEquals("zalo", (zalo.decide(OfflineScreenStep.ClickLabel("Sa lô"))
+      as OfflineTaskScreen.Decision.Act).step.node)
+    assertEquals(OfflineTaskScreen.Decision.Ambiguous,
+      screen(node("one", "Nhắn tin", "click"), node("two", "Nhắn tin nhanh", "click"))
+        .decide(OfflineScreenStep.ClickLabel("Nhắn")))
+    val exact = screen(node("one", "Gửi", "click"), node("two", "Gửi tin nhắn", "click"))
+      .decide(OfflineScreenStep.ClickLabel("Gửi")) as OfflineTaskScreen.Decision.Act
+    assertEquals("one", exact.step.node)
+  }
+
+  @Test fun misspokenSwitchNamesStillToggle() {
+    val wifi = node("wifi", "Wi-Fi", "click").copy(checked = false)
+    assertEquals(TaskOperation.CLICK, (screen(wifi)
+      .decide(OfflineScreenStep.Toggle("WiFi", true)) as OfflineTaskScreen.Decision.Act).step.operation)
+  }
+
+  @Test fun misspokenAppNamesStillOpenFromTheCatalog() {
+    val decision = screenWithApps(listOf(TaskApp("com.zalo", "Zalo")))
+      .decide(OfflineScreenStep.ClickLabel("Sa lô")) as OfflineTaskScreen.Decision.Act
+    assertEquals(TaskOperation.OPEN_APP, decision.step.operation)
+    assertEquals("com.zalo", decision.step.packageName)
+  }
+
   @Test fun textThenSendThenHomeIsASequenceOfScreenActions() {
     assertEquals(OfflineTaskCommand.Sequence(listOf(
       OfflineTaskCommand.Input("Mình đến muộn 15 phút"),
