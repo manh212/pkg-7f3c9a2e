@@ -143,6 +143,12 @@ object VolumeKeyManager {
     } else contextualAction(press.isUp)
     press.pressUse = if (press.locked || press.speechVolume) TalkBackService.VOLUME_KEY_CHANGES_VOLUME
       else service.resolveVolumeKeyUse(false)
+    // While the focus is on a slider, the volume keys adjust it: any hold action
+    // assigned to this key is skipped for this press, so a two-second hold always
+    // jumps the slider to its maximum or minimum instead of running that action.
+    if (press.pressUse == TalkBackService.VOLUME_KEY_ADJUSTS_SLIDER) {
+      press.holdAction = ACTION_UNASSIGNED
+    }
     val runnable = Runnable {
       if (contextChanged(service, press)) abort(press)
       if (press.active && !press.aborted) {
@@ -158,10 +164,9 @@ object VolumeKeyManager {
       if (press.multi || press.holdAction != ACTION_UNASSIGNED) HOLD_MS else CHORD_MS)
     // While the focus is on a slider and this press adjusts it, a two-second hold jumps
     // the slider to its maximum (volume up) or minimum (volume down) instead of stepping
-    // it. Only armed when no hold action is assigned: with one, the hold runs that
-    // action and this press never adjusts the slider.
-    if (press.pressUse == TalkBackService.VOLUME_KEY_ADJUSTS_SLIDER
-      && press.holdAction == ACTION_UNASSIGNED) {
+    // it. Any hold action assigned to this key is skipped for a slider press (see above),
+    // so the jump is armed whenever the press adjusts a slider.
+    if (press.pressUse == TalkBackService.VOLUME_KEY_ADJUSTS_SLIDER) {
       val jumpRunnable = Runnable {
         if (press.active && !press.aborted && !press.jumpFired) {
           press.jumpFired = true
