@@ -765,12 +765,12 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun singleTapToTypeKeepsHoveredKeysSilentEvenWithOwnVoiceOn() {
+  fun singleTapToTypeSpeaksHoveredKeysWithOwnVoiceOn() {
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     setOwnVoice(true)
     startEditor()
 
-    assertFalse(view().speakHoveredKeys)
+    assertTrue(view().speakHoveredKeys)
   }
 
   @Test
