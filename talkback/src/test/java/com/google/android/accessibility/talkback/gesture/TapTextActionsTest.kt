@@ -242,7 +242,7 @@ class TapTextActionsTest {
 
   private fun sealAll(vararg nodes: AccessibilityNodeInfo) {
     for (node in nodes) {
-      ReflectionHelpers.callInstanceMethod(
+      ReflectionHelpers.callInstanceMethod<Any>(
         node, "setSealed", ClassParameter.from(java.lang.Boolean.TYPE, true)
       )
     }
