@@ -16,56 +16,16 @@
 
 package com.google.android.accessibility.talkback.volume
 
-import android.content.Intent
-import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.preference.Preference
-import androidx.preference.PreferenceDialogFragmentCompat
 import com.google.android.accessibility.talkback.R
-import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity.TalkBackSubSettings
-import com.google.android.accessibility.talkback.preference.base.GestureListPreference
-import com.google.android.accessibility.talkback.preference.base.GesturePreferenceFragmentCompat
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
-import com.google.android.accessibility.utils.preference.PreferencesActivity.FRAGMENT_ARGS
-import com.google.android.accessibility.utils.preference.PreferencesActivity.FRAGMENT_NAME
 
 /**
- * Volume key settings: whether SandFly manages the volume keys itself, and the action of a
- * press and of a hold of each key, on the lock screen and off it.
+ * Volume key settings: whether SandFly manages the volume keys itself, and one sub-screen per
+ * key with the actions of a press, of pressing the key 2, 3 or 4 times quickly, of a short
+ * hold and of a long hold, separately for when the screen is on, when the screen is locked,
+ * and when the screen is off.
  */
 class VolumeKeySettingsFragment : TalkbackBaseFragment(R.xml.volume_key_preferences) {
 
   override fun getTitle(): CharSequence = getText(R.string.volume_key_settings_title)
-
-  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-    super.onCreatePreferences(savedInstanceState, rootKey)
-    findPreference<GestureListPreference>(VolumeKeyManager.KEY_UP_HOLD_LOCKED_ACTION)
-      ?.setLockScreenActionsOnly()
-    findPreference<GestureListPreference>(VolumeKeyManager.KEY_DOWN_HOLD_LOCKED_ACTION)
-      ?.setLockScreenActionsOnly()
-  }
-
-  override fun onDisplayPreferenceDialog(preference: Preference) {
-    if (preference is GestureListPreference) {
-      // In createDialogFragment, we create PreferenceDialogFragmentCompat for Handset & Auto
-      // and null for Wear.
-      val fragment: Fragment? = preference.createDialogFragment()
-      if (fragment is PreferenceDialogFragmentCompat) {
-        fragment.setTargetFragment(this, 0)
-        fragment.show(parentFragmentManager, preference.key)
-      } else {
-        // For wear and phone devices, instead of dialog, we use a new fragment to show the
-        // available action items.
-        val intent = Intent(context, TalkBackSubSettings::class.java)
-        intent.putExtra(FRAGMENT_NAME, GesturePreferenceFragmentCompat::class.java.canonicalName)
-        intent.putExtra(
-          FRAGMENT_ARGS,
-          GesturePreferenceFragmentCompat.createBundleForFragmentArguments(preference),
-        )
-        startActivity(intent)
-      }
-    } else {
-      super.onDisplayPreferenceDialog(preference)
-    }
-  }
 }
