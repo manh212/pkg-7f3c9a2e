@@ -60,6 +60,8 @@ public class GestureActionCategoryTest {
     assertCategory(R.string.shortcut_value_read_notifications, R.string.gesture_group_notifications_status);
     assertCategory(R.string.shortcut_value_monitor_focus, R.string.gesture_group_touch_accessibility);
     assertCategory(R.string.shortcut_value_task_assistant, R.string.gesture_group_utilities);
+    assertCategory(R.string.shortcut_value_smart_context_gesture_1, R.string.smart_context_title);
+    assertCategory(R.string.shortcut_value_smart_context_gesture_2, R.string.smart_context_title);
   }
 
   @Test
