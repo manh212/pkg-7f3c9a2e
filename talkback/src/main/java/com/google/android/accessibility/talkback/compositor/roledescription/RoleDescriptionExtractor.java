@@ -140,7 +140,15 @@ public class RoleDescriptionExtractor {
     }
 
     RoleDescription roleDescription = getRoleDescription(node);
-    if (roleDescription.shouldIgnoreDescription(node)) {
+    // A focus event describes its own target, so the target's description must not be ignored
+    // even if the snapshot was taken before the framework marked it focused. Early speech
+    // (EventFilter.speakFocusEarly, enabled by the early-controls experiment) reads the node
+    // before focus is applied, and SeekBarDescription ignores unfocused seek controls — without
+    // this, swiping to a slider announces only its label, with no role and no value, and the
+    // app's focus event is then suppressed as already spoken.
+    if (roleDescription.shouldIgnoreDescription(node)
+        && (event == null
+            || event.getEventType() != AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED)) {
       return "";
     }
     return joinInOrder(
