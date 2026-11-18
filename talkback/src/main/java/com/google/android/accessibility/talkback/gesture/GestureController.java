@@ -464,6 +464,8 @@ public class GestureController {
                   .setWrap(true));
     } else if (OpenAppActions.isAction(action)) {
       result = OpenAppActions.open(service, action);
+    } else if (TapTextActions.isAction(action)) {
+      result = TapTextActions.perform(service, action);
     } else if (NavigationGestureActions.isAction(action)) {
       result =
           NavigationGestureActions.perform(
@@ -611,6 +613,9 @@ public class GestureController {
       }
     } else if (action.equals(service.getString(R.string.shortcut_value_smart_context_add))) {
       SmartContextGestureSettingsFragment.quickAdd(service);
+      result = true;
+    } else if (action.equals(service.getString(R.string.shortcut_value_tap_text_add))) {
+      TapTextEditor.quickAdd(service);
       result = true;
     } else if (action.equals(service.getString(R.string.shortcut_value_smart_context_read))) {
       SmartContextGestures.readCurrentApplication(service);
