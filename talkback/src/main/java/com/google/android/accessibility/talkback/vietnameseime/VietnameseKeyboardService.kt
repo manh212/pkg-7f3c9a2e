@@ -740,12 +740,7 @@ class VietnameseKeyboardService : InputMethodService() {
     connection: InputConnection, letter: Char, speakAt: Long?, typedKey: Char = letter,
   ): Boolean {
     if (composingUnavailable) return false
-    // Recover the word from the field whenever we are not already composing
-    // it, so a tone or shape key can edit a word that was already written
-    // (e.g. after a space was typed and deleted, the word is still there
-    // and a tone key must reshape it instead of starting a new word).
-    // recoverWord is a no-op when there is no word right before the cursor.
-    if (!composing) recoverWord(connection)
+    if (!composing && wordLost) recoverWord(connection)
     val useQuickTelex = quickTelex && letter.lowercaseChar() in "aeiouy" && word.length in 2..3 &&
       word.all { it.equals(word[0], ignoreCase = true) } &&
       connection.getTextBeforeCursor(word.length + 2, 0)
@@ -873,6 +868,11 @@ class VietnameseKeyboardService : InputMethodService() {
     if (!connection.deleteSurroundingTextInCodePoints(1, 0) && !sendKey(connection, KeyEvent.KEYCODE_DEL)) {
       return false
     }
+    // Deleting a character that is not part of the tracked word leaves the
+    // cursor next to text that may be a word (e.g. a space typed after a
+    // word was just deleted), so the next letter recovers that word from
+    // the field instead of starting a new one.
+    if (!trackedCharacter) wordLost = true
     if (trackedCharacter) {
       word = Telex.deleteLast(word)
       if (word.isEmpty()) resetWord() else composingUnavailable = false
