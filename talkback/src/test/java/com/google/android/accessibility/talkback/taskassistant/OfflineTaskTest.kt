@@ -5,155 +5,109 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OfflineTaskTest {
-  @Test fun messageAppComesFromTheCommandAndTheBodyKeepsItsPunctuation() {
-    assertEquals(
-      OfflineTaskCommand.Draft(OfflineTaskCommand.MessageApp.ZALO, "Lan", "Mình đến muộn 15 phút!"),
-      OfflineTaskCommand.parse("Soạn tin nhắn Zalo cho Lan nội dung Mình đến muộn 15 phút!"),
-    )
-    assertEquals(
-      OfflineTaskCommand.Draft(OfflineTaskCommand.MessageApp.ZALO, "Lan", ""),
-      OfflineTaskCommand.parse("Soạn tin nhắn cho Lan trên Zalo"),
-    )
-    assertEquals(
-      OfflineTaskCommand.Draft(OfflineTaskCommand.MessageApp.ZALO, "Lan", ""),
-      OfflineTaskCommand.parse("Soạn tin nhắn cho Zalo cho Lan"),
-    )
-    assertEquals(
-      OfflineTaskCommand.Draft(OfflineTaskCommand.MessageApp.SMS, "0901234567", "Mình tới."),
-      OfflineTaskCommand.parse("Viết tin nhắn SMS cho 0901234567, Mình tới."),
-    )
-    assertEquals(
-      OfflineTaskCommand.AskMessageApp,
-      OfflineTaskCommand.parse("Soạn tin nhắn cho Lan"),
-    )
+  @Test fun textThenSendThenHomeIsASequenceOfScreenActions() {
+    assertEquals(OfflineTaskCommand.Sequence(listOf(
+      OfflineTaskCommand.Input("Mình đến muộn 15 phút"),
+      OfflineTaskCommand.Click("Gửi"),
+      OfflineTaskCommand.Click("Trang chủ"),
+    )), OfflineTaskCommand.parse("Nhập Mình đến muộn 15 phút rồi nhấn vào nút Gửi sau đó nhấn Trang chủ"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Click("Điện thoại"),
+      OfflineTaskCommand.Click("Tin nhắn"))),
+      OfflineTaskCommand.parse("Nhấn vào Điện thoại rồi nhấn vào Tin nhắn"))
   }
 
-  @Test fun spokenNumberAndNamedContactRemainDistinct() {
-    assertEquals(OfflineTaskCommand.Call("mẹ", null), OfflineTaskCommand.parse("Gọi cho mẹ"))
-    assertEquals(
-      OfflineTaskCommand.Call("không chín ba một hai ba bốn năm sáu bảy", "0931234567"),
-      OfflineTaskCommand.parse("Gọi đến số không chín ba một hai ba bốn năm sáu bảy"),
-    )
-  }
-
-  @Test fun youtubeCommandKeepsQueryAndSelectsAnOrdinal() {
-    assertEquals(
-      OfflineTaskCommand.YouTube(true, "Ngày chưa giông bão", true),
-      OfflineTaskCommand.parse("Mở YouTube, tìm Ngày chưa giông bão rồi mở video đầu tiên"),
-    )
-    assertEquals(OfflineTaskCommand.Item(1), OfflineTaskCommand.parse("Nhấn vào kết quả đầu tiên"))
-    assertEquals(
-      OfflineTaskCommand.Item(1),
-      OfflineTaskCommand.parse("Nhấn vào kết quả tìm kiếm đầu tiên"),
-    )
-  }
-
-  @Test fun controlChainsKeepTypedContentAndValidateEveryStep() {
-    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Open("Zalo"),
-      OfflineTaskCommand.Click("Tìm kiếm"))), OfflineTaskCommand.parse("Mở Zalo rồi nhấn Tìm kiếm"))
-    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Click("Tin nhắn"),
-      OfflineTaskCommand.Input("Mình xong rồi về!"))),
-      OfflineTaskCommand.parse("Nhấn Tin nhắn rồi nhập Mình xong rồi về!"))
+  @Test fun contentKeepsItsAccentsPunctuationAndQuotedCommandWords() {
     assertEquals(OfflineTaskCommand.Input("Mình xong rồi về!"),
       OfflineTaskCommand.parse("Nhập Mình xong rồi về!"))
-    assertNull(OfflineTaskCommand.parse("Mở Zalo rồi làm chuyện chưa biết"))
-    assertNull(OfflineTaskCommand.parse("Đặt báo thức lúc 6 giờ 30 sáng"))
-    assertNull(OfflineTaskCommand.parse("Tăng âm lượng 20 phần trăm"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Input("Xin chào, Lan!"),
+      OfflineTaskCommand.Click("Gửi"))),
+      OfflineTaskCommand.parse("Nhập Xin chào, Lan! rồi nhấn nút Gửi"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Input("Mình xong rồi nhấn nút Gửi"),
+      OfflineTaskCommand.Click("Gửi"))),
+      OfflineTaskCommand.parse("Nhập \"Mình xong rồi nhấn nút Gửi\" rồi nhấn Gửi"))
   }
 
-  @Test fun expandedControlsCarryTheCorrectTargetsAndActions() {
+  @Test fun phoneCommandsStayOutsideTheScreenInterpreter() {
+    assertNull(OfflineTaskCommand.parse("Gọi cho mẹ"))
+    assertNull(OfflineTaskCommand.parse("Gọi đến số 0901234567"))
+    assertNull(OfflineTaskCommand.parse("Đặt báo thức lúc 6 giờ 30 sáng"))
+    assertNull(OfflineTaskCommand.parse("Tăng âm lượng 20 phần trăm"))
+    assertNull(OfflineTaskCommand.parse("Về màn hình chính"))
+    assertNull(OfflineTaskCommand.parse("Nhấn Gửi rồi làm chuyện chưa biết"))
+  }
+
+  @Test fun openingAnAppMeansClickingItsVisibleIcon() {
+    assertEquals(OfflineTaskCommand.Click("Zalo"), OfflineTaskCommand.parse("Mở Zalo"))
+    assertEquals(OfflineTaskCommand.Sequence(listOf(OfflineTaskCommand.Click("YouTube"),
+      OfflineTaskCommand.Search("nhạc Trịnh"), OfflineTaskCommand.Item(1, true))),
+      OfflineTaskCommand.parse("Mở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên"))
+  }
+
+  @Test fun controlsCarryTheirScreenTargets() {
     assertEquals(OfflineTaskCommand.LongClick("Lan"), OfflineTaskCommand.parse("Nhấn giữ Lan"))
     assertEquals(OfflineTaskCommand.Input("Lan", "Tìm kiếm"),
       OfflineTaskCommand.parse("Nhập vào ô Tìm kiếm nội dung Lan"))
     assertEquals(OfflineTaskCommand.Input("mình đến muộn", append = true),
       OfflineTaskCommand.parse("Thêm mình đến muộn"))
     assertEquals(OfflineTaskCommand.Edit(OfflineTextAction.SELECT_ALL), OfflineTaskCommand.parse("Chọn tất cả"))
-    assertEquals(OfflineTaskCommand.Video(2), OfflineTaskCommand.parse("Mở video thứ hai"))
+    assertEquals(OfflineTaskCommand.Item(2, true), OfflineTaskCommand.parse("Mở video thứ hai"))
     assertEquals(OfflineTaskCommand.Item(3), OfflineTaskCommand.parse("Chọn mục thứ ba"))
     assertEquals(OfflineTaskCommand.Toggle("Phụ đề", true), OfflineTaskCommand.parse("Bật Phụ đề"))
-    assertEquals(OfflineTaskCommand.Panel(OfflinePanel.RECENTS), OfflineTaskCommand.parse("Mở ứng dụng gần đây"))
   }
 
-  @Test fun inputUsesTheNamedOrFocusedFieldAndVerifiesItsFullText() {
+  @Test fun typingSelectsTheNamedOrFocusedFieldAndChecksTheFullText() {
     val first = node("one", "Tên", "set_text").copy(text = "Lan", focused = true)
     val second = node("two", "Tin nhắn", "set_text").copy(text = "Xin chào")
-    val screen = zalo(first, second)
-    val decision = screen.decide(OfflineScreenStep.Input("Lan!", "Tin nhắn", true)) as OfflineTaskScreen.Decision.Act
+    val current = screen(first, second)
+    val decision = current.decide(OfflineScreenStep.Input("Lan!", "Tin nhắn", true)) as OfflineTaskScreen.Decision.Act
     assertEquals("two", decision.step.node)
     assertEquals("Xin chào Lan!", decision.step.text)
-    assertEquals("one", (screen.decide(OfflineScreenStep.Input("Mai", "", false)) as OfflineTaskScreen.Decision.Act).step.node)
-    assertEquals(OfflineTaskScreen.Decision.Ready, zalo(second.copy(text = "Xin chào Lan!"))
+    assertEquals("one", (current.decide(OfflineScreenStep.Input("Mai", "", false)) as OfflineTaskScreen.Decision.Act).step.node)
+    assertEquals(OfflineTaskScreen.Decision.Ready, screen(second.copy(text = "Xin chào Lan!"))
       .decide(OfflineScreenStep.VerifyInput("Xin chào Lan!", "Tin nhắn")))
-    assertEquals(OfflineTaskScreen.Decision.Ambiguous, zalo(first.copy(focused = false), second)
+    assertEquals(OfflineTaskScreen.Decision.Wait, screen(second)
+      .decide(OfflineScreenStep.VerifyInput("Xin chào Lan!", "Tin nhắn")))
+    assertEquals(OfflineTaskScreen.Decision.Ambiguous, screen(first.copy(focused = false), second)
       .decide(OfflineScreenStep.Input("Mai", "", false)))
   }
 
-  @Test fun switchingUsesCheckedStateAndDoesNotToggleAnAlreadyCorrectSwitch() {
+  @Test fun switchesAreCheckedBeforeAndAfterClicking() {
     val switch = node("switch", "Phụ đề", "click").copy(checked = false)
-    assertEquals(TaskOperation.CLICK, (zalo(switch).decide(OfflineScreenStep.Toggle("Phụ đề", true))
+    assertEquals(TaskOperation.CLICK, (screen(switch).decide(OfflineScreenStep.Toggle("Phụ đề", true))
       as OfflineTaskScreen.Decision.Act).step.operation)
-    assertEquals(OfflineTaskScreen.Decision.Wait, zalo(switch)
+    assertEquals(OfflineTaskScreen.Decision.Wait, screen(switch)
       .decide(OfflineScreenStep.VerifyToggle("Phụ đề", true)))
-    assertEquals(OfflineTaskScreen.Decision.Ready, zalo(switch.copy(checked = true))
+    assertEquals(OfflineTaskScreen.Decision.Ready, screen(switch.copy(checked = true))
       .decide(OfflineScreenStep.Toggle("Phụ đề", true)))
   }
 
-  @Test fun nameMatchesUseTheSearchFieldAndRejectDuplicateRows() {
-    val editor = node("search", "Tìm kiếm", "set_text").copy(text = "Lan")
-    val first = node("first", "Lan", "click").copy(top = 300)
-    val duplicate = node("second", "Lan", "click").copy(top = 400)
-    val differentAccent = node("third", "Lân", "click")
-    val step = OfflineScreenStep.ZaloRecipient("Lan")
-    assertEquals(OfflineTaskScreen.Decision.Wait, zalo(editor.copy(text = "Mai"), first).decide(step))
-    assertEquals(OfflineTaskScreen.Decision.Ambiguous, zalo(editor, first, duplicate).decide(step))
-    val decision = zalo(editor, first, differentAccent).decide(step) as OfflineTaskScreen.Decision.Act
-    assertEquals("first", decision.step.node)
-  }
-
-  @Test fun draftRequiresTheCorrectConversationAndPreservesExistingText() {
-    val title = node("header", "Lan", text = "Lan")
-    val editor = node("composer", "Nhập tin nhắn", "set_text").copy(top = 625, hint = "Nhập tin nhắn")
-    val step = OfflineScreenStep.ZaloDraft("Lan", "Mình tới!")
-    assertEquals(OfflineTaskScreen.Decision.Wait, zalo(title.copy(label = "Mai", text = "Mai"), editor).decide(step))
-    assertEquals(OfflineTaskScreen.Decision.ExistingDraft, zalo(title, editor.copy(text = "Có sẵn")).decide(step))
-    val decision = zalo(title, editor).decide(step) as OfflineTaskScreen.Decision.Act
-    assertEquals(TaskOperation.SET_TEXT, decision.step.operation)
-    assertEquals("composer", decision.step.node)
-    assertEquals("header", decision.guard)
-    assertEquals("Mình tới!", decision.step.text)
-    assertEquals(
-      OfflineTaskScreen.Decision.Ready,
-      zalo(title, editor.copy(text = decision.step.text)).decide(OfflineScreenStep.VerifyZaloDraft("Lan", "Mình tới!")),
-    )
-  }
-
-  @Test fun firstVideoRequiresResultsAndSelectsTheFirstVideoRowByIndex() {
+  @Test fun ordinalVideoSelectionUsesTheCurrentResultsTree() {
     val list = node("list", "").copy(collection = true)
     val filter = node("filter", "Bộ lọc", "click")
-    val later = node("later", "Bài B 20 lượt xem", "click").copy(parent = "list", row = 2)
+    val second = node("second", "Bài B 20 lượt xem", "click").copy(parent = "list", row = 2)
     val first = node("first", "Bài A 50 lượt xem", "click").copy(parent = "list", row = 1)
     val ad = node("ad", "Quảng cáo 1:20", "click").copy(parent = "list", row = 0)
-    val step = OfflineScreenStep.FirstVideo(null)
-    assertEquals(OfflineTaskScreen.Decision.Wait, youtube(list, later, first).decide(step))
-    val decision = youtube(list, later, first, ad, filter).decide(step) as OfflineTaskScreen.Decision.Act
+    val step = OfflineScreenStep.Item(1, true)
+    assertEquals(OfflineTaskScreen.Decision.Wait, screen(list, second, first).decide(step))
+    val decision = screen(list, second, first, ad, filter).decide(step) as OfflineTaskScreen.Decision.Act
     assertEquals("first", decision.step.node)
+    assertEquals("second", (screen(list, second, first, filter)
+      .decide(OfflineScreenStep.Item(2, true)) as OfflineTaskScreen.Decision.Act).step.node)
   }
 
-  @Test fun directClickWaitsOnAmbiguityAndDoesNotSendMessages() {
-    val find = OfflineScreenStep.ClickLabel("Tìm bạn")
-    assertEquals(OfflineTaskScreen.Decision.Ambiguous, zalo(
-      node("one", "Tìm bạn", "click"), node("two", "Tìm bạn", "click"),
-    ).decide(find))
-    assertEquals(OfflineTaskScreen.Decision.Unavailable, zalo(node("send", "Gửi tin nhắn", "click"))
-      .decide(OfflineScreenStep.ClickLabel("Gửi tin nhắn")))
+  @Test fun sendRequiresAUniqueVisibleTargetAndCanBeRequestedExplicitly() {
+    val request = OfflineScreenStep.ClickLabel("Gửi")
+    assertEquals(OfflineTaskScreen.Decision.Ambiguous,
+      screen(node("one", "Gửi", "click"), node("two", "Gửi", "click")).decide(request))
+    assertEquals(OfflineTaskScreen.Decision.Wait, screen(node("message", "Tin nhắn", "set_text")).decide(request))
+    val decision = screen(node("send", "Gửi", "click")).decide(request) as OfflineTaskScreen.Decision.Act
+    assertEquals("send", decision.step.node)
+    assertEquals(TaskOperation.CLICK, decision.step.operation)
   }
 
-  private fun zalo(vararg nodes: TaskNode) =
-    OfflineTaskScreen(TaskScreen(1, OfflineTaskScreen.ZALO, "", "", nodes.toList()))
+  private fun screen(vararg nodes: TaskNode) =
+    OfflineTaskScreen(TaskScreen(1, "example.app", "", "", nodes.toList()))
 
-  private fun youtube(vararg nodes: TaskNode) =
-    OfflineTaskScreen(TaskScreen(1, OfflineTaskScreen.YOUTUBE, "", "", nodes.toList()))
-
-  private fun node(id: String, label: String, action: String = "", text: String = "") =
-    TaskNode(id, label, "", "", setOf(action).filter { it.isNotBlank() }.toSet(), text = text)
+  private fun node(id: String, label: String, action: String = "") =
+    TaskNode(id, label, "", "", setOf(action).filter { it.isNotBlank() }.toSet())
 }

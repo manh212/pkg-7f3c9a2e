@@ -14,12 +14,12 @@ object TaskPrompt {
       In steps, identify targets by visible label, never by node id. Every step in steps MUST have a label;
       a set_text step needs BOTH label (the field) and text (what to type). Stop the sequence before any
       target whose label cannot be known yet; the host plans the rest on the new screen by itself.
-      Allowed actions: ${TaskOperation.entries.joinToString { it.wire }}.
-      Use only listed node ids with supported actions, and listed app packages. Never use coordinates, code or URLs.
+      Allowed actions: ${TaskProtocol.screenOperations.joinToString { it.wire }}.
+      Use only listed screen node ids with supported actions. Never use coordinates, code or URLs.
       Names may appear in Vietnamese or English (Cài đặt = Settings); match by meaning, not exact wording.
-      open_app needs package. In this mode the host only allows launching apps, Back, Home, scrolling,
-      waiting, and clicking or entering text in a labeled search control. Do not use these actions to
-      send messages or place calls. set_text needs text with the complete requested value.
+      Operate visible screen controls only. To open an app or reach a home page, click its visible icon
+      or button. set_text needs the complete requested value. Click Send only when the user requests it.
+      Leave recipient lookup and direct calling to the separate voice-command feature.
       Never return ask and never ask the user anything. Never enter passwords, OTPs or credentials.
       done needs node, exact evidence substring from its CURRENT label, message in Vietnamese, and checked for a checkable node.
       Verify the user goal against actual current state. Action success alone is not completion. Never invent evidence.

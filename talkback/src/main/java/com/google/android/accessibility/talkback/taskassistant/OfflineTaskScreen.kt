@@ -9,8 +9,6 @@ import java.text.Normalizer
 import java.util.Locale
 
 internal sealed interface OfflineScreenStep {
-  data class Open(val app: String) : OfflineScreenStep
-  data class Navigate(val action: TaskOperation) : OfflineScreenStep
   data class ClickLabel(val label: String) : OfflineScreenStep
   data class LongClickLabel(val label: String) : OfflineScreenStep
   data class Input(val text: String, val label: String, val append: Boolean) : OfflineScreenStep
@@ -18,19 +16,11 @@ internal sealed interface OfflineScreenStep {
   data class Edit(val action: OfflineTextAction) : OfflineScreenStep
   data class Toggle(val label: String, val checked: Boolean) : OfflineScreenStep
   data class VerifyToggle(val label: String, val checked: Boolean) : OfflineScreenStep
-  data class Item(val index: Int) : OfflineScreenStep
-  data class Panel(val panel: OfflinePanel) : OfflineScreenStep
+  data class Item(val index: Int, val video: Boolean = false) : OfflineScreenStep
   data object SearchCurrent : OfflineScreenStep
   data class EnterCurrentQuery(val query: String) : OfflineScreenStep
   data class SubmitSearch(val query: String) : OfflineScreenStep
   data class Scroll(val forward: Boolean) : OfflineScreenStep
-  data class Search(val packageName: String) : OfflineScreenStep
-  data class EnterQuery(val packageName: String, val query: String) : OfflineScreenStep
-  data class SubmitYouTube(val query: String) : OfflineScreenStep
-  data class FirstVideo(val query: String?, val index: Int = 1) : OfflineScreenStep
-  data class ZaloRecipient(val name: String) : OfflineScreenStep
-  data class ZaloDraft(val name: String, val text: String) : OfflineScreenStep
-  data class VerifyZaloDraft(val name: String, val text: String) : OfflineScreenStep
 }
 
 internal class OfflineTaskScreen(private val screen: TaskScreen) {
@@ -41,13 +31,11 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     data object Wait : Decision
     data object Ambiguous : Decision
     data object Unavailable : Decision
-    data object ExistingDraft : Decision
   }
 
   private val nodes = screen.nodes
   private val byId = nodes.associateBy { it.id }
   private val searchLabels = setOf("tim kiem", "search", "search youtube", "tim kiem tren youtube")
-  private val composerLabels = setOf("tin nhan", "nhap tin nhan", "type a message", "message")
 
   fun decide(step: OfflineScreenStep): Decision = when (step) {
     is OfflineScreenStep.ClickLabel -> clickLabel(step.label)
@@ -57,30 +45,19 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     is OfflineScreenStep.Edit -> edit(step.action)
     is OfflineScreenStep.Toggle -> toggle(step.label, step.checked, verify = false)
     is OfflineScreenStep.VerifyToggle -> toggle(step.label, step.checked, verify = true)
-    is OfflineScreenStep.Item -> if (screen.packageName == YOUTUBE) firstVideo(null, step.index) else item(step.index)
+    is OfflineScreenStep.Item -> if (step.video || screen.packageName == YOUTUBE) firstVideo(null, step.index) else item(step.index)
     OfflineScreenStep.SearchCurrent -> search()
     is OfflineScreenStep.EnterCurrentQuery -> enterQuery(step.query)
     is OfflineScreenStep.SubmitSearch -> submitSearch(step.query)
     is OfflineScreenStep.Scroll -> scroll(step.forward)
-    is OfflineScreenStep.Search -> inApp(step.packageName) { search() }
-    is OfflineScreenStep.EnterQuery -> inApp(step.packageName) { enterQuery(step.query) }
-    is OfflineScreenStep.SubmitYouTube -> inApp(YOUTUBE) { submitSearch(step.query) }
-    is OfflineScreenStep.FirstVideo -> inApp(YOUTUBE) { firstVideo(step.query, step.index) }
-    is OfflineScreenStep.ZaloRecipient -> inApp(ZALO) { zaloRecipient(step.name) }
-    is OfflineScreenStep.ZaloDraft -> inApp(ZALO) { zaloDraft(step.name, step.text, verify = false) }
-    is OfflineScreenStep.VerifyZaloDraft -> inApp(ZALO) { zaloDraft(step.name, step.text, verify = true) }
-    is OfflineScreenStep.Open, is OfflineScreenStep.Navigate, is OfflineScreenStep.Panel -> Decision.Unavailable
   }
-
-  private fun inApp(packageName: String, decide: () -> Decision): Decision =
-    if (screen.packageName == packageName) decide() else Decision.Wait
 
   private fun clickLabel(label: String, action: TaskOperation = CLICK): Decision {
     val wanted = normalize(label)
-    if (Regex("^(gui|send|goi|call|xoa|delete|pay|thanh toan)( |$)").containsMatchIn(wanted)) {
-      return Decision.Unavailable
+    val direct = nodes.filter { node ->
+      listOf(node.text, node.description, node.hint).any { normalize(it) == wanted }
     }
-    val matches = nodes.filter { labeled(it) { name -> normalize(name) == wanted } }
+    val matches = direct.ifEmpty { nodes.filter { labeled(it) { name -> normalize(name) == wanted } } }
     if (action == CLICK && wanted in searchLabels) return search()
     val targets = matches.mapNotNull { target(it, action.wire) }.distinctBy { it.id }
     return when (targets.size) {
@@ -230,37 +207,6 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
       listOf("luot xem", " views", " thoi luong", "duration").any(label::contains)
   }
 
-  private fun zaloRecipient(name: String): Decision {
-    val field = searchFields().singleOrNull() ?: return Decision.Wait
-    if (screen.truncated || !equalNames(field.text, name) || nodes.any { it.role == "ProgressBar" }) {
-      return Decision.Wait
-    }
-    val options = nodes.filter { node ->
-      node.top >= field.top && SET_TEXT.wire !in node.actions && labeled(node) { equalNames(it, name) }
-    }.mapNotNull(::clickable).distinctBy { it.id }
-    return clickUnique(options)
-  }
-
-  private fun zaloDraft(name: String, message: String, verify: Boolean): Decision {
-    val editors = nodes.filter { node ->
-      SET_TEXT.wire in node.actions && (listOf(node.hint, node.description).any { normalize(it) in composerLabels } ||
-        (verify && message.isNotBlank() && node.text == message))
-    }
-    if (editors.size > 1) return Decision.Ambiguous
-    val editor = editors.singleOrNull() ?: return Decision.Wait
-    if (searchFields().isNotEmpty()) return Decision.Wait
-    val top = nodes.minOf { it.top }
-    val headerBottom = top + (editor.top - top) / 3
-    val header = nodes.filter { node ->
-      node.top <= headerBottom && node.top < editor.top && ancestors(node).none { it.collection } &&
-        labeled(node) { equalNames(it, name) }
-    }.minByOrNull { it.top } ?: return Decision.Wait
-    if (message.isBlank() || editor.text == message) return Decision.Ready
-    if (verify) return Decision.Wait
-    if (editor.text.isNotBlank()) return Decision.ExistingDraft
-    return act(SET_TEXT, editor, message, header.id)
-  }
-
   private fun searchFields() = nodes.filter { SET_TEXT.wire in it.actions && isSearch(it) }
 
   private fun isSearch(node: TaskNode): Boolean =
@@ -293,7 +239,6 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
 
   companion object {
     const val YOUTUBE = "com.google.android.youtube"
-    const val ZALO = "com.zing.zalo"
 
     fun equalNames(first: String, second: String): Boolean =
       nameKey(first) == nameKey(second)

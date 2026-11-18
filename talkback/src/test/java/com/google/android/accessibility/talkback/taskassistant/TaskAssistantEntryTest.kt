@@ -5,8 +5,11 @@ import android.app.KeyguardManager
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.os.Looper
+import android.os.Handler
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import com.google.android.accessibility.talkback.R
@@ -21,6 +24,7 @@ import java.io.RandomAccessFile
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -33,6 +37,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
+import org.robolectric.shadows.ShadowAccessibilityService
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], instrumentedPackages = ["com.google.android.accessibility.talkback.licensing"],
@@ -46,17 +51,9 @@ class TaskAssistantEntryTest {
   }
 
   @Implements(AccessibilityService::class)
-  class ControlShadow {
-    @Implementation fun performGlobalAction(action: Int): Boolean {
-      actions += action
-      executed.countDown()
-      return true
-    }
-
-    companion object {
-      var actions = mutableListOf<Int>()
-      var executed = CountDownLatch(1)
-    }
+  class ControlShadow : ShadowAccessibilityService() {
+    var shown: List<AccessibilityWindowInfo> = emptyList()
+    @Implementation override fun getWindows(): List<AccessibilityWindowInfo> = shown
   }
 
   @Test fun typedTextRunsThroughTheExecuteButton() {
@@ -68,6 +65,69 @@ class TaskAssistantEntryTest {
 
   @Test fun onlineSpeechReturnsToTheEditableFormWithoutStartingATask() {
     checkVoiceReview(offline = false)
+  }
+
+  @Test fun typingThenSendThenHomeClicksEachVisibleTargetInOrder() {
+    checkScreenSequence(typingSucceeds = true)
+  }
+
+  @Test fun failedTypingCannotProceedToSend() {
+    checkScreenSequence(typingSucceeds = false)
+  }
+
+  private fun checkScreenSequence(typingSucceeds: Boolean) {
+    val service = Robolectric.buildService(TalkBackService::class.java).get()
+    fun node(label: String) = AccessibilityNodeInfo.obtain().apply {
+      packageName = "example.app"
+      text = label
+      isVisibleToUser = true
+      isEnabled = true
+      isClickable = true
+      addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
+      shadowOf(this).setRefreshReturnValue(true)
+    }
+    val root = node("")
+    val editor = node("").apply {
+      hintText = "Tin nhắn"
+      isEditable = true
+      isFocused = true
+      addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_TEXT)
+    }
+    val send = node("Gửi")
+    val home = node("Trang chủ")
+    for (child in listOf(editor, send, home)) shadowOf(root).addChild(child)
+    val executed = mutableListOf<String>()
+    shadowOf(editor).setOnPerformActionListener { action, args ->
+      if (action == AccessibilityNodeInfo.ACTION_SET_TEXT && typingSucceeds) {
+        editor.text = args.getCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE)
+        executed += "Nhập"
+      }
+      typingSucceeds
+    }
+    for (target in listOf(send, home)) {
+      shadowOf(target).setOnPerformActionListener { action, _ ->
+        if (action == AccessibilityNodeInfo.ACTION_CLICK) executed += target.text.toString()
+        true
+      }
+    }
+    val window = AccessibilityWindowInfo.obtain()
+    shadowOf(window).apply {
+      setId(root.windowId)
+      setType(AccessibilityWindowInfo.TYPE_APPLICATION)
+      setRoot(root)
+      setFocused(true)
+    }
+    (shadowOf(service) as ControlShadow).shown = listOf(window)
+    val runner = OfflineTaskRunner(service, Handler(Looper.getMainLooper()), Executor { it.run() },
+      TaskScreenReader(service), { true }, {})
+    try {
+      assertTrue(runner.start("Nhập Mình tới rồi nhấn Gửi rồi nhấn Trang chủ"))
+      shadowOf(Looper.getMainLooper()).idle()
+      assertEquals(if (typingSucceeds) listOf("Nhập", "Gửi", "Trang chủ") else emptyList<String>(), executed)
+      assertEquals(!typingSucceeds, runner.active)
+    } finally {
+      runner.cancel()
+    }
   }
 
   private fun checkVoiceReview(offline: Boolean?) {
@@ -98,8 +158,8 @@ class TaskAssistantEntryTest {
       val editor = views(dialog.window!!.decorView).filterIsInstance<KeyboardSafeEditText>().single()
       if (offline != null) assertEquals("Mở YouTube", editor.text.toString())
       assertTrue(views(dialog.window!!.decorView).none { it is TaskAiPicker })
-      editor.setText("Quay lại")
-      assertEquals("Quay lại", editor.text.toString())
+      editor.setText("Nhấn Tin nhắn")
+      assertEquals("Nhấn Tin nhắn", editor.text.toString())
       assertEquals(service.getString(R.string.task_start), dialog.getButton(AlertDialog.BUTTON_POSITIVE).text.toString())
       assertNull(field("engine"))
       assertFalse((field("offline") as OfflineTaskRunner).active)
@@ -107,11 +167,30 @@ class TaskAssistantEntryTest {
       TalkBackService::class.java.getDeclaredField("serviceState").apply { isAccessible = true }
         .setInt(service, ServiceStateListener.SERVICE_STATE_ACTIVE)
       shadowOf(service.getSystemService(KeyguardManager::class.java)).setKeyguardLocked(false)
-      ControlShadow.actions = mutableListOf()
-      ControlShadow.executed = CountDownLatch(1)
+      val executed = CountDownLatch(1)
+      val target = AccessibilityNodeInfo.obtain().apply {
+        packageName = "example.app"
+        text = "Tin nhắn"
+        isVisibleToUser = true
+        isEnabled = true
+        isClickable = true
+        addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
+      }
+      shadowOf(target).setRefreshReturnValue(true)
+      shadowOf(target).setOnPerformActionListener { action, _ ->
+        if (action == AccessibilityNodeInfo.ACTION_CLICK) executed.countDown()
+        true
+      }
+      val window = AccessibilityWindowInfo.obtain()
+      shadowOf(window).apply {
+        setId(target.windowId)
+        setType(AccessibilityWindowInfo.TYPE_APPLICATION)
+        setRoot(target)
+        setFocused(true)
+      }
+      (shadowOf(service) as ControlShadow).shown = listOf(window)
       dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
-      assertTrue(ControlShadow.executed.await(5, TimeUnit.SECONDS))
-      assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), ControlShadow.actions)
+      assertTrue(executed.await(5, TimeUnit.SECONDS))
     } finally {
       TaskAssistant::class.java.getDeclaredMethod("close").apply { isAccessible = true }.invoke(assistant)
       serviceInstance.set(null, previousService)

@@ -1,6 +1,5 @@
 package com.google.android.accessibility.talkback.taskassistant
 
-import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Handler
@@ -34,7 +33,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   private val plannerHandle = lazy { TaskPlanner(service) }
   private val planner by plannerHandle
   private val prefs = SharedPreferencesUtils.getSharedPreferences(service)
-  private val offline = OfflineTaskRunner(service, main, worker, reader, ::canOperate, ::apps, ::announce)
+  private val offline = OfflineTaskRunner(service, main, worker, reader, ::canOperate, ::announce)
   private var engine: TaskEngine? = null
   private var ai: TaskAiChoice? = null
   private var dialog: AlertDialog? = null
@@ -45,13 +44,6 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   private var voiceGeneration = 0L
   private val consumedKeys = mutableSetOf<Int>()
   private var lastState = TaskState.IDLE
-
-  private fun apps(): List<TaskApp> {
-    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-    return service.packageManager.queryIntentActivities(intent, 0)
-      .map { TaskApp(it.activityInfo.packageName, it.loadLabel(service.packageManager).toString()) }
-      .distinctBy { it.packageName }.sortedBy { it.name }
-  }
 
   fun show() {
     if (closed || dialog?.isShowing == true) return
@@ -167,7 +159,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     cancelVoice()
     offline.cancel()
     if (engine?.active == true) engine?.cancel()
-    engine = TaskEngine(this, apps())
+    engine = TaskEngine(this, emptyList())
     engine?.start(goal)
     return null
   }
@@ -251,7 +243,6 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
 
   override fun execute(screen: TaskScreen, step: TaskStep, done: (TaskExecution) -> Unit) {
     val token = epoch.get()
-    val localPlanner = ai?.provider == null
     worker.execute {
       val outcome = runCatching {
         val fresh = reader.read()
@@ -260,41 +251,20 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
           val effective: TaskStep? = when {
             step.node.isBlank() && step.label.isNotBlank() -> resolveLabeled(fresh, step)?.let { step.copy(node = it) }
             fresh.screen.fingerprint == screen.fingerprint -> step
-            step.operation in setOf(TaskOperation.BACK, TaskOperation.HOME, TaskOperation.WAIT, TaskOperation.OPEN_APP) -> step
+            step.operation == TaskOperation.WAIT -> step
             else -> resolveTarget(screen, step, fresh)?.let { step.copy(node = it) }
           }
           if (effective == null) TaskExecution.STALE
-          else if (localPlanner && !isOfflinePlannerAction(fresh.screen, effective)) TaskExecution.FAILED
+          else if (effective.operation !in TaskProtocol.screenOperations) TaskExecution.FAILED
           else {
-            val performed = when (effective.operation) {
-              TaskOperation.OPEN_APP -> service.packageManager.getLaunchIntentForPackage(effective.packageName)?.let {
-                if (epoch.get() != token || !canOperate()) false else {
-                  service.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
-                }
-              } ?: false
-              TaskOperation.BACK -> if (epoch.get() == token && canOperate()) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK) else false
-              TaskOperation.HOME -> if (epoch.get() == token && canOperate()) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME) else false
-              TaskOperation.WAIT -> true
-              else -> if (epoch.get() == token && canOperate()) reader.perform(fresh, effective) else false
-            }
+            val performed = if (epoch.get() != token || !canOperate()) false
+            else if (effective.operation == TaskOperation.WAIT) true else reader.perform(fresh, effective)
             if (performed) TaskExecution.PERFORMED else TaskExecution.FAILED
           }
         }
       }.getOrDefault(TaskExecution.FAILED)
       main.post { if (!closed && epoch.get() == token) done(outcome) }
     }
-  }
-
-  private fun isOfflinePlannerAction(screen: TaskScreen, step: TaskStep): Boolean = when (step.operation) {
-    TaskOperation.OPEN_APP, TaskOperation.BACK, TaskOperation.HOME, TaskOperation.WAIT,
-    TaskOperation.SCROLL_FORWARD, TaskOperation.SCROLL_BACKWARD -> true
-    TaskOperation.CLICK, TaskOperation.SET_TEXT, TaskOperation.PRESS_ENTER -> {
-      val node = screen.nodes.firstOrNull { it.id == step.node }
-      node?.label?.split("; ")?.any {
-        TaskProtocol.normalize(it) in setOf("tim kiem", "search", "search youtube", "tim kiem tren youtube")
-      } == true
-    }
-    else -> false
   }
 
   private fun resolveLabeled(fresh: CapturedTaskScreen, step: TaskStep): String? {

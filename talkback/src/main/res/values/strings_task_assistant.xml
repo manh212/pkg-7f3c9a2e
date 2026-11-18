@@ -56,20 +56,13 @@
     <string name="task_offline_optional_model">Có thể dùng lệnh có sẵn ngay. Mô hình bổ sung khoảng %1$s.</string>
     <string name="task_offline_unknown">Chưa hiểu yêu cầu. Hãy thử một lệnh cụ thể, ví dụ Mở YouTube.</string>
     <string name="task_offline_interrupted">Đã dừng tác vụ</string>
-    <string name="task_offline_draft_ready">Đã soạn tin nhắn</string>
-    <string name="task_offline_existing_draft">Cuộc trò chuyện đã có nội dung đang soạn</string>
-    <string name="task_offline_message_app">Hãy nói ứng dụng và người nhận, ví dụ Soạn tin nhắn Zalo cho Lan.</string>
-    <string name="task_offline_call_target">Hãy nói tên người cần gọi hoặc số điện thoại.</string>
     <string name="task_offline_target_unavailable">Chưa tìm được mục phù hợp để thực hiện</string>
     <string name="task_offline_target_ambiguous">Có nhiều mục trùng tên. Hãy chọn đúng mục trên màn hình.</string>
-    <string name="task_offline_contacts_permission">Cần quyền danh bạ để tìm theo tên. Bạn cũng có thể nói số điện thoại.</string>
-    <string name="task_offline_contact_missing">Chưa tìm được người nhận</string>
-    <string name="task_offline_choose_contact">Chọn người nhận hoặc số điện thoại</string>
     <string name="task_control_commands">Lệnh điều khiển</string>
     <string name="task_offline_voice_model">Nhận giọng tiếng Việt</string>
     <string name="task_offline_voice_ready">Đã tải nhận giọng tiếng Việt thành công</string>
     <string name="task_offline_voice_not_downloaded">Chưa tải xong nhận giọng tiếng Việt · khoảng 34 MB</string>
     <string name="task_offline_voice_pause">Tạm dừng tải nhận giọng tiếng Việt</string>
-    <string name="task_control_examples">Mở Zalo\nNhấn Tìm kiếm\nNhấn giữ tên mục\nChọn mục thứ ba\nCuộn xuống hai lần\nQuay lại\nVề màn hình chính\nĐóng bàn phím\nMở ứng dụng gần đây\nMở thông báo\nMở cài đặt nhanh\nBật tên công tắc\nTắt tên công tắc\nNhập Xin chào\nNhập vào ô Tìm kiếm nội dung Lan\nThêm mình đến muộn\nChọn tất cả\nSao chép\nCắt văn bản\nDán\nXóa nội dung\nTìm kiếm nhạc Trịnh\nMở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên\nMở video thứ hai\nSoạn tin nhắn Zalo cho Lan nội dung Mình đến muộn\nSoạn tin nhắn SMS cho Lan nội dung Mình đến muộn\nGọi cho mẹ\nGọi đến số 0901234567\nMở Zalo rồi nhấn Tìm kiếm\n\nNhập hoặc nói yêu cầu, kiểm tra chữ rồi bấm Thực hiện.</string>
+    <string name="task_control_examples">Nhấn vào Điện thoại\nNhấn vào Tin nhắn\nNhấn vào nút Gửi\nNhấn vào Trang chủ\nNhấn giữ tên mục\nChọn mục thứ ba\nCuộn xuống hai lần\nBật tên công tắc\nTắt tên công tắc\nNhập Xin chào\nNhập vào ô Tin nhắn nội dung Mình đến muộn\nThêm mình đến muộn\nChọn tất cả\nSao chép\nCắt văn bản\nDán\nXóa nội dung\nTìm kiếm nhạc Trịnh\nMở video thứ hai\nNhấn Tin nhắn rồi nhập Mình đến muộn sau đó nhấn Gửi\nNhập Mình tới rồi nhấn nút Gửi rồi nhấn Trang chủ\n\nTên mục được tìm trên màn hình hiện tại. Đặt nội dung trong dấu ngoặc kép nếu nội dung chứa một câu lệnh.\nNhập hoặc nói yêu cầu, kiểm tra chữ rồi bấm Thực hiện.</string>
     <string name="task_offline_voice_settings">Hãy mở Cài đặt giao việc để tải nhận giọng tiếng Việt.</string>
 </resources>

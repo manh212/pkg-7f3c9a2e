@@ -22,7 +22,9 @@ class TaskApiProtocolTest {
     assertEquals("OBJECT", schema.getString("type"))
     assertEquals("INTEGER", schema.getJSONObject("properties").getJSONObject("snapshot").getString("type"))
     assertEquals("BOOLEAN", schema.getJSONObject("properties").getJSONObject("checked").getString("type"))
-    assertTrue(schema.getJSONObject("properties").getJSONObject("action").getJSONArray("enum").toString().contains("open_app"))
+    assertFalse(schema.getJSONObject("properties").getJSONObject("action").getJSONArray("enum").toString().contains("open_app"))
+    assertEquals("ARRAY", schema.getJSONObject("properties").getJSONObject("steps").getString("type"))
+    assertFalse(schema.getJSONArray("required").toString().contains("action"))
   }
 
   @Test fun nonGeminiModelsDoNotReceiveGeminiOnlyOutputOptions() {

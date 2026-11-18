@@ -62,51 +62,43 @@ model separately from the optional AI model, with download progress, failure
 and installed states. Completion updates the visible status and its polite
 accessibility announcement. The configured Meridian license still applies.
 
-Examples for the direct interpreter:
+Examples for the screen interpreter:
 
-- `Vào YouTube rồi nhấn tìm kiếm`
-- `Mở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên`
-- `Soạn tin nhắn Zalo cho Lan nội dung Mình đến muộn 15 phút`
-- `Soạn tin nhắn cho Lan trên Zalo`
-- `Soạn tin nhắn SMS cho Lan, Mình đến muộn 15 phút`
-- `Gọi cho mẹ` or `Gọi đến số` followed by a number
-- `Cuộn xuống hai lần`, `Quay lại`, `Đóng bàn phím`
-- `Nhấn giữ tên mục`, `Chọn mục thứ ba`, `Mở video thứ hai`
-- `Nhập vào ô Tìm kiếm nội dung Lan`, `Thêm mình đến muộn`
+- `Nhấn vào Điện thoại rồi nhấn vào Tin nhắn`
+- `Nhập Mình đến muộn 15 phút rồi nhấn nút Gửi sau đó nhấn Trang chủ`
+- `Nhập "Mình xong rồi nhấn nút Gửi" rồi nhấn Gửi`
+- `Nhấn giữ tên mục`, `Chọn mục thứ ba`, `Cuộn xuống hai lần`
+- `Nhập vào ô Tin nhắn nội dung Mình đến muộn`
 - `Chọn tất cả`, `Sao chép`, `Cắt văn bản`, `Dán`, `Xóa nội dung`
 - `Bật tên công tắc`, `Tắt tên công tắc`
-- `Mở ứng dụng gần đây`, `Mở thông báo`, `Mở cài đặt nhanh`
-- `Mở Zalo rồi nhấn Tìm kiếm`
+- `Mở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên`
 
 The entry form contains the request field, **Nói yêu cầu**, and **Thực hiện**.
-Processing mode, model selection, speech downloads and the **Lệnh điều khiển**
-list are available under **Cài đặt giao việc** in task settings.
-The interpreter supports screen interaction. Alarm scheduling and direct volume
-adjustment belong to the existing phone voice commands.
-Text input and search preserve dictated content, including connector words.
-Multi-step control commands are validated before execution. Text replacement
-and switch changes are checked against a fresh screen before continuing.
+Processing mode, model selection, speech downloads and screen-command examples
+are available under **Cài đặt giao việc** in task settings.
 
-Messaging follows the app named in the command. Zalo drafts require a single
-matching recipient, the matching chat header, and an identifiable message
-field. An existing draft is preserved. SMS opens the system composer. Both
-leave the draft for the user to send. Calls show the existing confirmation
-dialog. When multiple phone numbers match a name, the user chooses the number
-first. Calls and services such as YouTube or Zalo need their own connections.
+Every task action uses the visible accessibility tree. `Mở YouTube` clicks its
+visible icon. `Nhấn Trang chủ` clicks a visible button with that name. The task
+controller does not dispatch gesture catalog actions, launch intents, contact
+lookups or direct phone calls. Those functions belong to the voice-command
+feature. Screen commands can explicitly click **Gửi** after entering text.
 
-The direct workflow uses accessibility events and bounded screen checks.
-Target selection takes account of the current app, node labels and tree
-relationships. If an installed local planner handles an unfamiliar phrasing,
-it can launch apps, navigate or operate a labeled search control. The offline
-workflow keeps speech and screen content on the phone.
+The interpreter splits multi-step requests at commas, `rồi` or `sau đó` when a
+screen command follows. Quoted text preserves command-like words literally.
+Typing is verified on a fresh screen before the next step runs. Missing or
+ambiguous targets stop the sequence. Manual input cancels pending work.
+
+The direct workflow uses accessibility events and bounded screen checks. Local
+AI fallback and online AI use the same screen-only action set. The Gemini
+response schema supports both a single screen action and a sequence.
 
 ## Execution
 
 The controller observes the active non-overlay window, sends bounded accessibility
 content and the launcher app catalog to the selected AI, validates one structured
 action, checks a fresh screen, executes, then observes again. Supported actions
-include launching apps, clicking, long pressing, replacing editable text, exposed
-IME submission, scrolling, Back and Home. It can ask a question and continue with
+include clicking, long pressing, replacing editable text, exposed IME
+submission and scrolling. It can ask a question and continue with
 the answer. It cannot execute scripts, arbitrary intents, coordinates or package
 names absent from the installed launcher catalog.
 
