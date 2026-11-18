@@ -440,17 +440,35 @@ class OrganizedSettingsTest {
   }
 
   @Test
-  fun volumeMultiPressSwitchStartsOffAndEachNewAssignmentStartsEmpty() {
+  fun volumeKeyScreensLinkToPerKeySubScreensAndEachNewAssignmentStartsEmpty() {
     val volume = com.google.android.accessibility.talkback.volume.VolumeKeySettingsFragment()
     open(volume)
-    assertFalse(volume.findPreference<TwoStatePreference>("pref_volume_keys_multi_enabled")!!.isChecked)
+    assertEquals(
+      "com.google.android.accessibility.talkback.volume.VolumeKeyUpSettingsFragment",
+      volume.findPreference<Preference>("pref_volume_up_screen")?.fragment)
+    assertEquals(
+      "com.google.android.accessibility.talkback.volume.VolumeKeyDownSettingsFragment",
+      volume.findPreference<Preference>("pref_volume_down_screen")?.fragment)
+    assertEquals(
+      "com.google.android.accessibility.talkback.volume.VolumeKeyBothSettingsFragment",
+      volume.findPreference<Preference>("pref_volume_both_screen")?.fragment)
+    assertEquals(null, volume.findPreference<Preference>("pref_volume_keys_multi_enabled"))
+    prefs.edit().putBoolean("pref_volume_keys_managed", true).commit()
+    val both = com.google.android.accessibility.talkback.volume.VolumeKeyBothSettingsFragment()
+    open(both)
     assertEquals("TOGGLE_TOUCH_EXPLORATION",
-      volume.findPreference<GestureListPreference>("pref_volume_both_action")!!.currentValue)
-    for (direction in listOf("up", "down")) {
-      for (count in 2..4) {
-        val row = volume.findPreference<GestureListPreference>("pref_volume_${direction}_${count}_press_action")!!
-        assertEquals("UNASSIGNED", row.currentValue)
-        assertFalse(row.isEnabled)
+      both.findPreference<GestureListPreference>("pref_volume_both_action")!!.currentValue)
+    for ((fragment, direction) in listOf(
+      com.google.android.accessibility.talkback.volume.VolumeKeyUpSettingsFragment() to "up",
+      com.google.android.accessibility.talkback.volume.VolumeKeyDownSettingsFragment() to "down")) {
+      open(fragment)
+      for (suffix in listOf("", "_locked", "_screen_off")) {
+        for (count in 2..4) {
+          val row = fragment.findPreference<GestureListPreference>(
+            "pref_volume_${direction}_${count}_press${suffix}_action")!!
+          assertEquals("UNASSIGNED", row.currentValue)
+          assertTrue(row.isEnabled)
+        }
       }
     }
   }
