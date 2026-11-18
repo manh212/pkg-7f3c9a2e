@@ -3003,19 +3003,28 @@ public class FocusProcessorForLogicalNavigation {
       return REVEAL_NONE;
     }
     long[] work = Performance.getInstance().beginNavigationWork();
-    AccessibilityNodeInfoCompat next =
-        OffscreenContent.findNext(scrollable, pivot, logicalDirection == SEARCH_FOCUS_FORWARD);
+    OffscreenContent.Ahead ahead =
+        OffscreenContent.findAhead(scrollable, pivot, logicalDirection == SEARCH_FOCUS_FORWARD);
     Performance.getInstance().endNavigationWork(eventId, "offscreen_search", work);
-    if (next == null) {
+    if (ahead == null) {
       return REVEAL_NONE;
     }
+    AccessibilityNodeInfoCompat next = ahead.next();
     Rect pivotBefore = new Rect();
     pivot.getBoundsInScreen(pivotBefore);
-    if (!showOnScreen(next, eventId)) {
+    if (!showOnScreen(ahead.pageEnd(), eventId)) {
       return REVEAL_NONE;
     }
     service.clearCachedSubtree(scrollable.unwrap());
     TraversalTreeCache.clear("revealed next item");
+    if (!ahead.pageEnd().equals(next)
+        && !(next.refresh() && next.isVisibleToUser())
+        && showOnScreen(next, eventId)) {
+      // The screen held fewer items than guessed, so the next item went past the edge. Showing it
+      // brings it back to the edge the swipe heads away from.
+      service.clearCachedSubtree(scrollable.unwrap());
+      TraversalTreeCache.clear("revealed next item");
+    }
     if (!pivot.refresh()) {
       return REVEAL_MOVED;
     }
@@ -3086,6 +3095,19 @@ public class FocusProcessorForLogicalNavigation {
         navigationAction.searchDirection,
         focusFinder,
         windowOrderedStrategy)) {
+      return REVEAL_NONE;
+    }
+
+    // A scroll view lays out all of its content, so when nothing after the pivot is off screen,
+    // as with one long text, scrolling it only delays the move out of it.
+    if ((logicalDirection == SEARCH_FOCUS_FORWARD || logicalDirection == SEARCH_FOCUS_BACKWARD)
+        && OffscreenContent.keepsAllContent(scrollableNode)
+        && OffscreenContent.hasNothingAhead(
+            scrollableNode,
+            pivot,
+            logicalDirection == SEARCH_FOCUS_FORWARD,
+            WindowUtils.isScreenLayoutRTL(service))) {
+      LogUtils.d(TAG, "autoScrollAtEdge: nothing after the pivot is off screen; not scrolling.");
       return REVEAL_NONE;
     }
 
