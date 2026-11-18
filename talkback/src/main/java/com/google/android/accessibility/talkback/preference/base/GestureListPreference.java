@@ -262,8 +262,6 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
               resources.getString(R.string.shortcut_value_announce_current_time_and_date),
               TYPE_ACTION_ITEM));
     }
-    builder.add(new ActionItem(resources.getString(R.string.shortcut_read_current_time),
-        resources.getString(R.string.shortcut_value_read_current_time), TYPE_ACTION_ITEM));
     builder.add(new ActionItem(resources.getString(R.string.shortcut_read_current_location),
         resources.getString(R.string.shortcut_value_read_current_location), TYPE_ACTION_ITEM));
     builder.add(
@@ -478,8 +476,6 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
       return R.string.gesture_group_screen_recognition;
     }
     if (matchesAction(value,
-        R.string.shortcut_value_voice_input,
-        R.string.shortcut_value_media_control_or_voice_input,
         R.string.shortcut_value_voice_commands)) {
       return R.string.gesture_group_voice_input;
     }
@@ -514,7 +510,6 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         R.string.shortcut_value_show_countdown_alarms,
         R.string.shortcut_value_control_telling_time,
         R.string.shortcut_value_announce_battery_state,
-        R.string.shortcut_value_read_current_time,
         R.string.shortcut_value_read_current_location,
         R.string.shortcut_value_announce_status,
         R.string.shortcut_value_announce_current_time_and_date,
@@ -816,34 +811,10 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     Resources resources = getContext().getResources();
 
     if (FeatureSupport.supportMediaControls()) {
-      // Due to the PH flag should controls the default 2-fingers double tap actions as well but the
-      // default is set in xml which does not apply for PH flag. This is a trick that it always
-      // invoke voice input + media control action but in the case the flag is false, this action
-      // only direct to media control. This design makes we can use the PH flag to control on the
-      // air without duplicating xml file.
       builder.add(
           new ActionItem(
-              resources.getString(
-                  FeatureFlagReader.enableVoiceDictationShortcut(getContext())
-                      ? R.string.shortcut_media_control_or_voice_input
-                      : R.string.shortcut_media_control),
-              resources.getString(R.string.shortcut_value_media_control_or_voice_input),
-              TYPE_ACTION_ITEM));
-
-      if (FeatureFlagReader.enableVoiceDictationShortcut(getContext())) {
-        builder.add(
-            new ActionItem(
-                resources.getString(R.string.shortcut_media_control),
-                resources.getString(R.string.shortcut_value_media_control),
-                TYPE_ACTION_ITEM));
-      }
-    }
-
-    if (FeatureFlagReader.enableVoiceDictationShortcut(getContext())) {
-      builder.add(
-          new ActionItem(
-              resources.getString(R.string.shortcut_voice_input),
-              resources.getString(R.string.shortcut_value_voice_input),
+              resources.getString(R.string.shortcut_media_control),
+              resources.getString(R.string.shortcut_value_media_control),
               TYPE_ACTION_ITEM));
     }
 
@@ -1106,8 +1077,6 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
               TYPE_ACTION_ITEM));
     }
 
-    builder.add(new ActionItem(resources.getString(R.string.shortcut_read_current_time),
-        resources.getString(R.string.shortcut_value_read_current_time), TYPE_ACTION_ITEM));
     builder.add(new ActionItem(resources.getString(R.string.shortcut_read_current_location),
         resources.getString(R.string.shortcut_value_read_current_location), TYPE_ACTION_ITEM));
     builder.add(
