@@ -48,6 +48,7 @@ object VolumeKeyManager {
   private const val HOLD_MS = 500L
   private const val CHORD_MS = 150L
   private const val MULTI_PRESS_MS = 400L
+  private const val SLIDER_JUMP_MS = 2000L
 
   private val handler = Handler(Looper.getMainLooper())
   private val upPress = Press(true)
@@ -59,6 +60,7 @@ object VolumeKeyManager {
     var aborted = false
     var holdFired = false
     var singleFired = false
+    var jumpFired = false
     var locked = false
     var touching = false
     var speechVolume = false
@@ -69,6 +71,7 @@ object VolumeKeyManager {
     var holdAction = ACTION_UNASSIGNED
     var holdRunnable: Runnable? = null
     var tapRunnable: Runnable? = null
+    var jumpRunnable: Runnable? = null
     var tapCount = 0
   }
 
@@ -113,6 +116,7 @@ object VolumeKeyManager {
     press.aborted = false
     press.holdFired = false
     press.singleFired = false
+    press.jumpFired = false
     press.locked = isKeyguardLocked(service)
     press.touching = service.isTouchInteracting()
     press.speechVolume = service.shouldAdjustSpeechVolumeWhileSpeaking()
@@ -152,6 +156,21 @@ object VolumeKeyManager {
     press.holdRunnable = runnable
     handler.postDelayed(runnable,
       if (press.multi || press.holdAction != ACTION_UNASSIGNED) HOLD_MS else CHORD_MS)
+    // While the focus is on a slider and this press adjusts it, a two-second hold jumps
+    // the slider to its maximum (volume up) or minimum (volume down) instead of stepping
+    // it. Only armed when no hold action is assigned: with one, the hold runs that
+    // action and this press never adjusts the slider.
+    if (press.pressUse == TalkBackService.VOLUME_KEY_ADJUSTS_SLIDER
+      && press.holdAction == ACTION_UNASSIGNED) {
+      val jumpRunnable = Runnable {
+        if (press.active && !press.aborted && !press.jumpFired) {
+          press.jumpFired = true
+          service.jumpSliderToEdge(press.isUp)
+        }
+      }
+      press.jumpRunnable = jumpRunnable
+      handler.postDelayed(jumpRunnable, SLIDER_JUMP_MS)
+    }
     return true
   }
 
@@ -162,7 +181,8 @@ object VolumeKeyManager {
     if (!press.aborted) {
       if (press.holdFired && press.holdAction == contextualAction(press.isUp)) {
         runAction(service, press.holdAction, press.touching, press.speechVolume)
-      } else if ((press.singleFired || press.holdFired) && press.holdAction == ACTION_UNASSIGNED) {
+      } else if ((press.singleFired || press.holdFired) && press.holdAction == ACTION_UNASSIGNED
+        && !press.jumpFired) {
         runPressAction(press, repeating = true)
       }
     }
@@ -175,6 +195,8 @@ object VolumeKeyManager {
     if (cancelled || service == null || contextChanged(service, press)) abort(press)
     press.holdRunnable?.let(handler::removeCallbacks)
     press.holdRunnable = null
+    press.jumpRunnable?.let(handler::removeCallbacks)
+    press.jumpRunnable = null
     press.active = false
     if (!press.aborted && !press.holdFired && !press.singleFired) {
       if (press.multi) {
@@ -248,6 +270,8 @@ object VolumeKeyManager {
     press.aborted = true
     press.holdRunnable?.let(handler::removeCallbacks)
     press.holdRunnable = null
+    press.jumpRunnable?.let(handler::removeCallbacks)
+    press.jumpRunnable = null
     clearTaps(press)
   }
 
