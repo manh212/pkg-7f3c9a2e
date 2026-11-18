@@ -477,6 +477,56 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun periodExpandsShortcut() {
+    saveShortcuts(mapOf("as" to "Một câu"))
+    startEditor()
+    press("a")
+    press("sờ")
+    assertEquals("Á", text.toString())
+    press("Dấu chấm")
+
+    assertEquals("Một câu.", text.toString())
+  }
+
+  @Test
+  fun commaExpandsShortcut() {
+    saveShortcuts(mapOf("as" to "Một câu"))
+    startEditor()
+    press("a")
+    press("sờ")
+    assertEquals("Á", text.toString())
+    press("Dấu phẩy")
+
+    assertEquals("Một câu,", text.toString())
+  }
+
+  @Test
+  fun questionMarkExpandsShortcut() {
+    saveShortcuts(mapOf("as" to "Một câu"))
+    startEditor()
+    press("a")
+    press("sờ")
+    assertEquals("Á", text.toString())
+    press("Số và ký hiệu")
+    press("Dấu chấm hỏi")
+
+    assertEquals("Một câu?", text.toString())
+  }
+
+  @Test
+  fun periodAfterNonShortcutWordDoesNotExpand() {
+    saveShortcuts(mapOf("as" to "Một câu"))
+    startEditor()
+    press("ích")
+    press("i")
+    press("nờ")
+    assertEquals("Xin", text.toString())
+    press("Dấu chấm")
+
+    assertEquals("Xin.", text.toString())
+  }
+
+  @Test
   fun hardwareSpaceExpandsACommittedCaseSensitiveShortcutInEnglish() {
     setKeyboardSwitch(R.string.pref_vietnamese_keyboard_show_language_key, true)
     saveShortcuts(mapOf("VN" to "Việt Nam", "vn" to "văn nghệ"))
@@ -489,6 +539,22 @@ class VietnameseKeyboardServiceTest {
     assertTrue(service.onKeyDown(space, physicalKey(KeyEvent.ACTION_DOWN, space)))
     assertTrue(service.onKeyUp(space, physicalKey(KeyEvent.ACTION_UP, space)))
     assertEquals("Xin Việt Nam ", text.toString())
+    assertEquals(text.length, Selection.getSelectionEnd(text))
+  }
+
+  @Test
+  fun hardwarePeriodExpandsACommittedCaseSensitiveShortcutInEnglish() {
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_show_language_key, true)
+    saveShortcuts(mapOf("VN" to "Việt Nam", "vn" to "văn nghệ"))
+    startEditor()
+    press("Chuyển sang gõ tiếng Anh")
+    text.append("Xin VN")
+    Selection.setSelection(text, text.length)
+    val period = KeyEvent.KEYCODE_PERIOD
+
+    assertTrue(service.onKeyDown(period, physicalKey(KeyEvent.ACTION_DOWN, period)))
+    assertTrue(service.onKeyUp(period, physicalKey(KeyEvent.ACTION_UP, period)))
+    assertEquals("Xin Việt Nam.", text.toString())
     assertEquals(text.length, Selection.getSelectionEnd(text))
   }
 
