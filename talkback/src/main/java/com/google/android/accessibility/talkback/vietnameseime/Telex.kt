@@ -110,7 +110,11 @@ internal object Telex {
   }
 
   private fun replaceShape(word: String, lower: String, key: Char, plain: Char, shaped: Char, tone: Int): String? {
-    if (tone >= 0) return null
+    // A tone already on the word normally blocks reshaping, so a vowel key
+    // after a toned word appends instead (e.g. "só" + "o" stays "sóo").
+    // But a lone toned vowel has no other vowel to confuse it with, so the
+    // key reshapes it and the tone carries over (e.g. "ò" + "o" becomes "ồ").
+    if (tone >= 0 && word.length != 1) return null
     val index = lower.indexOfLast { it == plain || it == shaped }
     if (index < 0 || index != word.lastIndex) return null
     return if (lower[index] == shaped) replace(word, index, plain) + key
