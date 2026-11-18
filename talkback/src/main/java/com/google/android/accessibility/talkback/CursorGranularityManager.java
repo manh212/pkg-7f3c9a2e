@@ -726,6 +726,18 @@ public class CursorGranularityManager {
   }
 
   /**
+   * Whether the node is an editable text field that currently has input focus. Mirrors the
+   * editing check {@link #navigate(int, EventId)} uses: the framework moves such a field's
+   * cursor by granularity, so it supports the micro granularities even when it reports
+   * no movement granularities of its own.
+   */
+  private static boolean isFocusedEditText(AccessibilityNodeInfoCompat node) {
+    return node != null
+        && (node.isEditable() || Role.getRole(node) == Role.ROLE_EDIT_TEXT)
+        && node.isFocused();
+  }
+
+  /**
    * Search for granularity-traversable nodes under <strong>node description tree</strong> of {@code
    * root}.
    *
@@ -765,6 +777,20 @@ public class CursorGranularityManager {
         supportedGranularities |=
             AccessibilityNodeInfoCompat.MOVEMENT_GRANULARITY_LINE;
       }
+    } else if (isFocusedEditText(root)) {
+      // A focused edit field moves its cursor by character, word, line and paragraph
+      // through the framework's movement actions, even when it reports no movement
+      // granularities — an empty field reports none. Without this, the reading control
+      // cannot be set to a character granularity on an empty field, and it stays at
+      // DEFAULT while the user types, so moving to the next letter reads nothing.
+      if (nodes != null) {
+        nodes.add(root);
+      }
+      supportedGranularities |=
+          AccessibilityNodeInfoCompat.MOVEMENT_GRANULARITY_CHARACTER
+              | AccessibilityNodeInfoCompat.MOVEMENT_GRANULARITY_WORD
+              | AccessibilityNodeInfoCompat.MOVEMENT_GRANULARITY_LINE
+              | AccessibilityNodeInfoCompat.MOVEMENT_GRANULARITY_PARAGRAPH;
     }
 
     if (!TextUtils.isEmpty(root.getContentDescription())) {
