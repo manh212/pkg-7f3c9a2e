@@ -2109,11 +2109,56 @@ public class TalkBackService extends AccessibilityServiceCompat
    * #resolveVolumeKeyUse(boolean)} uses to decide VOLUME_KEY_ADJUSTS_SLIDER, so the guard and the
    * resolution agree: on a slider the volume keys adjust the slider, never the volume — even
    * when the speech-volume option is on, and even on a quick second press while the slider's
-   * spoken value is still playing.
+   * spoken value is still playing. The gesture controller uses the same check to open the
+   * set-value dialog instead of toggling playback when the play/pause gesture is performed
+   * on a slider.
    */
-  private boolean isSliderFocused() {
+  public boolean isSliderFocused() {
     return Role.getRole(accessibilityFocusMonitor.getSupportedAdjustableNode())
         == Role.ROLE_SEEK_CONTROL;
+  }
+
+  /**
+   * Sets the focused slider to the given percent of its range (0-100) and speaks the new
+   * percent. Values outside the range are clamped. Used by the slider-value dialog and by
+   * the hold-to-edge volume-key jump. The value is set with ACTION_SET_PROGRESS, the same
+   * mechanism the smart-context gestures use for sliders that do not expose scroll actions.
+   */
+  public void setSliderToPercent(int percent) {
+    AccessibilityNodeInfoCompat node =
+        accessibilityFocusMonitor.getSupportedAdjustableNode();
+    if (node == null || Role.getRole(node) != Role.ROLE_SEEK_CONTROL) {
+      return;
+    }
+    AccessibilityNodeInfoCompat.RangeInfoCompat range = node.getRangeInfo();
+    if (range == null || !(range.getMax() > range.getMin())) {
+      return;
+    }
+    int clamped = Math.max(0, Math.min(100, percent));
+    float target = range.getMin() + (range.getMax() - range.getMin()) * clamped / 100f;
+    Bundle args = new Bundle();
+    args.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, target);
+    boolean set =
+        node.performAction(
+            AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(), args);
+    if (set) {
+      pipeline
+          .getFeedbackReturner()
+          .returnFeedback(
+              EVENT_ID_UNTRACKED,
+              Feedback.speech(
+                  getString(R.string.template_seekbar_range, clamped),
+                  SpeakOptions.create()));
+    }
+  }
+
+  /**
+   * Sets the focused slider to its maximum (volume up held) or minimum (volume down held).
+   * Only called by the volume-key manager, which arms it for a two-second hold while the
+   * focus is on a slider.
+   */
+  public void jumpSliderToEdge(boolean isUp) {
+    setSliderToPercent(isUp ? 100 : 0);
   }
 
   public void adjustSpeechVolumeWhileSpeaking(boolean increase) {
