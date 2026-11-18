@@ -63,8 +63,10 @@ object VolumeKeyManager {
   private const val CHORD_MS = 150L
   private const val MULTI_PRESS_MS = 400L
   private const val SLIDER_JUMP_MS = 2000L
+  private const val HOLD_WAKE_LOCK_TIMEOUT_MS = 10_000L
 
   private val handler = Handler(Looper.getMainLooper())
+  private var holdWakeLock: PowerManager.WakeLock? = null
   private val upPress = Press(true)
   private val downPress = Press(false)
 
@@ -81,6 +83,7 @@ object VolumeKeyManager {
     var shortArmed = false
     var shortFired = false
     var longFired = false
+    var wakeLockHeld = false
     var locked = false
     var screenOff = false
     var touching = false
@@ -170,6 +173,16 @@ object VolumeKeyManager {
     press.longHoldAction = if (press.managed) {
       prefs.getString(longHoldKey(press.isUp, state), ACTION_UNASSIGNED) ?: ACTION_UNASSIGNED
     } else ACTION_UNASSIGNED
+    // With the screen off the device can sleep, and a plain Handler.postDelayed
+    // timer would not fire, so a hold assigned for the screen-off state would
+    // never run. Hold a partial wake lock (CPU awake, screen stays off) while
+    // a hold is armed so the hold timer can fire.
+    if (press.screenOff
+      && (press.shortHoldAction != ACTION_UNASSIGNED
+        || press.longHoldAction != ACTION_UNASSIGNED)) {
+      acquireHoldWakeLock(service)
+      press.wakeLockHeld = true
+    }
     press.pressAction = if (press.managed) {
       prefs.getString(pressKey(press.isUp, state), defaultPressAction(press.isUp))
         ?: defaultPressAction(press.isUp)
@@ -301,6 +314,7 @@ object VolumeKeyManager {
         }
       } else runPressAction(press)
     }
+    releaseHoldWakeLock(press)
     return true
   }
 
@@ -371,6 +385,7 @@ object VolumeKeyManager {
 
   private fun abort(press: Press) {
     press.aborted = true
+    releaseHoldWakeLock(press)
     press.pressRunnable?.let(handler::removeCallbacks)
     press.pressRunnable = null
     press.shortHoldRunnable?.let(handler::removeCallbacks)
@@ -380,6 +395,23 @@ object VolumeKeyManager {
     press.jumpRunnable?.let(handler::removeCallbacks)
     press.jumpRunnable = null
     clearTaps(press)
+  }
+
+  private fun acquireHoldWakeLock(service: TalkBackService) {
+    if (holdWakeLock == null) {
+      holdWakeLock = service.getSystemService(PowerManager::class.java)
+        ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Meridian:VolumeKeyHold")
+    }
+    // Reference-counted: each acquire is balanced by one release in
+    // releaseHoldWakeLock. The timeout is a safety net so a missed release
+    // can never hold the CPU awake indefinitely.
+    holdWakeLock?.acquire(HOLD_WAKE_LOCK_TIMEOUT_MS)
+  }
+
+  private fun releaseHoldWakeLock(press: Press) {
+    if (!press.wakeLockHeld) return
+    press.wakeLockHeld = false
+    holdWakeLock?.let { if (it.isHeld) it.release() }
   }
 
   @JvmStatic
