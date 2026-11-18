@@ -733,6 +733,10 @@ public class GestureController {
             pipeline.returnFeedback(
                 eventId, Feedback.systemAction(GLOBAL_ACTION_KEYCODE_HEADSETHOOK));
       }
+    } else if (action.equals(service.getString(R.string.shortcut_value_smart_context_gesture_1))) {
+      SmartContextGestures.perform(service, /* down= */ false);
+    } else if (action.equals(service.getString(R.string.shortcut_value_smart_context_gesture_2))) {
+      SmartContextGestures.perform(service, /* down= */ true);
     } else if (action.equals(service.getString(R.string.shortcut_value_full_screen_monitor))) {
       speak(service.getString(
           FullScreenMonitor.toggle(service)
