@@ -137,7 +137,7 @@ final class EdgeGestureInput {
           prefs.getInt(EdgeGesture.DISTANCE, EdgeGesture.DEFAULT_DISTANCE_DP)));
       return new EdgeGestureTracker.Area(
           bounds.left + safe.left, bounds.top + safe.top,
-          bounds.right - safe.right, bounds.bottom - safe.bottom,
+          bounds.right - safe.right, bounds.bottom, bounds.bottom - safe.bottom,
           width * density, distance * density);
     } catch (RuntimeException error) {
       LogUtils.w("EdgeGestureInput", "Could not determine gesture area: %s", error);

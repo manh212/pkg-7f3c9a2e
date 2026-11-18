@@ -5,7 +5,8 @@ import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture.Di
 import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture.Edge;
 
 final class EdgeGestureTracker {
-  record Area(float left, float top, float right, float bottom, float width, float distance) {}
+  record Area(float left, float top, float right, float bottom, float sideBottom,
+      float width, float distance) {}
 
   private static final float DIRECTION_RATIO = 1.5f;
   private static final long STEP_INTERVAL_MS = 65;
@@ -32,10 +33,10 @@ final class EdgeGestureTracker {
     if (x < area.left || x >= area.right || y < area.top || y >= area.bottom) {
       return null;
     }
-    if (area.bottom - y <= area.width) {
+    if (y >= area.sideBottom - area.width) {
       return new EdgeGestureTracker(area, Edge.BOTTOM, zone(x, area.left, area.right), x, y);
     }
-    int zone = zone(y, area.top, area.bottom);
+    int zone = zone(y, area.top, area.sideBottom);
     if (x - area.left <= area.width) {
       return new EdgeGestureTracker(area, Edge.LEFT, zone, x, y);
     }

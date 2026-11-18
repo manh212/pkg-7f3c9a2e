@@ -46,6 +46,7 @@ import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.Role
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.input.ImeEditFeedback
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -54,7 +55,7 @@ import java.util.concurrent.Executors
 
 /**
  * Dictate: types what the user says into the focused text field. The gesture starts recording and
- * the same gesture stops it; nothing stops it in between. The speech is then recognized as
+ * the same gesture stops it. The speech is then recognized as
  * Dictation settings say: by Rambler (Gemini API), Zipformer on the phone, or Android's speech
  * recognition. When Correct dictation with AI is on, the AI service chosen for dictation
  * cleans up the text as Gboard's Rambler does before it is typed: filler words, false starts and
@@ -120,6 +121,7 @@ class AiDictation(
 
   private var onText: ((String?) -> Unit)? = null
   private var offlineTask = false
+  private var keyboardDictation = false
 
   init {
     SandflyDictation.instance = this
@@ -200,23 +202,30 @@ class AiDictation(
       speak(service.getString(R.string.dictation_unavailable))
       return false
     }
-    field = target
+    field = AccessibilityNodeInfoCompat.obtain(target)
     phase = Phase.RECORDING
+    service.updateDictationDoubleTapFlag()
     pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_up))
     // Speech would be recorded with the user's.
     speechSilenced = pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.speech(SILENCE))
     return true
   }
 
-  fun listen(callback: (String?) -> Unit): Boolean = listen(false, callback)
+  fun listen(callback: (String?) -> Unit): Boolean = listen(false, false, callback)
 
-  fun listenOfflineTask(callback: (String?) -> Unit): Boolean = listen(true, callback)
+  fun listenKeyboard(callback: (String?) -> Unit): Boolean = listen(false, true, callback)
+
+  fun listenOfflineTask(callback: (String?) -> Unit): Boolean = listen(true, false, callback)
 
   fun cancelOfflineTask() {
     if (offlineTask) cancelListening()
   }
 
-  private fun listen(task: Boolean, callback: (String?) -> Unit): Boolean {
+  private fun listen(
+    task: Boolean,
+    keyboard: Boolean,
+    callback: (String?) -> Unit,
+  ): Boolean {
     if (!com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.allows(service, "dictation")) {
       callback(null)
       return false
@@ -224,7 +233,7 @@ class AiDictation(
     if (phase != Phase.IDLE) {
       // A dictation into a field goes on; an earlier listen stops. Either way this caller is
       // answered, or it would wait for good.
-      if (!task && !offlineTask && onText != null) start(null)
+      if (!task && !offlineTask && keyboard == keyboardDictation && onText != null) start(null)
       callback(null)
       return false
     }
@@ -240,16 +249,19 @@ class AiDictation(
     translateMode = false
     onText = callback
     offlineTask = task
+    keyboardDictation = keyboard
     val engine = if (task) Recognition.ZIPFORMER else DictationSettings.effectiveRecognition(service, prefs)
     if (!startRecording(engine)) {
       onText = null
       offlineTask = false
+      keyboardDictation = false
       handler.removeCallbacks(autoStop)
       speak(service.getString(R.string.dictation_unavailable))
       callback(null)
       return false
     }
     phase = Phase.RECORDING
+    if (keyboardDictation) service.updateDictationDoubleTapFlag()
     pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_up))
     speechSilenced = pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.speech(SILENCE))
     return true
@@ -257,6 +269,15 @@ class AiDictation(
 
   val isListening: Boolean
     get() = phase != Phase.IDLE && onText != null
+
+  val isTextRecording: Boolean
+    get() = phase == Phase.RECORDING && (field != null || keyboardDictation)
+
+  fun stopTextRecording(): Boolean {
+    if (!isTextRecording) return false
+    stopRecording()
+    return true
+  }
 
   /**
    * A dictated password stays on the phone, so Rambler, which sends the audio to Gemini, isn't used
@@ -292,6 +313,7 @@ class AiDictation(
               continuous = null
               LogUtils.d(TAG, "Recording stopped: reason=recognizer_completed, elapsedMs=%d, lastSpeechAt=%d", SystemClock.elapsedRealtime() - recordingStartedAt, lastSpeechAt)
               phase = Phase.WORKING
+              service.updateDictationDoubleTapFlag()
               handler.removeCallbacks(autoStop)
               restoreSpeech()
               recognized(text, cleaned = false)
@@ -348,6 +370,7 @@ class AiDictation(
     LogUtils.d(TAG, "Recording stopped: reason=%s, elapsedMs=%d, silentMs=%d, lastSpeechAt=%d, engine=%s", reason, now - recordingStartedAt, now - lastSpeechAt, lastSpeechAt, recognition)
     handler.removeCallbacks(autoStop)
     phase = Phase.WORKING
+    service.updateDictationDoubleTapFlag()
     restoreSpeech()
     pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_down))
     continuous?.let {
@@ -519,7 +542,7 @@ class AiDictation(
         field = null
         speak(service.getString(R.string.dictation_translation_failed))
       } else {
-        speak(service.getString(R.string.dictation_not_corrected))
+        if (target == null && !keyboardDictation) speak(service.getString(R.string.dictation_not_corrected))
         type(target, heard)
       }
     }
@@ -567,7 +590,7 @@ class AiDictation(
           field = null
           speak(service.getString(R.string.dictation_translation_failed))
         } else {
-          speak(service.getString(R.string.dictation_not_corrected))
+          if (target == null && !keyboardDictation) speak(service.getString(R.string.dictation_not_corrected))
           type(target, heard)
         }
       }
@@ -618,6 +641,7 @@ class AiDictation(
     // For the next dictation: a language pack downloaded since the last one is used from then on.
     if (phase != Phase.IDLE && !offlineTask) GoogleSpeechLanguages.refresh(service)
     phase = Phase.IDLE
+    service.updateDictationDoubleTapFlag()
     translateMode = false
     giveUp = null
     tones.stop()
@@ -665,6 +689,7 @@ class AiDictation(
     val callback = onText ?: return
     onText = null
     offlineTask = false
+    keyboardDictation = false
     callback(text)
   }
 
@@ -681,14 +706,20 @@ class AiDictation(
       return
     }
     if (text.isEmpty()) return
-    if (
-      !target.refresh() ||
-        !pipeline.returnFeedback(
-          EVENT_ID_UNTRACKED,
-          Feedback.edit(target, INSERT)
-            .setText(spaced(textBeforeCursor(target), text, textAfterCursor(target))),
-        )
-    ) {
+    if (!target.refresh() || !target.isVisibleToUser || !target.isEnabled || !target.isEditable) {
+      speak(service.getString(R.string.dictation_field_gone))
+      return
+    }
+    ImeEditFeedback.recordDictationEdit(target.unwrap())
+    val inserted = pipeline.returnFeedback(
+      EVENT_ID_UNTRACKED,
+      Feedback.edit(target, INSERT)
+        .setText(spaced(textBeforeCursor(target), text, textAfterCursor(target))),
+    )
+    if (inserted) {
+      service.focusDictationEditor(target)
+      if (!target.isPassword) speak(text)
+    } else {
       speak(service.getString(R.string.dictation_field_gone))
     }
   }

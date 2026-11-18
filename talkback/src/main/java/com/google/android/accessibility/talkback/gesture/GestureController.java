@@ -705,20 +705,22 @@ public class GestureController {
             });
       }
     } else if (action.equals(service.getString(R.string.shortcut_value_translate_dictation))) {
-      result = dictation.startTranslation(findEditorTarget());
+      result = dictation.stopTextRecording() || dictation.startTranslation(findEditorTarget());
     } else if (action.equals(service.getString(R.string.shortcut_value_voice_input))) {
-      AccessibilityNodeInfoCompat editor = findEditorTarget();
-      result = FeatureFlagReader.enableVoiceDictationShortcut(service)
-          && editor != null
-          && pipeline.returnFeedback(eventId, Feedback.edit(editor, TOGGLE_VOICE_DICTATION));
+      result = dictation.stopTextRecording();
       if (!result) {
-        result = dictation.start(editor);
+        AccessibilityNodeInfoCompat editor = findEditorTarget();
+        result = (FeatureFlagReader.enableVoiceDictationShortcut(service)
+                && editor != null
+                && pipeline.returnFeedback(eventId, Feedback.edit(editor, TOGGLE_VOICE_DICTATION)))
+            || dictation.start(editor);
       }
     } else if (action.equals(
         service.getString(R.string.shortcut_value_media_control_or_voice_input))) {
       result = false;
       if (!service.isPhoneCallActive()) {
-        AccessibilityNodeInfoCompat editor = findEditorTarget();
+        result = dictation.stopTextRecording();
+        AccessibilityNodeInfoCompat editor = result ? null : findEditorTarget();
         if (editor != null) {
           result = FeatureFlagReader.enableVoiceDictationShortcut(service)
               && pipeline.returnFeedback(eventId, Feedback.edit(editor, TOGGLE_VOICE_DICTATION));
@@ -1030,13 +1032,16 @@ public class GestureController {
     } else if (action.equals(service.getString(R.string.shortcut_value_switch_speech_stream))) {
       selectorController.cycleSpeechStream(eventId, true);
     } else if (action.equals(service.getString(R.string.shortcut_value_dictate))) {
-      AccessibilityNodeInfoCompat target =
-          fromCustomMenu && menuTarget != null
-                  && Role.getRole(menuTarget) == Role.ROLE_EDIT_TEXT
-                  && menuTarget.isEditable()
-              ? menuTarget
-              : findEditorTarget();
-      result = dictation.start(target);
+      result = dictation.stopTextRecording();
+      if (!result) {
+        AccessibilityNodeInfoCompat target =
+            fromCustomMenu && menuTarget != null
+                    && Role.getRole(menuTarget) == Role.ROLE_EDIT_TEXT
+                    && menuTarget.isEditable()
+                ? menuTarget
+                : findEditorTarget();
+        result = dictation.start(target);
+      }
     } else if (action.equals(service.getString(R.string.shortcut_value_clear_selection))) {
       AccessibilityNodeInfoCompat node =
           accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ true);

@@ -999,19 +999,21 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun micInsertsDictatedTextAndDropsComposingWord() {
-    setEcho(PREF_ECHO_WORDS)
+  fun micReadsNewTextWithKeyboardEchoOffAndDropsComposingWord() {
+    setEcho(PREF_ECHO_NONE)
+    text.append("Đoạn cũ. ")
+    Selection.setSelection(text, text.length)
     enableMicWithFakeDictation()
-    startEditor()
+    startEditor { initialSelStart = text.length; initialSelEnd = text.length }
     press("a")
     press("a")
     press("sờ")
-    assertEquals("Ấ", text.toString())
+    assertEquals("Đoạn cũ. Ấ", text.toString())
     press(micLabel())
     val callback = checkNotNull(dictatedCallback)
     callback("xin chào")
 
-    assertEquals("xin chào", text.toString())
+    assertEquals("Đoạn cũ. xin chào", text.toString())
     assertEquals(1, commits)
     assertEquals("xin chào", spoken.last())
   }

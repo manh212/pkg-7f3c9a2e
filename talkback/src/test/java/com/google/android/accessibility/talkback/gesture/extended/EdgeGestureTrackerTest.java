@@ -11,7 +11,7 @@ import org.junit.Test;
 
 public class EdgeGestureTrackerTest {
   private static final EdgeGestureTracker.Area AREA =
-      new EdgeGestureTracker.Area(0, 24, 360, 736, 24, 32);
+      new EdgeGestureTracker.Area(0, 24, 360, 800, 736, 24, 32);
 
   @Test
   public void detectsAllTwentyThreeGestures() {
@@ -34,12 +34,18 @@ public class EdgeGestureTrackerTest {
 
   @Test
   public void outsideInsetsAndOrdinaryTouchesDoNotMatch() {
-    assertNull(EdgeGestureTracker.start(AREA, 90, 755));
+    assertNull(EdgeGestureTracker.start(AREA, 90, 800));
     assertNull(EdgeGestureTracker.start(AREA, 90, 12));
     assertNull(EdgeGestureTracker.start(AREA, 180, 420));
     assertNull(match(4, 140, 25, 140));
     assertNull(match(4, 140, 68, 200));
     assertNull(match(90, 728, 150, 728));
+  }
+
+  @Test
+  public void detectsBottomSwipesFromTheLastScreenRow() {
+    assertEquals(EdgeGesture.BOTTOM_SWIPE_RIGHT, match(60, 799, 138, 799));
+    assertEquals(EdgeGesture.BOTTOM_MIDDLE_UP, match(180, 799, 180, 759));
   }
 
   @Test

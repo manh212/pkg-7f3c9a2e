@@ -38,6 +38,22 @@ object SandflyDictation {
     return dictation.listen(onText)
   }
 
+  @JvmStatic
+  val isTextRecording: Boolean
+    get() = instance?.isTextRecording == true
+
+  @JvmStatic
+  fun stopTextRecording(): Boolean = instance?.stopTextRecording() == true
+
+  fun listenKeyboard(onText: (String?) -> Unit): Boolean {
+    val dictation = instance
+    if (dictation == null) {
+      onText(null)
+      return false
+    }
+    return dictation.listenKeyboard(onText)
+  }
+
   fun listenOfflineTask(onText: (String?) -> Unit) {
     val dictation = instance
     if (dictation == null) onText(null) else dictation.listenOfflineTask(onText)

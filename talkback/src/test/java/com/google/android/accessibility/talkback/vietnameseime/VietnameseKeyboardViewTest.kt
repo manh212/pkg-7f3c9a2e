@@ -37,12 +37,33 @@ class VietnameseKeyboardViewTest {
   private var directKeyDowns = 0
   private var released = 0
   private var micStops = 0
+  private var recording = false
+  private var dictationStops = 0
   private val keyboard = VietnameseKeyboardView(
     context, { spoken.add(it) }, { id, _ -> typed.add(id) }, { released++ },
     micStop = { micStops++ },
+    isTextRecording = { recording },
+    stopTextRecording = {
+      recording = false
+      dictationStops++
+    },
     onDirectKeyTouchDown = { directKeyDowns++ },
   ).apply {
     timing = VietnameseKeyboardTiming(directInputMs = 0)
+  }
+
+  @Test
+  fun doubleTapWhileRecordingStopsWithoutTypingKeys() {
+    prepareKeyboard()
+    recording = true
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 125)
+    assertEquals(0, dictationStops)
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 190)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 215)
+    assertEquals(1, dictationStops)
+    assertTrue(typed.isEmpty())
   }
 
   @Test

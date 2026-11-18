@@ -238,6 +238,7 @@ public class TextEventFilter {
           textEventHistory.setLastTextChangeTime(event.getEventTime());
           textEventHistory.setLastTextChangePackageName(event.getPackageName());
           if (readKeyboardEcho(event) == PREF_ECHO_SILENT_TYPING
+              || ImeEditFeedback.ownsDictationFeedback(event)
               || (getTypingInput(event.getEventTime()) != TypingInput.PHYSICAL_KEYBOARD
                   && ImeEditFeedback.ownsEditFeedback(event))) {
             return;
@@ -272,6 +273,10 @@ public class TextEventFilter {
           if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
             textEventHistory.setLastFromIndex(event.getFromIndex());
             textEventHistory.setLastToIndex(event.getToIndex());
+          }
+          if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED
+              && ImeEditFeedback.ownsDictationFeedback(event)) {
+            return;
           }
           if ((event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)
               && (voiceActionDelegate != null)

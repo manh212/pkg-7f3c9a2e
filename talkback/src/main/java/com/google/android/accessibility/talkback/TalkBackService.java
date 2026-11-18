@@ -238,6 +238,8 @@ import com.google.android.accessibility.talkback.notifications.NotificationSetti
 import com.google.android.accessibility.talkback.speechdictionary.SpeechDictionary;
 import com.google.android.accessibility.talkback.gesture.AppGestures;
 import com.google.android.accessibility.talkback.gesture.GestureProfiles;
+import com.google.android.accessibility.talkback.dictation.SandflyDictation;
+import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
 import com.google.android.accessibility.talkback.pause.PauseController;
 import com.google.android.accessibility.talkback.report.VerboseDiagnosticsLogger;
 import com.google.android.accessibility.talkback.quicksettings.SystemPanelClicker;
@@ -2204,6 +2206,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (backgroundEventGate != null) {
       backgroundEventGate.onUserInput();
     }
+    if (gestureId == GESTURE_DOUBLE_TAP && isServiceActive() && !PauseController.isPaused()
+        && SandflyDictation.stopTextRecording()) {
+      return true;
+    }
     if (com.google.android.accessibility.talkback.taskassistant.TaskAssistant.onGesture()) {
       return true;
     }
@@ -3492,7 +3498,7 @@ public class TalkBackService extends AccessibilityServiceCompat
             OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this),
             FeatureFlagReader.enableReadCurrentUrl(this));
     if ((info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0
-        && (editBoxHandlesDoubleTap || selectorHandlesDoubleTap)) {
+        && shouldHandleDoubleTap()) {
       info.flags |= FLAG_SERVICE_HANDLES_DOUBLE_TAP;
     }
     info.notificationTimeout = 0;
@@ -4745,14 +4751,34 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (editBoxHandlesDoubleTap == enabled) return;
     editBoxHandlesDoubleTap = enabled;
     editBoxKeyboardVisible = enabled && AccessibilityServiceCompatUtils.isInputWindowOnScreen(this);
-    applyRequestedServiceFlag(
-        FLAG_SERVICE_HANDLES_DOUBLE_TAP, editBoxHandlesDoubleTap || selectorHandlesDoubleTap);
+    updateDictationDoubleTapFlag();
+  }
+
+  private boolean shouldHandleDoubleTap() {
+    return editBoxHandlesDoubleTap || selectorHandlesDoubleTap || SandflyDictation.isTextRecording();
+  }
+
+  public void updateDictationDoubleTapFlag() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && isServiceActive()
+        && !PauseController.isPaused()) {
+      applyRequestedServiceFlag(FLAG_SERVICE_HANDLES_DOUBLE_TAP, shouldHandleDoubleTap());
+    }
+  }
+
+  public void focusDictationEditor(AccessibilityNodeInfoCompat target) {
+    if (pipeline == null || !isServiceActive() || PauseController.isPaused()
+        || !target.refresh() || !target.isVisibleToUser() || target.isAccessibilityFocused()) {
+      return;
+    }
+    pipeline.getFeedbackReturner().returnFeedback(
+        EVENT_ID_UNTRACKED,
+        Feedback.focus(target, FocusActionInfo.builder().setForceMuteFeedback(true).build()));
   }
 
   private void requestServiceFlag(int flags, boolean newValue) {
     if (flags == FLAG_SERVICE_HANDLES_DOUBLE_TAP) {
       selectorHandlesDoubleTap = newValue;
-      newValue = editBoxHandlesDoubleTap || selectorHandlesDoubleTap;
+      newValue = shouldHandleDoubleTap();
     }
     applyRequestedServiceFlag(flags, newValue);
   }

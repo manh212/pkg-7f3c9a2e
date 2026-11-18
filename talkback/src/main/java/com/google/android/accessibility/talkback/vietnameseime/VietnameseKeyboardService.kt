@@ -53,6 +53,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private lateinit var prefs: SharedPreferences
   private var keyboard: VietnameseKeyboardView? = null
   private var editor: EditorInfo? = null
+  private var inputGeneration = 0
   private var word = ""
   private var wordTruncated = false
   private var composing = false
@@ -95,7 +96,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private var vibrateIntensityPercent: Int = 100
   private var dictating = false
   internal var dictationAvailable: () -> Boolean = { SandflyDictation.isAvailable }
-  internal var dictationListen: ((String?) -> Unit) -> Boolean = SandflyDictation::listen
+  internal var dictationListen: ((String?) -> Unit) -> Boolean = SandflyDictation::listenKeyboard
   internal var dictationStop: () -> Unit = SandflyDictation::stop
   private val keyNames by lazy { VietnameseKeyNames(this) }
   private val main = Handler(Looper.getMainLooper())
@@ -168,6 +169,7 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   override fun onDestroy() {
+    inputGeneration++
     prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
     windowShown = false
     observeReaderSpeech(null)
@@ -186,6 +188,8 @@ class VietnameseKeyboardService : InputMethodService() {
       keyName = keyNames::spokenName,
       reportBounds = ::reportKeyboardBounds,
       micStop = ::stopMicDictation,
+      isTextRecording = { SandflyDictation.isTextRecording },
+      stopTextRecording = { SandflyDictation.stopTextRecording() },
       onDirectKeyTouchDown = { TalkBackService.getInstance()?.onDirectKeyboardTouchDown() },
     )
     keyboard = view
@@ -228,6 +232,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
     super.onStartInput(attribute, restarting)
+    inputGeneration++
     endTouchSession()
     if (restarting && composing) {
       finishWord(currentInputConnection)
@@ -349,6 +354,7 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   override fun onFinishInput() {
+    inputGeneration++
     endTouchSession()
     resetWord()
     editor = null
@@ -629,7 +635,9 @@ class VietnameseKeyboardService : InputMethodService() {
       keySpeech.confirm(getString(R.string.dictation_unavailable), 0)
       return false
     }
-    if (!dictationListen(::onDictatedText)) {
+    val generation = inputGeneration
+    val target = findDictationEditor()
+    if (!dictationListen { text -> onDictatedText(text, generation, target) }) {
       keySpeech.confirm(getString(R.string.dictation_unavailable), 0)
       return false
     }
@@ -644,17 +652,28 @@ class VietnameseKeyboardService : InputMethodService() {
     dictationStop()
   }
 
-  private fun onDictatedText(text: String?) {
+  private fun onDictatedText(text: String?, generation: Int, originalTarget: AccessibilityNodeInfoCompat?) {
+    if (generation != inputGeneration) return
     dictating = false
     if (text.isNullOrBlank()) return
     val connection = currentInputConnection ?: return
+    val target = originalTarget ?: findDictationEditor()
+    if (target != null) ImeEditFeedback.recordDictationEdit(target.unwrap())
     dropComposingWord(connection)
     if (!insertDictatedText(connection, text)) return
-    if (echoesWords() || echoesCharacters()) {
+    if (target != null) TalkBackService.getInstance()?.focusDictationEditor(target)
+    if (target?.isPassword != true && editor?.inputType?.let(::isPassword) != true) {
       speakWord(text, 0)
-    } else {
-      keySpeech.confirm(getString(R.string.vietnamese_ime_voice_input_stopped), 0)
     }
+  }
+
+  private fun findDictationEditor(): AccessibilityNodeInfoCompat? {
+    val node = TalkBackService.getInstance()?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+    if (node.isEditable && node.packageName?.toString() == editor?.packageName) {
+      return AccessibilityNodeInfoCompat.wrap(node)
+    }
+    node.recycle()
+    return null
   }
 
   private fun dropComposingWord(connection: InputConnection) {

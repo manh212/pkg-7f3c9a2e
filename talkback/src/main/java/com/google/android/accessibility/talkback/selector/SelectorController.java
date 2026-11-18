@@ -92,6 +92,7 @@ import com.google.android.accessibility.talkback.compositor.CompositorUtils;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem.ContextMenuItemId;
+import com.google.android.accessibility.talkback.dictation.SandflyDictation;
 import com.google.android.accessibility.talkback.eventprocessor.ProcessorAccessibilityHints;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
@@ -2633,6 +2634,10 @@ public class SelectorController implements UserInputEventListener {
 
   /** Activate the currently selected action in the actions setting. */
   public void activateCurrentAction(EventId eventId) {
+    if (currentActionId != null && currentActionId.itemId() == R.id.edittext_breakout_dictate
+        && SandflyDictation.stopTextRecording()) {
+      return;
+    }
     applyPendingSwitch();
     if (!accessibilityFocusMonitor.hasAccessibilityFocus(/* useInputFocusIfEmpty= */ false)) {
       return;

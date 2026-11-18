@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
@@ -39,6 +40,8 @@ internal class VietnameseKeyboardView(
   private val keyName: (String) -> String = { it },
   private val reportBounds: () -> Unit = {},
   private val micStop: () -> Unit = {},
+  private val isTextRecording: () -> Boolean = { false },
+  private val stopTextRecording: () -> Unit = {},
   private val onDirectKeyTouchDown: () -> Unit = {},
 ) : View(context) {
   private class Cell(
@@ -53,6 +56,15 @@ internal class VietnameseKeyboardView(
   )
 
   private val configuration = ViewConfiguration.get(context)
+  private var dictationTouch = false
+  private val dictationTapDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+    override fun onDown(e: MotionEvent): Boolean = true
+
+    override fun onDoubleTap(e: MotionEvent): Boolean {
+      stopTextRecording()
+      return true
+    }
+  }).apply { setIsLongpressEnabled(false) }
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val backgroundColor = ContextCompat.getColor(context, R.color.vietnamese_ime_background)
   private val keyColor = ContextCompat.getColor(context, R.color.vietnamese_ime_key)
@@ -351,6 +363,13 @@ internal class VietnameseKeyboardView(
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    val action = event.actionMasked
+    if (action == MotionEvent.ACTION_DOWN) dictationTouch = isTextRecording()
+    if (dictationTouch) {
+      dictationTapDetector.onTouchEvent(event)
+      if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) dictationTouch = false
+      return true
+    }
     var moveChanged = true
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
