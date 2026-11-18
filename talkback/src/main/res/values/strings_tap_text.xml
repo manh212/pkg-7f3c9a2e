@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="tap_text_title" tools:ignore="MissingTranslation">Tự nhấn trên màn hình</string>
+    <string name="tap_text_action" tools:ignore="MissingTranslation">Tự nhấn trên màn hình: \'%1$s\'</string>
+    <string name="tap_text_action_long" tools:ignore="MissingTranslation">Tự nhấn trên màn hình (nhấn giữ): \'%1$s\'</string>
+    <string name="tap_text_not_found" tools:ignore="MissingTranslation">Không tìm thấy \'%1$s\'</string>
+    <string name="tap_text_label_hint" tools:ignore="MissingTranslation">Chữ cần nhấn</string>
+    <string name="tap_text_pick_from_screen" tools:ignore="MissingTranslation">Chọn từ màn hình hiện tại</string>
+    <string name="tap_text_press_type" tools:ignore="MissingTranslation">Kiểu nhấn</string>
+    <string name="tap_text_tap" tools:ignore="MissingTranslation">Nhấn thường</string>
+    <string name="tap_text_long_press" tools:ignore="MissingTranslation">Nhấn giữ</string>
+    <string name="tap_text_add" tools:ignore="MissingTranslation">Thêm tự nhấn trên màn hình</string>
+    <string name="tap_text_label_required" tools:ignore="MissingTranslation">Hãy nhập chữ cần nhấn</string>
+    <string name="tap_text_choose_gesture" tools:ignore="MissingTranslation">Chọn cử chỉ</string>
+    <string name="shortcut_value_tap_text_add" translatable="false">TAP_TEXT_ADD</string>
+    <string name="tap_text_scope_current_app" tools:ignore="MissingTranslation">Ứng dụng này</string>
+    <string name="tap_text_scope_device" tools:ignore="MissingTranslation">Toàn bộ máy</string>
+    <string name="tap_text_no_focused_item" tools:ignore="MissingTranslation">Không có mục nào đang được chọn</string>
+</resources>
