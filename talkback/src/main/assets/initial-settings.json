@@ -3375,10 +3375,6 @@
           "type": "boolean",
           "value": true
         },
-        "pref_volume_keys_multi_enabled": {
-          "type": "boolean",
-          "value": false
-        },
         "smart_context_auto_switch": {
           "type": "boolean",
           "value": false
