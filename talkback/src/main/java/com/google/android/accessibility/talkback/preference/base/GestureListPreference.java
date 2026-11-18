@@ -47,6 +47,7 @@ import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture;
 import com.google.android.accessibility.talkback.gesture.NavigationGestureActions;
 import com.google.android.accessibility.talkback.gesture.OpenAppActions;
+import com.google.android.accessibility.talkback.gesture.TapTextActions;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
 import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport;
 import com.google.android.accessibility.utils.FeatureSupport;
@@ -345,6 +346,10 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     if (openAppLabel != null) {
       return openAppLabel;
     }
+    @Nullable String tapTextLabel = TapTextActions.label(getContext(), value);
+    if (tapTextLabel != null) {
+      return tapTextLabel;
+    }
     if (EdgeGesture.fromKey(getKey()) != null) {
       if (getContext().getString(R.string.shortcut_value_unassigned).equals(value)) {
         return getContext().getString(R.string.edge_gesture_unassigned);
@@ -538,6 +543,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     }
     if (matchesAction(value,
         R.string.shortcut_value_smart_context_add,
+        R.string.shortcut_value_tap_text_add,
         R.string.shortcut_value_smart_context_read,
         R.string.shortcut_value_task_assistant,
         R.string.shortcut_value_print_node_tree,
@@ -777,6 +783,11 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         new ActionItem(
             resources.getString(R.string.shortcut_smart_context_gesture_2),
             resources.getString(R.string.shortcut_value_smart_context_gesture_2),
+            TYPE_ACTION_ITEM));
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.tap_text_title),
+            TapTextActions.SENTINEL,
             TYPE_ACTION_ITEM));
     return builder.build();
   }
@@ -1034,6 +1045,8 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         resources.getString(R.string.shortcut_value_smart_context_add), TYPE_ACTION_ITEM));
     builder.add(new ActionItem(resources.getString(R.string.smart_context_read_app),
         resources.getString(R.string.shortcut_value_smart_context_read), TYPE_ACTION_ITEM));
+    builder.add(new ActionItem(resources.getString(R.string.tap_text_add),
+        resources.getString(R.string.shortcut_value_tap_text_add), TYPE_ACTION_ITEM));
 
     if (TalkbackFeatureSupport.supportSpeechRecognize()) {
       builder.add(
