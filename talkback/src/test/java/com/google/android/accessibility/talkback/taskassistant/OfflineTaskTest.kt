@@ -49,6 +49,22 @@ class OfflineTaskTest {
       OfflineTaskCommand.parse("Nhấn Gửi nhập Xin chào"))
   }
 
+  @Test fun bareFillerWordsAreNotCommands() {
+    assertNull(OfflineTaskCommand.parse("Nhấn vào"))
+    assertNull(OfflineTaskCommand.parse("Nhấn vào nút"))
+    assertNull(OfflineTaskCommand.parse("Bật nút"))
+  }
+
+  @Test fun aContainerBorrowingItsChildrensNamesNeverBeatsTheChildItself() {
+    val root = node("root", "Gửi; Trang chủ", "click")
+    val send = node("send", "Gửi", "click").copy(text = "Gửi")
+    val home = node("home", "Trang chủ", "click").copy(text = "Trang chủ")
+    assertEquals("send", (screen(root, send, home)
+      .decide(OfflineScreenStep.ClickLabel("Gửi")) as OfflineTaskScreen.Decision.Act).step.node)
+    assertEquals("home", (screen(root, send, home)
+      .decide(OfflineScreenStep.ClickLabel("Trang chủ")) as OfflineTaskScreen.Decision.Act).step.node)
+  }
+
   @Test fun verbsInsideLabelsAndContentDoNotSplit() {
     assertEquals(OfflineTaskCommand.Input("Mình tắt đèn"),
       OfflineTaskCommand.parse("Nhập Mình tắt đèn"))
