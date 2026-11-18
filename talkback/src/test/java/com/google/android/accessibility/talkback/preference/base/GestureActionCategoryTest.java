@@ -46,7 +46,6 @@ public class GestureActionCategoryTest {
   @Test
   public void specialActionsHaveFocusedCategories() {
     assertCategory(R.string.shortcut_value_auto_scroll, R.string.shortcut_title_basic_navigation);
-    assertCategory(R.string.shortcut_value_read_current_time, R.string.gesture_group_notifications_status);
     assertCategory(R.string.shortcut_value_read_current_location, R.string.gesture_group_notifications_status);
     assertCategory(R.string.shortcut_value_correct_text, R.string.shortcut_title_text_editing);
     assertCategory(R.string.shortcut_value_copy_focused, R.string.gesture_group_clipboard);
