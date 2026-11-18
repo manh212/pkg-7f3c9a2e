@@ -2076,7 +2076,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   public boolean shouldAdjustSpeechVolumeWhileSpeaking() {
-    if (isEditingText()) {
+    if (isEditingText() || isSliderFocused()) {
       return false;
     }
     if (pipeline == null) {
@@ -2102,6 +2102,18 @@ public class TalkBackService extends AccessibilityServiceCompat
     return focus != null
         && (focus.isEditable()
             || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focus) != null);
+  }
+
+  /**
+   * Whether the accessibility focus is on a slider (SeekBar). Same check {@link
+   * #resolveVolumeKeyUse(boolean)} uses to decide VOLUME_KEY_ADJUSTS_SLIDER, so the guard and the
+   * resolution agree: on a slider the volume keys adjust the slider, never the volume — even
+   * when the speech-volume option is on, and even on a quick second press while the slider's
+   * spoken value is still playing.
+   */
+  private boolean isSliderFocused() {
+    return Role.getRole(accessibilityFocusMonitor.getSupportedAdjustableNode())
+        == Role.ROLE_SEEK_CONTROL;
   }
 
   public void adjustSpeechVolumeWhileSpeaking(boolean increase) {
