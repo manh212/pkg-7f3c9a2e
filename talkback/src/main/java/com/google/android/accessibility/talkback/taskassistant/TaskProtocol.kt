@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 enum class TaskOperation(val wire: String) {
   OPEN_APP("open_app"), CLICK("click"), LONG_CLICK("long_click"), SET_TEXT("set_text"), PRESS_ENTER("press_enter"),
-  SCROLL_FORWARD("scroll_forward"), SCROLL_BACKWARD("scroll_backward"),
+  SCROLL_FORWARD("scroll_forward"), SCROLL_BACKWARD("scroll_backward"), DRAG("drag"),
   BACK("back"), HOME("home"), WAIT("wait"), ASK("ask"), DONE("done")
 }
 
@@ -23,6 +23,8 @@ data class TaskNode(
   val description: String = "",
   val top: Int = 0,
   val left: Int = 0,
+  val right: Int = 0,
+  val bottom: Int = 0,
   val row: Int? = null,
   val collection: Boolean = false,
   val focused: Boolean = false,
@@ -65,9 +67,12 @@ data class TaskStep(
 )
 
 object TaskProtocol {
-  val screenOperations = setOf(TaskOperation.CLICK, TaskOperation.LONG_CLICK, TaskOperation.SET_TEXT,
-    TaskOperation.PRESS_ENTER, TaskOperation.SCROLL_FORWARD, TaskOperation.SCROLL_BACKWARD,
+  val screenOperations = setOf(TaskOperation.OPEN_APP, TaskOperation.CLICK, TaskOperation.LONG_CLICK,
+    TaskOperation.SET_TEXT, TaskOperation.PRESS_ENTER, TaskOperation.SCROLL_FORWARD,
+    TaskOperation.SCROLL_BACKWARD, TaskOperation.DRAG, TaskOperation.BACK, TaskOperation.HOME,
     TaskOperation.WAIT, TaskOperation.DONE)
+
+  val dragDirections = setOf("len", "xuong", "trai", "phai")
 
   sealed interface TaskPlan {
     data class Single(val step: TaskStep) : TaskPlan
@@ -116,6 +121,10 @@ object TaskProtocol {
       "", null, label, text("view_id", 256), text("role", 80))
     when (operation) {
       TaskOperation.OPEN_APP -> require(apps.any { it.packageName == packageName }) { "Ứng dụng chưa được xác định" }
+      TaskOperation.DRAG -> {
+        require(label.isNotBlank()) { "Bước kéo cần nhãn hiển thị của mục cần kéo" }
+        require(stepText in dragDirections) { "Bước kéo cần hướng len, xuong, trai hoặc phai" }
+      }
       TaskOperation.CLICK, TaskOperation.LONG_CLICK, TaskOperation.SET_TEXT,
       TaskOperation.PRESS_ENTER, TaskOperation.SCROLL_FORWARD, TaskOperation.SCROLL_BACKWARD -> {
         require(label.isNotBlank()) { "Bước trong chuỗi cần nhãn hiển thị để đối chiếu" }
@@ -148,6 +157,10 @@ object TaskProtocol {
     val target = screen.nodes.firstOrNull { it.id == step.node }
     when (operation) {
       TaskOperation.OPEN_APP -> require(apps.any { it.packageName == step.packageName }) { "Ứng dụng chưa được xác định" }
+      TaskOperation.DRAG -> {
+        require(target != null) { "Không tìm được mục cần kéo" }
+        require(step.text in dragDirections) { "Bước kéo cần hướng len, xuong, trai hoặc phai" }
+      }
       TaskOperation.CLICK, TaskOperation.LONG_CLICK, TaskOperation.SET_TEXT,
       TaskOperation.PRESS_ENTER, TaskOperation.SCROLL_FORWARD, TaskOperation.SCROLL_BACKWARD -> {
         require(target != null && operation.wire in target.actions) { "Phần tử không hỗ trợ hành động này" }
@@ -192,8 +205,10 @@ object TaskProtocol {
     on screens not in this snapshot; add "view_id" or "role" only when the label alone is ambiguous.
     The host matches each label on the fresh screen and taps it; a missing or ambiguous label stops
     the sequence and the host makes a new plan by itself.
-    Use only listed screen nodes and their supported actions. To open an app or return to a home
-    page, click its visible icon or button. The host executes screen actions only.
+    Use only listed screen nodes and their supported actions. To open an app, use open_app with
+    its package from APPS. Use home to return to the home page and back to go back.
+    A drag step needs label (the item to drag) and text (len, xuong, trai or phai).
+    The host executes screen actions only.
     Never invent IDs, coordinates, URLs, scripts or packages.
     Names may appear in Vietnamese or English (Cài đặt = Settings); match by meaning, not exact wording.
     Do not change settings or perform actions unrelated to the goal.

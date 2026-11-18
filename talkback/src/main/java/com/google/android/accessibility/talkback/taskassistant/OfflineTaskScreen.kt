@@ -16,13 +16,14 @@ internal sealed interface OfflineScreenStep {
   data class Toggle(val label: String, val checked: Boolean) : OfflineScreenStep
   data class VerifyToggle(val label: String, val checked: Boolean) : OfflineScreenStep
   data class Item(val index: Int, val video: Boolean = false) : OfflineScreenStep
+  data class Drag(val label: String, val direction: String) : OfflineScreenStep
   data object SearchCurrent : OfflineScreenStep
   data class EnterCurrentQuery(val query: String) : OfflineScreenStep
   data class SubmitSearch(val query: String) : OfflineScreenStep
   data class Scroll(val forward: Boolean) : OfflineScreenStep
 }
 
-internal class OfflineTaskScreen(private val screen: TaskScreen) {
+internal class OfflineTaskScreen(private val screen: TaskScreen, private val apps: List<TaskApp> = emptyList()) {
   sealed interface Decision {
     data class Act(val step: TaskStep, val guard: String? = null) : Decision
     data object Ready : Decision
@@ -33,7 +34,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
 
   private val nodes = screen.nodes
   private val byId = nodes.associateBy { it.id }
-  private val searchLabels = setOf("tim kiem", "search", "search youtube", "tim kiem tren youtube")
+  private val searchLabels = setOf("tim kiem", "search")
 
   fun decide(step: OfflineScreenStep): Decision = when (step) {
     is OfflineScreenStep.ClickLabel -> clickLabel(step.label)
@@ -42,7 +43,8 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     is OfflineScreenStep.VerifyInput -> verifyInput(step.text, step.label)
     is OfflineScreenStep.Toggle -> toggle(step.label, step.checked, verify = false)
     is OfflineScreenStep.VerifyToggle -> toggle(step.label, step.checked, verify = true)
-    is OfflineScreenStep.Item -> if (step.video || screen.packageName == YOUTUBE) firstVideo(null, step.index) else item(step.index)
+    is OfflineScreenStep.Item -> if (step.video) firstMedia(null, step.index) else item(step.index)
+    is OfflineScreenStep.Drag -> drag(step.label, step.direction)
     OfflineScreenStep.SearchCurrent -> search()
     is OfflineScreenStep.EnterCurrentQuery -> enterQuery(step.query)
     is OfflineScreenStep.SubmitSearch -> submitSearch(step.query)
@@ -58,8 +60,29 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     if (action == CLICK && wanted in searchLabels) return search()
     val targets = matches.mapNotNull { target(it, action.wire) }.distinctBy { it.id }
     return when (targets.size) {
-      0 -> Decision.Wait
+      0 -> if (action == CLICK) openApp(wanted) else Decision.Wait
       1 -> act(action, targets.single())
+      else -> Decision.Ambiguous
+    }
+  }
+
+  private fun openApp(wanted: String): Decision {
+    if (wanted.isBlank()) return Decision.Wait
+    val matches = apps.filter { normalize(it.name) == wanted }
+    return when (matches.size) {
+      0 -> Decision.Wait
+      1 -> Decision.Act(TaskStep(screen.id, TaskOperation.OPEN_APP, "", matches.single().packageName))
+      else -> Decision.Ambiguous
+    }
+  }
+
+  private fun drag(label: String, direction: String): Decision {
+    if (direction !in TaskProtocol.dragDirections) return Decision.Unavailable
+    val wanted = normalize(label)
+    val matches = nodes.filter { labeled(it) { name -> normalize(name) == wanted } }
+    return when (matches.size) {
+      0 -> Decision.Wait
+      1 -> act(TaskOperation.DRAG, matches.single(), direction)
       else -> Decision.Ambiguous
     }
   }
@@ -158,7 +181,7 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     }
   }
 
-  private fun firstVideo(query: String?, index: Int): Decision {
+  private fun firstMedia(query: String?, index: Int): Decision {
     if (screen.truncated) return Decision.Wait
     val explicitResults = nodes.filter { it.collection && it.viewId.contains("search_result", ignoreCase = true) }
     val filters = nodes.any { labeled(it) { name ->
@@ -227,8 +250,6 @@ internal class OfflineTaskScreen(private val screen: TaskScreen) {
     Decision.Act(TaskStep(screen.id, action, node.id, screen.packageName, text), guard)
 
   companion object {
-    const val YOUTUBE = "com.google.android.youtube"
-
     fun equalNames(first: String, second: String): Boolean =
       nameKey(first) == nameKey(second)
 

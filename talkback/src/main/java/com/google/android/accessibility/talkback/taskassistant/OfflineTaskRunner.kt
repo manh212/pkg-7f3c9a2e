@@ -14,8 +14,9 @@ internal class OfflineTaskRunner(
   private val reader: TaskScreenReader,
   private val canOperate: () -> Boolean,
   private val announce: (String) -> Unit,
+  private val apps: () -> List<TaskApp> = { emptyList() },
 ) {
-  private class Run(val steps: ArrayDeque<OfflineScreenStep>) {
+  private class Run(val steps: ArrayDeque<OfflineScreenStep>, val apps: List<TaskApp>) {
     var deadline = 0L
     var reading = false
     var awaitingScreen = false
@@ -28,7 +29,7 @@ internal class OfflineTaskRunner(
 
   fun start(goal: String): Boolean {
     val command = OfflineTaskCommand.parse(goal) ?: return false
-    val current = Run(ArrayDeque(screenSteps(command)))
+    val current = Run(ArrayDeque(screenSteps(command)), apps())
     run = current
     advance(current)
     return true
@@ -44,6 +45,7 @@ internal class OfflineTaskRunner(
     is OfflineTaskCommand.Search -> listOf(OfflineScreenStep.SearchCurrent,
       OfflineScreenStep.EnterCurrentQuery(command.query), OfflineScreenStep.SubmitSearch(command.query))
     is OfflineTaskCommand.Scroll -> List(command.count) { OfflineScreenStep.Scroll(command.forward) }
+    is OfflineTaskCommand.Drag -> listOf(OfflineScreenStep.Drag(command.label, command.direction))
     is OfflineTaskCommand.Sequence -> command.commands.flatMap(::screenSteps)
   }
 
@@ -114,7 +116,7 @@ internal class OfflineTaskRunner(
   private fun execute(current: Run, step: OfflineScreenStep): OfflineTaskScreen.Decision {
     val capture = runCatching { reader.read(includeStructure = true) }.getOrNull()
       ?: return OfflineTaskScreen.Decision.Wait
-    val decision = OfflineTaskScreen(capture.screen).decide(step)
+    val decision = OfflineTaskScreen(capture.screen, current.apps).decide(step)
     if (decision !is OfflineTaskScreen.Decision.Act) {
       return decision
     }

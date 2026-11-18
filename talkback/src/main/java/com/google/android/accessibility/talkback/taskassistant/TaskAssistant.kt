@@ -33,7 +33,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   private val plannerHandle = lazy { TaskPlanner(service) }
   private val planner by plannerHandle
   private val prefs = SharedPreferencesUtils.getSharedPreferences(service)
-  private val offline = OfflineTaskRunner(service, main, worker, reader, ::canOperate, ::announce)
+  private val offline = OfflineTaskRunner(service, main, worker, reader, ::canOperate, ::announce, ::apps)
   private var engine: TaskEngine? = null
   private var ai: TaskAiChoice? = null
   private var dialog: AlertDialog? = null
@@ -159,7 +159,7 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     cancelVoice()
     offline.cancel()
     if (engine?.active == true) engine?.cancel()
-    engine = TaskEngine(this, emptyList())
+    engine = TaskEngine(this, apps())
     engine?.start(goal)
     return null
   }
@@ -245,13 +245,14 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     val token = epoch.get()
     worker.execute {
       val outcome = runCatching {
-        val fresh = reader.read()
+        val fresh = reader.read(includeStructure = step.operation == TaskOperation.DRAG)
         if (closed || epoch.get() != token || !canOperate()) TaskExecution.STALE
         else {
           val effective: TaskStep? = when {
+            step.operation in setOf(TaskOperation.OPEN_APP, TaskOperation.BACK, TaskOperation.HOME,
+              TaskOperation.WAIT) -> step
             step.node.isBlank() && step.label.isNotBlank() -> resolveLabeled(fresh, step)?.let { step.copy(node = it) }
             fresh.screen.fingerprint == screen.fingerprint -> step
-            step.operation == TaskOperation.WAIT -> step
             else -> resolveTarget(screen, step, fresh)?.let { step.copy(node = it) }
           }
           if (effective == null) TaskExecution.STALE
@@ -270,7 +271,8 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
   private fun resolveLabeled(fresh: CapturedTaskScreen, step: TaskStep): String? {
     val matches = fresh.screen.nodes.filter {
       matchesName(it.label, step.label) && (step.viewId.isEmpty() || it.viewId == step.viewId || it.viewId.isEmpty()) &&
-        (step.role.isEmpty() || it.role == step.role) && step.operation.wire in it.actions &&
+        (step.role.isEmpty() || it.role == step.role) &&
+        (!needsNodeAction(step.operation) || step.operation.wire in it.actions) &&
         (step.checked == null || it.checked == step.checked)
     }
     return if (matches.size == 1) matches[0].id else null
@@ -280,10 +282,21 @@ class TaskAssistant private constructor(private val service: TalkBackService) : 
     val target = planned.nodes.firstOrNull { it.id == step.node } ?: return null
     val matches = fresh.screen.nodes.filter {
       matchesName(it.label, target.label) && (it.viewId == target.viewId || it.viewId.isEmpty() || target.viewId.isEmpty()) &&
-        it.role == target.role && step.operation.wire in it.actions &&
+        it.role == target.role && (!needsNodeAction(step.operation) || step.operation.wire in it.actions) &&
         (target.checked == null || it.checked == target.checked)
     }
     return if (matches.size == 1) matches[0].id else null
+  }
+
+  private fun needsNodeAction(operation: TaskOperation): Boolean = operation in setOf(TaskOperation.CLICK,
+    TaskOperation.LONG_CLICK, TaskOperation.SET_TEXT, TaskOperation.PRESS_ENTER,
+    TaskOperation.SCROLL_FORWARD, TaskOperation.SCROLL_BACKWARD)
+
+  private fun apps(): List<TaskApp> {
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return service.packageManager.queryIntentActivities(intent, 0)
+      .map { TaskApp(it.activityInfo.packageName, it.loadLabel(service.packageManager).toString()) }
+      .distinctBy { it.packageName }.sortedBy { it.name }
   }
 
   private fun matchesName(fresh: String, planned: String): Boolean {

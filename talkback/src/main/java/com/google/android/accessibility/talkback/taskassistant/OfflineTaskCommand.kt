@@ -12,6 +12,7 @@ internal sealed interface OfflineTaskCommand {
   data class Search(val query: String) : OfflineTaskCommand
   data class Sequence(val commands: List<OfflineTaskCommand>) : OfflineTaskCommand
   data class Scroll(val forward: Boolean, val count: Int) : OfflineTaskCommand
+  data class Drag(val label: String, val direction: String) : OfflineTaskCommand
 
   companion object {
     private const val NUMBER = "(\\d{1,2}|mot|nhat|hai|ba|bon|nam|sau|bay|tam|chin|muoi|dau\\s+tien)"
@@ -25,9 +26,10 @@ internal sealed interface OfflineTaskCommand {
     private val search = Regex("tim(?:\\s+kiem)?\\s+(.+)", RegexOption.DOT_MATCHES_ALL)
     private val connector = Regex("\\s*[,;]\\s*|\\s+(?:roi|sau\\s+do)\\s+")
     private val quoted = Regex("\"[^\"]*\"|“[^”]*”", RegexOption.DOT_MATCHES_ALL)
-    private val commandStart = Regex("^(?:nhan|bam|cham|chon|mo|vao|tim|nhap|dien|viet|soan|them|bat|tat|cuon|vuot|giu)\\b")
+    private val commandStart = Regex("^(?:nhan|bam|cham|chon|mo|vao|tim|nhap|dien|viet|soan|them|bat|tat|cuon|vuot|giu|keo)\\b")
     private val click = Regex("(?:bam|nhan|cham|chon)(?:\\s+(?:vao|nut|muc))*\\s+(.+)")
     private val scroll = Regex("(?:cuon|vuot)\\s+(len|xuong)(?:\\s+(\\d{1,2}|mot|hai|ba|bon|nam)\\s+lan)?")
+    private val drag = Regex("(?:keo|vuot)(?:\\s+(?:vao|nut|muc))*\\s+(.+?)\\s+(len|xuong|(?:sang|qua)\\s+trai|(?:sang|qua)\\s+phai|trai|phai)")
 
     fun parse(goal: String): OfflineTaskCommand? {
       val raw = Normalizer.normalize(goal.trim(), Normalizer.Form.NFC)
@@ -70,6 +72,7 @@ internal sealed interface OfflineTaskCommand {
       toggle.matchEntire(command)?.let { return Toggle(it.part(2), it.groupValues[1] == "bat") }
       click.matchEntire(command)?.let { return Click(it.part(1)) }
       open.matchEntire(command)?.let { return Click(it.part(1)) }
+      drag.matchEntire(command)?.let { return Drag(it.part(1), it.groupValues[2].substringAfterLast(' ')) }
       scroll.matchEntire(command)?.let {
         val count = ordinal(it.groupValues[2].ifBlank { "mot" }) ?: return null
         if (count <= 10) return Scroll(it.groupValues[1] == "xuong", count)

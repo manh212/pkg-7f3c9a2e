@@ -1,6 +1,9 @@
 package com.google.android.accessibility.talkback.taskassistant
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.content.Intent
+import android.graphics.Path
 import android.graphics.Rect
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
@@ -28,7 +31,7 @@ class TaskScreenReader(private val service: AccessibilityService) {
     pending.addLast(root to null)
     var visited = 0
     val deadline = SystemClock.uptimeMillis() + 2500
-    val nodeLimit = if (includeStructure) 600 else 300
+    val nodeLimit = 600
     while (pending.isNotEmpty() && visited++ < 1800 && nodes.size < nodeLimit && SystemClock.uptimeMillis() < deadline) {
       val (node, parent) = pending.removeFirst()
       if (!node.isVisibleToUser || isPrivateInput(node)) continue
@@ -81,6 +84,8 @@ class TaskScreenReader(private val service: AccessibilityService) {
       description = node.contentDescription?.toString().orEmpty(),
       top = bounds.top,
       left = bounds.left,
+      right = bounds.right,
+      bottom = bounds.bottom,
       row = node.collectionItemInfo?.rowIndex?.takeIf { it >= 0 },
       collection = node.collectionInfo != null || node.isScrollable,
       focused = node.isFocused,
@@ -140,7 +145,26 @@ class TaskScreenReader(private val service: AccessibilityService) {
     return buttons.singleOrNull()?.performAction(AccessibilityNodeInfoCompat.ACTION_CLICK) == true
   }
 
+  fun launcherApps(): List<TaskApp> {
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return service.packageManager.queryIntentActivities(intent, 0)
+      .map { TaskApp(it.activityInfo.packageName, it.loadLabel(service.packageManager).toString()) }
+      .distinctBy { it.packageName }.sortedBy { it.name }
+  }
+
   fun perform(capture: CapturedTaskScreen, step: TaskStep): Boolean {
+    when (step.operation) {
+      TaskOperation.OPEN_APP -> {
+        val intent = service.packageManager.getLaunchIntentForPackage(step.packageName)
+          ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) ?: return false
+        service.startActivity(intent)
+        return true
+      }
+      TaskOperation.BACK -> return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+      TaskOperation.HOME -> return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+      TaskOperation.DRAG -> return drag(capture, step)
+      else -> Unit
+    }
     val node = capture.handles[step.node] ?: return false
     if (!matches(capture, step.node)) return false
     val id = when (step.operation) {
@@ -156,5 +180,39 @@ class TaskScreenReader(private val service: AccessibilityService) {
       putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, step.text)
     } else null
     return node.performAction(id, args)
+  }
+
+  private fun drag(capture: CapturedTaskScreen, step: TaskStep): Boolean {
+    if (step.text !in TaskProtocol.dragDirections) return false
+    val node = capture.handles[step.node] ?: return false
+    if (!matches(capture, step.node)) return false
+    val bounds = Rect().also(node::getBoundsInScreen)
+    if (bounds.width() <= 0 || bounds.height() <= 0) return false
+    val metrics = service.resources.displayMetrics
+    val centerX = (bounds.left + bounds.right) / 2f
+    val centerY = (bounds.top + bounds.bottom) / 2f
+    val distanceX = (metrics.widthPixels / 3f).coerceAtLeast(1f)
+    val distanceY = (metrics.heightPixels / 3f).coerceAtLeast(1f)
+    val endX = (centerX + when (step.text) {
+      "trai" -> -distanceX
+      "phai" -> distanceX
+      else -> 0f
+    }).coerceIn(0f, (metrics.widthPixels - 1).toFloat())
+    val endY = (centerY + when (step.text) {
+      "len" -> -distanceY
+      "xuong" -> distanceY
+      else -> 0f
+    }).coerceIn(0f, (metrics.heightPixels - 1).toFloat())
+    if (endX == centerX && endY == centerY) return false
+    val path = Path().apply { moveTo(centerX, centerY); lineTo(endX, endY) }
+    val gesture = GestureDescription.Builder()
+      .addStroke(GestureDescription.StrokeDescription(path, 0, DRAG_MS)).build()
+    if (!service.dispatchGesture(gesture, null)) return false
+    SystemClock.sleep(DRAG_MS + 100)
+    return true
+  }
+
+  companion object {
+    private const val DRAG_MS = 400L
   }
 }

@@ -17,8 +17,9 @@ object TaskPrompt {
       Allowed actions: ${TaskProtocol.screenOperations.joinToString { it.wire }}.
       Use only listed screen node ids with supported actions. Never use coordinates, code or URLs.
       Names may appear in Vietnamese or English (Cài đặt = Settings); match by meaning, not exact wording.
-      Operate visible screen controls only. To open an app or reach a home page, click its visible icon
-      or button. set_text needs the complete requested value. Click Send only when the user requests it.
+      Operate visible screen controls only. To open an app, use open_app with a package from APPS;
+      use home to return to the home page and back to go back. A drag step needs label (the item
+      to drag) and text (len, xuong, trai or phai). set_text needs the complete requested value. Click Send only when the user requests it.
       Leave recipient lookup and direct calling to the separate voice-command feature.
       Never return ask and never ask the user anything. Never enter passwords, OTPs or credentials.
       done needs node, exact evidence substring from its CURRENT label, message in Vietnamese, and checked for a checkable node.
@@ -45,7 +46,15 @@ object TaskPrompt {
     val prefix = "$instructions\nAPPS: $appArray\nAPPS_TRUNCATED: ${appArray.length() < apps.size}\nSCREEN: "
     var remaining = MAX_LOCAL_BYTES - prefix.toByteArray().size - base.toString().toByteArray().size - 16
     val nodes = mutableListOf<Pair<Int, JSONObject>>()
-    val prioritized = screen.nodes.withIndex().sortedByDescending { if (it.index < 3) 3 else if (it.value.actions.isNotEmpty()) 2 else 1 }
+    val goalWords = TaskProtocol.normalize(goal).split(" ").filter { it.length >= 2 }
+    val prioritized = screen.nodes.withIndex().sortedByDescending {
+      when {
+        goalWords.any { word -> TaskProtocol.normalize(it.value.label).contains(word) } -> 4
+        it.index < 3 -> 3
+        it.value.actions.isNotEmpty() -> 2
+        else -> 1
+      }
+    }
     for ((index, node) in prioritized) {
       val label = if ("set_text" in node.actions) node.label else node.label.take(200)
       val json = JSONObject().put("id", node.id).put("label", label).put("actions", JSONArray(node.actions.toList()))
