@@ -509,9 +509,16 @@ public class GestureController {
       result = manager != null;
       if (manager != null) manager.toggleArrowKeyNav();
     } else if (action.equals(service.getString(R.string.shortcut_value_media_control))) {
-      result =
-          pipeline.returnFeedback(
-              eventId, Feedback.systemAction(GLOBAL_ACTION_KEYCODE_HEADSETHOOK));
+      if (service.isSliderFocused()) {
+        // On a slider, the play/pause gesture opens the set-value dialog instead of
+        // toggling playback: the user types the exact percent the slider should go to.
+        SliderValueDialog.show(service);
+        result = true;
+      } else {
+        result =
+            pipeline.returnFeedback(
+                eventId, Feedback.systemAction(GLOBAL_ACTION_KEYCODE_HEADSETHOOK));
+      }
     } else if (action.equals(service.getString(R.string.shortcut_value_media_previous))) {
       result = dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
     } else if (action.equals(service.getString(R.string.shortcut_value_media_next))) {
