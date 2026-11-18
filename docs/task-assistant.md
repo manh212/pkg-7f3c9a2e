@@ -62,6 +62,7 @@ Examples for the screen interpreter:
 - `Nhấn Sao chép` when the copy control is visible
 - `Bật tên công tắc`, `Tắt tên công tắc`
 - `Mở Zalo, tìm Lan rồi mở kết quả đầu tiên`
+- `Vào Cài đặt rồi vào Wi-Fi tắt Wi-Fi`
 
 The entry form contains the request field, **Nói yêu cầu**, and **Thực hiện**.
 Processing mode, model selection, speech downloads and screen-command examples
@@ -74,8 +75,12 @@ The voice-command feature handles gesture catalog actions, contact lookups and
 direct phone calls. Screen commands can explicitly click **Gửi** after entering text.
 
 The interpreter splits multi-step requests at commas, `rồi` or `sau đó` when a
-screen command follows. Quoted text preserves command-like words literally.
-Typing is verified on a fresh screen before the next step runs. Missing or
+screen command follows, and also at a command verb inside one request, so
+`vào Wi-Fi tắt Wi-Fi` runs as two steps. Quoted text preserves command-like words literally.
+Spoken names are matched forgivingly: an exact name wins, then a name that
+contains or is contained in the spoken words, then a name one or two letters
+away; when several items match equally well the task stops and asks instead of
+guessing. Typing is verified on a fresh screen before the next step runs. Missing or
 ambiguous targets stop the sequence. Manual input cancels pending work.
 
 The direct workflow uses accessibility events and bounded screen checks. Local
