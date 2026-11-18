@@ -18,6 +18,8 @@
     <string name="smart_context_search">Tìm kiếm và cuộn</string>
     <string name="smart_context_up">Vuốt lên</string>
     <string name="smart_context_down">Vuốt xuống</string>
+    <string name="shortcut_smart_context_gesture_1">Cử chỉ ngữ cảnh thông minh một</string>
+    <string name="shortcut_smart_context_gesture_2">Cử chỉ ngữ cảnh thông minh hai</string>
     <string name="smart_context_empty">Chưa có văn bản</string>
     <string name="smart_context_add">Thêm cử chỉ ngữ cảnh thông minh</string>
     <string name="smart_context_read_app">Đọc các cử chỉ ngữ cảnh thông minh đã lưu cho ứng dụng hiện tại</string>

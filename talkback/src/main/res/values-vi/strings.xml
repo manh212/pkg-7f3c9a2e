@@ -97,9 +97,8 @@
   <string name="title_pref_advanced_settings">Cài đặt nâng cao</string>
   <string name="reset_gesture_settings_title">Đặt lại chế độ cài đặt cử chỉ</string>
   <string name="one_finger_gestures_title">1 ngón tay</string>
-  <string name="one_finger_back_forth_gestures_title">Cử chỉ tiến lùi bằng 1 ngón tay</string>
-  <string name="one_finger_angle_gestures_title">Cử chỉ tạo góc bằng 1 ngón tay</string>
   <string name="two_finger_gestures_title">2 ngón tay</string>
+  <string name="two_finger_extended_gestures_title">2 ngón tay hai nét</string>
   <string name="three_finger_gestures_title">3 ngón tay</string>
   <string name="four_finger_gestures_title">4 ngón tay</string>
   <string name="pref_verbosity_preset_title">Chọn một giá trị đặt trước</string>
