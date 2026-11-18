@@ -214,6 +214,17 @@ object TraversalTreeCache {
   private var lastPivotTop = Int.MIN_VALUE
   private var lastPivotWindowId = NO_WINDOW_ID
 
+  /**
+   * Set when scrolling ahead moved the focused item off screen: its bounds and its list's before
+   * the page, the sum of scroll deltas then (see
+   * [FocusProcessorForLogicalNavigation.scrollDeltaSumY]) and which way the page went. The next
+   * navigation goes on from the item next to it.
+   */
+  private var scrolledAwayBounds: Rect? = null
+  private val scrolledAwayListBounds = Rect()
+  private var scrolledAwayDeltaSum = 0
+  private var scrolledAwayForward = true
+
   /** Returns the saved order of [root] if it has one and it contains [pivot]. */
   @JvmStatic
   fun get(
@@ -341,6 +352,121 @@ object TraversalTreeCache {
     pivot.getBoundsInScreen(bounds)
     lastPivotTop = bounds.top
     lastPivotWindowId = pivot.windowId
+    scrolledAwayBounds = null
+  }
+
+  /**
+   * Records that scrolling ahead moved the focused node of window [windowId] off screen. It was at
+   * [bounds] in a list at [listBounds] when the sum of scroll deltas was [deltaSum], and the page
+   * went [forward] or back.
+   */
+  @JvmStatic
+  fun rememberScrolledAway(
+    windowId: Int,
+    bounds: Rect,
+    listBounds: Rect,
+    deltaSum: Int,
+    forward: Boolean,
+  ) {
+    lastPivotWindowId = windowId
+    scrolledAwayBounds = Rect(bounds)
+    scrolledAwayListBounds.set(listBounds)
+    scrolledAwayDeltaSum = deltaSum
+    scrolledAwayForward = forward
+  }
+
+  /** Forgets the item that scrolling ahead moved off screen, once something else has focus. */
+  @JvmStatic
+  fun forgetScrolledAway() {
+    scrolledAwayBounds = null
+  }
+
+  /**
+   * Whether scrolling ahead moved the focused node of window [windowId] off screen and nothing has
+   * had focus since: the next navigation goes on from it, so focus isn't put elsewhere meanwhile.
+   */
+  @JvmStatic
+  fun continuesAfterScrolledAway(windowId: Int): Boolean =
+    scrolledAwayBounds != null && windowId == lastPivotWindowId
+
+  /**
+   * Where the next item comes after a node at [top] to [bottom] has scrolled [shift] px up off
+   * screen ([shift] is negative for a scroll down): the top of the item after it, going [forward],
+   * or the bottom of the item before it.
+   */
+  @JvmStatic
+  fun placeAfterScroll(top: Int, bottom: Int, shift: Int, forward: Boolean): Int =
+    if (forward) bottom - shift else top - shift
+
+  /**
+   * How far an item at [item] in a list at [list] scrolled off it, given [shift] from the list's
+   * scroll deltas: at least far enough to leave the list, as the deltas of some lists, such as
+   * Compose lazy lists, aren't in pixels.
+   */
+  @JvmStatic
+  fun shiftOffList(shift: Int, item: Rect, list: Rect, forward: Boolean): Int =
+    if (list.isEmpty) {
+      shift
+    } else if (forward) {
+      maxOf(shift, item.bottom - list.top)
+    } else {
+      minOf(shift, item.top - list.bottom)
+    }
+
+  /**
+   * The index of the item that a swipe [forward] or back goes to after the focused item scrolled
+   * off the list at [list], among nodes at [bounds] in reading order of which [focusable] can take
+   * focus: going forward, the item of the list nearest below [place], where the item after the one
+   * scrolled away starts; going back, the item nearest above [place], where the item before it
+   * ends. Ties go to the first node going forward and the last going back, as a swipe meets them.
+   * -1 when no item of the list is there, or the list's bounds aren't known.
+   */
+  @JvmStatic
+  fun itemAfterScrolledAway(
+    bounds: List<Rect>,
+    focusable: List<Boolean>,
+    list: Rect,
+    place: Int,
+    forward: Boolean,
+  ): Int {
+    if (list.isEmpty) {
+      return -1
+    }
+    var best = -1
+    for (i in bounds.indices) {
+      val item = bounds[i]
+      if (!focusable[i] || item.isEmpty || !Rect.intersects(item, list)) {
+        continue
+      }
+      if (forward) {
+        if (item.top >= place && (best < 0 || item.top < bounds[best].top)) {
+          best = i
+        }
+      } else if (item.bottom <= place && (best < 0 || item.bottom >= bounds[best].bottom)) {
+        best = i
+      }
+    }
+    return best
+  }
+
+  /** The last node of [order] above [place], or the first node if none is above it. */
+  private fun lastNodeAbove(
+    order: OrderedTraversalStrategy,
+    place: Int,
+    bounds: Rect,
+  ): AccessibilityNodeInfoCompat? {
+    var above: AccessibilityNodeInfoCompat? = null
+    for (node in order.dumpTree()) {
+      if (node.windowId != lastPivotWindowId) {
+        continue
+      }
+      node.getBoundsInScreen(bounds)
+      if (bounds.top >= place) {
+        return above ?: node
+      }
+      above = node
+    }
+    return above
   }
 
   @JvmStatic
@@ -391,6 +517,49 @@ object TraversalTreeCache {
         ?: runCatching { OrderedTraversalStrategy(root) }.getOrNull()
         ?: return null
     val bounds = Rect()
+    val away = scrolledAwayBounds
+    if (away != null) {
+      val shift =
+        shiftOffList(
+          FocusProcessorForLogicalNavigation.scrollDeltaSumY() - scrolledAwayDeltaSum,
+          away,
+          scrolledAwayListBounds,
+          scrolledAwayForward,
+        )
+      val place = placeAfterScroll(away.top, away.bottom, shift, scrolledAwayForward)
+      val nodes = order.dumpTree().filter { it.windowId == lastPivotWindowId }
+      val target =
+        itemAfterScrolledAway(
+          nodes.map { node -> Rect().also { node.getBoundsInScreen(it) } },
+          nodes.map { node ->
+            node.isVisibleToUser &&
+              AccessibilityNodeInfoUtils.shouldFocusNode(node, order.speakingNodesCache)
+          },
+          scrolledAwayListBounds,
+          place,
+          scrolledAwayForward,
+        )
+      if (target >= 0) {
+        // The swipe searches on from the node next to the item in the order, so it lands on the
+        // item; past either end of the order, it searches from the window's root.
+        return nodes.getOrNull(if (scrolledAwayForward) target - 1 else target + 1)
+      }
+      if (!scrolledAwayForward) {
+        // The item before the one scrolled away ends at the place; a swipe back from the first
+        // node below it lands there.
+        for (node in order.dumpTree()) {
+          if (node.windowId != lastPivotWindowId) {
+            continue
+          }
+          node.getBoundsInScreen(bounds)
+          if (bounds.top >= place) {
+            return node
+          }
+        }
+        return null
+      }
+      return lastNodeAbove(order, place, bounds)
+    }
     var above: AccessibilityNodeInfoCompat? = null
     for (node in order.dumpTree()) {
       if (node.windowId != lastPivotWindowId) {
