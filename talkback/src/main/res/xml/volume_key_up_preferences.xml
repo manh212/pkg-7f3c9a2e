@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:title="@string/volume_key_state_unlocked">
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_increase_contextual_volume"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_press_action"
+        android:summary="%s"
+        android:title="@string/volume_up_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_2_press_action"
+        android:summary="%s"
+        android:title="@string/volume_up_2_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_3_press_action"
+        android:summary="%s"
+        android:title="@string/volume_up_3_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_4_press_action"
+        android:summary="%s"
+        android:title="@string/volume_up_4_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_hold_action"
+        android:summary="%s"
+        android:title="@string/volume_up_hold_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_hold_long_action"
+        android:summary="%s"
+        android:title="@string/volume_up_hold_long_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:title="@string/volume_key_state_locked">
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_increase_contextual_volume"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_press_locked_action"
+        android:summary="%s"
+        android:title="@string/volume_up_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_2_press_locked_action"
+        android:summary="%s"
+        android:title="@string/volume_up_2_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_3_press_locked_action"
+        android:summary="%s"
+        android:title="@string/volume_up_3_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_4_press_locked_action"
+        android:summary="%s"
+        android:title="@string/volume_up_4_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_toggle_stopwatch"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_hold_locked_action"
+        android:summary="%s"
+        android:title="@string/volume_up_hold_locked_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_hold_long_locked_action"
+        android:summary="%s"
+        android:title="@string/volume_up_hold_long_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:title="@string/volume_key_state_screen_off">
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_increase_contextual_volume"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_press_screen_off_action"
+        android:summary="%s"
+        android:title="@string/volume_up_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_2_press_screen_off_action"
+        android:summary="%s"
+        android:title="@string/volume_up_2_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_3_press_screen_off_action"
+        android:summary="%s"
+        android:title="@string/volume_up_3_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_4_press_screen_off_action"
+        android:summary="%s"
+        android:title="@string/volume_up_4_press_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_hold_screen_off_action"
+        android:summary="%s"
+        android:title="@string/volume_up_hold_title" />
+    <com.google.android.accessibility.talkback.preference.base.GestureListPreference
+        android:defaultValue="@string/shortcut_value_unassigned"
+        android:dependency="pref_volume_keys_managed"
+        android:key="pref_volume_up_hold_long_screen_off_action"
+        android:summary="%s"
+        android:title="@string/volume_up_hold_long_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+</PreferenceScreen>
