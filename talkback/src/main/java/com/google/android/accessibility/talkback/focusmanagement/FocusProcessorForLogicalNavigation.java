@@ -610,6 +610,9 @@ public class FocusProcessorForLogicalNavigation {
 
   private static final int MAX_LIST_CHILDREN_CHECKED = 30;
 
+  /** Bounds {@link #pinnedChildren}; in SandFly this also bounds the one-event-list cache. */
+  private static final int MAX_ONE_EVENT_LISTS = 8;
+
   /** Children of lists seen pinned while their list scrolled, such as sticky headers. */
   private static final LinkedHashMap<AccessibilityNodeInfoCompat, Boolean> pinnedChildren =
       new LinkedHashMap<>(MAX_ONE_EVENT_LISTS, 0.75f, /* accessOrder= */ true) {
@@ -622,9 +625,6 @@ public class FocusProcessorForLogicalNavigation {
 
   /** Most layers between a list and the focused node of one of its items. */
   private static final int MAX_ITEM_DEPTH = 3;
-
-  /** Bounds {@link #pinnedChildren}; in SandFly this also bounds the one-event-list cache. */
-  private static final int MAX_ONE_EVENT_LISTS = 8;
 
   /** Scrolls {@code list} ahead of the focused item, as SandFly's own silent scroll. */
   boolean scrollListAhead(AccessibilityNodeInfoCompat list, int scrollAction) {
