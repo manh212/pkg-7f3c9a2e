@@ -2125,15 +2125,30 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   /**
    * Speaks the accessibility-stream volume as a percentage after a speech-volume adjustment,
-   * like {@link #adjustContextualVolume(boolean, boolean)} does. The announcement deliberately
-   * omits {@link FeedbackItem#FLAG_SOURCE_IS_VOLUME_CONTROL}: that flag would make the speech
-   * state report "not speaking" while the percentage is playing, so a second press during the
-   * announcement would adjust the media volume instead of the speech volume.
+   * like {@link #adjustContextualVolume(boolean, boolean)} does — except while text is being
+   * read: then the volume is adjusted silently, so the percentage (QUEUE_MODE_INTERRUPT) does
+   * not cut the sentence being spoken. The percentage is still spoken when the volume is
+   * adjusted while nothing is being read, and when a slider is adjusted on screen. The
+   * announcement deliberately omits {@link FeedbackItem#FLAG_SOURCE_IS_VOLUME_CONTROL}: that
+   * flag would make the speech state report "not speaking" while the percentage is playing, so
+   * a second press during the announcement would adjust the media volume instead of the speech
+   * volume.
    */
   private void announceSpeechVolumePercent(AudioManager audioManager) {
     if (pipeline == null
         || !getBooleanPref(
             R.string.pref_speak_volume_changes_key, R.bool.pref_speak_volume_changes_default)) {
+      return;
+    }
+    // Don't interrupt the sentence being read: when continuous reading is active, or speech is
+    // speaking or queued, adjust silently. Checked at execution time, not at the key-down
+    // sample, so the percentage is still spoken if the reading has stopped by the time the
+    // adjustment runs.
+    boolean reading =
+        pipeline.getActorState().getContinuousRead().isActive()
+            || pipeline.getActorState().getSpeechState()
+                .isSpeakingOrQueuedAndNotSourceIsVolumeAnnouncement();
+    if (reading) {
       return;
     }
     int min =
