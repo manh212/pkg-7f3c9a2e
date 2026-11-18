@@ -1,16 +1,6 @@
 # Task assistant
 
-The owner approved this feature for `feat/vietnamese-task-assistant`, overriding
-this repository's usual master-only workflow for this task. It is a working
-implementation that executes Android accessibility actions, not a simulated demo.
-Do not merge or publish it as the rolling dev build without the owner's request.
-
-Branch APKs use a build number at least one greater than the fetched
-`origin/master` commit count, with the branch's own count retained if higher.
-The same effective number feeds Android's `versionCode` and the app's build
-metadata. CI verifies the version in every generated branch APK before uploading
-artifacts. This prevents Android rejecting the task build as a downgrade from a
-current master build. The branch requires a fetched `origin/master` reference.
+This feature ships on master. It is a working implementation that executes Android accessibility actions, not a simulated demo.
 
 ## Entry and input
 
@@ -71,14 +61,15 @@ Examples for the screen interpreter:
 - `Nhập vào ô Tin nhắn nội dung Mình đến muộn`
 - `Nhấn Sao chép` when the copy control is visible
 - `Bật tên công tắc`, `Tắt tên công tắc`
-- `Mở YouTube, tìm nhạc Trịnh rồi mở video đầu tiên`
+- `Mở Zalo, tìm Lan rồi mở kết quả đầu tiên`
 
 The entry form contains the request field, **Nói yêu cầu**, and **Thực hiện**.
 Processing mode, model selection, speech downloads and screen-command examples
 are available under **Cài đặt giao việc** in task settings.
 
-Every task action uses the visible accessibility tree. `Mở YouTube` clicks its
-visible icon. `Nhấn Trang chủ` clicks a visible button with that name. The task controller resolves each step against the current visible nodes.
+Every task action uses the visible accessibility tree. `Mở Zalo` clicks its
+visible icon, or opens it from the installed launcher catalog when the icon is
+not on the current screen. `Nhấn Trang chủ` clicks a visible button with that name. The task controller resolves each step against the current visible nodes.
 The voice-command feature handles gesture catalog actions, contact lookups and
 direct phone calls. Screen commands can explicitly click **Gửi** after entering text.
 
@@ -95,9 +86,15 @@ response schema supports both a single screen action and a sequence.
 
 The controller observes the active non-overlay window, sends bounded accessibility
 content and the launcher app catalog to the selected AI, validates one structured
-action, checks a fresh screen, executes, then observes again. Supported actions
-include clicking, long pressing, replacing editable text, exposed IME
-submission and scrolling. It can ask a question and continue with
+action, checks a fresh screen, executes, then observes again. The screen is
+re-read fresh before every plan and every action, and the target is re-resolved
+on that fresh screen before it is acted on, so a tap never lands on a stale node.
+For the local model the prompt budget is 16,000 bytes; nodes whose labels match
+words in the goal are sent first, so the item the user asked for is never the one
+dropped when a large screen is truncated. Supported actions
+include opening any installed app from the launcher catalog, clicking, long pressing,
+dragging an item in a direction, replacing editable text, exposed IME
+submission, scrolling, and going back or home. It can ask a question and continue with
 the answer. It cannot execute scripts, arbitrary intents, coordinates or package
 names absent from the installed launcher catalog.
 
@@ -129,6 +126,18 @@ actions. Canvas-only controls, unsupported embedded content and apps that reject
 accessibility actions may require manual completion. It does not claim universal
 app compatibility or use OCR coordinates as a fallback. AI interpretation and
 completion evidence still need owner validation on a phone.
+
+Current limits: the offline command parser only understands its listed Vietnamese
+patterns; anything else falls through to the AI, or is rejected when no model is
+available. Drag moves one item in one direction; dragging one item onto another
+is not supported yet. Opening an app needs it in the installed launcher catalog.
+The local model sees at most 16,000 bytes of screen and apps per plan, with
+goal-matching nodes first. A task stops after repeated failures, unchanged
+results, loops, 40 steps or ten active minutes.
+
+Future upgrades: drag one item onto another item; swipe without a target;
+a larger local context, or the E4B model on compatible phones, for denser
+screens; learning the user's corrections when a tap lands on the wrong item.
 
 Unit coverage targets strict action validation, confirmation rules, current-screen
 completion evidence, cancellation, manual interruption, stale callbacks, unchanged
