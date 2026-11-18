@@ -395,6 +395,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     }
     addActionItemsToList(builder, createSystemActions());
     addActionItemsToList(builder, createReadingControl());
+    addActionItemsToList(builder, createSmartContextGestures());
     addActionItemsToList(builder, createMenuControl());
     addActionItemsToList(builder, createTextEditing());
     addActionItemsToList(builder, organizeSpecialFeatures());
@@ -750,6 +751,23 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
               TYPE_ACTION_ITEM));
     }
 
+    return builder.build();
+  }
+
+  private ImmutableList<ActionItem> createSmartContextGestures() {
+    ImmutableList.Builder<ActionItem> builder =
+        createActionListBuilder(R.string.smart_context_title, 0, 0);
+    Resources resources = getContext().getResources();
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_smart_context_gesture_1),
+            resources.getString(R.string.shortcut_value_smart_context_gesture_1),
+            TYPE_ACTION_ITEM));
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_smart_context_gesture_2),
+            resources.getString(R.string.shortcut_value_smart_context_gesture_2),
+            TYPE_ACTION_ITEM));
     return builder.build();
   }
 
