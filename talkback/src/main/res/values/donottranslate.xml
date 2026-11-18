@@ -1693,7 +1693,7 @@
     <string name="pref_shortcut_1finger_2tap_hold_default">@string/shortcut_value_perform_long_click_action</string>
 
     <string name="pref_shortcut_2finger_1tap_default">@string/shortcut_value_pause_or_resume_feedback</string>
-    <string name="pref_shortcut_2finger_2tap_default">@string/shortcut_value_media_control_or_voice_input</string>
+    <string name="pref_shortcut_2finger_2tap_default">@string/shortcut_value_media_control</string>
     <string name="pref_shortcut_2finger_3tap_default">@string/shortcut_value_announce_status</string>
     <string name="pref_shortcut_3finger_1tap_default">@string/shortcut_value_talkback_breakout</string>
     <string name="pref_shortcut_3finger_2tap_default">@string/shortcut_value_toggle_voice_feedback</string>
