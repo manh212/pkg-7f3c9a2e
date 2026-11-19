@@ -28,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -420,5 +421,64 @@ class TraversalTreeCacheTest {
     assertEquals(0, TraversalTreeCache.orderCacheReused())
     assertEquals(0, TraversalTreeCache.orderCacheMissed())
     assertEquals(0, TraversalTreeCache.orderCacheLiveAnswers())
+  }
+
+  // Q4 (c2): the order thrown away by clear() is kept for prediction only — navigation
+  // never sees it, so a stale prediction can only waste synthesis, never mis-speak.
+  @Test
+  fun clearedOrder_isKeptForPredictionButNotForNavigation() {
+    val (root, child) = savedOrder()
+    val strategy = checkNotNull(TraversalTreeCache.orderForPrediction(child))
+
+    TraversalTreeCache.clear("test")
+
+    assertNull(TraversalTreeCache.get(root, child))
+    assertFalse(TraversalTreeCache.holds(child))
+    assertNull(TraversalTreeCache.rootFor(child))
+    assertSame(strategy, TraversalTreeCache.orderForPrediction(child))
+  }
+
+  // Q4 (c2): the last-good slot always holds the newest saved order, so the prediction
+  // fallback can never contradict the newest build.
+  @Test
+  fun clearedOrder_predictionFollowsTheNewestSavedOrder() {
+    val (root, child) = savedOrder()
+    TraversalTreeCache.clear("test")
+    val newer = OrderedTraversalStrategy(root)
+    TraversalTreeCache.put(root, newer)
+    TraversalTreeCache.clear("test")
+
+    assertSame(newer, TraversalTreeCache.orderForPrediction(child))
+  }
+
+  // Q4 (c2): prediction from the last good order still needs the pivot to be in it.
+  @Test
+  fun clearedOrder_predictionReturnsNullForNodeOutsideTheOrder() {
+    val (_, child) = savedOrder()
+    val outsider = AccessibilityNodeInfoCompat.wrap(node(null))
+    TraversalTreeCache.clear("test")
+
+    assertNotNull(TraversalTreeCache.orderForPrediction(child))
+    assertNull(TraversalTreeCache.orderForPrediction(outsider))
+  }
+
+  // Q4 (c1): a same-window text-only change keeps the saved order and does not move the
+  // revision — an in-flight build of that order is no longer discarded as STALE.
+  @Test
+  fun textOnlyChange_doesNotMoveRevision() {
+    val (root, child) = savedOrder()
+    val before = TraversalTreeCache.revision()
+    val change =
+      event(
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+        contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT,
+      )
+    shadowOf(change).setWindowId(root.windowId)
+
+    val cleared = TraversalTreeCache.onAccessibilityEvent(change)
+
+    assertFalse(cleared)
+    assertTrue(TraversalTreeCache.holds(child))
+    assertEquals(before, TraversalTreeCache.revision())
   }
 }

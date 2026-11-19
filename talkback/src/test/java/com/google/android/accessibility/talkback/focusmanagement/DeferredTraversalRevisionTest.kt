@@ -35,12 +35,15 @@ class DeferredTraversalRevisionTest {
       it.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
     }
 
+  // Q4 (c1): a same-window text change leaves the saved order in place, so it must not move
+  // the revision either — an in-flight build of that same order is no longer discarded as
+  // STALE for a change that changed nothing about the order.
   @Test
-  fun deferredContentInvalidatesAnInFlightBuildEvenWithoutASavedTree() {
+  fun deferredTextChangePreservesTheInFlightBuildRevision() {
     val before = TraversalTreeCache.revision()
     val event = textChange(7)
     TraversalTreeCache.noteDeferredEvent(event)
-    assertTrue(TraversalTreeCache.revision() > before)
+    assertEquals(before, TraversalTreeCache.revision())
     event.recycle()
   }
 
@@ -63,20 +66,48 @@ class DeferredTraversalRevisionTest {
     event.recycle()
   }
 
+  // Q4 (c1): same as above, for an admitted (not deferred) text change.
   @Test
-  fun admittedContentAlsoInvalidatesAnInFlightBuildBeforeTheTreeExists() {
+  fun admittedTextChangePreservesTheInFlightBuildRevision() {
     val before = TraversalTreeCache.revision()
     val event = textChange(7)
     TraversalTreeCache.onAccessibilityEvent(event)
+    assertEquals(before, TraversalTreeCache.revision())
+    event.recycle()
+  }
+
+  // Q4 (c1): a text change from an unknown window is still a text change — it cannot change
+  // the order in any window, so it does not move the revision either.
+  @Test
+  fun deferredTextChangeFromUnknownWindowPreservesRevision() {
+    val before = TraversalTreeCache.revision()
+    val event = textChange(-1)
+    TraversalTreeCache.noteDeferredEvent(event)
+    assertEquals(before, TraversalTreeCache.revision())
+    event.recycle()
+  }
+
+  // Q4 (c1): the narrowed rule still invalidates an in-flight build for a genuinely
+  // structural change, even before any order is saved — a content change with no change
+  // type is treated as structural.
+  @Test
+  fun deferredStructuralContentStillInvalidatesAnInFlightBuild() {
+    val before = TraversalTreeCache.revision()
+    val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED).also {
+      shadowOf(it).setWindowId(7)
+    }
+    TraversalTreeCache.noteDeferredEvent(event)
     assertTrue(TraversalTreeCache.revision() > before)
     event.recycle()
   }
 
   @Test
-  fun unknownWindowChangesInvalidateConservatively() {
+  fun admittedStructuralContentStillInvalidatesAnInFlightBuildWithoutASavedTree() {
     val before = TraversalTreeCache.revision()
-    val event = textChange(-1)
-    TraversalTreeCache.noteDeferredEvent(event)
+    val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED).also {
+      shadowOf(it).setWindowId(7)
+    }
+    TraversalTreeCache.onAccessibilityEvent(event)
     assertTrue(TraversalTreeCache.revision() > before)
     event.recycle()
   }
