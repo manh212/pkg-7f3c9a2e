@@ -125,6 +125,7 @@ import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
+import com.google.android.accessibility.utils.ValueSteps;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.CursorGranularity;
 import com.google.android.accessibility.utils.input.TextEventFilter.TypingInput;
@@ -656,6 +657,7 @@ public class SelectorController implements UserInputEventListener {
   private final AccessibilityFocusMonitor accessibilityFocusMonitor;
   private final Pipeline.FeedbackReturner pipeline;
   private final VerticalNavigator verticalNavigator;
+  private final @Nullable PageScroller pageScroller;
   private final ActorState actorState;
   private final NodeMenuRuleCreator nodeMenuCreator;
   private final TalkBackAnalytics analytics;
@@ -752,6 +754,8 @@ public class SelectorController implements UserInputEventListener {
 
   /** Lists all {@link ContextualSetting} that should be supported. */
   private final ImmutableList<ContextualSetting> contextualSettings;
+
+  private final RowColumnGranularity rowColumnGranularity;
 
   // The Clipboard history reading control, in edit boxes.
   private final ClipboardHistorySetting clipboardHistorySetting;
@@ -852,6 +856,10 @@ public class SelectorController implements UserInputEventListener {
     this.actorState = actorState;
     this.accessibilityFocusMonitor = accessibilityFocusMonitor;
     verticalNavigator = new VerticalNavigator(pipeline, accessibilityFocusMonitor);
+    pageScroller =
+        context instanceof AccessibilityService accessibilityService
+            ? new PageScroller(accessibilityService, pipeline, accessibilityFocusMonitor)
+            : null;
     this.nodeMenuCreator = nodeMenuCreator;
     this.analytics = analytics;
     this.gestureMapping = gestureMapping;
@@ -883,7 +891,8 @@ public class SelectorController implements UserInputEventListener {
     // the priority is.
     ImmutableList.Builder<ContextualSetting> contextualSettingsBuilder = ImmutableList.builder();
     contextualSettingsBuilder.add(new SmartContextSetting());
-    contextualSettingsBuilder.add(new RowColumnGranularity(collectionState, actorState));
+    rowColumnGranularity = new RowColumnGranularity(collectionState, actorState);
+    contextualSettingsBuilder.add(rowColumnGranularity);
     contextualSettingsBuilder.add(new AdjustableWidgetSetting());
     contextualSettingsBuilder.add(new ActionsSetting(nodeMenuCreator, accessibilityFocusMonitor));
     contextualSettingsBuilder.add(new TypoGranularity(accessibilityFocusMonitor));
@@ -1560,6 +1569,12 @@ public class SelectorController implements UserInputEventListener {
         return;
       }
     }
+    // Table navigation chosen elsewhere doesn't carry over into a table that focus enters.
+    if (isTableNavigation(currentSetting)
+        && rowColumnGranularity.enteredTableWithoutAutoEnter(context)) {
+      restoreSetting();
+      return;
+    }
     if (smartContextAutomaticallySelected
         && currentSetting == Setting.SMART_CONTEXT_GESTURES
         && !findContextualSetting(Setting.SMART_CONTEXT_GESTURES)
@@ -1602,6 +1617,7 @@ public class SelectorController implements UserInputEventListener {
     touchActive = active;
     if (active) {
       verticalNavigator.cancel();
+      cancelPageScroll();
     }
     handler.removeCallbacks(switchAfterTouch);
     if (!touchActive && lastFocusedNode != null) {
@@ -1618,6 +1634,7 @@ public class SelectorController implements UserInputEventListener {
 
   public void shutdown() {
     handler.removeCallbacks(switchAfterTouch);
+    cancelPageScroll();
     handler.removeCallbacks(switchAfterClassifying);
     TextEntityMenu.setClassifiedListener(null);
     lastFocusedNode = null;
@@ -1964,11 +1981,32 @@ public class SelectorController implements UserInputEventListener {
     }
     List<Setting> settings = getFilteredSettings();
     if (!settings.isEmpty()) {
-      selectSetting(settings.get(0), AnnounceType.SILENCE, false);
+      selectSetting(firstAutomaticSetting(settings), AnnounceType.SILENCE, false);
     } else {
       requestServiceHandlesDoubleTap(EVENT_ID_UNTRACKED, false);
       resetSelectedSetting(context);
     }
+  }
+
+  /**
+   * Returns the first of {@code settings} to select automatically. Table navigation is at the top
+   * of the list, and is selected automatically only with Switch to table navigation in tables on.
+   */
+  private Setting firstAutomaticSetting(List<Setting> settings) {
+    if (!RowColumnGranularity.autoEnterEnabled(context)) {
+      for (Setting setting : settings) {
+        if (!isTableNavigation(setting)) {
+          return setting;
+        }
+      }
+    }
+    return settings.get(0);
+  }
+
+  private static boolean isTableNavigation(Setting setting) {
+    return setting == Setting.GRANULARITY_ROW_COLUMN
+        || setting == Setting.GRANULARITY_ROW
+        || setting == Setting.GRANULARITY_COLUMN;
   }
 
   /**
@@ -2511,7 +2549,7 @@ public class SelectorController implements UserInputEventListener {
         return;
       }
       case PUNCTUATION -> {
-        cycleSpeakPunctuationVerbosity(eventId, TalkBackAnalytics.TYPE_SELECTOR);
+        cycleSpeakPunctuationVerbosity(eventId, TalkBackAnalytics.TYPE_SELECTOR, isNext);
         return;
       }
       case EMOJI -> {
@@ -3143,6 +3181,11 @@ public class SelectorController implements UserInputEventListener {
 
   /** Cycle the punctuation verbosity to the next value */
   public void cycleSpeakPunctuationVerbosity(EventId eventId, int triggerAction) {
+    cycleSpeakPunctuationVerbosity(eventId, triggerAction, /* isNext= */ true);
+  }
+
+  /** Moves the punctuation verbosity to the next or previous value. */
+  private void cycleSpeakPunctuationVerbosity(EventId eventId, int triggerAction, boolean isNext) {
     Resources res = context.getResources();
     int punctuationLevel =
         Integer.parseInt(
@@ -3153,10 +3196,9 @@ public class SelectorController implements UserInputEventListener {
                 R.string.pref_punctuation_verbosity_default));
     analytics.onManuallyChangeSetting(
         res.getString(R.string.pref_punctuation_verbosity), triggerAction);
-    punctuationLevel++;
-    punctuationLevel %= 3;
     String[] punctuationValues =
         context.getResources().getStringArray(R.array.pref_punctuation_values);
+    punctuationLevel = ValueSteps.step(punctuationLevel, punctuationValues.length, isNext);
     String[] punctuationEntries =
         context.getResources().getStringArray(R.array.pref_punctuation_entries);
     SharedPreferencesUtils.putStringPref(
@@ -3265,9 +3307,23 @@ public class SelectorController implements UserInputEventListener {
     showQuickMenuActionOverlay(eventId, state);
   }
 
-  /** Perform scrolling to previous/next page. */
+  /**
+   * Perform scrolling to previous/next page. Lists that don't move for their scroll action get a
+   * swipe instead.
+   */
   private void scrollForwardBackward(EventId eventId, boolean isNext) {
+    if (pageScroller != null) {
+      pageScroller.scroll(eventId, /* forward= */ !isNext);
+      return;
+    }
     pipeline.returnFeedback(eventId, Feedback.focusDirection(isNext ? PREVIOUS_PAGE : NEXT_PAGE));
+  }
+
+  /** Stops a swipe that the Scroll reading control has waiting, such as when a key is pressed. */
+  public void cancelPageScroll() {
+    if (pageScroller != null) {
+      pageScroller.cancel();
+    }
   }
 
   private EventId lastChangeAccessibilityEventId;

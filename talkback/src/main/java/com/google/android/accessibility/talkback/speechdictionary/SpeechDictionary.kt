@@ -59,6 +59,15 @@ object SpeechDictionary {
 
   private var ownPackage: String = ""
 
+  // Whether text in SandFly's own windows is changed, as in the notification list.
+  @Volatile private var appliesInOwnWindows: Boolean = false
+
+  /** Sets whether entries apply in SandFly's own windows, which the notification list needs. */
+  @JvmStatic
+  fun setAppliesInOwnWindows(applies: Boolean) {
+    appliesInOwnWindows = applies
+  }
+
   /** Reads the entries from [prefs], and applies them to speech while there are any. */
   @JvmStatic
   fun load(context: Context, prefs: SharedPreferences) {
@@ -86,7 +95,7 @@ object SpeechDictionary {
   @JvmStatic
   fun apply(text: CharSequence): CharSequence? {
     val app = app
-    return if (app == ownPackage) null else apply(text, entries, app)
+    return if (app == ownPackage && !appliesInOwnWindows) null else apply(text, entries, app)
   }
 
   internal fun apply(text: CharSequence, entries: List<DictionaryEntry>, app: String): CharSequence? {

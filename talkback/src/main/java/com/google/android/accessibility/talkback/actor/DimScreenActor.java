@@ -213,9 +213,34 @@ public class DimScreenActor implements OnConfigurationChangedListener {
         startDimmingCount();
       }
       dimScreenNotifier.onScreenDim();
+      announceFeedbackAndUsageHintForScreenDimmed();
+      requestBrightnessPermission();
+      return;
     }
 
     announceFeedbackAndUsageHintForScreenDimmed();
+  }
+
+  /**
+   * The first time the screen is hidden without permission to modify system settings, asks for it,
+   * so that the brightness can be lowered while the screen is hidden.
+   */
+  private void requestBrightnessPermission() {
+    boolean opened =
+        HiddenScreenBrightness.requestPermissionOnce(
+            service,
+            () -> {
+              if (isDimmed && !isInstructionDisplayed) {
+                HiddenScreenBrightness.lower(service);
+              }
+            });
+    if (opened && pipeline != null) {
+      pipeline.returnFeedback(
+          EVENT_ID_UNTRACKED,
+          Feedback.speech(
+              service.getString(R.string.brightness_needs_permission),
+              announcementOptions(SpeechController.QUEUE_MODE_QUEUE)));
+    }
   }
 
   private void initView() {
@@ -237,7 +262,11 @@ public class DimScreenActor implements OnConfigurationChangedListener {
       }
       viewParams.flags &= ~LayoutParams.FLAG_TURN_SCREEN_ON;
       viewParams.flags &= ~LayoutParams.FLAG_KEEP_SCREEN_ON;
-      viewParams.format = PixelFormat.OPAQUE;
+      // Not OPAQUE: the window manager ignores FLAG_KEEP_SCREEN_ON on windows behind an opaque
+      // window that fills the display. Before Android 15 the size it compares against excludes the
+      // navigation bar and cutout, so the gap below doesn't stop an opaque curtain from filling it,
+      // and a video under the curtain no longer kept the screen on. The view still draws black.
+      viewParams.format = PixelFormat.TRANSLUCENT;
 
       view = new DimmingOverlayView(service);
       view.setTimerLimit(INSTRUCTION_VISIBLE_SECONDS);
@@ -302,6 +331,7 @@ public class DimScreenActor implements OnConfigurationChangedListener {
     isInstructionDisplayed = false;
     view.hideText();
     updateView();
+    HiddenScreenBrightness.lower(service);
   }
 
   public boolean isInstructionDisplayed() {
@@ -318,6 +348,9 @@ public class DimScreenActor implements OnConfigurationChangedListener {
   public void resume() {
     if (isDimmingEnabled()) {
       makeScreenDim();
+    } else {
+      // Restores the brightness that SandFly lowered if it stopped while the screen was hidden.
+      HiddenScreenBrightness.restore(service);
     }
   }
 
@@ -347,6 +380,7 @@ public class DimScreenActor implements OnConfigurationChangedListener {
 
       dimScreenNotifier.onScreenBright();
     }
+    HiddenScreenBrightness.restore(service);
     // Not to feedback since this actor is shut down.
     if (!stopFeedback) {
       pipeline.returnFeedback(

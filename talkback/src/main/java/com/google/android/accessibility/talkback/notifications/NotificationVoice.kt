@@ -102,6 +102,10 @@ class NotificationVoice(
     get() = listeners.isEmpty() && pending.isEmpty() && waitingForSpeech.isEmpty() &&
       unstarted.isEmpty() && speaking.isEmpty()
 
+  /** Whether text is being said or waits to be said, including text without a listener. */
+  val isBusy: Boolean
+    get() = !isIdle
+
   private val release = Runnable {
     if (isIdle) {
       LogUtils.d(TAG, "Releasing %s", profile?.engine)

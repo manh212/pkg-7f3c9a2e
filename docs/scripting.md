@@ -11,7 +11,7 @@ A script is one of these:
 *   A `.lua` file, up to 1 MB.
 *   A `.zip` file with a `main.lua` in it, plus anything `main.lua` uses: other Lua files, sounds, and translations. The zip can be up to 5 MB, up to 5 MB unpacked, and hold up to 200 files.
 
-To install a script, go to **Apps** > **Scripts** in Meridian settings and choose **Import script**. Meridian lists what the script asks to do before it installs it. Importing a file with the id of a script that's already installed updates that script and keeps its data and settings; Meridian always asks first, and says so if the author changed.
+To install a script, go to **Apps** > **Scripts** in Meridian settings and choose **Import script**, or open or share a `.lua` or `.zip` script file, or an `https` link to one, with **Install Meridian script**. The file's name must end in `.lua` or `.zip`. Meridian asks before downloading from a link another app sends. Meridian lists what the script asks to do before it installs it. Importing a file with the id of a script that's already installed updates that script and keeps its data and settings; Meridian always asks first, and says so if the author changed.
 
 The install dialog shows where a script came from and whether its signature matches its files. The signature is stored on the last line of `main.lua` and covers every file in the script. A matching signature confirms that the files are unchanged from the signed version. The `author` field is supplied by the script writer and does not verify who signed the files.
 

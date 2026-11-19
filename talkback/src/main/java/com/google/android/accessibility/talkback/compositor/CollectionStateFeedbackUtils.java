@@ -589,6 +589,11 @@ public final class CollectionStateFeedbackUtils {
               context),
           getCollectionLevel(collectionState, context));
     }
+    // The page's row and column come from the pager's item state; a pager has no table item
+    // state.
+    CollectionState.PagerItemState pagerItemState = collectionState.getPagerItemState();
+    int rowIndex = pagerItemState != null ? pagerItemState.getRowIndex() : -1;
+    int columnIndex = pagerItemState != null ? pagerItemState.getColumnIndex() : -1;
     return CompositorUtils.joinCharSequences(
         getCollectionName(
             R.string.in_grid_pager,
@@ -596,15 +601,10 @@ public final class CollectionStateFeedbackUtils {
             collectionState.getCollectionName(),
             context),
         getCollectionLevel(collectionState, context),
-        hasBothCount(collectionState)
+        hasBothCount(collectionState) && rowIndex >= 0 && columnIndex >= 0
             ? CompositorUtils.joinCharSequences(
-                context.getString(
-                    R.string.row_index_template,
-                    getCollectionTableItemRowIndex(collectionState) + 1),
-                context.getString(
-                        R.string.column_index_template,
-                        getCollectionTableItemColumnIndex(collectionState))
-                    + 1)
+                context.getString(R.string.row_index_template, rowIndex + 1),
+                context.getString(R.string.column_index_template, columnIndex + 1))
             : null,
         quantityCharSequence(
             R.plurals.template_list_row_count,

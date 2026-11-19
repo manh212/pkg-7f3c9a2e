@@ -237,6 +237,7 @@ import com.google.android.accessibility.talkback.calls.CallAnnouncements;
 import com.google.android.accessibility.talkback.calls.CallLimitController;
 import com.google.android.accessibility.talkback.volume.TouchExplorationResumePolicy;
 import com.google.android.accessibility.talkback.volume.VolumeKeyManager;
+import com.google.android.accessibility.talkback.volume.VolumeKeyVolume;
 import com.google.android.accessibility.talkback.notifications.NotificationSettings;
 import com.google.android.accessibility.talkback.speechdictionary.SpeechDictionary;
 import com.google.android.accessibility.talkback.gesture.AppGestures;
@@ -437,6 +438,12 @@ public class TalkBackService extends AccessibilityServiceCompat
       clearServerOnDestroyListener();
       clientDisconnectedTimeStamp = System.currentTimeMillis();
       setCaptureTrainingCombos(false);
+      @Nullable GestureController gestureController = talkBackService.gestureController;
+      if (gestureController != null) {
+        gestureController.setCaptureGestureIdToAnnouncements(
+            /* captureGestureIdToAnnouncements= */ ImmutableMap.of(),
+            /* captureFingerprintGestureIdToAnnouncements= */ ImmutableMap.of());
+      }
 
     }
 
@@ -503,6 +510,12 @@ public class TalkBackService extends AccessibilityServiceCompat
       hasTrainingFinished = true;
       talkBackService.setTrainingFinished(hasTrainingFinished);
       setCaptureTrainingCombos(false);
+      @Nullable GestureController gestureController = talkBackService.gestureController;
+      if (gestureController != null) {
+        gestureController.setCaptureGestureIdToAnnouncements(
+            /* captureGestureIdToAnnouncements= */ ImmutableMap.of(),
+            /* captureFingerprintGestureIdToAnnouncements= */ ImmutableMap.of());
+      }
 
       // Request permissions after TalkBack tutorial is finished.
       if (!NotificationUtils.hasPostNotificationPermission(talkBackService)) {
@@ -719,6 +732,9 @@ public class TalkBackService extends AccessibilityServiceCompat
   /** {@link BroadcastReceiver} for tracking volume changes. */
   private VolumeMonitor volumeMonitor;
 
+  /** Changes the volume for an unmanaged volume-key press, picking the playing media session. */
+  private VolumeKeyVolume volumeKeyVolume;
+
   /** {@link android.content.BroadcastReceiver} for tracking battery status changes. */
   private BatteryMonitor batteryMonitor;
   private StatusReader statusReader;
@@ -853,6 +869,19 @@ public class TalkBackService extends AccessibilityServiceCompat
   // TYPE_TOUCH_INTERACTION_END will be considered as passthrough window.
   private final com.google.android.accessibility.talkback.volume.TouchVolumeState touchVolumeState =
       new com.google.android.accessibility.talkback.volume.TouchVolumeState();
+
+  /**
+   * The service flags that make Android set up touch exploration again when they change, ending
+   * the touch in progress without a {@link AccessibilityEvent#TYPE_TOUCH_INTERACTION_END}.
+   */
+  private static final int TOUCH_EXPLORATION_SETUP_FLAGS =
+      AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE
+          | FLAG_SERVICE_HANDLES_DOUBLE_TAP
+          | AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
+          | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH
+          | AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
+
+  @Nullable private ProcessorVolumeStream processorVolumeStream;
   // In order to handle key action down/up in pair for the same functions.
   // Records whether the last keystroke of VolumeUp key occurred in the passthrough window.
   private boolean volumeUpKeyPressedInPassThroughWindow = false;
@@ -1042,6 +1071,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     com.google.android.accessibility.talkback.taskassistant.TaskAssistant.closeService();
     unlockedBootHandler.removeCallbacks(checkUnlockedBoot);
+    AppGestures.setSystemUiActive(null);
     if (userInterface != null) {
       userInterface.unregisterAllListeners();
     }
@@ -1857,6 +1887,9 @@ public class TalkBackService extends AccessibilityServiceCompat
       textEventInterpreter.setLastKeyEventTime(keyEvent.getEventTime());
       InputFocusInterpreter.setLastKeyDownTime(keyEvent.getEventTime());
       textEventInterpreter.resetLastKeyDown();
+      if (processorScreen != null) {
+        processorScreen.onKeyPressed(keyEvent);
+      }
     }
     Performance perf = Performance.getInstance();
     EventId eventId = perf.onEventReceived(keyEvent);
@@ -2059,6 +2092,24 @@ public class TalkBackService extends AccessibilityServiceCompat
     return touchVolumeState.isTouching();
   }
 
+  /**
+   * Ends the touch interaction in progress, for when Android ends it without a {@link
+   * AccessibilityEvent#TYPE_TOUCH_INTERACTION_END}: when touch exploration is set up again or the
+   * touch is cancelled. Otherwise, until the next touch, the volume keys change speech volume only,
+   * their commands and cursor movement stay off, and notifications held for the touch stay held.
+   */
+  private void forgetTouchInteraction(String reason) {
+    if (!touchVolumeState.isTouching()) {
+      return;
+    }
+    Log.i(TAG, "Touch interaction ended without its event: " + reason);
+    touchVolumeState.reset();
+    if (processorVolumeStream != null) {
+      processorVolumeStream.forgetTouchInteraction();
+    }
+    NotificationReader.onTouchEnded();
+  }
+
   /** Runs an action from the gesture catalog, as if it had been assigned to a gesture. */
   public void performCatalogAction(String action) {
     if (gestureController != null) {
@@ -2257,18 +2308,27 @@ public class TalkBackService extends AccessibilityServiceCompat
                             | FeedbackItem.FLAG_SKIP_DUPLICATE)));
   }
 
-  public void adjustUnmanagedVolumeKey(boolean increase, boolean touching) {
+  /**
+   * Changes the volume for a volume-key press when the keys are unmanaged: the accessibility
+   * volume while a finger is on the screen, otherwise the volume Android chooses for the key —
+   * that of the media session playing, including the volume of a cast session, when Meridian has
+   * notification access, or else the music stream. No system volume panel is shown while a finger
+   * is on the screen; otherwise it is. [repeating] while the key is held, so the same session is
+   * used for the whole hold.
+   */
+  public void adjustUnmanagedVolumeKey(boolean increase, boolean touching, boolean repeating) {
     if (touching) {
       adjustContextualVolume(increase, true);
       return;
     }
-    AudioManager audioManager = getSystemService(AudioManager.class);
-    if (audioManager != null) {
-      audioManager.adjustStreamVolume(
-          AudioManager.STREAM_MUSIC,
-          increase ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER,
-          AudioManager.FLAG_SHOW_UI);
+    if (volumeKeyVolume == null) {
+      volumeKeyVolume = new VolumeKeyVolume(this);
     }
+    volumeKeyVolume.adjust(
+        increase ? KeyEvent.KEYCODE_VOLUME_UP : KeyEvent.KEYCODE_VOLUME_DOWN,
+        repeating,
+        AudioManager.STREAM_MUSIC,
+        /* showUi= */ true);
   }
 
   /** As {@link #adjustContextualVolume(boolean)}, with the touch state given by the caller. */
@@ -2673,6 +2733,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     super.onServiceConnected();
     // Menus read the settings profiles on the main thread.
     SettingsProfiles.preload(this);
+    AppGestures.setSystemUiActive(this::isSystemUiActive);
     EventId talkbackOnEventId =
         Performance.getInstance().onHintEventReceived(Performance.HINT_SUB_TYPE_TALKBACK_ON);
 
@@ -3328,7 +3389,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     headphoneStateMonitor = new HeadphoneStateMonitor(this);
 
-    ProcessorVolumeStream processorVolumeStream =
+    processorVolumeStream =
         new ProcessorVolumeStream(pipeline.getActorState(), this, touchInteractingIndicator);
     addEventListener(processorVolumeStream);
     keyEventListeners.add(processorVolumeStream);
@@ -3347,6 +3408,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     addEventListener(backTapCommands);
     ringerModeAndScreenMonitor.addScreenChangedListener(
         (isInteractive, eventId) -> {
+          if (!isInteractive) {
+            // Android cancels the touch, which ends with no TYPE_TOUCH_INTERACTION_END.
+            forgetTouchInteraction("screen off");
+          }
           if (backTapCommands != null) {
             backTapCommands.onScreenChanged(isInteractive);
           }
@@ -3673,6 +3738,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     LogUtils.v(TAG, "Accessibility Service flag set: 0x%X", info.flags);
     setServiceInfo(info);
+    forgetTouchInteraction("service flags set");
   }
 
   private static boolean shouldSendGestureMotionEvents() {
@@ -3693,6 +3759,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (updatedFlags != info.flags) {
       info.flags = updatedFlags;
       setServiceInfo(info);
+      forgetTouchInteraction("touch exploration set up again");
     }
   }
 
@@ -3786,6 +3853,11 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     applyServiceInfo();
     updateExtendedGestures();
+
+    if (windowEventInterpreter != null) {
+      // The windows open before the service started don't appear at the next window event.
+      windowEventInterpreter.initializeRoles();
+    }
 
     if (callStateMonitor != null) {
       callStateMonitor.startMonitoring();
@@ -4974,6 +5046,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     LogUtils.v(TAG, "Accessibility Service flag changed: 0x%X", info.flags);
     setServiceInfo(info);
+    if ((flags & TOUCH_EXPLORATION_SETUP_FLAGS) != 0) {
+      forgetTouchInteraction("touch exploration set up again");
+    }
     updateExtendedGestures();
   }
 
@@ -5859,6 +5934,23 @@ public class TalkBackService extends AccessibilityServiceCompat
                 prefs, res, R.string.pref_debug_log_key, R.bool.pref_debug_log_default)));
 
     dumpLogger.log("");
+  }
+
+  /**
+   * Whether the active window is System UI's, such as the notification shade, quick settings or the
+   * lock screen. These are system windows, which don't change the app in front, as closing them
+   * sends no event for the app under them.
+   */
+  private boolean isSystemUiActive() {
+    for (AccessibilityWindowInfo window : AccessibilityServiceCompatUtils.getWindows(this)) {
+      if (!window.isActive()) {
+        continue;
+      }
+      @Nullable AccessibilityNodeInfo root = window.getRoot();
+      return root != null
+          && AppGestures.SYSTEM_UI.contentEquals(String.valueOf(root.getPackageName()));
+    }
+    return false;
   }
 
   /**

@@ -17,14 +17,17 @@
 package com.google.android.accessibility.talkback.actor;
 
 import static android.view.accessibility.AccessibilityNodeInfo.FOCUS_ACCESSIBILITY;
+import static android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT;
 import static com.google.android.accessibility.talkback.Feedback.Focus.Action.INITIAL_FOCUS_FIRST_CONTENT;
 import static com.google.android.accessibility.talkback.Feedback.Focus.Action.INITIAL_FOCUS_FOLLOW_INPUT;
 import static com.google.android.accessibility.talkback.Feedback.Focus.Action.INITIAL_FOCUS_RESTORE;
 
 import android.accessibilityservice.AccessibilityService;
+import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.text.TextUtils;
 import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -33,9 +36,11 @@ import com.google.android.accessibility.talkback.CursorGranularityManager;
 import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.Feedback.Focus;
 import com.google.android.accessibility.talkback.Pipeline;
+import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.talkback.actor.helper.FocusActorHelper;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForLogicalNavigation;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForScreenStateChange;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
@@ -52,11 +57,13 @@ import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.CursorGranularity;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter;
+import com.google.android.accessibility.utils.monitor.InputModeTracker;
 import com.google.android.accessibility.utils.output.LowLatencyAudio;
 import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy;
 import com.google.android.accessibility.utils.traversal.TraversalStrategyUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -102,6 +109,11 @@ public class FocusManagerInternal {
   // not run in that case: they record a different source action, which re-arms the request and
   // repeats the focus announcement after every subtree change.
   private boolean ensureRequestBlockedBySkipRefocus = false;
+
+  // An app that draws an item again and again, as Facebook does while images load, takes focus
+  // off it each time. Focus returns to the same item this many times between touches.
+  private static final int MAX_SAME_ITEM_RESTORES = 3;
+  private int sameItemRestores = 0;
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Construction methods
@@ -155,6 +167,7 @@ public class FocusManagerInternal {
 
   public void renewEnsureFocus() {
     skipRefocus = false;
+    sameItemRestores = 0;
   }
 
   /**
@@ -295,6 +308,11 @@ public class FocusManagerInternal {
       return true;
     }
 
+    if (FocusProcessorForLogicalNavigation.swipeScrollPending()) {
+      LogUtils.d(TAG, String.format("%s: Return, a swipe's scroll is still to focus an item.", subTag));
+      return false;
+    }
+
     // An app changing its controls while it records, such as a voice message's record button
     // giving way to the recording's controls, would otherwise get focus placed elsewhere and
     // spoken, into the recording.
@@ -310,6 +328,11 @@ public class FocusManagerInternal {
       LogUtils.d(
           TAG, String.format("%s: Return, last focus is in the input method window.", subTag));
       return false;
+    }
+
+    // Typing can take focus off the text field, such as when a new line makes the field taller.
+    if (refocusEditField(eventId)) {
+      return true;
     }
 
     if (!FocusProcessorForScreenStateChange.focusesNewWindows()) {
@@ -350,6 +373,55 @@ public class FocusManagerInternal {
         toFeedbackPart(INITIAL_FOCUS_FIRST_CONTENT, screenState.getStableScreenState()));
 
     return pipeline.returnFeedback(Feedback.create(eventId, feedbackFailovers));
+  }
+
+  /**
+   * Puts focus back on the text field with input focus when focus was last on a text field in that
+   * window, without speaking it again.
+   *
+   * @return true if accessibility focus was placed on the text field
+   */
+  private boolean refocusEditField(EventId eventId) {
+    @Nullable FocusActionRecord record = history.getLastFocusActionRecord();
+    if (record == null) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat lastFocus = record.getFocusedNode();
+    if (lastFocus == null) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat editField = focusFinder.findFocusCompat(FOCUS_INPUT);
+    if (editField == null || !editField.isEditable() || !editField.isVisibleToUser()) {
+      return false;
+    }
+    boolean wasOnEditField =
+        lastFocus.isEditable() && editField.getWindowId() == lastFocus.getWindowId();
+    // Gboard moves focus to its suggestions during physical typing, and Enter removes them.
+    boolean wasOnKeyboardWhileTyping =
+        isKeyboardInput()
+            && AccessibilityWindowInfoUtils.isImeWindow(
+                AccessibilityNodeInfoUtils.getWindow(lastFocus));
+    if (!wasOnEditField && !wasOnKeyboardWhileTyping) {
+      return false;
+    }
+    LogUtils.d(TAG, "EnsureOnScreen: Focus returns to the text field.");
+    FocusActionInfo focusActionInfo =
+        FocusActionInfo.builder()
+            .setForceMuteFeedback(true)
+            .setSourceAction(FocusActionInfo.ENSURE_ON_SCREEN)
+            .build();
+    return pipeline.returnFeedback(
+        eventId,
+        Focus.builder()
+            .setAction(Focus.Action.FOCUS)
+            .setFocusActionInfo(focusActionInfo)
+            .setTarget(editField));
+  }
+
+  /** Returns whether the last input was from a physical keyboard. */
+  private boolean isKeyboardInput() {
+    return service instanceof TalkBackService talkBack
+        && talkBack.getInputModeTracker().getInputMode() == InputModeTracker.INPUT_MODE_KEYBOARD;
   }
 
   /** Returns whether focus was last placed after the windows changed. */
@@ -397,6 +469,18 @@ public class FocusManagerInternal {
     }
 
     final String subTag = "EnsureOnScreen";
+    if (skipRefocus
+        && record.getExtraInfo().isSourceEnsureOnScreen()
+        && sameItemRestores < MAX_SAME_ITEM_RESTORES) {
+      AccessibilityNodeInfoCompat sameRoot = AccessibilityNodeInfoUtils.getRoot(lastFocus);
+      AccessibilityNodeInfoCompat sameItem =
+          (sameRoot != null && sameRoot.refresh()) ? findSameItemNearby(sameRoot, lastFocus) : null;
+      if (sameItem != null) {
+        sameItemRestores++;
+        LogUtils.d(TAG, "%s: Focus returns again to the item drawn again as a new node.", subTag);
+        return focusSameItem(sameItem, eventId);
+      }
+    }
     if (skipRefocus && record.getExtraInfo().isSourceEnsureOnScreen()) {
       ensureRequestBlockedBySkipRefocus = true;
       // If the last focus record is also from the source ENSURE_ON_SCREEN, doesn't request to
@@ -421,6 +505,17 @@ public class FocusManagerInternal {
     AccessibilityNodeInfoCompat nodeToFocus =
         findInitialFocusFromTargetWindowRoot(
             service, root, stableScreenState, actorState.focusHistory, focusFinder, type);
+    if (type.get() != FocusActionInfo.RESTORED_LAST_FOCUS) {
+      // An app that draws its views again, as Facebook does while its lists scroll, takes focus
+      // off a node and shows the same item as a new node, which the record's path doesn't find.
+      // The window's first item would send the user back to the top of the screen.
+      AccessibilityNodeInfoCompat sameItem = findSameItemNearby(root, lastFocus);
+      if (sameItem != null) {
+        LogUtils.d(TAG, "%s: Focus returns to the item drawn again as a new node.", subTag);
+        sameItemRestores++;
+        return focusSameItem(sameItem, eventId);
+      }
+    }
     if (nodeToFocus == null) {
       return false;
     }
@@ -450,6 +545,103 @@ public class FocusManagerInternal {
       stableScreenState.consumeInterpretFirstTimeWhenWakeUp();
     }
     return success;
+  }
+
+  /** Focuses {@code item}, the focused item drawn again, without speaking it again. */
+  private boolean focusSameItem(AccessibilityNodeInfoCompat item, EventId eventId) {
+    FocusActionInfo focusActionInfo =
+        FocusActionInfo.builder()
+            .setForceMuteFeedback(true)
+            .setSourceAction(FocusActionInfo.ENSURE_ON_SCREEN)
+            .setInitialFocusType(FocusActionInfo.RESTORED_LAST_FOCUS)
+            .build();
+    return pipeline.returnFeedback(
+        eventId,
+        Focus.builder()
+            .setAction(Focus.Action.FOCUS)
+            .setFocusActionInfo(focusActionInfo)
+            .setTarget(item));
+  }
+
+  /** Most nodes read to find the item that lost focus drawn again. */
+  private static final int MAX_SAME_ITEM_NODES = 1500;
+
+  /** Finding the item that lost focus drawn again stops after this long. */
+  private static final long MAX_SAME_ITEM_SEARCH_MS = 40;
+
+  /**
+   * Returns the only node under {@code root} other than {@code lastFocus} with its class and its
+   * content description, or text, on screen within a quarter of the window's height of where {@code
+   * lastFocus} was when it was focused, or null if there is none or more than one.
+   */
+  private static @Nullable AccessibilityNodeInfoCompat findSameItemNearby(
+      AccessibilityNodeInfoCompat root, AccessibilityNodeInfoCompat lastFocus) {
+    CharSequence label = lastFocus.getContentDescription();
+    if (TextUtils.isEmpty(label)) {
+      label = lastFocus.getText();
+    }
+    CharSequence className = lastFocus.getClassName();
+    if (TextUtils.isEmpty(label) || className == null) {
+      return null;
+    }
+    Rect last = new Rect();
+    lastFocus.getBoundsInScreen(last);
+    Rect window = new Rect();
+    root.getBoundsInScreen(window);
+    if (last.isEmpty() || window.isEmpty()) {
+      return null;
+    }
+    int maxDistance = window.height() / 4;
+    String wanted = label.toString();
+    AccessibilityNodeInfoCompat best = null;
+    int bestDistance = Integer.MAX_VALUE;
+    int matches = 0;
+    Rect bounds = new Rect();
+    ArrayDeque<AccessibilityNodeInfoCompat> queue = new ArrayDeque<>();
+    queue.add(root);
+    int read = 0;
+    long deadline = SystemClock.uptimeMillis() + MAX_SAME_ITEM_SEARCH_MS;
+    while (!queue.isEmpty() && read < MAX_SAME_ITEM_NODES) {
+      if (SystemClock.uptimeMillis() > deadline) {
+        return null;
+      }
+      AccessibilityNodeInfoCompat node = queue.poll();
+      int count = node.getChildCount();
+      for (int i = 0; i < count && read < MAX_SAME_ITEM_NODES; i++) {
+        AccessibilityNodeInfoCompat child = node.getChild(i);
+        read++;
+        if (child == null || !child.isVisibleToUser()) {
+          continue;
+        }
+        queue.add(child);
+        if (child.equals(lastFocus) || !className.equals(child.getClassName())) {
+          continue;
+        }
+        CharSequence childLabel = child.getContentDescription();
+        if (TextUtils.isEmpty(childLabel)) {
+          childLabel = child.getText();
+        }
+        if (childLabel == null
+            || !wanted.equals(childLabel.toString())
+            || !child.isVisibleToUser()
+            || !AccessibilityNodeInfoUtils.shouldFocusNode(child)) {
+          continue;
+        }
+        child.getBoundsInScreen(bounds);
+        int distance = Math.abs(bounds.centerY() - last.centerY());
+        if (distance > maxDistance) {
+          continue;
+        }
+        matches++;
+        if (distance < bestDistance) {
+          best = child;
+          bestDistance = distance;
+        }
+      }
+    }
+    // Several items with the label nearby, such as the Add Friend buttons of a list of people:
+    // which one is the focused item can't be told.
+    return matches == 1 ? best : null;
   }
 
   /**

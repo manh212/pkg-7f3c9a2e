@@ -1022,6 +1022,10 @@ public class AccessibilityNodeInfoUtils {
         logShouldFocusNode(
             checkChildren, NONE, "Focus, is focusable and has something to speak: ", node);
         return true;
+      } else if (isClickableWithOnlyDecorativeChild(node)) {
+        // A Compose icon-only control may expose its unlabelled drawing as a child. Keep the
+        // clickable control reachable, just as an unlabelled control without children is.
+        return true;
       } else {
         logShouldFocusNode(
             checkChildren,
@@ -1054,6 +1058,22 @@ public class AccessibilityNodeInfoUtils {
         "Don't focus, failed all focusability tests: ",
         node);
     return false;
+  }
+
+  /** A clickable focus target whose only child is an unimportant, non-interactive drawing. */
+  public static boolean isClickableWithOnlyDecorativeChild(AccessibilityNodeInfoCompat node) {
+    if (!node.isScreenReaderFocusable() || !isClickable(node) || node.getChildCount() != 1) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat child = node.getChild(0);
+    return child != null
+        && child.getChildCount() == 0
+        && !child.isImportantForAccessibility()
+        && !takesFocusWhenVisible(child)
+        && !child.isScrollable()
+        && !child.isCheckable()
+        && !hasText(child)
+        && !hasStateDescription(child);
   }
 
   private static void logShouldFocusNode(
@@ -1371,6 +1391,24 @@ public class AccessibilityNodeInfoUtils {
       }
     }
     return childVisibleCount;
+  }
+
+  /** Whether exactly one child is visible, without reading past a second visible child. */
+  public static boolean hasExactlyOneVisibleChild(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null) {
+      return false;
+    }
+    boolean found = false;
+    for (int i = 0, count = node.getChildCount(); i < count; i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child != null && child.isVisibleToUser()) {
+        if (found) {
+          return false;
+        }
+        found = true;
+      }
+    }
+    return found;
   }
 
   /**
@@ -1820,11 +1858,15 @@ public class AccessibilityNodeInfoUtils {
       return null;
     }
 
+    final boolean webAncestors = BuildVersionUtils.isAtLeastT()
+        && WebInterfaceUtils.supportsWebActions(node);
+    final int parentFlags = AccessibilityNodeInfoCompat.FLAG_PREFETCH_ANCESTORS
+        | AccessibilityNodeInfoCompat.FLAG_PREFETCH_UNINTERRUPTIBLE;
     final HashSet<AccessibilityNodeInfoCompat> ancestors = new HashSet<>();
 
     ancestors.add(node);
     TraversalBudget.check();
-    node = node.getParent();
+    node = webAncestors ? node.getParent(parentFlags) : node.getParent();
 
     while (node != null) {
       if (!ancestors.add(node)) {
@@ -1842,7 +1884,7 @@ public class AccessibilityNodeInfoUtils {
       }
 
       TraversalBudget.check();
-      node = node.getParent();
+      node = webAncestors ? node.getParent(parentFlags) : node.getParent();
     }
 
     return null;
@@ -2139,6 +2181,17 @@ public class AccessibilityNodeInfoUtils {
   }
 
   /**
+   * Returns whether {@code node} is a focus stop of its own once it is on screen: the conditions of
+   * {@link #isFocusableOrClickable} without its visibility requirement.
+   */
+  public static boolean takesFocusWhenVisible(@NonNull AccessibilityNodeInfoCompat node) {
+    return node.isScreenReaderFocusable()
+        || NodeOverrides.grouped(node)
+        || isActionableForAccessibility(node)
+        || isAdjustableSlider(node);
+  }
+
+  /**
    * Returns if a node is focusable or clickable.
    *
    * <p>This is used in {@link #shouldFocusNode} and {@link #isAccessibilityFocusable}
@@ -2399,6 +2452,25 @@ public class AccessibilityNodeInfoUtils {
       }
     }
     return false;
+  }
+
+  /**
+   * Returns whether {@code node} scrolls left and right but not up and down: it has left or right
+   * scroll or page actions and no up or down scroll actions, or it is a collection of one row.
+   */
+  public static boolean scrollsOnlySideways(@NonNull AccessibilityNodeInfoCompat node) {
+    if (supportsAction(node, AccessibilityActionCompat.ACTION_SCROLL_UP.getId())
+        || supportsAction(node, AccessibilityActionCompat.ACTION_SCROLL_DOWN.getId())) {
+      return false;
+    }
+    if (supportsAction(node, AccessibilityActionCompat.ACTION_SCROLL_LEFT.getId())
+        || supportsAction(node, AccessibilityActionCompat.ACTION_SCROLL_RIGHT.getId())
+        || supportsAction(node, AccessibilityActionCompat.ACTION_PAGE_LEFT.getId())
+        || supportsAction(node, AccessibilityActionCompat.ACTION_PAGE_RIGHT.getId())) {
+      return true;
+    }
+    CollectionInfoCompat collection = node.getCollectionInfo();
+    return collection != null && collection.getRowCount() == 1 && collection.getColumnCount() > 1;
   }
 
   /**

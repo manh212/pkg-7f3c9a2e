@@ -363,7 +363,7 @@ object VolumeKeyManager {
     if (press.pressUse != TalkBackService.VOLUME_KEY_CHANGES_VOLUME) {
       service.performVolumeKeyUse(press.pressUse, press.isUp)
     } else if (!press.managed && !press.speechVolume) {
-      service.adjustUnmanagedVolumeKey(press.isUp, press.touching)
+      service.adjustUnmanagedVolumeKey(press.isUp, press.touching, repeating)
     } else if (!repeating || press.pressAction == ACTION_INCREASE_CONTEXTUAL_VOLUME ||
       press.pressAction == ACTION_DECREASE_CONTEXTUAL_VOLUME) {
       runAction(service, press.pressAction, press.touching, press.speechVolume)

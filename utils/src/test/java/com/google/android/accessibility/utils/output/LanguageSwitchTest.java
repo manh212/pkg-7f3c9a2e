@@ -99,6 +99,22 @@ public class LanguageSwitchTest {
   }
 
   @Test
+  public void threeLetterVoiceLanguageIsItsTwoLetterLanguage() {
+    // Engines such as eSpeak and RHVoice give "eng" for English.
+    LanguageSwitch.setVoiceLanguage(Locale.forLanguageTag("eng"));
+    assertEquals(Locale.ENGLISH, LanguageSwitch.spokenLanguage(null));
+    LanguageSwitch.setVoiceLanguage(Locale.forLanguageTag("deu-DE"));
+    assertEquals(Locale.GERMANY, LanguageSwitch.spokenLanguage(null));
+    // Bibliographic code: "ger" is German too.
+    LanguageSwitch.setVoiceLanguage(Locale.forLanguageTag("ger"));
+    assertEquals(Locale.GERMAN, LanguageSwitch.spokenLanguage(null));
+    // A three-letter region code is its two-letter code too.
+    LanguageSwitch.setVoiceLanguage(new Locale("en", "POL"));
+    assertEquals(new Locale("en", "PL"), LanguageSwitch.spokenLanguage(null));
+    LanguageSwitch.setVoiceLanguage(Locale.getDefault());
+  }
+
+  @Test
   public void neighbouringRunsInOneLanguageJoin() {
     Locale us = Locale.US;
     List<Run> runs =

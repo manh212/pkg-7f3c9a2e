@@ -77,7 +77,9 @@ public abstract class TalkBackLabelManager implements LabelManager, Accessibilit
             || AccessibilityNodeInfoUtils.isLongClickable(node)
             || (AccessibilityNodeInfoUtils.isFocusable(node) && canAddLabel(node))
             || (Role.getRole(node) == Role.ROLE_IMAGE && node.isScreenReaderFocusable()))
-        && (node.getChildCount() == 0 || button)
+        && (node.getChildCount() == 0
+            || button
+            || AccessibilityNodeInfoUtils.isClickableWithOnlyDecorativeChild(node))
         && !LabelNodeId.hasSpokenLabel(node);
   }
 

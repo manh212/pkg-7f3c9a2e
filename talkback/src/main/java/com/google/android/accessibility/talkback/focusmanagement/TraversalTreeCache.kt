@@ -24,6 +24,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils
 import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy
 import com.google.android.libraries.accessibility.utils.log.LogUtils
+import kotlin.math.abs
 import java.util.function.IntConsumer
 import java.util.concurrent.atomic.AtomicLong
 import com.google.android.accessibility.utils.Statistics
@@ -214,6 +215,9 @@ object TraversalTreeCache {
   private var lastPivotTop = Int.MIN_VALUE
   private var lastPivotWindowId = NO_WINDOW_ID
 
+  /** The sum of scroll deltas when [lastPivotTop] was read, to follow the place as lists scroll. */
+  private var lastPivotDeltaSum = 0
+
   /**
    * Set when scrolling ahead moved the focused item off screen: its bounds and its list's before
    * the page, the sum of scroll deltas then (see
@@ -352,6 +356,7 @@ object TraversalTreeCache {
     pivot.getBoundsInScreen(bounds)
     lastPivotTop = bounds.top
     lastPivotWindowId = pivot.windowId
+    lastPivotDeltaSum = FocusProcessorForLogicalNavigation.scrollDeltaSumY()
     scrolledAwayBounds = null
   }
 
@@ -508,7 +513,12 @@ object TraversalTreeCache {
    * the rare path where the focused node disappeared, and a swipe would have built an order anyway.
    */
   @JvmStatic
-  fun pivotAfterRemoval(root: AccessibilityNodeInfoCompat): AccessibilityNodeInfoCompat? {
+  @JvmOverloads
+  fun pivotAfterRemoval(
+    root: AccessibilityNodeInfoCompat,
+    forward: Boolean = true,
+    lost: AccessibilityNodeInfoCompat? = null,
+  ): AccessibilityNodeInfoCompat? {
     if (lastPivotWindowId == NO_WINDOW_ID || root.windowId != lastPivotWindowId) {
       return null
     }
@@ -560,19 +570,74 @@ object TraversalTreeCache {
       }
       return lastNodeAbove(order, place, bounds)
     }
+    return nodeNearPlace(
+      order,
+      placeAfterScrolls(lastPivotTop, FocusProcessorForLogicalNavigation.scrollDeltaSumY() - lastPivotDeltaSum),
+      bounds,
+      forward,
+      lost,
+    )
+  }
+
+  /** How far below the place a node drawn again for the lost one can start. */
+  private const val SAME_PLACE_SLACK_PX = 4
+
+  /**
+   * The node to search on from for lost focus that was at [place]: the node drawn again for [lost]
+   * at the place, if any; going [forward], the last node above the place, so the search lands on
+   * what now occupies it; going back, the first node at the place, so the search lands on the item
+   * before it. Nodes off screen, such as a pager's neighbour page, don't count.
+   */
+  private fun nodeNearPlace(
+    order: OrderedTraversalStrategy,
+    place: Int,
+    bounds: Rect,
+    forward: Boolean,
+    lost: AccessibilityNodeInfoCompat?,
+  ): AccessibilityNodeInfoCompat? {
+    val lostLabel = lost?.let { it.contentDescription?.toString() ?: it.text?.toString() }
     var above: AccessibilityNodeInfoCompat? = null
+    var atPlace: AccessibilityNodeInfoCompat? = null
     for (node in order.dumpTree()) {
-      if (node.windowId != lastPivotWindowId) {
+      if (node.windowId != lastPivotWindowId || !node.isVisibleToUser) {
         continue
       }
       node.getBoundsInScreen(bounds)
-      if (bounds.top >= lastPivotTop) {
-        return above ?: node
+      if (bounds.top < place) {
+        if (atPlace == null) {
+          above = node
+        }
+        continue
       }
-      above = node
+      if (bounds.top > place + SAME_PLACE_SLACK_PX) {
+        if (atPlace == null) {
+          atPlace = node
+        }
+        break
+      }
+      if (atPlace == null) {
+        atPlace = node
+      }
+      if (lostLabel != null && lostLabel.isNotEmpty() && node != lost &&
+        node.className == lost.className &&
+        lostLabel == (node.contentDescription?.toString() ?: node.text?.toString())
+      ) {
+        return node
+      }
     }
-    return above
+    return if (forward) above ?: atPlace else atPlace ?: above
   }
+
+  /** The least shift, in pixels, taken as scroll deltas in pixels rather than Compose's 1 each. */
+  private const val MIN_PIXEL_SHIFT = 100
+
+  /**
+   * Where a place at [top] is after lists scrolled by [shift] pixels of deltas since it was read:
+   * the content moves up as the deltas grow. Deltas too small to be pixels leave it where it was.
+   */
+  @JvmStatic
+  fun placeAfterScrolls(top: Int, shift: Int): Int =
+    if (top == Int.MIN_VALUE || abs(shift) < MIN_PIXEL_SHIFT) top else top - shift
 
   /** Saves the order of [root], replacing any saved order. */
   @JvmStatic

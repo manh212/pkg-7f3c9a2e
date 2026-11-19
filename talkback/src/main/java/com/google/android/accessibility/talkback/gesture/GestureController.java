@@ -226,6 +226,9 @@ public class GestureController {
   private final @NonNull Map<Integer, Integer> captureGestureIdToAnnouncements = new HashMap<>();
   private final @NonNull Map<Integer, Integer> captureFingerprintGestureIdToAnnouncements =
       new HashMap<>();
+  // Whether an open training page takes any gesture, so that multi-finger taps wait for a further
+  // tap as if the gestures that go on after them had commands.
+  private static volatile boolean trainingTakesGestures;
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Constructor methods
@@ -308,11 +311,15 @@ public class GestureController {
     return screenRecognitionController.stopSilently();
   }
 
-  /** Stops scrolling to the top or bottom when the user touches the screen or presses a key. */
+  /**
+   * Stops scrolling to the top or bottom, and swipes still waiting, when the user touches the
+   * screen or presses a key.
+   */
   public void onUserInputStarted() {
     subtitleController.onUserInput();
     listEdgeScroller.cancel();
     pullToRefresh.cancel();
+    selectorController.cancelPageScroll();
   }
 
   public void onRawAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
@@ -1435,6 +1442,16 @@ public class GestureController {
       this.captureFingerprintGestureIdToAnnouncements.putAll(
           captureFingerprintGestureIdToAnnouncements);
     }
+    // An open training page takes gestures exactly while its capture map is not empty.
+    trainingTakesGestures = !captureGestureIdToAnnouncements.isEmpty();
+  }
+
+  /**
+   * Returns whether an open training page takes gestures, which then need multi-finger taps to wait
+   * for a further tap.
+   */
+  public static boolean trainingTakesGestures() {
+    return trainingTakesGestures;
   }
 
   /**

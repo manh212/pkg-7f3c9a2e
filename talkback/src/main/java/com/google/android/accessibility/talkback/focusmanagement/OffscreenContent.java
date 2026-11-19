@@ -205,11 +205,13 @@ final class OffscreenContent {
     node.getBoundsInScreen(shown);
     if (vertical) {
       return shown.height() < size.height()
+          && size.height() > viewport.height()
           && (towardEnd
               ? shown.bottom >= viewport.bottom - EDGE_SLACK
               : shown.top <= viewport.top + EDGE_SLACK);
     }
     return shown.width() < size.width()
+        && size.width() > viewport.width()
         && (towardEnd
             ? shown.right >= viewport.right - EDGE_SLACK
             : shown.left <= viewport.left + EDGE_SLACK);

@@ -5,6 +5,7 @@
     <string name="script_import">Nhập tập lệnh</string>
     <string name="script_install_label">Cài đặt tập lệnh Meridian</string>
     <string name="script_import_nothing">Không có tệp tập lệnh nào để cài đặt.</string>
+    <string name="script_import_not_script">Không phải tệp .lua hay .zip.</string>
     <string name="script_import_cannot_open">Không mở được tệp.</string>
     <string name="script_import_repository">Đường liên kết này dẫn đến toàn bộ kho lưu trữ. Hãy mở tập lệnh bạn muốn rồi chia sẻ đường liên kết của tập lệnh đó.</string>
     <string name="script_import_summary">Tệp .lua hoặc tệp .zip có main.lua</string>

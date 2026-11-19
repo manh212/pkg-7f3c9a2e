@@ -3,6 +3,7 @@
   <string name="title_pref_gesture_profiles">Hồ sơ cử chỉ</string>
   <string name="title_gesture_profile">Hồ sơ cử chỉ</string>
   <string name="gesture_profile_default">Mặc định</string>
+  <string name="gesture_profile_default_command">Mặc định: %1$s</string>
   <string name="gesture_profile_menu_item_in_use">%1$s, đang dùng</string>
   <string name="no_gesture_profiles">Chưa có hồ sơ cử chỉ</string>
   <string name="shortcut_gesture_profiles">Chọn hồ sơ cử chỉ</string>

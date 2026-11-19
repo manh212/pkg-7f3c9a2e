@@ -6,6 +6,7 @@ import android.os.Build;
 import android.view.Display;
 import android.view.MotionEvent;
 import androidx.annotation.RequiresApi;
+import com.google.android.accessibility.talkback.gesture.SyntheticTouches;
 
 /**
  * Tracks whether the framework is currently passing a touch to the app, such as the hold of a
@@ -23,12 +24,20 @@ import androidx.annotation.RequiresApi;
  *
  * <p>A future full port of SandFly's {@code TouchInteractionMonitor} would merge into this class
  * rather than replace it: the static state and its getter are the ported contract.
+ *
+ * <p>One piece of SandFly's touch handling is ported here: a touch Meridian sent itself, such as
+ * the swipe of pull to refresh, goes to the app as it is. {@link SyntheticTouches} marks the
+ * touch Meridian is about to send, and this monitor hands the next touch down to the app and
+ * leaves the rest of that touch alone, so touch exploration does not take it as a gesture.
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 public class TouchInteractionMonitor implements TouchInteractionController.Callback {
 
   /** Whether a touch is passed to the app, such as the hold of a double-tap and hold. */
   private static volatile boolean touchPassedToApp;
+
+  /** Whether the touch in progress is one Meridian sent, which goes to the app as it is. */
+  private volatile boolean passingSyntheticTouch;
 
   private final TouchInteractionController controller;
 
@@ -51,6 +60,7 @@ public class TouchInteractionMonitor implements TouchInteractionController.Callb
     } catch (RuntimeException ignored) {
       // The controller may already be gone when the service goes away.
     }
+    passingSyntheticTouch = false;
     touchPassedToApp = false;
   }
 
@@ -68,6 +78,25 @@ public class TouchInteractionMonitor implements TouchInteractionController.Callb
 
   @Override
   public void onMotionEvent(MotionEvent event) {
-    // The monitor only tracks the state; motion events are not needed.
+    // The monitor only tracks the state; motion events are not needed, except for a touch
+    // Meridian sent itself, which goes to the app as it is.
+    if (event.getActionMasked() == MotionEvent.ACTION_DOWN
+        && SyntheticTouches.takeIfExpected()) {
+      // Meridian's own touch, such as the swipe of pull to refresh: the app gets it as it is.
+      passingSyntheticTouch = true;
+      try {
+        controller.requestDelegating();
+      } catch (IllegalStateException ignored) {
+        // The touch is not delegated; it is explored as usual.
+      }
+      return;
+    }
+    if (passingSyntheticTouch) {
+      if (event.getActionMasked() == MotionEvent.ACTION_UP
+          || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        passingSyntheticTouch = false;
+      }
+      return;
+    }
   }
 }

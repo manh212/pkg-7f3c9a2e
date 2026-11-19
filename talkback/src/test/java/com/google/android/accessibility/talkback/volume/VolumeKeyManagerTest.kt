@@ -41,7 +41,7 @@ class VolumeKeyManagerTest {
     override fun adjustContextualVolume(increase: Boolean, touching: Boolean) {
       actions += if (increase) "up" else "down"
     }
-    override fun adjustUnmanagedVolumeKey(increase: Boolean, touching: Boolean) {
+    override fun adjustUnmanagedVolumeKey(increase: Boolean, touching: Boolean, repeating: Boolean) {
       if (touching) adjustContextualVolume(increase, true)
       else actions += if (increase) "systemUp" else "systemDown"
     }

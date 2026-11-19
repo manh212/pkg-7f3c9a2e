@@ -93,6 +93,8 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
   private boolean lockScreenActionsOnly = false;
   // A customized summary which is used when the preference is in disable state
   @Nullable private String summaryWhenDisabled;
+  // In a gesture profile: the command that the gesture runs without the profile.
+  @Nullable private String commandWithoutProfile;
 
   public GestureListPreference(Context context, AttributeSet attributeSet) {
     this(context, attributeSet, true);
@@ -300,6 +302,24 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     summaryWhenDisabled = summary;
   }
 
+  /** In a gesture profile: sets the command that the gesture runs without the profile. */
+  public void setCommandWithoutProfile(String command) {
+    commandWithoutProfile = command;
+    notifyChanged();
+  }
+
+  /** Returns Default, with the command that the gesture runs without the profile. */
+  private String defaultText() {
+    Context context = getContext();
+    if (commandWithoutProfile == null) {
+      return context.getString(R.string.gesture_profile_default);
+    }
+    @Nullable String label = Commands.label(context, commandWithoutProfile);
+    return context.getString(
+        R.string.gesture_profile_default_command,
+        (label != null) ? label : context.getString(R.string.shortcut_unassigned));
+  }
+
   /**
    * Returns the current value of the preference. For example, "READ_FROM_TOP" if the preference is
    * pointed to the action "Read from top".
@@ -335,7 +355,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
       return summaryWhenDisabled;
     }
     String value = getCurrentValue();
-    if (TextUtils.equals(value, GestureProfiles.DEFAULT_VALUE)) return getContext().getString(R.string.gesture_profile_default);
+    if (TextUtils.equals(value, GestureProfiles.DEFAULT_VALUE)) return defaultText();
     String profileLabel = GestureProfiles.label(getContext(), SharedPreferencesUtils.getSharedPreferences(getContext()), value);
     if (profileLabel != null) return profileLabel;
     @Nullable String customMenuLabel = CustomMenus.label(getContext(), value);
@@ -374,7 +394,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     if (GestureProfiles.isRowKey(getKey())) {
       builder.add(
           new ActionItem(
-              getContext().getString(R.string.gesture_profile_default),
+              defaultText(),
               GestureProfiles.DEFAULT_VALUE,
               TYPE_ACTION_ITEM));
     }

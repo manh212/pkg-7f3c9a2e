@@ -21,8 +21,12 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.LocaleSpan;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.MissingResourceException;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -63,12 +67,97 @@ public final class LanguageSwitch {
     }
   }
 
-  /** Sets the language the speech engine speaks unmarked text in. */
+  /**
+   * Sets the language the speech engine speaks unmarked text in, with two-letter codes where it has
+   * them, as an engine can give "eng" for English.
+   */
   static void setVoiceLanguage(Locale language) {
-    boolean changed = !language.equals(voiceLanguage);
-    voiceLanguage = language;
+    Locale normalized = normalized(language);
+    boolean changed = !normalized.equals(voiceLanguage);
+    voiceLanguage = normalized;
     if (changed) {
       EmojiSpeech.onLanguageChanged();
+    }
+  }
+
+  /** ISO 639-2 language codes, such as "eng" and "ger", by the two-letter code of the language. */
+  private static final Map<String, String> TWO_LETTER_LANGUAGES = twoLetterLanguages();
+
+  /** ISO 3166 three-letter region codes, such as "POL", by their two-letter code. */
+  private static final Map<String, String> TWO_LETTER_REGIONS = twoLetterRegions();
+
+  private static Map<String, String> twoLetterLanguages() {
+    Map<String, String> codes = new HashMap<>();
+    for (String code : Locale.getISOLanguages()) {
+      try {
+        Locale locale = new Locale(code);
+        // The language as this Locale writes it, such as "iw" for Hebrew on older versions.
+        codes.put(locale.getISO3Language(), locale.getLanguage());
+      } catch (MissingResourceException e) {
+        // No three-letter code.
+      }
+    }
+    // Bibliographic codes, which some engines use instead of the terminology ones listed above.
+    String[][] bibliographic = {
+      {"alb", "sq"}, {"arm", "hy"}, {"baq", "eu"}, {"bur", "my"}, {"chi", "zh"}, {"cze", "cs"},
+      {"dut", "nl"}, {"fre", "fr"}, {"geo", "ka"}, {"ger", "de"}, {"gre", "el"}, {"ice", "is"},
+      {"mac", "mk"}, {"mao", "mi"}, {"may", "ms"}, {"per", "fa"}, {"rum", "ro"}, {"slo", "sk"},
+      {"tib", "bo"}, {"wel", "cy"},
+    };
+    for (String[] code : bibliographic) {
+      codes.putIfAbsent(code[0], code[1]);
+    }
+    return codes;
+  }
+
+  private static Map<String, String> twoLetterRegions() {
+    Map<String, String> codes = new HashMap<>();
+    for (String code : Locale.getISOCountries()) {
+      try {
+        codes.put(new Locale("", code).getISO3Country(), code);
+      } catch (MissingResourceException e) {
+        // No three-letter code.
+      }
+    }
+    return codes;
+  }
+
+  /**
+   * The two-letter code of {@code language} where it has one, so that "eng", which engines such as
+   * eSpeak and RHVoice list, is the same language as "en".
+   */
+  private static String languageCode(String language) {
+    if (language.length() != 3) {
+      return language;
+    }
+    return TWO_LETTER_LANGUAGES.getOrDefault(language.toLowerCase(Locale.ROOT), language);
+  }
+
+  /** {@code locale} with two-letter language and region codes where they have them. */
+  private static Locale normalized(Locale locale) {
+    String language = languageCode(locale.getLanguage());
+    String region = locale.getCountry();
+    if (region.length() == 3) {
+      boolean lettersOnly = true;
+      for (int i = 0; i < region.length(); i++) {
+        if (!Character.isLetter(region.charAt(i))) {
+          lettersOnly = false;
+          break;
+        }
+      }
+      if (lettersOnly) {
+        region = TWO_LETTER_REGIONS.getOrDefault(region.toUpperCase(Locale.ROOT), region);
+      }
+    }
+    if (language.equals(locale.getLanguage()) && region.equals(locale.getCountry())) {
+      return locale;
+    }
+    try {
+      // Keeps the script, such as Latin for Serbian.
+      return new Locale.Builder().setLocale(locale).setLanguage(language).setRegion(region).build();
+    } catch (IllformedLocaleException e) {
+      // Such as a three-letter region, which a language tag can't have.
+      return new Locale(language, region, locale.getVariant());
     }
   }
 

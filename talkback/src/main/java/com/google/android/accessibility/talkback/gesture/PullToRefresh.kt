@@ -63,8 +63,8 @@ class PullToRefresh(
    */
   fun refresh(eventId: EventId?): Boolean {
     cancel()
-    // Before Android 11 there is no pull, and the list would only be scrolled to its top.
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+    // Before Android 13 there is no pull, and the list would only be scrolled to its top.
+    if (!SyntheticTouches.isAvailable()) return false
     val found = findList() ?: return false
     this.eventId = eventId
     list = found
@@ -144,8 +144,8 @@ class PullToRefresh(
   }
 
   private fun pull(eventId: EventId?, list: AccessibilityNodeInfoCompat): Boolean {
-    // Before Android 11, there is no way to pass the swipe through touch exploration.
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+    // SandFly can send the swipe to the app as it is only where it recognizes gestures itself.
+    if (!SyntheticTouches.isAvailable()) return false
     val bounds = Rect()
     list.refresh()
     list.getBoundsInScreen(bounds)
@@ -159,7 +159,20 @@ class PullToRefresh(
         moveTo(bounds.exactCenterX(), startY)
         lineTo(bounds.exactCenterX(), endY)
       }
-    return sendSwipe(eventId, path, PULL_DURATION_MS, PASS_THROUGH_WAIT_MS)
+    val gesture =
+      GestureDescription.Builder()
+        .addStroke(GestureDescription.StrokeDescription(path, 0, PULL_DURATION_MS))
+        .build()
+    // The swipe goes to the app as it is; see SyntheticTouches. A gesture that started this may
+    // still be ending.
+    val send = Runnable {
+      pendingPull = null
+      SyntheticTouches.dispatch(service, gesture, PULL_DURATION_MS)
+    }
+    pendingPull = send
+    handler.postDelayed(send, GESTURE_END_WAIT_MS)
+    pipeline.returnFeedback(eventId, Feedback.sound(R.raw.scroll_tone))
+    return true
   }
 
   private fun sendSwipe(eventId: EventId?, path: Path, duration: Long, wait: Long): Boolean =
@@ -262,5 +275,8 @@ class PullToRefresh(
     const val PASS_THROUGH_WAIT_MS = 350L
     /** Around where the swipe starts; touch exploration checks where a touch goes down. */
     const val PASS_THROUGH_RADIUS = 24
+
+    /** How long the gesture that asked for the pull has to end before the swipe is sent. */
+    const val GESTURE_END_WAIT_MS = 150L
   }
 }

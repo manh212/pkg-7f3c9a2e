@@ -17,8 +17,10 @@ import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
+import com.google.android.accessibility.talkback.gesture.GestureController;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.gesture.TwoFingerRotationTracker;
+import com.google.android.accessibility.talkback.tutorial.TutorialHooks;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.gestures.GestureConfiguration;
@@ -125,6 +127,15 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       @Override public boolean getSpeedUpTouchExploreState() { return true; }
       @Override public int minimumTouchExplorationMoveTimeMs() {
         return ExtendedTouchBackend.this.minimumTouchExplorationMoveTimeMs;
+      }
+      @Override public boolean isGestureAssigned(int gestureId) {
+        return ExtendedTouchBackend.this.isGestureAssigned(gestureId);
+      }
+      @Override public boolean tapsRunWhenNothingFollows() {
+        // Practice gestures and the tutorial's practice lesson say every gesture
+        // performed, assigned or not.
+        return !GestureController.trainingTakesGestures()
+            && !TutorialHooks.takesAllGestures();
       }
     }, event -> {}, Display.DEFAULT_DISPLAY,
         ImmutableList.copyOf(service.getResources().getStringArray(R.array.extended_standard_gestures)));

@@ -46,6 +46,9 @@ public class ManualScrollInterpreter implements ScrollEventHandler {
 
     /** Callback when the view is manually scrolled. */
     void onManualScroll(ManualScrollInterpretation interpretation);
+
+    /** Handles a web scroll without waiting for the saved focus path, if it does not need it. */
+    default boolean onManualWebScroll(ManualScrollInterpretation interpretation) { return false; }
   }
 
   /** Data structure for interpretation of manual scroll. */
@@ -103,6 +106,13 @@ public class ManualScrollInterpreter implements ScrollEventHandler {
     AccessibilityNodeInfoCompat scrolledNode =
         AccessibilityNodeInfoUtils.toCompat(event.getSource());
     if (scrolledNode == null) {
+      return;
+    }
+
+    if (isScrollAroundWebFocus(scrolledNode)
+        && listener.onManualWebScroll(
+            ManualScrollInterpretation.create(
+                eventId, event, interpretation.scrollDirection, /* scrolledHoldsFocus= */ false))) {
       return;
     }
 
