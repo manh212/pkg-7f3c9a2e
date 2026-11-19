@@ -58,6 +58,13 @@ public class SelectorMenuFragment extends ItemListFragment {
         liveRecognition.setVisible(false);
       }
     }
+    if (!FeatureSupport.doesServiceHandleDoubleTap()) {
+      Preference clipboardHistory =
+          screen.findPreference(getString(R.string.pref_selector_clipboard_history_key));
+      if (clipboardHistory != null) {
+        clipboardHistory.setVisible(false);
+      }
+    }
   }
 
   @Override

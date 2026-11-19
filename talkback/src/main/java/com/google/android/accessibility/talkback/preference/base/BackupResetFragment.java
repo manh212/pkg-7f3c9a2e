@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 import androidx.preference.Preference;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.backup.BackupItems;
 import com.google.android.accessibility.talkback.directtouch.DirectTouchFragment;
 import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils;
 import com.google.android.accessibility.utils.material.A11yAlertDialogWrapper;
@@ -23,6 +24,7 @@ public class BackupResetFragment extends TalkBackPreferenceFragment {
   @Override
   public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
     super.onCreatePreferences(savedInstanceState, rootKey);
+    BackupItems.setUpPreferences(this);
     ResponseSettingsReset.bind(this);
     GestureSettingsReset.bind(this);
     Preference menuReset = findPreference("pref_menu_controls_reset");

@@ -533,6 +533,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
       return R.string.gesture_group_notifications_status;
     }
     if (matchesAction(value,
+        R.string.shortcut_value_toggle_focus_text_inside_items,
         R.string.shortcut_value_toggle_arrow_key_nav,
         R.string.shortcut_value_direct_tap,
         R.string.shortcut_value_toggle_touch_exploration,
@@ -548,6 +549,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         R.string.shortcut_value_task_assistant,
         R.string.shortcut_value_print_node_tree,
         R.string.shortcut_value_inspect_item,
+        R.string.shortcut_value_copy_item_details,
         R.string.shortcut_value_copy_screen_tree,
         R.string.shortcut_value_toggle_scripts,
         R.string.shortcut_value_tutorial,
@@ -847,6 +849,11 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         getContext().getString(R.string.arrow_key_nav_toggle),
         getContext().getString(R.string.shortcut_value_toggle_arrow_key_nav), TYPE_ACTION_ITEM));
 
+    builder.add(new ActionItem(
+        getContext().getString(R.string.shortcut_toggle_focus_text_inside_items),
+        getContext().getString(R.string.shortcut_value_toggle_focus_text_inside_items),
+        TYPE_ACTION_ITEM));
+
     Resources resources = getContext().getResources();
 
     if (FeatureSupport.supportMediaControls()) {
@@ -1130,6 +1137,12 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         new ActionItem(
             resources.getString(R.string.shortcut_inspect_item),
             resources.getString(R.string.shortcut_value_inspect_item),
+            TYPE_ACTION_ITEM));
+
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_copy_item_details),
+            resources.getString(R.string.shortcut_value_copy_item_details),
             TYPE_ACTION_ITEM));
 
     builder.add(
