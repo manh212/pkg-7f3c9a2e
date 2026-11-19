@@ -40,6 +40,7 @@ import com.google.android.accessibility.talkback.focusmanagement.record.FocusAct
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.talkback.monitor.InputMethodMonitor;
 import com.google.android.accessibility.utils.FocusFinder;
+import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter;
 import com.google.android.accessibility.utils.output.LowLatencyAudio;
 import java.util.concurrent.Executor;
@@ -101,6 +102,7 @@ public class FocusManagerInternalTest {
   @Before
   public void setUp() {
     service = Robolectric.setupService(TestService.class);
+    FormFactorUtils.initialize(service);
     history = new AccessibilityFocusActionHistory(service);
     FocusFinder focusFinder = new FocusFinder(service);
     screenStateMonitor =
