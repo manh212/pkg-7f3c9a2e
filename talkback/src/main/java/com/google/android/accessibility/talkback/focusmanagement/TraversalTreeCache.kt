@@ -270,6 +270,14 @@ object TraversalTreeCache {
   }
 
   /**
+   * Whether any order is saved at all. [holdsCurrent] is false when there is none, which
+   * must not be read as the node being stale: with no order there is nothing for the node
+   * to be stale against, so callers fall back to re-reading the node instead.
+   */
+  @JvmStatic
+  fun hasSavedOrder(): Boolean = strategy != null
+
+  /**
    * Whether the saved order holds [node]. Nothing that could remove a node from the window has
    * happened since the order was saved, so the node is still there.
    */
