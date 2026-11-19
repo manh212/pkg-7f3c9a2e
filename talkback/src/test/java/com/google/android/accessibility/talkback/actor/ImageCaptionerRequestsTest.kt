@@ -337,6 +337,9 @@ class ImageCaptionerRequestsTest {
 
   @Test
   fun anAutomaticScreenshot_doesNotWait() {
+    // Text recognition is the automatic engine here; without it the caption has
+    // nothing to do and takes no screenshot at all.
+    setPref(R.string.pref_auto_text_recognition_key, true)
     ScreenshotCaptureRequestAccess.setHiddenFocusRedrawMs(150)
     captioner.caption(node, /* isUserRequested= */ false)
     idle()
