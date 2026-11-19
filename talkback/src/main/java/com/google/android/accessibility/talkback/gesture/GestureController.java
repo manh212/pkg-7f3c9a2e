@@ -68,6 +68,7 @@ import static com.google.android.accessibility.talkback.contextmenu.ListMenuMana
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.LANGUAGE;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.VOICE_PROFILE;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.GESTURE_PROFILE;
+import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.SETTINGS_PROFILE;
 import static com.google.android.accessibility.talkback.trainingcommon.PageConfig.ANNOUNCE_REAL_ACTION;
 import static com.google.android.accessibility.talkback.trainingcommon.PageConfig.UNKNOWN_ANNOUNCEMENT;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
@@ -108,15 +109,18 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.preference.base.SmartContextGestureSettingsFragment;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.backup.SettingsProfiles;
 import com.google.android.accessibility.talkback.actor.SpeechRateAndPitchActor;
 import com.google.android.accessibility.talkback.actor.SystemActionPerformer;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
+import com.google.android.accessibility.talkback.calls.AnswerCall;
 import com.google.android.accessibility.talkback.collapse.CollapseEngine;
 import com.google.android.accessibility.talkback.contextmenu.ListMenuManager;
 import com.google.android.accessibility.talkback.eventprocessor.ProcessorPhoneticLetters;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.FocusMonitor;
+import com.google.android.accessibility.talkback.focusmanagement.FocusTextInsideItems;
 import com.google.android.accessibility.talkback.screenrecognition.ScreenRecognitionController;
 import com.google.android.accessibility.talkback.subtitles.SubtitleController;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget;
@@ -130,9 +134,11 @@ import com.google.android.accessibility.talkback.monitor.VolumeMonitor.VolumeCha
 import com.google.android.accessibility.talkback.notifications.NotificationReader;
 import com.google.android.accessibility.talkback.recognition.LiveRecognition;
 import com.google.android.accessibility.talkback.scripting.ItemInspector;
+import com.google.android.accessibility.talkback.scripting.ScriptCommands;
 import com.google.android.accessibility.talkback.scripting.Scripts;
 import com.google.android.accessibility.talkback.dictation.AiDictation;
 import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryDialog;
+import com.google.android.accessibility.talkback.commands.Commands;
 import com.google.android.accessibility.talkback.timer.CountdownAlarmDialogs;
 import com.google.android.accessibility.talkback.granularediting.GranularEditing;
 import com.google.android.accessibility.talkback.texteditor.TextEditor;
@@ -142,6 +148,7 @@ import com.google.android.accessibility.talkback.selector.SoundModeControl;
 import com.google.android.accessibility.talkback.monitor.FullScreenMonitor;
 import com.google.android.accessibility.talkback.selector.SelectorController.AnnounceType;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
+import com.google.android.accessibility.talkback.speech.VoiceProfileNames;
 import com.google.android.accessibility.talkback.status.StatusReader;
 import com.google.android.accessibility.talkback.trainingcommon.TrainingActivity;
 import com.google.android.accessibility.talkback.trainingcommon.content.TutorialGestureUses;
@@ -462,14 +469,24 @@ public class GestureController {
                   .setDefaultToInputFocus(true)
                   .setScroll(true)
                   .setWrap(true));
+    } else if (action.equals(service.getString(R.string.shortcut_value_move_to_item_below))) {
+      selectorController.moveVertically(eventId, /* isNext= */ true);
+    } else if (action.equals(service.getString(R.string.shortcut_value_move_to_item_above))) {
+      selectorController.moveVertically(eventId, /* isNext= */ false);
     } else if (OpenAppActions.isAction(action)) {
       result = OpenAppActions.open(service, action);
     } else if (TapTextActions.isAction(action)) {
       result = TapTextActions.perform(service, action);
+    } else if (ScriptCommands.isCommand(action)) {
+      // A script command saved as an action: a taught voice phrase or a gesture runs it.
+      // Without a running script for it, the failure is spoken and nothing else runs.
+      if (!Scripts.runCommand(action)) {
+        pipeline.returnFeedback(
+            eventId, Feedback.speech(service.getString(R.string.script_command_not_running)));
+      }
     } else if (NavigationGestureActions.isAction(action)) {
       result =
           NavigationGestureActions.perform(
-              service,
               action,
               pipeline,
               actorState.getDirectionNavigation().hasNavigableWebContent(),
@@ -588,6 +605,13 @@ public class GestureController {
                   Feedback.systemAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT));
             }
           });
+    } else if (action.equals(service.getString(R.string.shortcut_value_answer_call))) {
+      switch (AnswerCall.answer(service, service.getVoiceActionMonitor().getCurrentCallState())) {
+        case NO_CALL -> speak(service.getString(R.string.answer_call_no_call));
+        case PERMISSION_REQUESTED -> speak(service.getString(R.string.answer_call_permission));
+        case FAILED -> result = false;
+        case ANSWERED -> {}
+      }
     } else if (action.equals(service.getString(R.string.shortcut_value_toggle_touch_exploration))) {
       Boolean enabled = service.toggleTouchExploration();
       result = enabled != null;
@@ -889,8 +913,18 @@ public class GestureController {
       selectorController.changeGestureProfile(eventId, false);
     } else if (action.equals(service.getString(R.string.shortcut_value_next_gesture_profile))) {
       selectorController.changeGestureProfile(eventId, true);
+    } else if (action.equals(service.getString(R.string.shortcut_value_settings_profiles))) {
+      result = menuManager.showMenu(SETTINGS_PROFILE, eventId);
+    } else if (action.equals(service.getString(R.string.shortcut_value_previous_settings_profile))) {
+      SettingsProfiles.switchToPrevious(
+          service, said -> pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.speech(said)));
+    } else if (action.equals(service.getString(R.string.shortcut_value_next_settings_profile))) {
+      SettingsProfiles.switchToNext(
+          service, said -> pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.speech(said)));
     } else if (GestureProfiles.isAction(action)) {
       result = selectorController.selectGestureProfile(eventId, GestureProfiles.idOf(action));
+    } else if (VoiceProfileNames.isCommand(action)) {
+      result = selectorController.selectVoiceProfile(eventId, VoiceProfileNames.idOfCommand(action));
     } else if (action.equals(service.getString(R.string.shortcut_value_previous_granularity))) {
       result = pipeline.returnFeedback(eventId, Feedback.focusDirection(PREVIOUS_GRANULARITY));
     } else if (action.equals(service.getString(R.string.shortcut_value_next_granularity))) {
@@ -944,12 +978,17 @@ public class GestureController {
     } else if (action.equals(
         service.getString(R.string.shortcut_value_selected_setting_next_action))) {
       selectorController.adjustSelectedSetting(eventId, true);
+    } else if (Commands.readingControlSettingOf(action) != null) {
+      selectorController.adjustSettingByCommand(
+          eventId, Commands.readingControlSettingOf(action), Commands.isReadingControlNext(action));
     } else if (action.equals(
             service.getString(R.string.shortcut_value_action_setting_activate_current_action))
         || action.equals(service.getString(R.string.shortcut_value_perform_click_action))) {
       // For customized gesture(s) which perform the "Activate"/click action, they are regarded
       // the same behavior as the native "Double-Tap" gesture.
       if (selectorController.activateLiveRecognition()) {
+        return;
+      } else if (selectorController.activateClipboardHistory()) {
         return;
       } else if (doubleTap
           && (SelectorController.getCurrentSetting(service) != Setting.ACTIONS
@@ -1216,9 +1255,16 @@ public class GestureController {
     } else if (action.equals(service.getString(R.string.shortcut_value_inspect_item))) {
       AccessibilityNodeInfoCompat focused =
           accessibilityFocusMonitor.getAccessibilityFocus(false);
+      @Nullable String message = ItemInspector.show(service, focused);
+      result =
+          message == null
+              || pipeline.returnFeedback(eventId, Feedback.requestedSpeech(message));
+    } else if (action.equals(service.getString(R.string.shortcut_value_copy_item_details))) {
+      AccessibilityNodeInfoCompat focused =
+          accessibilityFocusMonitor.getAccessibilityFocus(false);
       result =
           pipeline.returnFeedback(
-              eventId, Feedback.requestedSpeech(ItemInspector.inspect(service, focused)));
+              eventId, Feedback.requestedSpeech(ItemInspector.copy(service, focused)));
     } else if (action.equals(service.getString(R.string.shortcut_value_copy_screen_tree))) {
       AccessibilityNodeInfoCompat focused =
           accessibilityFocusMonitor.getAccessibilityFocus(false);
@@ -1235,6 +1281,17 @@ public class GestureController {
               : scriptsOn ? R.string.scripts_now_on : R.string.scripts_now_off;
       result =
           pipeline.returnFeedback(eventId, Feedback.requestedSpeech(service.getString(message)));
+    } else if (action.equals(
+        service.getString(R.string.shortcut_value_toggle_focus_text_inside_items))) {
+      boolean focusTextInsideItemsOn = FocusTextInsideItems.toggle(service);
+      result =
+          pipeline.returnFeedback(
+              eventId,
+              Feedback.requestedSpeech(
+                  service.getString(
+                      focusTextInsideItemsOn
+                          ? R.string.focus_text_inside_items_now_on
+                          : R.string.focus_text_inside_items_now_off)));
     } else if (FeatureFlagReader.enableAnnounceCurrentTitle(service)
         && action.equals(service.getString(R.string.shortcut_value_announce_current_title))) {
       result =

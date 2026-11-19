@@ -427,6 +427,10 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
         R.string.shortcut_perform_long_click_action),
     PREVIOUS(R.string.shortcut_value_previous, R.string.shortcut_previous),
     NEXT(R.string.shortcut_value_next, R.string.shortcut_next),
+    MOVE_TO_ITEM_BELOW(
+        R.string.shortcut_value_move_to_item_below, R.string.shortcut_move_to_item_below),
+    MOVE_TO_ITEM_ABOVE(
+        R.string.shortcut_value_move_to_item_above, R.string.shortcut_move_to_item_above),
     FIRST_IN_SCREEN(R.string.shortcut_value_first_in_screen, R.string.shortcut_first_in_screen),
     LAST_IN_SCREEN(R.string.shortcut_value_last_in_screen, R.string.shortcut_last_in_screen),
     SCROLL_TO_TOP(R.string.shortcut_value_scroll_to_top, R.string.shortcut_scroll_to_top),
@@ -435,6 +439,9 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     REFRESH(R.string.shortcut_value_refresh, R.string.shortcut_refresh),
     TOGGLE_BROWSE_MODE(
         R.string.shortcut_value_toggle_browse_mode, R.string.keycombo_menu_other_toggle_browse_mode),
+    TOGGLE_FOCUS_TEXT_INSIDE_ITEMS(
+        R.string.shortcut_value_toggle_focus_text_inside_items,
+        R.string.shortcut_toggle_focus_text_inside_items),
     PREV_CONTAINER(R.string.shortcut_value_prev_container, R.string.shortcut_prev_container),
     NEXT_CONTAINER(R.string.shortcut_value_next_container, R.string.shortcut_next_container),
     PREVIOUS_WINDOW(R.string.shortcut_value_previous_window, R.string.shortcut_previous_window),
@@ -491,6 +498,13 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     TURN_OFF_SANDFLY(R.string.shortcut_value_turn_off_sandfly, R.string.turn_off_talkback),
     PREVIOUS_GESTURE_PROFILE(R.string.shortcut_value_previous_gesture_profile, R.string.shortcut_previous_gesture_profile),
     NEXT_GESTURE_PROFILE(R.string.shortcut_value_next_gesture_profile, R.string.shortcut_next_gesture_profile),
+    SETTINGS_PROFILES(
+        R.string.shortcut_value_settings_profiles, R.string.shortcut_settings_profiles),
+    PREVIOUS_SETTINGS_PROFILE(
+        R.string.shortcut_value_previous_settings_profile,
+        R.string.shortcut_previous_settings_profile),
+    NEXT_SETTINGS_PROFILE(
+        R.string.shortcut_value_next_settings_profile, R.string.shortcut_next_settings_profile),
     PREVIOUS_VOICE_PROFILE(
         R.string.shortcut_value_previous_voice_profile, R.string.shortcut_previous_voice_profile),
     NEXT_VOICE_PROFILE(
@@ -549,6 +563,7 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     SUBMIT_TEXT(R.string.shortcut_value_submit_text, R.string.shortcut_submit_text),
     TOGGLE_ARROW_KEY_NAV(R.string.shortcut_value_toggle_arrow_key_nav, R.string.arrow_key_nav_toggle),
     TAKE_SCREENSHOT(R.string.shortcut_value_take_screenshot, R.string.shortcut_take_screenshot),
+    ANSWER_CALL(R.string.shortcut_value_answer_call, R.string.shortcut_answer_call),
     TOGGLE_TOUCH_EXPLORATION(
         R.string.shortcut_value_toggle_touch_exploration,
         R.string.shortcut_toggle_touch_exploration),
@@ -638,6 +653,7 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
         R.string.shortcut_value_announce_battery_state, R.string.shortcut_announce_battery_state),
     ANNOUNCE_STATUS(R.string.shortcut_value_announce_status, R.string.shortcut_announce_status),
     INSPECT_ITEM(R.string.shortcut_value_inspect_item, R.string.shortcut_inspect_item),
+    COPY_ITEM_DETAILS(R.string.shortcut_value_copy_item_details, R.string.shortcut_copy_item_details),
     COPY_SCREEN_TREE(R.string.shortcut_value_copy_screen_tree, R.string.shortcut_copy_screen_tree),
     TOGGLE_SCRIPTS(R.string.shortcut_value_toggle_scripts, R.string.shortcut_toggle_scripts),
     ANNOUNCE_PHONETIC_PRONUNCIATION(

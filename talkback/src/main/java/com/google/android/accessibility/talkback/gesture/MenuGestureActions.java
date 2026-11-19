@@ -54,6 +54,7 @@ public final class MenuGestureActions {
       new Entry(R.id.tts_settings, R.string.menu_gesture_tts_settings, "tts_settings", 0),
       new Entry(R.id.window_menu, R.string.menu_gesture_window_menu, "window_menu", 0),
       new Entry(R.id.inspect_item, R.string.menu_gesture_inspect_item, "inspect_item", R.string.shortcut_value_inspect_item),
+      new Entry(R.id.copy_item_details, R.string.menu_gesture_copy_item_details, "copy_item_details", R.string.shortcut_value_copy_item_details),
       new Entry(R.id.copy_screen_tree, R.string.menu_gesture_copy_screen_tree, "copy_screen_tree", R.string.shortcut_value_copy_screen_tree),
       new Entry(R.id.enable_telling_time, R.string.menu_gesture_enable_telling_time, "enable_telling_time", R.string.shortcut_value_control_telling_time),
       new Entry(R.id.disable_telling_time, R.string.menu_gesture_disable_telling_time, "disable_telling_time", R.string.shortcut_value_control_telling_time),
