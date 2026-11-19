@@ -47,6 +47,7 @@ public class EngineVoiceSelectionTest {
   private final class Backend extends TextToSpeech {
     final AtomicReference<Voice> current;
     Voice rejected;
+    boolean loaded = true;
 
     Backend(AtomicReference<Voice> current) {
       super(context, status -> {});
@@ -55,7 +56,8 @@ public class EngineVoiceSelectionTest {
 
     @Override
     public java.util.Set<Voice> getVoices() {
-      return new LinkedHashSet<>(Arrays.asList(first, second));
+      return loaded
+          ? new LinkedHashSet<>(Arrays.asList(first, second)) : Collections.emptySet();
     }
 
     @Override
@@ -102,6 +104,37 @@ public class EngineVoiceSelectionTest {
     try {
       assertNull(engine.cycleVoice(true));
       assertFalse(prefs.contains(VoiceSwitching.selectedKey("test.engine")));
+    } finally {
+      engine.shutdown();
+    }
+  }
+
+  @Test
+  public void profileVoiceIsSetAgainOnceTheEngineListsIt() {
+    prefs.edit().clear().commit();
+    String id = VoiceProfiles.create(prefs, "Đọc", "test.engine", "100", "1.0", "1.0", false);
+    prefs.edit()
+        .putString(VoiceProfiles.key(id, VoiceProfiles.LANGUAGE), "vi-VN")
+        .putString(VoiceProfiles.key(id, VoiceProfiles.VOICE), "two")
+        .putString(VoiceProfiles.PREF_ACTIVE, id)
+        .commit();
+    AtomicReference<Voice> current = new AtomicReference<>(first);
+    Backend backend = backend(current);
+    backend.loaded = false;
+    FailoverTextToSpeech engine = engine(backend);
+    try {
+      // The engine has not listed its voices yet, so the profile's voice cannot be set.
+      ReflectionHelpers.setField(engine, "engineVoices", null);
+      ReflectionHelpers.setField(engine, "missingVoice", null);
+      ReflectionHelpers.setField(engine, "unsetProfileVoice", null);
+      ReflectionHelpers.callInstanceMethod(engine, "ensureSupportedLocale");
+      assertEquals(first, current.get());
+      assertEquals("two", ReflectionHelpers.getField(engine, "unsetProfileVoice"));
+      // Once the engine lists its voices, the retry sets the profile's voice.
+      backend.loaded = true;
+      ReflectionHelpers.callInstanceMethod(engine, "retryProfileVoice");
+      assertEquals(second, current.get());
+      assertNull(ReflectionHelpers.getField(engine, "unsetProfileVoice"));
     } finally {
       engine.shutdown();
     }
