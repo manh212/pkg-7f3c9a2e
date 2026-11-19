@@ -159,7 +159,7 @@ class TimerSettingsStructureTest {
       topLevel.map { it.second?.substringAfterLast('.') },
     )
     assertTrue(topLevel.all { !it.second.isNullOrBlank() })
-    assertEquals(14, topLevel.size)
+    assertEquals(15, topLevel.size)
     assertEquals(
       "one initial setup entry point on the main screen",
       1,
