@@ -227,7 +227,7 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
     content.optJSONObject("inputTranscription")?.optString("text")?.trim()?.let { text ->
       val finishing: Boolean
       synchronized(lock) {
-        if (text.isNotEmpty()) phrases.add(text)
+        if (text.isNotEmpty()) mergePhrase(text)
         pending = false
         finishing = onDone != null
       }
@@ -236,6 +236,61 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
         main.removeCallbacks(complete)
         main.postDelayed(complete, SETTLE_MS)
       }
+    }
+  }
+
+  /**
+   * Merges a newly arrived transcription into [phrases], which holds the text so far. The server
+   * sometimes sends the running text again with each phrase (cumulative messages), so a new
+   * message is not blindly appended: an exact re-send is skipped, a message that extends the
+   * text so far replaces it, a message that is only a prefix of the text so far is skipped, and
+   * a message that contains the text so far replaces it. Anything else is a genuinely new
+   * phrase and is appended. Prefix and containment matches must fall on a word boundary, so a
+   * new phrase that merely starts with the same letters ("catch" after "cat") is not merged
+   * away. Must be called while holding [lock].
+   */
+  private fun mergePhrase(text: String) {
+    val accumulated = phrases.joinToString(" ")
+    when {
+      accumulated.isEmpty() -> phrases.add(text)
+      text == accumulated -> {
+        // Exact re-send of the text so far: nothing new.
+      }
+      startsWithAtWordBoundary(text, accumulated) -> {
+        // Cumulative extension: the new message already contains everything so far.
+        phrases.clear()
+        phrases.add(text)
+      }
+      startsWithAtWordBoundary(accumulated, text) -> {
+        // Stale subset re-send: everything in it is already there.
+      }
+      containsAtWordBoundary(text, accumulated) -> {
+        // The new message contains the text so far plus other text: keep the new one.
+        phrases.clear()
+        phrases.add(text)
+      }
+      else -> phrases.add(text)
+    }
+  }
+
+  /** Whether [text] starts with [prefix] at a word boundary (end of text or a non-letter). */
+  private fun startsWithAtWordBoundary(text: String, prefix: String): Boolean {
+    if (!text.startsWith(prefix)) return false
+    if (text.length == prefix.length) return true
+    return !text[prefix.length].isLetterOrDigit()
+  }
+
+  /** Whether [text] contains [part] with a word boundary on both sides of the match. */
+  private fun containsAtWordBoundary(text: String, part: String): Boolean {
+    var from = 0
+    while (true) {
+      val index = text.indexOf(part, from)
+      if (index < 0) return false
+      val beforeOk = index == 0 || !text[index - 1].isLetterOrDigit()
+      val after = index + part.length
+      val afterOk = after == text.length || !text[after].isLetterOrDigit()
+      if (beforeOk && afterOk) return true
+      from = index + 1
     }
   }
 
