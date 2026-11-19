@@ -68,6 +68,13 @@ interface ScriptHost {
 
   fun menuItems(): List<ScriptMenuItem>
 
+  /**
+   * Runs the script command saved as [value], as a gesture assigned to it would. Returns false
+   * when no running script has that command. The default refuses: a host that cannot run a
+   * command by its value keeps working unchanged.
+   */
+  fun runScriptCommand(value: String): Boolean = false
+
   fun readingControls(): List<ScriptReadingControl>
 
   fun itemActions(node: AccessibilityNodeInfoCompat): List<ScriptItemAction>
@@ -132,6 +139,9 @@ interface ScriptServices {
   fun stopSpeech()
 
   fun isSpeaking(): Boolean
+
+  /** Whether touch already passes through to apps, held by the person or another SandFly screen. */
+  fun isPassThroughActive(): Boolean
 
   /** The text of the last thing SandFly said, as Copy last spoken phrase copies it. */
   fun lastSpeech(): String?
@@ -266,6 +276,9 @@ object Scripts {
   }
 
   @JvmStatic fun menuItems(): List<ScriptMenuItem> = host?.menuItems().orEmpty()
+
+  /** Runs the script command saved as [value]. Returns false if its script is not running. */
+  @JvmStatic fun runCommand(value: String): Boolean = host?.runScriptCommand(value) == true
 
   @JvmStatic
   fun readingControls(): List<ScriptReadingControl> = host?.readingControls().orEmpty()
