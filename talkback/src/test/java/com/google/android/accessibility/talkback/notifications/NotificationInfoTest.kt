@@ -71,4 +71,41 @@ class NotificationInfoTest {
       )
     assertFalse(info.media)
   }
+
+  @Test
+  fun systemUiInsignificantChannelIsPlaceholder() {
+    assertTrue(
+      NotificationInfo.isSamsungPlaceholder(
+        "com.android.systemui",
+        notification("INSIGNIFICANT", ongoingActivity = false),
+      )
+    )
+  }
+
+  @Test
+  fun systemUiInsignificantCountExtraIsPlaceholder() {
+    val notification = notification("Silent", ongoingActivity = false)
+    notification.extras.putInt("insignificant_child_count", 2)
+    assertTrue(NotificationInfo.isSamsungPlaceholder("com.android.systemui", notification))
+  }
+
+  @Test
+  fun otherPackageInsignificantChannelIsNotPlaceholder() {
+    assertFalse(
+      NotificationInfo.isSamsungPlaceholder(
+        "com.example.app",
+        notification("INSIGNIFICANT", ongoingActivity = false),
+      )
+    )
+  }
+
+  @Test
+  fun systemUiOrdinaryChannelIsNotPlaceholder() {
+    assertFalse(
+      NotificationInfo.isSamsungPlaceholder(
+        "com.android.systemui",
+        notification("Messages", ongoingActivity = false),
+      )
+    )
+  }
 }
