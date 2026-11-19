@@ -258,7 +258,8 @@ object TapTextActions {
   }
 
   private fun say(service: TalkBackService, message: String) {
-    service.speechController?.speak(
+    val speech = runCatching { service.speechController }.getOrNull() ?: return
+    speech.speak(
       message,
       Performance.EVENT_ID_UNTRACKED,
       SpeechController.SpeakOptions.create().setQueueMode(SpeechController.QUEUE_MODE_QUEUE),
