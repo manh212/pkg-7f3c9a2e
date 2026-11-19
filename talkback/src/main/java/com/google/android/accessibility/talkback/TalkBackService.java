@@ -4346,7 +4346,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     EventFilter.setLatencyExtrasEnabled(latencyExtrasEnabled);
     LatencyExperiments.setPreparationAllowed(latencyExtrasEnabled);
     WindowNodePrefetcher.setEnabled(latencyExtrasEnabled);
-    if (speechController != null) speechController.getFailoverTts().refreshNavigationCache();
+    if (speechController != null) speechController.getFailoverTts().refreshNavigationCache(key);
     EventFilter.setPreparedSpeechOptions(
         prefs.getBoolean("pref_prepare_adjacent_speech", /* defValue= */ true),
         prefs.getBoolean("pref_prepare_second_ahead_speech", /* defValue= */ true));
