@@ -58,6 +58,7 @@ import com.google.android.accessibility.talkback.scripting.Scripts;
 import com.google.android.accessibility.talkback.utils.LinkUtils;
 import com.google.android.accessibility.talkback.utils.LinkUtils.LinkSpan;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.FocusFinder;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.PerformActionUtils;
@@ -203,6 +204,11 @@ public class FocusActor implements UserInputEventListener {
       if (fastDoubleTap) logDoubleTapRoute(eventId, "accessibility click");
       return true;
     }
+    AccessibilityNodeInfoCompat item = itemOfTextInside(node, ACTION_CLICK.getId());
+    if (item != null
+        && pipeline.returnFeedback(eventId, Feedback.nodeAction(item, ACTION_CLICK.getId()))) {
+      return true;
+    }
     if (fastDoubleTap && node.isAccessibilityFocused() && service instanceof TalkBackService meridian
         && meridian.performTouchClick(AccessibilityWindowInfoUtils.getDisplayId(node.getWindow()))) {
       logDoubleTapRoute(eventId, "Android touch controller");
@@ -241,9 +247,33 @@ public class FocusActor implements UserInputEventListener {
     if (node == null || pipeline == null) {
       return false;
     }
+    node = Scripts.actionTarget(node, true);
+    AccessibilityNodeInfoCompat item = itemOfTextInside(node, ACTION_LONG_CLICK.getId());
     return pipeline.returnFeedback(
-        eventId,
-        Feedback.nodeAction(Scripts.actionTarget(node, true), ACTION_LONG_CLICK.getId()));
+        eventId, Feedback.nodeAction(item != null ? item : node, ACTION_LONG_CLICK.getId()));
+  }
+
+  /**
+   * With Focus text inside items separately on, returns the nearest ancestor of focused text that
+   * supports {@code action} when the text itself isn't actionable, so that activating the text
+   * activates its item. Returns null otherwise.
+   */
+  private static @Nullable AccessibilityNodeInfoCompat itemOfTextInside(
+      AccessibilityNodeInfoCompat node, int action) {
+    if (!AccessibilityNodeInfoUtils.focusesTextInsideItems()
+        || AccessibilityNodeInfoUtils.isActionableForAccessibility(node)
+        || PerformActionUtils.isNodeSupportAction(node, action)) {
+      return null;
+    }
+    return AccessibilityNodeInfoUtils.getMatchingAncestor(
+        node,
+        new Filter<AccessibilityNodeInfoCompat>() {
+          @Override
+          public boolean accept(AccessibilityNodeInfoCompat ancestor) {
+            return AccessibilityNodeInfoUtils.isVisible(ancestor)
+                && PerformActionUtils.isNodeSupportAction(ancestor, action);
+          }
+        });
   }
 
   public boolean clickCurrentHierarchical(@Nullable EventId eventId) {
