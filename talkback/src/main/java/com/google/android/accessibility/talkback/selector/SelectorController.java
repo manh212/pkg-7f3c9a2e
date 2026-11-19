@@ -55,6 +55,7 @@ import static com.google.android.accessibility.utils.monitor.InputModeTracker.IN
 import static com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_BACKWARD;
 import static com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_FORWARD;
 
+import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
@@ -83,6 +84,8 @@ import com.google.android.accessibility.talkback.Interpretation;
 import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.clipboard.ClipboardHistory;
+import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryDialog;
 import com.google.android.accessibility.talkback.gesture.SmartContextGestures;
 import com.google.android.accessibility.talkback.preference.ItemOrder;
 import com.google.android.accessibility.talkback.UserInterface.UserInputEventListener;
@@ -126,6 +129,7 @@ import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.input.CursorGranularity;
 import com.google.android.accessibility.utils.input.TextEventFilter.TypingInput;
 import com.google.android.accessibility.utils.monitor.CollectionState;
+import com.google.android.accessibility.utils.monitor.ScreenMonitor;
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech;
 import com.google.android.accessibility.utils.output.FeedbackItem;
 import com.google.android.accessibility.utils.output.SpeechController;
@@ -134,6 +138,7 @@ import com.google.android.accessibility.utils.output.VoiceProfiles;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.common.base.Ascii;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -146,13 +151,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class SelectorController implements UserInputEventListener {
 
   /** The type of granularity. */
-  @IntDef({GRANULARITY_FOR_ALL_NODE, GRANULARITY_FOR_NATIVE_NODE, GRANULARITY_FOR_WEB_NODE})
+  @IntDef({GRANULARITY_FOR_ALL_NODE, GRANULARITY_FOR_NATIVE_NODE})
   public @interface GranularityType {}
 
   private static final String TAG = "SelectorController";
   private static final int GRANULARITY_FOR_ALL_NODE = 0;
   @VisibleForTesting static final int GRANULARITY_FOR_NATIVE_NODE = 1;
-  @VisibleForTesting static final int GRANULARITY_FOR_WEB_NODE = 2;
 
   /** The current action id selected for the actions setting. */
   private ContextMenuItemId currentActionId;
@@ -162,6 +166,12 @@ public class SelectorController implements UserInputEventListener {
   // interaction's ongoing. This flag records the touch interaction start/end, respectively. So that
   // the currentSetting will only happen when touch event's ended.
   private boolean touchActive = false;
+
+  /**
+   * Whether a reading control is being changed by a next or previous value command, which runs
+   * without selecting the control, so its gestures don't apply to the hint.
+   */
+  private boolean adjustingByCommand;
   // Accompanying the 'touchActive' flag, this variable avoids the reassign of the same node.
   private AccessibilityNodeInfo lastFocusedNode = null;
 
@@ -227,6 +237,26 @@ public class SelectorController implements UserInputEventListener {
         R.string.pref_selector_change_a11y_volume_key,
         R.string.selector_a11y_volume_change,
         R.bool.pref_selector_a11y_volume_default),
+    MEDIA_VOLUME(
+        R.string.pref_selector_media_volume_key,
+        R.string.selector_media_volume,
+        R.bool.pref_selector_stream_volume_default),
+    CALL_VOLUME(
+        R.string.pref_selector_call_volume_key,
+        R.string.selector_call_volume,
+        R.bool.pref_selector_stream_volume_default),
+    RING_VOLUME(
+        R.string.pref_selector_ring_volume_key,
+        R.string.selector_ring_volume,
+        R.bool.pref_selector_stream_volume_default),
+    NOTIFICATION_VOLUME(
+        R.string.pref_selector_notification_volume_key,
+        R.string.selector_notification_volume,
+        R.bool.pref_selector_stream_volume_default),
+    ALARM_VOLUME(
+        R.string.pref_selector_alarm_volume_key,
+        R.string.selector_alarm_volume,
+        R.bool.pref_selector_stream_volume_default),
     SOUND_MODE(
         R.string.pref_selector_sound_mode_key,
         R.string.selector_sound_mode,
@@ -403,6 +433,10 @@ public class SelectorController implements UserInputEventListener {
         R.string.pref_selector_granularity_typo_key,
         R.string.selector_granularity_typo,
         R.bool.pref_selector_granularity_typo_default),
+    CLIPBOARD_HISTORY(
+        R.string.pref_selector_clipboard_history_key,
+        R.string.selector_clipboard_history,
+        R.bool.pref_selector_clipboard_history_default),
     CONTROL_TELLING_TIME(
         R.string.pref_selector_control_telling_time,
         R.string.selector_control_telling_time,
@@ -505,50 +539,50 @@ public class SelectorController implements UserInputEventListener {
     WEB_LANDMARKS(
         Setting.GRANULARITY_WEB_LANDMARKS,
         CursorGranularity.WEB_LANDMARK,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_BUTTONS(
-        Setting.GRANULARITY_WEB_BUTTONS, CursorGranularity.WEB_BUTTON, GRANULARITY_FOR_WEB_NODE),
+        Setting.GRANULARITY_WEB_BUTTONS, CursorGranularity.WEB_BUTTON, GRANULARITY_FOR_ALL_NODE),
     WEB_CHECKBOXES(
         Setting.GRANULARITY_WEB_CHECKBOXES,
         CursorGranularity.WEB_CHECKBOX,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_EDITFIELDS(
         Setting.GRANULARITY_WEB_EDITFIELDS,
         CursorGranularity.WEB_EDITFIELD,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_FOCUSABLES(
         Setting.GRANULARITY_WEB_FOCUSABLES,
         CursorGranularity.WEB_FOCUSABLE,
-        GRANULARITY_FOR_WEB_NODE),
-    WEB_H1(Setting.GRANULARITY_WEB_H1, CursorGranularity.WEB_H1, GRANULARITY_FOR_WEB_NODE),
-    WEB_H2(Setting.GRANULARITY_WEB_H2, CursorGranularity.WEB_H2, GRANULARITY_FOR_WEB_NODE),
-    WEB_H3(Setting.GRANULARITY_WEB_H3, CursorGranularity.WEB_H3, GRANULARITY_FOR_WEB_NODE),
-    WEB_H4(Setting.GRANULARITY_WEB_H4, CursorGranularity.WEB_H4, GRANULARITY_FOR_WEB_NODE),
-    WEB_H5(Setting.GRANULARITY_WEB_H5, CursorGranularity.WEB_H5, GRANULARITY_FOR_WEB_NODE),
-    WEB_H6(Setting.GRANULARITY_WEB_H6, CursorGranularity.WEB_H6, GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
+    WEB_H1(Setting.GRANULARITY_WEB_H1, CursorGranularity.WEB_H1, GRANULARITY_FOR_ALL_NODE),
+    WEB_H2(Setting.GRANULARITY_WEB_H2, CursorGranularity.WEB_H2, GRANULARITY_FOR_ALL_NODE),
+    WEB_H3(Setting.GRANULARITY_WEB_H3, CursorGranularity.WEB_H3, GRANULARITY_FOR_ALL_NODE),
+    WEB_H4(Setting.GRANULARITY_WEB_H4, CursorGranularity.WEB_H4, GRANULARITY_FOR_ALL_NODE),
+    WEB_H5(Setting.GRANULARITY_WEB_H5, CursorGranularity.WEB_H5, GRANULARITY_FOR_ALL_NODE),
+    WEB_H6(Setting.GRANULARITY_WEB_H6, CursorGranularity.WEB_H6, GRANULARITY_FOR_ALL_NODE),
     WEB_GRAPHICS(
-        Setting.GRANULARITY_WEB_GRAPHICS, CursorGranularity.WEB_GRAPHIC, GRANULARITY_FOR_WEB_NODE),
-    WEB_LISTS(Setting.GRANULARITY_WEB_LISTS, CursorGranularity.WEB_LIST, GRANULARITY_FOR_WEB_NODE),
+        Setting.GRANULARITY_WEB_GRAPHICS, CursorGranularity.WEB_GRAPHIC, GRANULARITY_FOR_ALL_NODE),
+    WEB_LISTS(Setting.GRANULARITY_WEB_LISTS, CursorGranularity.WEB_LIST, GRANULARITY_FOR_ALL_NODE),
     WEB_LISTITEMS(
         Setting.GRANULARITY_WEB_LISTITEMS,
         CursorGranularity.WEB_LISTITEM,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_TABLES(
-        Setting.GRANULARITY_WEB_TABLES, CursorGranularity.WEB_TABLE, GRANULARITY_FOR_WEB_NODE),
+        Setting.GRANULARITY_WEB_TABLES, CursorGranularity.WEB_TABLE, GRANULARITY_FOR_ALL_NODE),
     WEB_COMBOBOXES(
         Setting.GRANULARITY_WEB_COMBOBOXES,
         CursorGranularity.WEB_COMBOBOX,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_VISITED_LINKS(
         Setting.GRANULARITY_WEB_VISITED_LINKS,
         CursorGranularity.WEB_VISITED_LINK,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_UNVISITED_LINKS(
         Setting.GRANULARITY_WEB_UNVISITED_LINKS,
         CursorGranularity.WEB_UNVISITED_LINK,
-        GRANULARITY_FOR_WEB_NODE),
+        GRANULARITY_FOR_ALL_NODE),
     WEB_RADIOS(
-        Setting.GRANULARITY_WEB_RADIOS, CursorGranularity.WEB_RADIO, GRANULARITY_FOR_WEB_NODE);
+        Setting.GRANULARITY_WEB_RADIOS, CursorGranularity.WEB_RADIO, GRANULARITY_FOR_ALL_NODE);
 
     final Setting setting;
     final CursorGranularity cursorGranularity;
@@ -614,12 +648,7 @@ public class SelectorController implements UserInputEventListener {
       }
 
       boolean isWebContent = actorState.getDirectionNavigation().hasNavigableWebContent();
-      if ((granularity.granularityType == GRANULARITY_FOR_NATIVE_NODE && !isWebContent)
-          || (granularity.granularityType == GRANULARITY_FOR_WEB_NODE && isWebContent)) {
-        return true;
-      }
-
-      return false;
+      return granularity.granularityType == GRANULARITY_FOR_NATIVE_NODE && !isWebContent;
     }
   }
 
@@ -645,6 +674,7 @@ public class SelectorController implements UserInputEventListener {
   public static final ImmutableList<Setting> SELECTOR_SETTINGS =
       ImmutableList.of(
           Setting.GRANULARITY_TYPO,
+          Setting.CLIPBOARD_HISTORY,
           Setting.SMART_CONTEXT_GESTURES,
           Setting.ACTIONS,
           Setting.COPY_MODE,
@@ -699,6 +729,11 @@ public class SelectorController implements UserInputEventListener {
           Setting.AUDIO_FOCUS,
           Setting.SCROLLING_SEQUENTIAL,
           Setting.CHANGE_ACCESSIBILITY_VOLUME,
+          Setting.MEDIA_VOLUME,
+          Setting.CALL_VOLUME,
+          Setting.RING_VOLUME,
+          Setting.NOTIFICATION_VOLUME,
+          Setting.ALARM_VOLUME,
           Setting.SOUND_MODE,
           Setting.AUTO_TRANSLATION,
           Setting.CHANGE_BRIGHTNESS,
@@ -718,6 +753,9 @@ public class SelectorController implements UserInputEventListener {
   /** Lists all {@link ContextualSetting} that should be supported. */
   private final ImmutableList<ContextualSetting> contextualSettings;
 
+  // The Clipboard history reading control, in edit boxes.
+  private final ClipboardHistorySetting clipboardHistorySetting;
+
   /** Selector event notifier. */
   private final SelectorEventNotifier selectorEventNotifier;
 
@@ -730,6 +768,9 @@ public class SelectorController implements UserInputEventListener {
   private @Nullable String scriptControlKey;
   // Whether double-tap toggles the chosen live recognition mode.
   private boolean liveRecognitionArmed;
+
+  // Whether double-tap pastes the clipboard history text said last.
+  private boolean clipboardHistoryArmed;
 
   private final VolumeMonitor volumeMonitor;
 
@@ -826,6 +867,7 @@ public class SelectorController implements UserInputEventListener {
     } else if (!FeatureSupport.doesServiceHandleDoubleTap()) {
       hiddenSettingsBuilder.add(ACTIONS);
       hiddenSettingsBuilder.add(Setting.LIVE_RECOGNITION);
+      hiddenSettingsBuilder.add(Setting.CLIPBOARD_HISTORY);
     }
     // Hide SEARCH in selector.
     if (!FeatureFlagReader.enableScreenSearchNavigation(context)
@@ -845,6 +887,8 @@ public class SelectorController implements UserInputEventListener {
     contextualSettingsBuilder.add(new AdjustableWidgetSetting());
     contextualSettingsBuilder.add(new ActionsSetting(nodeMenuCreator, accessibilityFocusMonitor));
     contextualSettingsBuilder.add(new TypoGranularity(accessibilityFocusMonitor));
+    clipboardHistorySetting = new ClipboardHistorySetting(accessibilityFocusMonitor);
+    contextualSettingsBuilder.add(clipboardHistorySetting);
     contextualSettings = contextualSettingsBuilder.build();
 
     resetActionMenuToDefault();
@@ -1051,6 +1095,14 @@ public class SelectorController implements UserInputEventListener {
         actionDescription = context.getString(R.string.title_pref_a11y_volume);
         hint = getAdjustSelectedSettingGestures();
       }
+      case MEDIA_VOLUME, CALL_VOLUME, RING_VOLUME, NOTIFICATION_VOLUME, ALARM_VOLUME -> {
+        StreamVolume volume = STREAM_VOLUMES.get(setting);
+        actionDescription =
+            context.getString(volume.titleResId)
+                + ", "
+                + StreamVolumeControl.percentText(context, volume.stream);
+        hint = getAdjustSelectedSettingGestures();
+      }
       case SOUND_MODE -> {
         actionDescription = context.getString(R.string.quick_settings_sound_mode);
         hint = getAdjustSelectedSettingGestures();
@@ -1185,6 +1237,11 @@ public class SelectorController implements UserInputEventListener {
         actionDescription = context.getString(R.string.title_pref_selector_typo_granularity);
         hint = getNavigateTypoGestures();
       }
+      case CLIPBOARD_HISTORY -> {
+        clipboardHistorySetting.reset();
+        actionDescription = context.getString(R.string.title_clipboard_history);
+        hint = context.getString(R.string.clipboard_history_hint);
+      }
       default -> {}
     }
     return new DescriptionAndHint(actionDescription, hint);
@@ -1228,6 +1285,7 @@ public class SelectorController implements UserInputEventListener {
     // such as the Live recognition checkbox in settings, would turn a mode on instead.
     liveRecognitionArmed =
         newSetting == Setting.LIVE_RECOGNITION && announceType != AnnounceType.SILENCE;
+    clipboardHistoryArmed = false;
     requestServiceHandlesDoubleTap(EVENT_ID_UNTRACKED, liveRecognitionArmed);
 
     if (TextUtils.isEmpty(descriptionAndHint.description)) {
@@ -1360,6 +1418,11 @@ public class SelectorController implements UserInputEventListener {
       liveRecognitionArmed = false;
       requestServiceHandlesDoubleTap(EVENT_ID_UNTRACKED, false);
     }
+    if (clipboardHistoryArmed) {
+      clipboardHistoryArmed = false;
+      requestServiceHandlesDoubleTap(EVENT_ID_UNTRACKED, false);
+    }
+    clipboardHistorySetting.reset();
     // Reset currentActionId to the default action.
     resetActionMenuToDefault();
 
@@ -2110,10 +2173,7 @@ public class SelectorController implements UserInputEventListener {
           GRANULARITY_WEB_VISITED_LINKS,
           GRANULARITY_WEB_UNVISITED_LINKS,
           GRANULARITY_WEB_RADIOS -> {
-        if (node == null) {
-          node = accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
-        }
-        return WebInterfaceUtils.hasNavigableWebContent(node);
+        return true;
       }
       case ADJUSTABLE_WIDGET -> {
         Optional<ContextualSetting> adjustableWidget = findContextualSetting(ADJUSTABLE_WIDGET);
@@ -2132,6 +2192,12 @@ public class SelectorController implements UserInputEventListener {
           return false;
         }
         return typoGranularity.get().isNodeSupportSetting(context, node);
+      }
+      case CLIPBOARD_HISTORY -> {
+        // The history can hold private text.
+        return FeatureSupport.doesServiceHandleDoubleTap()
+            && !ScreenMonitor.isDeviceLocked(context)
+            && clipboardHistorySetting.isNodeSupportSetting(context, node);
       }
       default -> {
         return true;
@@ -2255,6 +2321,10 @@ public class SelectorController implements UserInputEventListener {
    * gesture, such as "Move reading control down or forward: Swipe down".
    */
   private String getAdjustSelectedSettingGestures() {
+    if (adjustingByCommand) {
+      // The command ran without selecting the reading control, so its gestures don't apply.
+      return "";
+    }
     return actionLines(
         R.string.shortcut_value_selected_setting_previous_action,
         R.string.shortcut_value_selected_setting_next_action);
@@ -2473,6 +2543,10 @@ public class SelectorController implements UserInputEventListener {
         changeAccessibilityVolume(eventId, NavigationMode.isModeTwo(context) ? !isNext : isNext);
         return;
       }
+      case MEDIA_VOLUME, CALL_VOLUME, RING_VOLUME, NOTIFICATION_VOLUME, ALARM_VOLUME -> {
+        changeStreamVolume(eventId, currentSetting, isNext);
+        return;
+      }
       case SOUND_MODE -> {
         String displayText = SoundModeControl.change(context, isNext);
         announceSetting(eventId, displayText, getAdjustSelectedSettingGestures());
@@ -2593,6 +2667,10 @@ public class SelectorController implements UserInputEventListener {
         navigateTypo(eventId, isNext);
         return;
       }
+      case CLIPBOARD_HISTORY -> {
+        changeClipboardEntry(eventId, isNext);
+        return;
+      }
     }
   }
 
@@ -2602,11 +2680,6 @@ public class SelectorController implements UserInputEventListener {
       text =
           context.getString(
               R.string.native_granularity_not_supported,
-              context.getString(granularity.cursorGranularity.resourceId));
-    } else if (granularity.granularityType == GRANULARITY_FOR_WEB_NODE) {
-      text =
-          context.getString(
-              R.string.web_granularity_not_supported,
               context.getString(granularity.cursorGranularity.resourceId));
     }
     if (!TextUtils.isEmpty(text)) {
@@ -2625,6 +2698,18 @@ public class SelectorController implements UserInputEventListener {
     }
     LiveRecognition.toggle(context);
     return true;
+  }
+
+  /**
+   * Pastes the clipboard history's text said last, if the reading control was chosen or adjusted
+   * since focus last moved.
+   */
+  public boolean activateClipboardHistory() {
+    if (!clipboardHistoryArmed || scriptControlKey != null
+        || getCurrentSetting(context) != Setting.CLIPBOARD_HISTORY) {
+      return false;
+    }
+    return pasteClipboardEntry();
   }
 
   public boolean hasSelectedCustomAction() {
@@ -2734,6 +2819,52 @@ public class SelectorController implements UserInputEventListener {
         eventId, Feedback.navigateTypo(isNext, /* useInputFocusIfEmpty= */ true));
   }
 
+  /**
+   * Says the next or previous text of the clipboard history, newest first, which double-tap then
+   * pastes into the edit box.
+   */
+  private void changeClipboardEntry(EventId eventId, boolean isNext) {
+    List<String> entries =
+        ScreenMonitor.isDeviceLocked(context) ? List.of() : ClipboardHistory.getEntries();
+    boolean wrap =
+        SharedPreferencesUtils.getBooleanPref(
+            prefs,
+            context.getResources(),
+            R.string.pref_wrap_around_key,
+            R.bool.pref_wrap_around_default);
+    @Nullable String before = clipboardHistorySetting.getChosen();
+    @Nullable String text = clipboardHistorySetting.step(entries, isNext, wrap);
+    if (text == null) {
+      clipboardHistoryArmed = false;
+      requestServiceHandlesDoubleTap(eventId, false);
+      announceSetting(eventId, context.getString(R.string.clipboard_history_empty), null);
+      return;
+    }
+    clipboardHistoryArmed = true;
+    requestServiceHandlesDoubleTap(eventId, true);
+    announceSetting(
+        eventId,
+        ClipboardHistoryDialog.shortened(text),
+        context.getString(R.string.clipboard_history_hint));
+    if (!wrap && before != null && before.equals(text)) {
+      // With Wrap around off, the first or last text is said again, with the end sound.
+      pipeline.returnFeedback(eventId, Feedback.sound(R.raw.complete));
+    }
+  }
+
+  /** Pastes the clipboard history's text said last into the edit box with focus. */
+  private boolean pasteClipboardEntry() {
+    @Nullable String text = clipboardHistorySetting.getChosen();
+    @Nullable AccessibilityNodeInfoCompat editBox = clipboardHistorySetting.editBox(null);
+    if (text == null
+        || editBox == null
+        || !(context instanceof AccessibilityService service)
+        || ScreenMonitor.isDeviceLocked(context)) {
+      return false;
+    }
+    return ClipboardHistoryDialog.pasteEntry(service, editBox.unwrap(), text);
+  }
+
   /** Moves to the next or previous at specific granularity. */
   private void moveAtGranularity(EventId eventId, Granularity granularity, boolean isNext) {
     // Sets granularity and locks navigate within the focused node.
@@ -2771,9 +2902,11 @@ public class SelectorController implements UserInputEventListener {
 
   /**
    * Moves to the item below or above the focused one, past the other items of its row, and scrolls
-   * the list when there is none on screen.
+   * the list when there is none on screen. Used by the Vertical navigation reading control and the
+   * Move to item below and Move to item above commands, which leave the selected reading control
+   * as it is.
    */
-  private void moveVertically(EventId eventId, boolean isNext) {
+  public void moveVertically(EventId eventId, boolean isNext) {
     verticalNavigator.move(eventId, isNext);
   }
 
@@ -2855,6 +2988,24 @@ public class SelectorController implements UserInputEventListener {
     String displayText = VoiceProfileNames.nameOf(context, prefs, nextId);
     announceSetting(eventId, displayText, hint);
     showQuickMenuActionOverlay(eventId, displayText);
+  }
+
+  /**
+   * Changes to the voice profile {@code id}, or Backtalk default's for "", and says its name.
+   * Says the profile was deleted when it no longer exists. Returns false then.
+   */
+  public boolean selectVoiceProfile(EventId eventId, String id) {
+    if (!id.isEmpty() && !VoiceProfiles.ids(prefs).contains(id)) {
+      String displayText = context.getString(R.string.voice_profile_command_deleted);
+      announceSetting(eventId, displayText, /* hint= */ null);
+      showQuickMenuActionOverlay(eventId, displayText);
+      return false;
+    }
+    prefs.edit().putString(VoiceProfiles.PREF_ACTIVE, id).apply();
+    String displayText = VoiceProfileNames.nameOf(context, prefs, id);
+    announceSetting(eventId, displayText, /* hint= */ null);
+    showQuickMenuActionOverlay(eventId, displayText);
+    return true;
   }
 
   public void changeGestureProfile(EventId eventId, boolean isNext) {
@@ -3141,6 +3292,59 @@ public class SelectorController implements UserInputEventListener {
           handler.post(() -> volumeMonitor.removeVolumeChangedListener(a11yVolumeChangedListener));
         }
       };
+
+  /**
+   * Changes the value of {@code setting}, which need not be the selected reading control, for a
+   * next or previous value command. Only the stream volume controls have such commands.
+   */
+  public void adjustSettingByCommand(EventId eventId, Setting setting, boolean isNext) {
+    if (!STREAM_VOLUMES.containsKey(setting)) {
+      return;
+    }
+    adjustingByCommand = true;
+    try {
+      changeStreamVolume(eventId, setting, isNext);
+    } finally {
+      adjustingByCommand = false;
+    }
+  }
+
+  /** Raises or lowers the stream volume of {@code setting} one step and says the new volume. */
+  private void changeStreamVolume(EventId eventId, Setting setting, boolean isNext) {
+    String displayText =
+        StreamVolumeControl.change(
+            context,
+            STREAM_VOLUMES.get(setting).stream,
+            /* lower= */ NavigationMode.isModeTwo(context) ? !isNext : isNext);
+    announceSetting(eventId, displayText, getAdjustSelectedSettingGestures());
+    showQuickMenuActionOverlay(eventId, displayText);
+  }
+
+  /** The stream and title of a stream volume reading control. */
+  private static final class StreamVolume {
+    final int stream;
+    @StringRes final int titleResId;
+
+    StreamVolume(int stream, @StringRes int titleResId) {
+      this.stream = stream;
+      this.titleResId = titleResId;
+    }
+  }
+
+  /** The stream volume reading controls, which change a volume without Shizuku. */
+  private static final ImmutableMap<Setting, StreamVolume> STREAM_VOLUMES =
+      ImmutableMap.of(
+          Setting.MEDIA_VOLUME,
+          new StreamVolume(AudioManager.STREAM_MUSIC, R.string.quick_settings_media_volume),
+          Setting.CALL_VOLUME,
+          new StreamVolume(AudioManager.STREAM_VOICE_CALL, R.string.quick_settings_call_volume),
+          Setting.RING_VOLUME,
+          new StreamVolume(AudioManager.STREAM_RING, R.string.quick_settings_ring_volume),
+          Setting.NOTIFICATION_VOLUME,
+          new StreamVolume(
+              AudioManager.STREAM_NOTIFICATION, R.string.quick_settings_notification_volume),
+          Setting.ALARM_VOLUME,
+          new StreamVolume(AudioManager.STREAM_ALARM, R.string.quick_settings_alarm_volume));
 
   /** Perform Accessibility volume change. */
   public void changeAccessibilityVolume(EventId eventId, boolean decreaseVolume) {

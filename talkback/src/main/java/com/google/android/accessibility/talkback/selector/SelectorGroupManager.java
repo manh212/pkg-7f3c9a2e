@@ -125,6 +125,7 @@ public final class SelectorGroupManager {
       }
       appendNewScriptControls(context, prefs);
       appendGestureProfileControl(context, prefs);
+      appendClipboardHistoryControl(context, prefs);
       groups = getGroups(context);
       String currentGroup = prefs.getString(context.getString(CURRENT_GROUP_KEY_RES), "");
       Group selectedGroup = findGroup(groups, currentGroup);
@@ -627,6 +628,34 @@ public final class SelectorGroupManager {
       groups.add(target);
     }
     target.items.add(id);
+    saveGroups(context, groups);
+  }
+
+  /**
+   * One-shot append of the Clipboard history reading control (SandFly 0.6.0 #10) to existing
+   * installs' selector groups. Fresh installs get the control through defaultGroups(), but
+   * groups already initialized never pick up a new setting otherwise. Same shape as
+   * appendGestureProfileControl: a once-only flag, a contains check, and the control added to
+   * its group. Placed right after Spell check, matching the fresh-install order.
+   */
+  public static void appendClipboardHistoryControl(Context context, SharedPreferences prefs) {
+    if (!isSupported() || prefs.getBoolean("pref_clipboard_history_control_added", false)) return;
+    prefs.edit().putBoolean("pref_clipboard_history_control_added", true).apply();
+    ArrayList<Group> groups = mutableGroups(context);
+    String id = itemId(context, SelectorController.Setting.CLIPBOARD_HISTORY);
+    if (containsItem(groups, id)) return;
+    Group target = findGroup(groups, GROUP_READING);
+    if (target == null) {
+      target = new Group(GROUP_READING, context.getString(R.string.selector_group_reading), true, new ArrayList<>());
+      groups.add(target);
+    }
+    String typoId = itemId(context, SelectorController.Setting.GRANULARITY_TYPO);
+    int typoIndex = target.items.indexOf(typoId);
+    if (typoIndex >= 0) {
+      target.items.add(typoIndex + 1, id);
+    } else {
+      target.items.add(id);
+    }
     saveGroups(context, groups);
   }
 
