@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.gesture
 import android.app.Application
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,7 +47,9 @@ class TapTextActionsTest {
     override fun onCreate() {}
   }
 
-  private val service: TargetService by lazy { Robolectric.buildService(TargetService::class.java).get() }
+  // Created, so the service is attached to a context: perform() reads a string when nothing
+  // is found, and that needs an attached service.
+  private val service: TargetService by lazy { Robolectric.buildService(TargetService::class.java).create().get() }
 
   @Test
   fun tapValueEncodesLabelAndPressType() {
@@ -60,25 +63,71 @@ class TapTextActionsTest {
   }
 
   @Test
+  fun valueOfJoinsLabelsWithNewlines() {
+    assertEquals(
+      "TAP_TEXT:TAP:Chi tiết chuỗi bài\nMenu\nXóa cuộc trò chuyện",
+      TapTextActions.valueOf(listOf("Chi tiết chuỗi bài", "Menu", "Xóa cuộc trò chuyện"), false),
+    )
+    assertEquals(
+      "TAP_TEXT:LONG:A\nB",
+      TapTextActions.valueOf(listOf("A", "B"), true),
+    )
+  }
+
+  @Test
+  fun valueOfDropsBlankAndRepeatedLabels() {
+    assertEquals("TAP_TEXT:TAP:A\nB", TapTextActions.valueOf(listOf("  A  ", "", "A", "B"), false))
+  }
+
+  @Test
   fun onlyTapTextValuesAreActions() {
     assertTrue(TapTextActions.isAction(TapTextActions.valueOf("Cài đặt", false)))
     assertTrue(TapTextActions.isAction(TapTextActions.valueOf("Cài đặt", true)))
+    assertTrue(TapTextActions.isAction(TapTextActions.valueOf(listOf("A", "B"), false)))
+    assertTrue(TapTextActions.isAction("TAP_TEXT:TAP:A\nB"))
     assertFalse(TapTextActions.isAction("NEXT"))
     assertFalse(TapTextActions.isAction(TapTextActions.SENTINEL))
     assertFalse(TapTextActions.isAction("TAP_TEXT:"))
     assertFalse(TapTextActions.isAction("TAP_TEXT:TAP:"))
     assertFalse(TapTextActions.isAction("TAP_TEXT:TAP:   "))
+    assertFalse(TapTextActions.isAction("TAP_TEXT:TAP:\n   \n"))
     assertFalse(TapTextActions.isAction(null))
   }
 
   @Test
   fun parseReadsLabelAndPressType() {
-    assertEquals(TapTextActions.Parsed("Cài đặt", false), TapTextActions.parse("TAP_TEXT:TAP:Cài đặt"))
-    assertEquals(TapTextActions.Parsed("Cài đặt", true), TapTextActions.parse("TAP_TEXT:LONG:Cài đặt"))
-    assertEquals(TapTextActions.Parsed("A:B", false), TapTextActions.parse("TAP_TEXT:TAP:A:B"))
+    assertEquals(TapTextActions.Parsed(listOf("Cài đặt"), false), TapTextActions.parse("TAP_TEXT:TAP:Cài đặt"))
+    assertEquals(TapTextActions.Parsed(listOf("Cài đặt"), true), TapTextActions.parse("TAP_TEXT:LONG:Cài đặt"))
+    assertEquals(TapTextActions.Parsed(listOf("A:B"), false), TapTextActions.parse("TAP_TEXT:TAP:A:B"))
     assertNull(TapTextActions.parse("NEXT"))
     assertNull(TapTextActions.parse(TapTextActions.SENTINEL))
     assertNull(TapTextActions.parse(null))
+  }
+
+  @Test
+  fun parseReadsTheLabelListInOrder() {
+    assertEquals(
+      TapTextActions.Parsed(listOf("Chi tiết chuỗi bài", "Menu", "Xóa cuộc trò chuyện"), false),
+      TapTextActions.parse("TAP_TEXT:TAP:Chi tiết chuỗi bài\nMenu\nXóa cuộc trò chuyện"),
+    )
+    assertEquals(
+      TapTextActions.Parsed(listOf("A", "B"), true),
+      TapTextActions.parse("TAP_TEXT:LONG:A\nB"),
+    )
+    // A colon inside a label is still part of that label, not a separator.
+    assertEquals(
+      TapTextActions.Parsed(listOf("A:B", "C"), false),
+      TapTextActions.parse("TAP_TEXT:TAP:A:B\nC"),
+    )
+  }
+
+  @Test
+  fun parseIgnoresEmptyLines() {
+    assertEquals(
+      TapTextActions.Parsed(listOf("A", "B"), false),
+      TapTextActions.parse("TAP_TEXT:TAP:A\n\n   \nB\n"),
+    )
+    assertNull(TapTextActions.parse("TAP_TEXT:TAP:\n   \n"))
   }
 
   @Test
@@ -90,6 +139,14 @@ class TapTextActionsTest {
     assertEquals(
       "Tự nhấn trên màn hình (nhấn giữ): 'Cài đặt'",
       TapTextActions.label(context, TapTextActions.valueOf("Cài đặt", true)),
+    )
+    assertEquals(
+      "Tự nhấn trên màn hình: 'A', 'B'",
+      TapTextActions.label(context, TapTextActions.valueOf(listOf("A", "B"), false)),
+    )
+    assertEquals(
+      "Tự nhấn trên màn hình (nhấn giữ): 'A', 'B'",
+      TapTextActions.label(context, TapTextActions.valueOf(listOf("A", "B"), true)),
     )
     assertNull(TapTextActions.label(context, "NEXT"))
     assertNull(TapTextActions.label(context, TapTextActions.SENTINEL))
@@ -188,6 +245,55 @@ class TapTextActionsTest {
     assertFalse(TapTextActions.activate(service, label, true))
   }
 
+  @Test
+  fun performTapsTheFirstLabelInListOrderAndStops() {
+    val tree = tappableRows()
+    service.root = tree.root
+    val row1Clicks = clickCounter(tree.row1)
+    val row3Clicks = clickCounter(tree.row3)
+    // Both labels are on screen, but "Cài đặt" comes first in the list, so only it is tapped.
+    assertTrue(
+      TapTextActions.perform(service, TapTextActions.valueOf(listOf("Cài đặt", "Nhóm ABC"), false))
+    )
+    assertEquals(1, row3Clicks())
+    assertEquals(0, row1Clicks())
+  }
+
+  @Test
+  fun performSkipsAMissingLabelForTheNextOne() {
+    val tree = tappableRows()
+    service.root = tree.root
+    val row1Clicks = clickCounter(tree.row1)
+    val row3Clicks = clickCounter(tree.row3)
+    assertTrue(
+      TapTextActions.perform(service, TapTextActions.valueOf(listOf("không có", "Nhóm ABC"), false))
+    )
+    assertEquals(1, row1Clicks())
+    assertEquals(0, row3Clicks())
+  }
+
+  @Test
+  fun performReturnsFalseWhenNoLabelIsFound() {
+    val tree = tappableRows()
+    service.root = tree.root
+    val row1Clicks = clickCounter(tree.row1)
+    val row3Clicks = clickCounter(tree.row3)
+    assertFalse(
+      TapTextActions.perform(service, TapTextActions.valueOf(listOf("không có", "cũng không"), false))
+    )
+    assertEquals(0, row1Clicks())
+    assertEquals(0, row3Clicks())
+  }
+
+  @Test
+  fun notFoundNamesTheFirstLabelInTheList() {
+    val parsed = TapTextActions.parse(TapTextActions.valueOf(listOf("không có", "cũng không"), false))!!
+    assertEquals(
+      "Không tìm thấy 'không có'",
+      context.getString(R.string.tap_text_not_found, parsed.labels.first()),
+    )
+  }
+
   private class Rows(
     val root: AccessibilityNodeInfo,
     val label1: AccessibilityNodeInfo,
@@ -218,6 +324,39 @@ class TapTextActionsTest {
     add(row3, settings)
     sealAll(root, row1, label1, count1, row2, label2, count2, row3, settings)
     return Rows(root, label1, count1, label2, count2, settings)
+  }
+
+  /** Two tappable rows, in reading order: a group row and a settings row. */
+  private class TappableRows(
+    val root: AccessibilityNodeInfo,
+    val row1: AccessibilityNodeInfo,
+    val label1: AccessibilityNodeInfo,
+    val row3: AccessibilityNodeInfo,
+    val settings: AccessibilityNodeInfo,
+  )
+
+  private fun tappableRows(): TappableRows {
+    val root = node()
+    val row1 = node(clickable = true)
+    val label1 = node(text = "Nhóm ABC")
+    val row3 = node(clickable = true)
+    val settings = node(text = "Cài đặt")
+    add(root, row1)
+    add(row1, label1)
+    add(root, row3)
+    add(row3, settings)
+    sealAll(root, row1, label1, row3, settings)
+    return TappableRows(root, row1, label1, row3, settings)
+  }
+
+  /** Counts the clicks [node] takes, and returns a reader for that count. */
+  private fun clickCounter(node: AccessibilityNodeInfo): () -> Int {
+    var clicks = 0
+    Shadows.shadowOf(node).setOnPerformActionListener { action, _ ->
+      if (action == AccessibilityNodeInfo.ACTION_CLICK) clicks++
+      true
+    }
+    return { clicks }
   }
 
   private fun node(

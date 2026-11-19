@@ -175,10 +175,17 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
     }
   }
 
-  /** Adds a "Tự nhấn trên màn hình" action: the label first, then the gesture that runs it. */
+  /**
+   * Adds a "Tự nhấn trên màn hình" action: the gesture first, then its labels. The dialog
+   * opens with the labels that gesture already has in this app, one per line, so another
+   * label is appended to them instead of replacing them.
+   */
   private fun addTapText() {
-    tapTextDialog = TapTextEditor.show(requireContext(), null) { composed ->
-      chooseSlot { slot -> assignGesture(slot, composed) }
+    chooseSlot { slot ->
+      val current = app?.gestures?.get(baseKey(slot))
+      tapTextDialog = TapTextEditor.show(requireContext(), current) { composed ->
+        assignGesture(slot, composed)
+      }
     }
   }
 

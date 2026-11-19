@@ -44,11 +44,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.function.Consumer
 
 /**
- * The dialog that asks for the label and the press type of a "Tự nhấn trên màn hình" action,
+ * The dialog that asks for the labels and the press type of a "Tự nhấn trên màn hình" action,
  * used when the action is picked for a gesture and when one is added from the management list.
- * The label can be typed, or taken from the node in focus on the current screen. When [initial]
- * is already one of these actions, the dialog opens with its label and press type filled in,
- * so the same dialog edits an existing one.
+ * The labels are typed, one per line, or taken from the node in focus on the current screen.
+ * When [initial] is already one of these actions, the dialog opens with its labels, one per
+ * line, and its press type filled in, so the same dialog appends a label to an existing one.
  */
 object TapTextEditor {
 
@@ -67,7 +67,7 @@ object TapTextEditor {
       setSingleLine(false)
       setHint(R.string.tap_text_label_hint)
       inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-      setText(parsed?.label.orEmpty())
+      setText(parsed?.labels?.joinToString("\n").orEmpty())
       setSelection(text?.length ?: 0)
     }
     layout.addView(label, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -77,8 +77,14 @@ object TapTextEditor {
       val pick = Button(context).apply {
         setText(R.string.tap_text_pick_from_screen)
         setOnClickListener {
-          label.setText(focused)
-          label.setSelection(focused.length)
+          // Appends the picked text as another line, keeping the labels already there.
+          val current = label.text.toString()
+          if (current.isBlank()) {
+            label.setText(focused)
+          } else {
+            label.setText(current.trimEnd() + "\n" + focused)
+          }
+          label.setSelection(label.text?.length ?: 0)
         }
       }
       layout.addView(pick, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -108,12 +114,14 @@ object TapTextEditor {
       .create()
     dialog.setOnShowListener {
       dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
-        val text = label.text.toString().trim()
-        if (text.isEmpty()) {
+        val labels = label.text.toString().split('\n')
+          .map { it.trim() }
+          .filter { it.isNotEmpty() }
+        if (labels.isEmpty()) {
           label.error = context.getString(R.string.tap_text_label_required)
           return@setOnClickListener
         }
-        onSave.accept(TapTextActions.valueOf(text, press.selectedItemPosition == 1))
+        onSave.accept(TapTextActions.valueOf(labels, press.selectedItemPosition == 1))
         dialog.dismiss()
       }
     }
@@ -130,8 +138,10 @@ object TapTextEditor {
    * Adds a "Tự nhấn trên màn hình" action from the app in front, following
    * SmartContextGestureSettingsFragment.quickAdd: the label is taken from the node in focus on
    * the current screen, so the user adds it while looking at the thing to tap. The scope is
-   * asked first (this app, or the whole device), then the label and press type, then the
-   * gesture that runs it. With no node in focus, it only says so and does nothing.
+   * asked first (this app, or the whole device), then the gesture that runs it, then the
+   * labels: the dialog opens with the labels that gesture already has, and the focused text
+   * appended as another line, so adding to a gesture appends to its list instead of
+   * replacing it. With no node in focus, it only says so and does nothing.
    */
   @JvmStatic
   fun quickAdd(service: TalkBackService) {
@@ -154,8 +164,8 @@ object TapTextEditor {
         .setTitle(R.string.tap_text_add)
         .setItems(scopes.map { it.first }.toTypedArray()) { _, choice ->
           val perApp = scopes[choice].second
-          show(service, TapTextActions.valueOf(text, false)) { composed ->
-            chooseSlot(service, composed) { slot ->
+          chooseSlot(service) { slot ->
+            show(service, initialForSlot(service, packageName, perApp, slot, text)) { composed ->
               saveTapText(service, packageName, perApp, slot, composed)
             }
           }
@@ -166,7 +176,6 @@ object TapTextEditor {
   /** Asks which gesture runs the new action, from the Gestures screen's own slots. */
   private fun chooseSlot(
     service: TalkBackService,
-    composed: String,
     then: (CommandBindings.GestureSlot) -> Unit,
   ) {
     val prefs = SharedPreferencesUtils.getSharedPreferences(service)
@@ -181,6 +190,51 @@ object TapTextEditor {
         .setTitle(R.string.tap_text_choose_gesture)
         .setItems(names) { _, index -> then(slots[index]) },
     )
+  }
+
+  /**
+   * The value the dialog opens with for [slot]: the labels that gesture already has, with
+   * the focused text appended as another line, keeping the gesture's press type. When the
+   * gesture has no "Tự nhấn trên màn hình" action yet, just the focused text, as a tap.
+   */
+  private fun initialForSlot(
+    service: TalkBackService,
+    packageName: String,
+    perApp: Boolean,
+    slot: CommandBindings.GestureSlot,
+    focusedText: String,
+  ): String {
+    val existing = TapTextActions.parse(currentSlotValue(service, packageName, perApp, slot))
+    return if (existing == null) {
+      TapTextActions.valueOf(focusedText, false)
+    } else {
+      TapTextActions.valueOf(existing.labels + focusedText, existing.longPress)
+    }
+  }
+
+  /**
+   * The action [slot] currently runs: the app's value, or the active profile's row, or the
+   * base value when the profile has no override for it.
+   */
+  private fun currentSlotValue(
+    service: TalkBackService,
+    packageName: String,
+    perApp: Boolean,
+    slot: CommandBindings.GestureSlot,
+  ): String? {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+    val baseKey = GestureShortcutMapping.getPrefKeyWithGestureSet(slot.key, 0)
+    if (perApp) {
+      return AppGestures.read(prefs)[packageName]?.gestures?.get(baseKey)
+    }
+    val activeId = GestureProfiles.activeId(prefs)
+    if (activeId.isEmpty()) {
+      return slot.value(service, prefs)
+    }
+    // The profile's row overrides the base value when it is set; otherwise the gesture runs
+    // the base value, so that is the list the new label is appended to.
+    return prefs.getString(GestureProfiles.rowKey(activeId, baseKey), null)
+      ?: slot.value(service, prefs)
   }
 
   /** The gestures that can be assigned, in the order of the Gestures screen. */

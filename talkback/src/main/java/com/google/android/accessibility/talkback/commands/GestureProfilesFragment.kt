@@ -196,17 +196,21 @@ class GestureProfileFragment : NotificationCodeFragment(R.string.title_pref_gest
     rebuild()
   }
 
-  /** Adds a "Tự nhấn trên màn hình" action: the label first, then the gesture that runs it. */
+  /**
+   * Adds a "Tự nhấn trên màn hình" action: the gesture first, then its labels. The dialog
+   * opens with the labels that gesture already has in this profile, one per line, so another
+   * label is appended to them instead of replacing them.
+   */
   private fun addTapText() {
-    tapTextDialog = TapTextEditor.show(requireContext(), null) { composed ->
-      val slots = categories.flatMap { it.gestures }
-      choose(getString(R.string.tap_text_choose_gesture), slots.map { it.name }) { index ->
-        val slot = slots[index]
-        GestureListPreference.save(
-          requireContext(),
-          GestureProfiles.rowKey(id, GestureShortcutMapping.getPrefKeyWithGestureSet(slot.key, 0)),
-          composed,
-        )
+    val slots = categories.flatMap { it.gestures }
+    choose(getString(R.string.tap_text_choose_gesture), slots.map { it.name }) { index ->
+      val slot = slots[index]
+      val key = GestureProfiles.rowKey(id, GestureShortcutMapping.getPrefKeyWithGestureSet(slot.key, 0))
+      // The profile's row overrides the base value when it is set; otherwise the gesture
+      // runs the base value, so that is the list the new label is appended to.
+      val current = prefs.getString(key, null) ?: slot.value(requireContext(), prefs)
+      tapTextDialog = TapTextEditor.show(requireContext(), current) { composed ->
+        GestureListPreference.save(requireContext(), key, composed)
         rebuild()
       }
     }

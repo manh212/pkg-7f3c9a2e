@@ -32,15 +32,17 @@ import java.util.ArrayDeque
 
 /**
  * Gesture actions that tap on screen ("Tự nhấn trên màn hình"): a gesture runs a tap (or a
- * long-press) on the first node whose visible label contains the saved text. The gesture
- * preference saves [PREFIX] plus the press type and the label, so the label rides inside the
- * action value and needs no extra storage: a value saved in an app's gestures only runs in
- * that app, and a value saved in a gesture profile runs everywhere, because the gesture
- * resolution already prefers the app's gestures, then the profile, then the default.
+ * long-press) on the first node whose visible label contains one of the saved texts, tried in
+ * the order they were added. Exactly one tap runs per gesture: once a text is found and
+ * tapped, the rest are not tried. The gesture preference saves [PREFIX] plus the press type
+ * and the texts, joined with a newline, so the list rides inside the action value and needs
+ * no extra storage: a value saved in an app's gestures only runs in that app, and a value
+ * saved in a gesture profile runs everywhere, because the gesture resolution already prefers
+ * the app's gestures, then the profile, then the default.
  *
- * The label is matched with the same two tiers as the task assistant: a node's own text, hint
- * and description first, then its joined label (its own fields, or its descendants' text for a
- * container). A match only needs the wanted text to be contained in the label. When several
+ * A text is matched with the same two tiers as the task assistant: a node's own text, hint
+ * and description first, then its joined label (its own fields, or its descendants' text for
+ * a container). A match only needs the wanted text to be contained in the label. When several
  * nodes match, the first one in reading order (topmost) is tapped; there is no guessing.
  */
 object TapTextActions {
@@ -61,24 +63,46 @@ object TapTextActions {
   private const val NODE_LIMIT = 2500
   private const val MAX_PARENT_DEPTH = 12
 
-  /** A saved tap-text action: the label to look for, and whether it is a long-press. */
-  data class Parsed(val label: String, val longPress: Boolean)
+  /**
+   * A saved tap-text action: the labels to look for, in the order they were added, and
+   * whether it is a long-press. The press type is one setting for the whole list: whichever
+   * label is tapped is tapped that way.
+   */
+  data class Parsed(val labels: List<String>, val longPress: Boolean)
 
   /** Returns the action that taps [label], or long-presses it when [longPress]. */
   @JvmStatic
-  fun valueOf(label: String, longPress: Boolean): String =
-    PREFIX + (if (longPress) LONG else TAP) + label.trim()
+  fun valueOf(label: String, longPress: Boolean): String = valueOf(listOf(label), longPress)
+
+  /**
+   * Returns the action that taps the first of [labels] found on screen, or long-presses it
+   * when [longPress]. Blank labels are dropped, a label is kept only the first time it
+   * appears, and a label spanning lines is split into its lines, so the saved list holds
+   * each text once, in order. The labels are joined with a newline, the same separator
+   * Sao chép nối thêm uses between copied texts.
+   */
+  @JvmStatic
+  fun valueOf(labels: List<String>, longPress: Boolean): String =
+    PREFIX + (if (longPress) LONG else TAP) + labels
+      .flatMap { it.split('\n') }
+      .map { it.trim() }
+      .filter { it.isNotEmpty() }
+      .distinct()
+      .joinToString("\n")
 
   /** Returns the action saved as [value], or null when it isn't one of these actions. */
   @JvmStatic
   fun parse(value: String?): Parsed? {
     if (value == null || !value.startsWith(PREFIX)) return null
     val rest = value.substring(PREFIX.length)
-    return when {
-      rest.startsWith(TAP) -> Parsed(rest.substring(TAP.length), false)
-      rest.startsWith(LONG) -> Parsed(rest.substring(LONG.length), true)
-      else -> null
-    }?.takeIf { it.label.isNotBlank() }
+    val longPress = when {
+      rest.startsWith(TAP) -> false
+      rest.startsWith(LONG) -> true
+      else -> return null
+    }
+    val text = rest.substring(if (longPress) LONG.length else TAP.length)
+    val labels = text.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    return if (labels.isEmpty()) null else Parsed(labels, longPress)
   }
 
   /** Returns whether [value] is an action that taps on screen. */
@@ -87,34 +111,41 @@ object TapTextActions {
   /** Returns whether [value] is the entry in the action list, not a saved action. */
   @JvmStatic fun isSentinel(value: String?): Boolean = value == SENTINEL
 
-  /** Returns "Tự nhấn trên màn hình: '<label>'", or null when [value] isn't one of these actions. */
+  /**
+   * Returns "Tự nhấn trên màn hình: '<label1>', '<label2>'", or null when [value] isn't one
+   * of these actions.
+   */
   @JvmStatic
   fun label(context: Context, value: String?): String? {
     val parsed = parse(value) ?: return null
     return context.getString(
       if (parsed.longPress) R.string.tap_text_action_long else R.string.tap_text_action,
-      parsed.label,
+      parsed.labels.joinToString("', '"),
     )
   }
 
   /**
-   * Taps (or long-presses) the first node whose label contains the label saved as [value].
-   * Speaks the label that was tapped, or "không tìm thấy '<label>'" when it is not on the
-   * current screen. Never scrolls: only the screen in front is searched.
+   * Tries the saved labels in order, and taps (or long-presses) the first node whose label
+   * contains the first label found on the current screen. Exactly one tap runs: once a label
+   * is found and tapped, the rest are not tried. Speaks the label that was tapped, or
+   * "không tìm thấy '<first label>'" when none of the labels is on the current screen.
+   * Never scrolls: only the screen in front is searched.
    */
   @JvmStatic
   fun perform(service: TalkBackService, value: String): Boolean {
     val parsed = parse(value) ?: return false
     val root = service.getRootInActiveWindow()
-    val node = root?.let { firstBest(it, parsed.label) }
-    if (node == null) {
-      say(service, service.getString(R.string.tap_text_not_found, parsed.label))
-      return false
+    if (root != null) {
+      for (label in parsed.labels) {
+        val node = firstBest(root, label) ?: continue
+        val spoken = displayLabel(node)
+        if (!activate(service, node, parsed.longPress)) return false
+        say(service, spoken)
+        return true
+      }
     }
-    val spoken = displayLabel(node)
-    if (!activate(service, node, parsed.longPress)) return false
-    say(service, spoken)
-    return true
+    say(service, service.getString(R.string.tap_text_not_found, parsed.labels.first()))
+    return false
   }
 
   /**
