@@ -26,6 +26,7 @@ import static com.google.android.accessibility.talkback.Feedback.Speech.Action.S
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.CONTEXT;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.CUSTOM_ACTION;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.GESTURE_PROFILE;
+import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.SETTINGS_PROFILE;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.LANGUAGE;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.VOICE_PROFILE;
 import static com.google.android.accessibility.talkback.eventprocessor.EventState.EVENT_SKIP_FOCUS_SYNC_FROM_VIEW_FOCUSED;
@@ -135,6 +136,7 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
     LANGUAGE,
     VOICE_PROFILE,
     GESTURE_PROFILE,
+    SETTINGS_PROFILE,
   }
 
   public ListMenuManager(
@@ -341,6 +343,9 @@ public class ListMenuManager implements WindowEventHandler, AccessibilityEventLi
     } else if (menuId == GESTURE_PROFILE) {
       GestureProfileMenuProcessor.prepareGestureProfileMenu(service, pipeline, menu);
       menu.setTitle(service.getString(R.string.title_gesture_profile));
+    } else if (menuId == SETTINGS_PROFILE) {
+      SettingsProfileMenuProcessor.prepareSettingsProfileMenu(service, pipeline, menu);
+      menu.setTitle(service.getString(R.string.title_settings_profile));
     }
   }
 
