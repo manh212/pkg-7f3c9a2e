@@ -25,6 +25,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import com.google.android.accessibility.talkback.eventprocessor.ProcessorPhoneticLetters
 import com.google.android.accessibility.talkback.focusmanagement.AsyncTraversalOrder
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget
 import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCache
@@ -32,6 +33,7 @@ import com.google.android.accessibility.talkback.imagecaption.ImageContents
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.monitor.CollectionState
+import com.google.android.accessibility.utils.monitor.TouchMonitor
 import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy
 import com.google.android.accessibility.utils.traversal.TraversalStrategy
 import java.util.concurrent.TimeUnit
@@ -125,7 +127,11 @@ class EventFilterPrepareTest {
         null,
         ImageContents(null, null),
         globalVariables,
-        null,
+        // The service is only used when phonetic-letter events are processed, which this
+        // test never triggers; the constructor only stores it. A real TalkBackService is
+        // far too heavy to stand up here, and the parameter carries no nullability
+        // annotation, so null compiles.
+        ProcessorPhoneticLetters(null, globalVariables),
         Compositor.FLAVOR_NONE,
       )
     eventFilter = EventFilter(context, compositor, TouchMonitor(), globalVariables, EarlyFocusSpeech())
