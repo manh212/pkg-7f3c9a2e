@@ -165,8 +165,8 @@ class NavigationPcmCache(context: Context) {
         // synthesis (shouldYield). Cancel only when the active request is from a generation
         // already passed: the same staleness rule 1B applies to the queue (drop generations
         // older than pendingGeneration - 1). The active synthesis therefore survives at most
-        // two focus moves; a synthesis for a passed item may run to its 2.5 s timeout — the
-        // cost Kenneth accepted when approving 1C.
+        // two focus moves; a synthesis for a passed item may run to its length-scaled
+        // timeout (Q8: 2–4 s) — the cost Kenneth accepted when approving 1C.
         if (request.generation < pendingGeneration - 1) {
           cancelActiveRequest()
         }
@@ -325,7 +325,9 @@ class NavigationPcmCache(context: Context) {
         }
       }
       request.timeout = timeout
-      handler.postDelayed(timeout, 2500)
+      // Q8: the synthesis timeout scales with the text length (2 s + 2 ms/char, max 4 s),
+      // so a long utterance is not cut off by the old flat 2.5 s limit.
+      handler.postDelayed(timeout, synthesisTimeoutMs(request.key.text.length))
     }
   }
 
@@ -389,6 +391,21 @@ class NavigationPcmCache(context: Context) {
     private const val MAX_PENDING_AGE_MS = 2_000L
     private const val INPUT_QUIET_MS = 60L
     private const val RETRY_MS = 24L
+
+    // Q8: the background synthesis timeout scales with the text length — 2 s base plus
+    // 2 ms per character, capped at 4 s — so a long utterance is not cut off by a flat
+    // limit while a short one still fails fast. (prepare() already rejects text over
+    // 1200 chars, so the cap is reached at 1000 chars.)
+    private const val BASE_SYNTHESIS_TIMEOUT_MS = 2_000L
+    private const val SYNTHESIS_TIMEOUT_PER_CHAR_MS = 2L
+    private const val MAX_SYNTHESIS_TIMEOUT_MS = 4_000L
+
+    fun synthesisTimeoutMs(textLength: Int): Long =
+      minOf(
+        MAX_SYNTHESIS_TIMEOUT_MS,
+        BASE_SYNTHESIS_TIMEOUT_MS +
+          SYNTHESIS_TIMEOUT_PER_CHAR_MS * textLength.coerceAtLeast(0)
+      )
   }
 }
 

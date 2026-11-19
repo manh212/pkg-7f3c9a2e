@@ -315,6 +315,23 @@ public class FailoverTextToSpeech {
   private String ttsEngine;
 
   public static final String PREF_TTS_ENGINE_KEY = "pref_tts_engine";
+
+  /**
+   * The speech rate, pitch, and preferred language. These live in TalkBack's resources
+   * ({@code R.string.pref_speech_rate_key}, {@code R.string.pref_speech_pitch_key},
+   * {@code R.string.pref_speech_rate_seekbar_key_int},
+   * {@code R.string.pref_speech_pitch_seekbar_key_int}, and
+   * {@code R.string.pref_talkback_prefer_locale_key}), which this module cannot see, so the
+   * values are repeated here, like {@link #PREF_TTS_ENGINE_KEY}. They matter here because
+   * changing any of them can change the prepared navigation speech: the rate and pitch are
+   * part of its cache key, and the preferred language can change its locale.
+   */
+  public static final String PREF_SPEECH_RATE_KEY = "pref_rate_volume";
+  public static final String PREF_SPEECH_PITCH_KEY = "pref_pitch_volume";
+  public static final String PREF_SPEECH_RATE_SEEKBAR_KEY = "pref_speech_rate_seekbar_key_int";
+  public static final String PREF_SPEECH_PITCH_SEEKBAR_KEY = "pref_speech_pitch_seekbar_key_int";
+  public static final String PREF_TALKBACK_PREFER_LOCALE_KEY = "pref_talkback_prefer_locale";
+
   public static final String PREF_USE_ACCESSIBILITY_STREAM_KEY = "pref_use_accessibility_stream";
 
   /**
@@ -1737,10 +1754,14 @@ public class FailoverTextToSpeech {
     VoiceProfile previous = VoiceProfiles.active();
     VoiceProfile profile = VoiceProfiles.readActive(prefs);
     VoiceProfiles.setActive(profile);
-    if (navigationPcmCache != null) navigationPcmCache.invalidate();
     if (profile == null ? previous == null : profile.sameVoiceAs(previous)) {
       return;
     }
+    // Only a changed engine, language or voice drops the prepared navigation speech. A
+    // profile change that keeps the same voice (a renamed profile, or a rate or pitch
+    // change) leaves it usable: the rate and pitch are part of its cache key, so the
+    // next preparation misses instead of serving speech made at the old settings.
+    if (navigationPcmCache != null) navigationPcmCache.invalidate();
     LogUtils.i(TAG, "Voice profile: %s", profile == null ? "default" : profile.name());
     synchronized (ttsLock) {
       clearUnsetProfileVoice();
@@ -2080,14 +2101,69 @@ public class FailoverTextToSpeech {
     return TextToSpeech.SUCCESS;
   }
 
-  public void refreshNavigationCache() {
+  /**
+   * Whether a changed preference key can change the engine, voice, locale, speech rate or
+   * speech pitch, so prepared navigation speech made with the old settings must be dropped.
+   * A null key means every preference may have changed. Any other key, such as the stopwatch
+   * or selector state, leaves the prepared speech usable: it was synthesized for the same
+   * voice at the same rate and pitch, and {@link NavigationPcmCache#prepare} also drops
+   * prepared speech whose engine, voice or locale no longer matches.
+   */
+  static boolean isVoiceRelevantKey(@Nullable String key) {
+    if (key == null) return true;
+    if (PREF_TTS_ENGINE_KEY.equals(key)
+        || PREF_SPEECH_RATE_KEY.equals(key)
+        || PREF_SPEECH_RATE_SEEKBAR_KEY.equals(key)
+        || PREF_SPEECH_PITCH_KEY.equals(key)
+        || PREF_SPEECH_PITCH_SEEKBAR_KEY.equals(key)
+        || PREF_SWITCH_LANGUAGES_KEY.equals(key)
+        || PREF_SWITCH_DIALECTS_KEY.equals(key)
+        || PREF_TALKBACK_PREFER_LOCALE_KEY.equals(key)) {
+      return true;
+    }
+    if (key.startsWith(VoiceSwitching.SELECTED_PREFIX)) return true;
+    return isVoiceRelevantProfileKey(key);
+  }
+
+  /**
+   * Whether a voice profile key names a setting that can change the voice, language, rate or
+   * pitch of the speech. Switching the profile in use, or the list it is chosen from, can
+   * change the voice. Of one profile's settings, only its engine, language, voice, rate and
+   * pitch change speech; its name, volume, phrases, equalizer and compressor settings do not.
+   */
+  private static boolean isVoiceRelevantProfileKey(String key) {
+    if (key.equals(VoiceProfiles.PREF_ACTIVE) || key.equals(VoiceProfiles.PREF_IDS)) {
+      return true;
+    }
+    if (!VoiceProfiles.isProfileKey(key)) return false;
+    String field = key.substring(key.lastIndexOf('_') + 1);
+    return field.equals(VoiceProfiles.ENGINE)
+        || field.equals(VoiceProfiles.LANGUAGE)
+        || field.equals(VoiceProfiles.VOICE)
+        || field.equals(VoiceProfiles.RATE)
+        || field.equals(VoiceProfiles.PITCH);
+  }
+
+  /**
+   * Drops the prepared navigation speech when the changed preference can change the voice,
+   * or shuts the navigation cache down when prepared speech is now disabled. A null key
+   * means every preference may have changed. Unrelated preference writes, such as the
+   * stopwatch or selector state, no longer drop speech prepared for the voice still in use.
+   */
+  public void refreshNavigationCache(@Nullable String key) {
     if (navigationPcmCache == null) return;
-    if (LatencyExperiments.preparePcm()) navigationPcmCache.invalidate();
-    else {
+    if (!LatencyExperiments.preparePcm()) {
       navigationPcmCache.shutdown();
       navigationPcmCache = null;
       LatencyExperiments.setInputListener(null);
+      return;
     }
+    if (isVoiceRelevantKey(key)) navigationPcmCache.invalidate();
+  }
+
+  /** Drops the prepared navigation speech, whatever changed. */
+  public void refreshNavigationCache() {
+    refreshNavigationCache(null);
   }
 
   public void resetNavigationCacheStatistics() {
