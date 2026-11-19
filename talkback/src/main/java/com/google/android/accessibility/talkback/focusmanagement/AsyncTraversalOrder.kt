@@ -67,16 +67,20 @@ object AsyncTraversalOrder {
     warmTask?.let { handler.removeCallbacks(it) }
     if (!LatencyExperiments.Feature.ASYNC_ORDER.enabled() || !TraversalTreeCache.enabled ||
       !LatencyExperiments.preparationAllowed() || NodeOverrides.hasSource() || windowId < 0) return
+    // 2C: build the reading order at once on focus change, instead of waiting 150 ms for
+    // input to go quiet. The order is usually ready by the time the 30 ms prepare timer
+    // fires, so the next swipe's targets can be prepared instead of reported MISSING_ORDER.
+    // The build still runs on the single NavigationOrder thread with its 200 ms budget, and
+    // warm() is still a no-op while a build is active.
     val task = Runnable {
       warmTask = null
       if (active == null && LatencyExperiments.Feature.ASYNC_ORDER.enabled() &&
-        !NodeOverrides.hasSource() && LatencyExperiments.preparationAllowed() &&
-        !LatencyExperiments.inputIsActive(100)) {
+        !NodeOverrides.hasSource() && LatencyExperiments.preparationAllowed()) {
         start(Job(windowId, TraversalTreeCache.revision(), root, null))
       }
     }
     warmTask = task
-    handler.postDelayed(task, 150)
+    handler.post(task)
   }
 
   @JvmStatic
