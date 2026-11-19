@@ -16,12 +16,14 @@
 
 package com.google.android.accessibility.talkback.clipboard;
 
+import android.accessibilityservice.AccessibilityService;
 import android.app.AlertDialog;
 import androidx.appcompat.widget.AppCompatTextView;
 import androidx.appcompat.widget.AppCompatCheckedTextView;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.InputType;
@@ -40,8 +42,10 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.CheckedTextView;
 import android.widget.TextView;
+import androidx.core.os.HandlerCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.utils.ClipboardUtils;
 import com.google.android.accessibility.utils.PerformActionUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -63,6 +67,84 @@ public class ClipboardHistoryDialog {
   @FunctionalInterface
   public interface PasteAction {
     boolean paste(EventId eventId, @Nullable AccessibilityNodeInfoCompat originalTarget);
+  }
+
+  /** Texts in the history are read cut to this many characters, as the list shows them. */
+  private static final int TITLE_LENGTH = 500;
+
+  // The paste into an edit box, tried again while the edit box's app is busy.
+  private static final long PASTE_RETRY_INTERVAL_MS = 200;
+  private static final long PASTE_RETRY_DURATION_MS = 3000;
+  private static final Handler pasteHandler = new Handler(Looper.getMainLooper());
+  private static final Object pasteToken = new Object();
+
+  /**
+   * Pastes {@code text} into {@code target}, an edit box: puts it on the clipboard and at the top
+   * of the history, then pastes, trying again while the edit box's app is busy. Plays the complete
+   * sound when the paste failed. Returns false when {@code text} is empty.
+   */
+  public static boolean pasteEntry(
+      AccessibilityService service, AccessibilityNodeInfo target, String text) {
+    if (!ClipboardUtils.copyToClipboard(service, text)) {
+      return false;
+    }
+    startPaste(service, target);
+    return true;
+  }
+
+  /** {@code text}, cut to {@link #TITLE_LENGTH} characters, as the list shows and reads it. */
+  public static String shortened(String text) {
+    return text.length() > TITLE_LENGTH ? text.substring(0, TITLE_LENGTH) + "\u2026" : text;
+  }
+
+  private static void startPaste(AccessibilityService service, AccessibilityNodeInfo target) {
+    // The edit box's window kept input focus, so the paste normally works at once; it is tried
+    // again while the edit box's app is busy.
+    pasteHandler.removeCallbacksAndMessages(pasteToken);
+    long deadline = SystemClock.uptimeMillis() + PASTE_RETRY_DURATION_MS;
+    HandlerCompat.postDelayed(
+        pasteHandler, () -> tryPaste(service, target, deadline), pasteToken, 0);
+  }
+
+  private static void tryPaste(
+      AccessibilityService service, AccessibilityNodeInfo target, long deadline) {
+    if (TalkBackService.getInstance() != service || pasteInto(target)) {
+      return;
+    }
+    if (SystemClock.uptimeMillis() + PASTE_RETRY_INTERVAL_MS > deadline) {
+      playPasteFailedSound();
+    } else {
+      HandlerCompat.postDelayed(
+          pasteHandler,
+          () -> tryPaste(service, target, deadline),
+          pasteToken,
+          PASTE_RETRY_INTERVAL_MS);
+    }
+  }
+
+  /**
+   * Pastes into {@code target}, giving it input focus first: an edit box pastes only with input
+   * focus, and it may have had only accessibility focus.
+   */
+  private static boolean pasteInto(AccessibilityNodeInfo target) {
+    if (target == null || !target.refresh()) {
+      return false;
+    }
+    if (!target.isFocused()) {
+      target.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+    }
+    return target.performAction(AccessibilityNodeInfo.ACTION_PASTE);
+  }
+
+  private static void playPasteFailedSound() {
+    try {
+      TalkBackService service = TalkBackService.getInstance();
+      if (service != null) {
+        service.getFeedbackController().playAuditory(R.raw.complete, null);
+      }
+    } catch (RuntimeException e) {
+      // The service is gone; there is nothing to play the sound through.
+    }
   }
 
   private final Context context;
