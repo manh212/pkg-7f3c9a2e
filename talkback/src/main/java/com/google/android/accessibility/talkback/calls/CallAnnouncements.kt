@@ -432,7 +432,13 @@ object CallAnnouncements {
     if (context == null) return
     if (notification.category != Notification.CATEGORY_CALL) return
     val key = "notification:$packageName"
-    if (notification.extras?.getInt("android.callType", 0) == 2) {
+    // An ongoing call is not a new incoming call: a CallStyle notification with
+    // callType ONGOING, or a notification carrying FLAG_ONGOING_EVENT — Zalo's
+    // outgoing-call notification has the flag but no CallStyle callType extra.
+    // Stop any ringing for this app and do not start one.
+    val isOngoing = notification.extras?.getInt("android.callType", 0) == 2 ||
+      notification.flags and Notification.FLAG_ONGOING_EVENT != 0
+    if (isOngoing) {
       sessions.remove(key)?.let(::cancel)
       stopInvalidSpeech()
       return
