@@ -820,16 +820,20 @@ public class EventFilter {
     // that the saved reading order may have kept since before its text or state changed.
     @SuppressWarnings("deprecation")
     AccessibilityNodeInfoCompat node = AccessibilityNodeInfoCompat.obtain(focusedNode);
-    if (LatencyExperiments.Feature.CACHED_TEXT.enabled()) {
+    if (LatencyExperiments.Feature.CACHED_TEXT.enabled()
+        && TraversalTreeCache.hasSavedOrder()) {
+      // The saved order is the fast path: when it holds the node current, no second read is
+      // needed. When no order is saved at all — the order is still building, or the async
+      // order feature is off — there is nothing for the node to be stale against, so fall
+      // back to re-reading the node, as without the cached-text feature. Only when an order
+      // is saved and does not hold the node is the node stale.
       if (!TraversalTreeCache.holdsCurrent(node)) {
         Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
         return;
       }
-    } else {
-      if (!node.refresh()) {
-        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
-        return;
-      }
+    } else if (!node.refresh()) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
+      return;
     }
     if (globalVariables.hasSkipFocusProcessing() || !shouldSpeakFocusEarly(node)) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.INELIGIBLE_NODE);
