@@ -105,6 +105,7 @@ import com.google.android.accessibility.talkback.Feedback.DeviceInfo.Action;
 import com.google.android.accessibility.talkback.PrimesController.TimerAction;
 import com.google.android.accessibility.talkback.TalkBackExitController.TrainingState;
 import com.google.android.accessibility.talkback.actor.AutoScrollActor;
+import com.google.android.accessibility.talkback.backup.SettingsProfiles;
 import com.google.android.accessibility.talkback.actor.DimScreenActor;
 import com.google.android.accessibility.talkback.actor.DimScreenActor.DimScreenNotifier;
 import com.google.android.accessibility.talkback.actor.DirectionNavigationActor;
@@ -173,6 +174,7 @@ import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorF
 import com.google.android.accessibility.talkback.focusmanagement.ScrollAhead;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForScreenStateChange;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration;
+import com.google.android.accessibility.talkback.focusmanagement.FocusTextInsideItems;
 import com.google.android.accessibility.talkback.focusmanagement.SingleTapTypingController;
 import com.google.android.accessibility.talkback.focusmanagement.HomeScreenPages;
 import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCache;
@@ -279,13 +281,13 @@ import com.google.android.accessibility.talkback.utils.DiagnosticOverlayControll
 import com.google.android.accessibility.talkback.utils.ExperimentalUtils;
 import com.google.android.accessibility.talkback.utils.NotificationUtils;
 import com.google.android.accessibility.talkback.utils.SpeechRecognizerPerformer;
-import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport;
 import com.google.android.accessibility.talkback.utils.VerbosityPreferences;
 import com.google.android.accessibility.utils.AccessibilityEventListener;
 import com.google.android.accessibility.utils.monitor.RecentUserInput;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
+import com.google.android.accessibility.utils.KeyboardUtils;
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
@@ -645,6 +647,12 @@ public class TalkBackService extends AccessibilityServiceCompat
   private final StartupUiGate startupUiGate = new StartupUiGate();
   private com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController extendedGesturesController;
 
+  /**
+   * Tracks whether a touch is currently passed to the app. Focus restoration leaves focus
+   * alone while it is; see {@link TouchInteractionMonitor}.
+   */
+  private TouchInteractionMonitor touchInteractionMonitor;
+
   /** Controller for diagnostic overlay (developer mode). */
   private DiagnosticOverlayControllerImpl diagnosticOverlayController;
 
@@ -967,6 +975,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     touchVolumeState.reset();
     recordingFocusGuard.stop();
+    stopTouchInteractionMonitor();
     com.google.android.accessibility.talkback.taskassistant.TaskAssistant.closeService();
     LogUtils.d(TAG, "onUnbind start");
     // Release the full-screen circle menu before the feedback pipeline is disconnected.
@@ -1059,6 +1068,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       extendedGesturesController.stop();
       extendedGesturesController = null;
     }
+    stopTouchInteractionMonitor();
     if (gestureController != null) {
       gestureController.shutdown();
     }
@@ -1342,6 +1352,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     Performance perf = Performance.getInstance();
     EventId eventId = perf.onEventReceived(event, receivedAt);
     int eventType = event.getEventType();
+    if (eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+        && SettingsProfiles.watchesFocus()) {
+      SettingsProfiles.onFocused(AccessibilityEventUtils.sourceCompat(event));
+    }
     // Some launchers, such as Hyperion, don't report that their home screen is shown again after
     // the apps list, so Android's copy of its nodes keeps them hidden, and only the dock can be
     // reached until the copy is cleared.
@@ -1354,11 +1368,26 @@ public class TalkBackService extends AccessibilityServiceCompat
       // The app in front decides which app's gestures, keys and dictionary entries apply. The
       // keyboard, the volume panel and the notification shade send this event too, and closing
       // them sends none for the app under them.
-      if (isAppWindowEvent(event)) {
+      int windowType = AccessibilityEventUtils.getWindowType(event);
+      if (isAppWindowType(windowType, lastWindowPackage)) {
         SpeechDictionary.onWindowShown(lastWindowPackage);
         AppGestures.onWindowShown(lastWindowPackage);
+        // An event from Meridian whose window can't be told may be one of its overlays; the
+        // window list decides on the windows change that follows.
+        SettingsProfiles.onAppShown(
+            lastWindowPackage,
+            windowType == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY
+                || (windowType == AccessibilityWindowInfoUtils.WINDOW_TYPE_NONE
+                    && TextUtils.equals(lastWindowPackage, getPackageName())));
         updateRideAppAccessibility(lastWindowPackage);
       }
+    } else if (eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        && SettingsProfiles.watchesKeyboards()) {
+      // The keyboard window comes and goes with a windows change.
+      SettingsProfiles.onKeyboardShown(
+          AccessibilityServiceCompatUtils.isInputWindowOnScreen(this)
+              ? KeyboardUtils.getCurrentInputMethod(this)
+              : null);
     }
     if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -2638,6 +2667,8 @@ public class TalkBackService extends AccessibilityServiceCompat
   protected void onServiceConnected() {
     ExitAfterTurnOff.cancel();
     super.onServiceConnected();
+    // Menus read the settings profiles on the main thread.
+    SettingsProfiles.preload(this);
     EventId talkbackOnEventId =
         Performance.getInstance().onHintEventReceived(Performance.HINT_SUB_TYPE_TALKBACK_ON);
 
@@ -2684,6 +2715,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     otherScreenReaderMonitor =
         new OtherScreenReaderMonitor(this, this::applyTouchExplorationPreference);
     otherScreenReaderMonitor.start();
+
+    startTouchInteractionMonitor();
 
     // Handle any update actions.
     new TalkBackUpdateHelper(this).checkUpdate();
@@ -2943,8 +2976,12 @@ public class TalkBackService extends AccessibilityServiceCompat
     scrollPositionInterpreter = new ScrollPositionInterpreter();
     ScrollEventInterpreter scrollEventInterpreter =
         new ScrollEventInterpreter(
-            audioPlaybackMonitor, touchMonitor, TalkbackFeatureSupport.supportMultipleAutoScroll());
-    scrollTicks = new ScrollTicks(feedbackController, getResources().getDisplayMetrics().density);
+            audioPlaybackMonitor, touchMonitor, /* supportMultipleAutoScroll= */ true);
+    scrollTicks =
+        new ScrollTicks(
+            feedbackController,
+            getResources().getDisplayMetrics().density,
+            touchMonitor::getTouchStartTime);
     scrollEventInterpreter.addListener(scrollTicks);
     ManualScrollInterpreter manualScrollInterpreter = new ManualScrollInterpreter();
 
@@ -3953,6 +3990,8 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     prefs.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
     prefs.unregisterOnSharedPreferenceChangeListener(analytics);
+    // Profiles used in apps and contexts don't apply while Meridian is off.
+    SettingsProfiles.onServiceStopped(this);
 
     unregisterReceivers(batteryMonitor, volumeMonitor);
 
@@ -4208,6 +4247,7 @@ public class TalkBackService extends AccessibilityServiceCompat
         getBooleanPref(
             R.string.pref_speak_items_before_scroll_key,
             R.bool.pref_speak_items_before_scroll_default));
+    AccessibilityNodeInfoUtils.setFocusTextInsideItems(FocusTextInsideItems.isOn(this));
     latencyExtrasEnabled =
         !getBooleanPref(
             R.string.pref_disable_latency_extras_key,
@@ -4953,6 +4993,34 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   /**
+   * Starts tracking whether a touch is passed to the app, so focus restoration can leave focus
+   * alone while the user holds a control. Only on Android 13 and later, where the framework
+   * exposes the touch-interaction state; without it the touch half of the guard simply never
+   * blocks. A missing controller is not fatal: the microphone half still applies.
+   */
+  private void startTouchInteractionMonitor() {
+    if (touchInteractionMonitor != null
+        || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      return;
+    }
+    try {
+      touchInteractionMonitor = new TouchInteractionMonitor(this);
+      touchInteractionMonitor.start();
+    } catch (RuntimeException error) {
+      LogUtils.w(TAG, "Could not start touch interaction monitor: %s", error);
+      touchInteractionMonitor = null;
+    }
+  }
+
+  /** Stops tracking whether a touch is passed to the app, if it was started. */
+  private void stopTouchInteractionMonitor() {
+    if (touchInteractionMonitor != null) {
+      touchInteractionMonitor.stop();
+      touchInteractionMonitor = null;
+    }
+  }
+
+  /**
    * Checks the condition for showing tutorial.
    *
    * @return {@code true} if the tutorial should be shown
@@ -5167,8 +5235,27 @@ public class TalkBackService extends AccessibilityServiceCompat
             || DirectTouchSettings.PREF_SEEN.equals(key)) {
           return;
         }
+        // Settings profiles write many settings at once, and reload them once afterwards.
+        if (SettingsProfiles.isWriting()) {
+          return;
+        }
         reloadPreferences(key);
       };
+
+  /**
+   * Reloads the settings after settings profiles changed them, and the keyboard shortcuts when
+   * [keyboard] ones changed.
+   */
+  public void onSettingsProfilesApplied(boolean keyboard) {
+    if (serviceState == ServiceStateListener.SERVICE_STATE_INACTIVE) {
+      return;
+    }
+    PreparedFocusSpeech.clear();
+    reloadPreferences();
+    if (keyboard && keyComboManager != null) {
+      keyComboManager.refreshKeyComboModel();
+    }
+  }
 
   public void onLockedBootCompleted(EventId eventId) {
     if (serviceState == ServiceStateListener.SERVICE_STATE_INACTIVE) {
@@ -5365,6 +5452,12 @@ public class TalkBackService extends AccessibilityServiceCompat
     @Override
     public boolean isSpeaking() {
       return speechController != null && speechController.isSpeaking();
+    }
+
+    @Override
+    public boolean isPassThroughActive() {
+      return pipeline != null
+          && pipeline.getActorState().getPassThroughModeState().isPassThroughModeActive();
     }
 
     @Override
@@ -5765,17 +5858,17 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   /**
-   * Whether [event] comes from an app's window, or from SandFly's own overlays, rather than from
-   * the keyboard or a system window. When its window can't be told, only the system UI's events
-   * count as not an app's.
+   * Whether a window of [windowType] from [packageName] counts as an app's window, or one of
+   * Meridian's own overlays, rather than the keyboard or a system window. When its window can't
+   * be told, only the system UI's windows count as not an app's.
    */
-  private static boolean isAppWindowEvent(AccessibilityEvent event) {
-    switch (AccessibilityEventUtils.getWindowType(event)) {
+  private static boolean isAppWindowType(int windowType, @Nullable CharSequence packageName) {
+    switch (windowType) {
       case AccessibilityWindowInfo.TYPE_APPLICATION:
       case AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY:
         return true;
       case AccessibilityWindowInfoUtils.WINDOW_TYPE_NONE:
-        return !"com.android.systemui".contentEquals(String.valueOf(event.getPackageName()));
+        return !"com.android.systemui".contentEquals(String.valueOf(packageName));
       default:
         return false;
     }
