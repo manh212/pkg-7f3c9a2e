@@ -37,6 +37,7 @@ import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy;
 import com.google.android.accessibility.utils.traversal.TraversalStrategyUtils;
+import java.util.Collections;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -188,7 +189,8 @@ public class TouchOnlyKeyboardNavigationTest {
   @Test
   public void crossingWindows_skipsTheWholeKeyboardWindow() {
     Filter<AccessibilityWindowInfo> filter =
-        new FocusProcessorForLogicalNavigation.DirectionalNavigationWindowFilter(service, null);
+        new FocusProcessorForLogicalNavigation.DirectionalNavigationWindowFilter(
+            service, null, Collections.emptySet());
 
     assertFalse(filter.accept(window(AccessibilityWindowInfo.TYPE_INPUT_METHOD, 2)));
   }
