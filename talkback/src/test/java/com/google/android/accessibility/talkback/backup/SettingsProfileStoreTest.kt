@@ -24,11 +24,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Ported from SandFly's SettingsProfileStoreTest (commits fcfc203fd, c417d29d7, 2637fe9a2),
  * without the version-1 conversion test: version-1 profiles never shipped in Meridian.
+ *
+ * Runs under Robolectric: writing settings touches SettingsBackup, whose setup uses the
+ * main looper, which plain unit tests do not mock.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SettingsProfileStoreTest {
   @get:Rule val folder = TemporaryFolder()
 
