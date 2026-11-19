@@ -238,9 +238,9 @@ class VoiceCommandMessagesTest {
         VoiceCommandMatcher.Entry("Hello: Greet", ScriptCommands.valueOf("hello", "greet")),
         VoiceCommandMatcher.Entry("Đọc màn hình", "read-screen"),
       )
-    val match = VoiceCommandMatcher.INSTANCE.match("hello greet", entries)
+    val match = VoiceCommandMatcher.match("hello greet", entries)
     assertEquals(ScriptCommands.valueOf("hello", "greet"), match?.value)
-    val vietnamese = VoiceCommandMatcher.INSTANCE.match("đọc màn hình", entries)
+    val vietnamese = VoiceCommandMatcher.match("đọc màn hình", entries)
     assertEquals("read-screen", vietnamese?.value)
   }
 }
