@@ -49,7 +49,8 @@ object WindowNamesSetting {
 
   /**
    * Gives the setting the choice that matches the two switches it replaced, unless it has a value:
-   * the first item cutting the name off wins, then window names being off when focus moves.
+   * the first item cutting the name off wins, then window names being off when focus moves. With
+   * both switches as they were by default, the setting keeps its default.
    */
   @JvmStatic
   fun migrate(prefs: SharedPreferences, res: Resources) {
@@ -67,13 +68,13 @@ object WindowNamesSetting {
         prefs,
         res,
         res.getString(R.string.pref_speak_system_window_titles_key),
-        false,
+        res.getBoolean(R.bool.pref_speak_system_window_titles_default),
       )
     val value =
       when {
         firstItemInterrupts -> UNTIL_FIRST_ITEM
         !speakSystemWindowNames -> WINDOW_OPENS
-        else -> ALWAYS
+        else -> return
       }
     prefs.edit().putString(key, value).apply()
   }
