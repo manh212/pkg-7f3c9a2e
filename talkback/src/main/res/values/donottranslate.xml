@@ -319,7 +319,7 @@
     <!-- Window names. Replaces the speak system window titles and first item interrupts window name
          switches, which only the migration in WindowNamesSetting reads now. -->
     <string name="pref_window_names_key" translatable="false">pref_window_names</string>
-    <string name="pref_window_names_default" translatable="false">window_opens</string>
+    <string name="pref_window_names_default" translatable="false">until_first_item</string>
     <string-array name="pref_window_names_entries">
         <item>@string/window_names_always</item>
         <item>@string/window_names_until_first_item</item>
@@ -1042,7 +1042,7 @@
 
   <!-- Touch focus time out values -->
 
-  <string name="touch_focus_time_out_default" translatable="false">200</string>
+  <string name="touch_focus_time_out_default" translatable="false">150</string>
 
   <!-- Shortcut preference of basic navigation -->
     <string-array name="shortcut_basic_navigation">
