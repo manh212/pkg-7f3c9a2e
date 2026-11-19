@@ -178,8 +178,10 @@ class BackgroundEventGateTest {
     assertFalse(gate.onAccessibilityEvent(event(AccessibilityEvent.TYPE_ANNOUNCEMENT)))
     assertEquals(0, invalidated)
   }
+  // 6A: the foreground window's updates are no longer held by the gate, so a text change
+  // while touching is admitted at once instead of waiting in the background slot.
   @Test
-  fun priorityModeDefersActiveTextWithImmediateInvalidationAndKeepsFocus() {
+  fun foregroundWindowTextUpdateIsAdmittedImmediatelyDuringInput() {
     var invalidated = 0
     gate.clear()
     gate = BackgroundEventGate(
@@ -193,11 +195,11 @@ class BackgroundEventGateTest {
     gate.onUserInput()
     val update = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "foreground", 1)
     update.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
-    assertFalse(gate.onAccessibilityEvent(update))
-    assertEquals(1, invalidated)
+    assertTrue(gate.onAccessibilityEvent(update))
+    assertEquals(0, invalidated)
     assertTrue(gate.onAccessibilityEvent(event(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED, "foreground", 1)))
     advance(500)
-    assertEquals(listOf("foreground"), delivered)
+    assertTrue(delivered.isEmpty())
   }
 
   private fun structural(window: Int = 1, pkg: String = "foreground"): AccessibilityEvent =
@@ -223,15 +225,18 @@ class BackgroundEventGateTest {
     assertTrue(EventProcessingStats.snapshot().contains("dropped cache_only admitted"))
   }
 
+  // 6A: the foreground window's subtree updates are no longer held to the 200 ms active
+  // interval while touching; each one is admitted at once, so nothing is left to release
+  // after the touch ends.
   @Test
-  fun mediumPriorityCoalescesActiveSubtreeChangesDuringTouchButKeepsScrollAndInput() {
+  fun foregroundSubtreeChangesAreAdmittedImmediatelyDuringTouch() {
     gate.setProcessingLevel("medium")
     gate.setInteractionPriorityEnabled(true)
     advance(1000)
     repeat(4) { assertTrue(gate.onAccessibilityEvent(structural())) }
     assertTrue(gate.onAccessibilityEvent(
       event(AccessibilityEvent.TYPE_TOUCH_INTERACTION_START, "foreground", 1)))
-    repeat(5) { assertFalse(gate.onAccessibilityEvent(structural())) }
+    repeat(5) { assertTrue(gate.onAccessibilityEvent(structural())) }
 
     val scrollContent = structural().also {
       it.fromIndex = 3
@@ -254,7 +259,7 @@ class BackgroundEventGateTest {
     advance(149)
     assertTrue(delivered.isEmpty())
     advance(1)
-    assertEquals(listOf("foreground"), delivered)
+    assertTrue(delivered.isEmpty())
   }
 
   @Test
