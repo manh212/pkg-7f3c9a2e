@@ -69,7 +69,17 @@ import org.json.JSONObject
  *
  * The text editor's documents are in it too, as a section of their own next to the files.
  *
+ * Each of those pieces can also be backed up and restored on its own, from the Backup
+ * screen: [exportItem] writes one item in this same format, and [importItem] restores
+ * only that item from a file, even when the file holds more. The full backup and
+ * restore above stay exactly as they are.
+ *
  * A settings file exported from Backtalk can be imported too.
+ *
+ * A settings profile holds settings of the main, braille keyboard and braille display preference
+ * files, without the state that only this phone has, such as whether a tutorial was shown: see
+ * [profileValues]. While profiles are applied, an exported file holds the settings as they are
+ * without them.
  */
 object SettingsBackup {
   private const val TAG = "SettingsBackup"
@@ -131,6 +141,54 @@ object SettingsBackup {
       "use_calibrated_points",
     ) + (1..6).flatMap { listOf("cal_x_$it", "cal_y_$it") }
 
+  /**
+   * The preference files, besides the default one, that a settings profile holds. Other files keep
+   * installed scripts, script sources, sound theme drafts and other content, not settings.
+   */
+  private val PROFILE_FILES = setOf("braille_keyboard", "braille_display")
+
+  /**
+   * Settings that stay as they are when a settings profile is applied: the state of first runs,
+   * tutorials, migrations, downloads and counters, which describe this phone and not a profile.
+   * SandFly's speech-control answers are not listed here: Meridian has no such feature.
+   */
+  private val PROFILE_STATE_KEYS =
+    setOf(
+      "has_training_exit",
+      "has_onboarding_exit",
+      "pref_direct_touch_seen",
+      "pref_audio_outputs_seen",
+      "talkback_enabled_count",
+      "talkback_off_timestamp",
+      "pref_previous_global_window_animation_scale_key",
+      "migration_done",
+      "migration_attempts",
+      "cache_cleanup_version",
+      "battery_optimization_check_done",
+    )
+
+  /** Parts of the keys of [PROFILE_STATE_KEYS]-like state. */
+  private val PROFILE_STATE_FRAGMENTS =
+    listOf(
+      "_shown_times",
+      "first_time",
+      "first_update",
+      "opt_in_count",
+      "_installed",
+      "_uninstalled",
+      "install_lib",
+      "_tutorial_done",
+    )
+
+  /** Whether [key] is left out of settings profiles and kept when one is applied. */
+  @VisibleForTesting
+  fun isKeptOutOfProfiles(key: String): Boolean =
+    key in PROFILE_STATE_KEYS ||
+      key in BACKTALK_SKIPPED_KEYS ||
+      key.endsWith("_shown") ||
+      key.endsWith("_shown_key") ||
+      PROFILE_STATE_FRAGMENTS.any { key.contains(it) }
+
   /** Files of libraries, such as Google Play services and WebView, which hold their own state. */
   private val LIBRARY_PREFIXES = listOf("com.google.", "androidx.", "WebView", "Firebase")
 
@@ -156,14 +214,30 @@ object SettingsBackup {
       ) { uri ->
         uri?.let {
           val context = fragment.requireContext().applicationContext
-          inBackground(context, R.string.settings_export_failed) { write(context, it) }
+          inBackground(context, R.string.settings_export_failed) {
+            write(
+              context,
+              it,
+              { export(context) },
+              R.string.settings_export_done,
+              R.string.settings_export_failed,
+            )
+          }
         }
       }
     val open =
       fragment.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
           val context = fragment.requireContext().applicationContext
-          inBackground(context, R.string.settings_import_failed) { read(context, it) }
+          inBackground(context, R.string.settings_import_failed) {
+            read(
+              context,
+              it,
+              { readContext, json -> import(readContext, json) },
+              R.string.settings_import_done,
+              R.string.settings_import_failed,
+            )
+          }
         }
       }
     export.setOnPreferenceClickListener {
@@ -193,12 +267,19 @@ object SettingsBackup {
     }
   }
 
-  private fun write(context: Context, uri: Uri) {
+  private fun write(
+    context: Context,
+    uri: Uri,
+    json: () -> String,
+    @StringRes done: Int,
+    @StringRes failed: Int,
+    itemName: String? = null,
+  ) {
     val appContext = context.applicationContext
     ioExecutor.execute {
       val written =
         try {
-          val bytes = export(appContext).toByteArray()
+          val bytes = json().toByteArray()
           // A file past the import limit would import as "too large", so refuse to
           // write one rather than hand over a backup that cannot be used.
           bytes.size <= MAX_BYTES &&
@@ -211,12 +292,19 @@ object SettingsBackup {
           false
         }
       mainHandler.post {
-        toast(appContext, if (written) R.string.settings_export_done else R.string.settings_export_failed)
+        toast(appContext, if (written) done else failed, itemName)
       }
     }
   }
 
-  private fun read(context: Context, uri: Uri) {
+  private fun read(
+    context: Context,
+    uri: Uri,
+    restore: (Context, String) -> Boolean,
+    @StringRes done: Int,
+    @StringRes failed: Int,
+    itemName: String? = null,
+  ) {
     val appContext = context.applicationContext
     ioExecutor.execute {
       val imported =
@@ -233,46 +321,202 @@ object SettingsBackup {
               if (length > MAX_BYTES) throw IOException("The file is too large")
               buffer.copyOf(length)
             }
-          bytes != null && import(appContext, bytes.decodeToString())
+          bytes != null && restore(appContext, bytes.decodeToString())
         } catch (e: IOException) {
           false
         } catch (e: SecurityException) {
           false
         }
       mainHandler.post {
-        toast(appContext, if (imported) R.string.settings_import_done else R.string.settings_import_failed)
+        toast(appContext, if (imported) done else failed, itemName)
       }
     }
   }
 
-  /** Returns every exported setting as JSON. */
+  /** Writes one backup item to the file the user picked, for [BackupItems]. */
+  internal fun writeItem(context: Context, uri: Uri, item: BackupItem) {
+    val appContext = context.applicationContext
+    write(
+      appContext,
+      uri,
+      { exportItem(appContext, item) },
+      R.string.backup_item_export_done,
+      R.string.backup_item_export_failed,
+      appContext.getString(item.titleRes),
+    )
+  }
+
+  /** Reads one backup item from the file the user picked, for [BackupItems]. */
+  internal fun readItem(context: Context, uri: Uri, item: BackupItem) {
+    val appContext = context.applicationContext
+    read(
+      appContext,
+      uri,
+      { readContext, json -> importItem(readContext, json, item) },
+      R.string.backup_item_import_done,
+      R.string.backup_item_import_failed,
+      appContext.getString(item.titleRes),
+    )
+  }
+
+  /** Returns every exported setting as JSON, with the settings that profiles replace as without them. */
   fun export(context: Context): String {
+    val root =
+      JSONObject().put("format", FORMAT).put("version", VERSION).put("files", exportFiles(context))
+    for (item in BackupItem.entries) {
+      if (item != BackupItem.SETTINGS) putSection(root, context, item)
+    }
+    return root.toString(2)
+  }
+
+  /**
+   * Returns only [item] as JSON, in the same format as [export]: the settings file's
+   * format and version, the preference files for [BackupItem.SETTINGS] and an empty
+   * "files" object otherwise, and only that item's own section. A file written by
+   * this is read by [import] and by [importItem] alike: [import] restores whatever
+   * the file holds and leaves the rest alone, and [importItem] restores only [item].
+   */
+  fun exportItem(context: Context, item: BackupItem): String {
+    val root = JSONObject().put("format", FORMAT).put("version", VERSION)
+    if (item == BackupItem.SETTINGS) {
+      root.put("files", exportFiles(context))
+    } else {
+      root.put("files", JSONObject())
+      putSection(root, context, item)
+    }
+    return root.toString(2)
+  }
+
+  /** Every preference file as the backup carries it, in device and credential storage. */
+  private fun exportFiles(context: Context): JSONObject {
+    val base = SettingsProfiles.baseValues(context)
     val files = JSONObject()
     for ((storage, storageContext) in storages(context)) {
       val storageFiles = JSONObject()
       for (name in prefsNames(context, storageContext)) {
         val prefs = storageContext.getSharedPreferences(name, Context.MODE_PRIVATE)
+        val exported = exportedName(context, name)
+        val replaced = if (storage == DEVICE) base else emptyMap()
         val values = JSONObject()
-        for ((key, value) in prefs.all) {
-          if (isSecretKey(key) || isSkipped(context, name, key)) continue
-          if (isBraillePhoneKey(name, key)) continue
+        val all = prefs.all
+        for ((key, value) in all) {
+          if (isLeftOut(context, name, key, forProfile = false)) continue
+          val profileKey = profileKey(exported, key)
+          val kept = if (profileKey in replaced) replaced[profileKey] else value
+          encode(kept)?.let { values.put(key, it) }
+        }
+        for ((profileKey, value) in replaced) {
+          val (file, key) = splitProfileKey(profileKey) ?: continue
+          if (file != exported || key in all) continue
           encode(value)?.let { values.put(key, it) }
         }
-        storageFiles.put(exportedName(context, name), values)
+        storageFiles.put(exported, values)
       }
       files.put(storage, storageFiles)
     }
-    val root =
-      JSONObject().put("format", FORMAT).put("version", VERSION).put("files", files)
-    EditorDocuments.backupJson(context)?.let { root.put(DOCUMENTS_KEY, JSONArray(it)) }
-    CustomLabelsBackup.backupJson(context)?.let { root.put(LABELS_KEY, JSONArray(it)) }
-    ClipboardHistory.backupJson(context)?.let { root.put(CLIPBOARD_HISTORY_KEY, JSONArray(it)) }
-    FavoriteTexts.backupJson(context)?.let { root.put(FAVORITES_KEY, JSONArray(it)) }
-    root.put(TIMER_SOUNDS_KEY, JSONArray(TimerSounds.backupJson(context)))
-    root.put(KEY_SOUNDS_KEY, JSONArray(KeyboardKeySounds.backupJson(context)))
-    root.put(SOUND_THEMES_KEY, JSONArray(SoundThemes.backupJson(context)))
-    root.put(SCRIPTS_KEY, JSONArray(backupScriptsJson(context)))
-    return root.toString(2)
+    return files
+  }
+
+  /** Adds [item]'s own section to [root], or nothing when the item cannot be read. */
+  private fun putSection(root: JSONObject, context: Context, item: BackupItem) {
+    when (item) {
+      BackupItem.SETTINGS -> return
+      BackupItem.EDITOR_DOCUMENTS ->
+        EditorDocuments.backupJson(context)?.let { root.put(DOCUMENTS_KEY, JSONArray(it)) }
+      BackupItem.CUSTOM_LABELS ->
+        CustomLabelsBackup.backupJson(context)?.let { root.put(LABELS_KEY, JSONArray(it)) }
+      BackupItem.CLIPBOARD_HISTORY ->
+        ClipboardHistory.backupJson(context)?.let { root.put(CLIPBOARD_HISTORY_KEY, JSONArray(it)) }
+      BackupItem.FAVORITE_TEXTS ->
+        FavoriteTexts.backupJson(context)?.let { root.put(FAVORITES_KEY, JSONArray(it)) }
+      BackupItem.TIMER_SOUNDS ->
+        root.put(TIMER_SOUNDS_KEY, JSONArray(TimerSounds.backupJson(context)))
+      BackupItem.KEY_SOUNDS ->
+        root.put(KEY_SOUNDS_KEY, JSONArray(KeyboardKeySounds.backupJson(context)))
+      BackupItem.SOUND_THEMES ->
+        root.put(SOUND_THEMES_KEY, JSONArray(SoundThemes.backupJson(context)))
+      BackupItem.SCRIPTS -> root.put(SCRIPTS_KEY, JSONArray(backupScriptsJson(context)))
+    }
+  }
+
+  /** The key of a setting in a settings profile: the exported name of its file, "/" and its key. */
+  @JvmStatic fun profileKey(file: String, key: String): String = "$file/$key"
+
+  /** The file and key of [profileKey], or null when it isn't one. */
+  @JvmStatic
+  fun splitProfileKey(profileKey: String): Pair<String, String>? {
+    val slash = profileKey.indexOf('/')
+    if (slash <= 0 || slash == profileKey.length - 1) return null
+    return profileKey.substring(0, slash) to profileKey.substring(slash + 1)
+  }
+
+  /** The preference key of [profileKey]. */
+  @JvmStatic fun keyOf(profileKey: String): String = splitProfileKey(profileKey)?.second ?: profileKey
+
+  /**
+   * Every setting that a settings profile can hold, by [profileKey]: those of the main, braille
+   * keyboard and braille display preference files in device-protected storage, without API keys,
+   * the updater's state and the keys of [isKeptOutOfProfiles].
+   */
+  fun profileValues(context: Context): Map<String, Any> {
+    val storage = context.createDeviceProtectedStorageContext()
+    val values = mutableMapOf<String, Any>()
+    for (name in prefsNames(context, storage)) {
+      if (!isProfileFile(context, name)) continue
+      val exported = exportedName(context, name)
+      for ((key, value) in storage.getSharedPreferences(name, Context.MODE_PRIVATE).all) {
+        if (value == null || isLeftOut(context, name, key, forProfile = true)) continue
+        values[profileKey(exported, key)] = value
+      }
+    }
+    return values
+  }
+
+  /** The preference file of [profileKey], or null when a profile can't hold the setting. */
+  private fun profilePrefs(context: Context, profileKey: String): Pair<SharedPreferences, String>? {
+    val (file, key) = splitProfileKey(profileKey) ?: return null
+    val name = importedName(context, file) ?: return null
+    if (!isProfileFile(context, name) || isLeftOut(context, name, key, forProfile = true)) return null
+    val storage = context.createDeviceProtectedStorageContext()
+    return storage.getSharedPreferences(name, Context.MODE_PRIVATE) to key
+  }
+
+  /** Whether a settings profile can hold [profileKey]. */
+  fun isProfileKey(context: Context, profileKey: String): Boolean = profilePrefs(context, profileKey) != null
+
+  /** The value of [profileKey], or null when it isn't set or a profile can't hold it. */
+  fun readProfileValue(context: Context, profileKey: String): Any? {
+    val (prefs, key) = profilePrefs(context, profileKey) ?: return null
+    return prefs.all[key]
+  }
+
+  /**
+   * Whether [value] can be set as [profileKey]: a profile can hold the setting, and the value is of
+   * the type Meridian reads it as. Null, for a setting that isn't set, always can.
+   */
+  fun canSetProfileValue(context: Context, profileKey: String, value: Any?): Boolean {
+    val (prefs, key) = profilePrefs(context, profileKey) ?: return false
+    return value == null || fits(context, prefs, key, value)
+  }
+
+  /** Sets each of [values] by [profileKey], and removes those that are null. */
+  fun writeProfileValues(context: Context, values: Map<String, Any?>) {
+    val edits = mutableMapOf<SharedPreferences, SharedPreferences.Editor>()
+    for ((profileKey, value) in values) {
+      val (prefs, key) = profilePrefs(context, profileKey) ?: continue
+      val editor = edits.getOrPut(prefs) { prefs.edit() }
+      @Suppress("UNCHECKED_CAST")
+      when (value) {
+        null -> editor.remove(key)
+        is Boolean -> editor.putBoolean(key, value)
+        is Int -> editor.putInt(key, value)
+        is Long -> editor.putLong(key, value)
+        is Float -> editor.putFloat(key, value)
+        is String -> editor.putString(key, value)
+        is Set<*> -> editor.putStringSet(key, value as Set<String>)
+      }
+    }
+    for (editor in edits.values) editor.commit()
   }
 
   /** The installed scripts as the settings backup carries them: each script's files. */
@@ -297,7 +541,64 @@ object SettingsBackup {
    * Meridian settings file, and then changes nothing.
    */
   fun import(context: Context, json: String): Boolean =
-    importSettings(context, json, replaceMissing = true)
+    // The imported settings are the settings without profiles, which are then applied to them.
+    SettingsProfiles.replacingSettings(context) { importSettings(context, json, replaceMissing = true) }
+
+  /**
+   * Restores only [item] from [json], and leaves every other item alone — even when
+   * the file holds more than [item], as a full backup does. Returns false when [json]
+   * is not a Meridian settings file, or holds nothing of [item], and then changes
+   * nothing. A file exported from Backtalk holds settings only, without the sections
+   * a single item is picked from, so it goes through the full [import] instead.
+   */
+  fun importItem(context: Context, json: String, item: BackupItem): Boolean {
+    val root =
+      try {
+        JSONObject(json)
+      } catch (e: JSONException) {
+        return false
+      }
+    if (isBacktalkFile(root)) return false
+    val format = root.optString("format")
+    if ((format != FORMAT && format != LEGACY_FORMAT) || root.optInt("version") > VERSION) {
+      return false
+    }
+    val single = JSONObject().put("format", FORMAT).put("version", VERSION)
+    try {
+      if (item == BackupItem.SETTINGS) {
+        // A per-item file for another item carries an empty "files" object; it
+        // holds no settings to restore, so it is not a settings backup.
+        val files = root.optJSONObject("files") ?: return false
+        if (files.length() == 0) return false
+        single.put("files", files)
+      } else {
+        single.put("files", JSONObject())
+        if (!putItemSection(single, root, item)) return false
+      }
+    } catch (e: JSONException) {
+      return false
+    }
+    return importSettings(context, single.toString(), replaceMissing = true)
+  }
+
+  /** Copies [item]'s section from [root] into [single]; false when [root] holds none. */
+  private fun putItemSection(single: JSONObject, root: JSONObject, item: BackupItem): Boolean {
+    val key =
+      when (item) {
+        BackupItem.SETTINGS -> return true
+        BackupItem.EDITOR_DOCUMENTS -> DOCUMENTS_KEY
+        BackupItem.CUSTOM_LABELS -> LABELS_KEY
+        BackupItem.CLIPBOARD_HISTORY -> CLIPBOARD_HISTORY_KEY
+        BackupItem.FAVORITE_TEXTS -> FAVORITES_KEY
+        BackupItem.TIMER_SOUNDS -> TIMER_SOUNDS_KEY
+        BackupItem.KEY_SOUNDS -> KEY_SOUNDS_KEY
+        BackupItem.SOUND_THEMES -> SOUND_THEMES_KEY
+        BackupItem.SCRIPTS -> SCRIPTS_KEY
+      }
+    val section = root.optJSONArray(key) ?: return false
+    single.put(key, section)
+    return true
+  }
 
   private fun importSettings(context: Context, json: String, replaceMissing: Boolean): Boolean {
     var documents: JSONArray? = null
@@ -337,8 +638,7 @@ object SettingsBackup {
         val prefs = storageContext.getSharedPreferences(name, Context.MODE_PRIVATE)
         val decoded = mutableMapOf<String, Any>()
         for (key in values.keys()) {
-          if (isSecretKey(key) || isSkipped(context, name, key)) continue
-          if (isBraillePhoneKey(name, key)) continue
+          if (isLeftOut(context, name, key, forProfile = false)) continue
           val value = decode(values.optJSONObject(key)) ?: return false
           // A value that doesn't fit keeps the phone's own.
           decoded[key] = if (fits(context, prefs, key, value)) value else prefs.all[key] ?: continue
@@ -378,7 +678,7 @@ object SettingsBackup {
     for ((prefs, values) in edits) {
       val editor = prefs.edit()
       for (key in prefs.all.keys) {
-        if (replaceMissing && key !in values && !isSecretKey(key) && !isSkipped(context, null, key)) {
+        if (replaceMissing && key !in values && !isLeftOut(context, null, key, forProfile = false)) {
           editor.remove(key)
         }
       }
@@ -684,6 +984,17 @@ object SettingsBackup {
       else -> name
     }
 
+  private fun isProfileFile(context: Context, name: String) =
+    name == defaultName(context) || name in PROFILE_FILES
+
+  /**
+   * Whether [key] of the preference file [name], or of any file for null, is left out of the file
+   * or profile, and kept as it is when one is imported or applied.
+   */
+  private fun isLeftOut(context: Context, name: String?, key: String, forProfile: Boolean) =
+    isSecretKey(key) || isSkipped(context, name, key) || isBraillePhoneKey(name, key) ||
+      (forProfile && isKeptOutOfProfiles(key))
+
   /**
    * The updater's state stays as it is on this phone, and so do the countdown alarms still to
    * fire: their deadlines belong to this phone's timeline, so a backup never carries them to
@@ -737,9 +1048,14 @@ object SettingsBackup {
     }
   }
 
-  private fun toast(context: Context, @StringRes message: Int) {
+  private fun toast(context: Context, @StringRes message: Int, arg: String? = null) {
     Handler(Looper.getMainLooper()).post {
-      Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+      Toast.makeText(
+          context,
+          if (arg == null) context.getString(message) else context.getString(message, arg),
+          Toast.LENGTH_LONG,
+        )
+        .show()
     }
   }
 }
