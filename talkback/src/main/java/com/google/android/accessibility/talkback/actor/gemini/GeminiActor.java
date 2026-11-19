@@ -79,6 +79,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** GeminiActor performs Gemini commands, via {@link GeminiEndpoint}. */
 public class GeminiActor {
@@ -621,6 +622,38 @@ public class GeminiActor {
     }
   }
 
+  /**
+   * The receiver waiting for the text of the next description result, if any. A voice command
+   * that sends a screen or image description to a contact sets it before it asks for the
+   * description, so the text goes to the message instead of a dialog.
+   */
+  public interface DescriptionReceiver {
+    void onDescription(@Nullable String text);
+  }
+
+  private static @Nullable DescriptionReceiver descriptionReceiver;
+
+  /**
+   * Gives the text of the next description result to [receiver], or null when describing
+   * fails. Only one receiver waits at a time: a newer one replaces the one waiting.
+   */
+  public static synchronized void expectDescription(DescriptionReceiver receiver) {
+    descriptionReceiver = receiver;
+  }
+
+  /** Stops giving a description to [receiver], as when it waited too long. */
+  public static synchronized void forgetDescription(DescriptionReceiver receiver) {
+    if (descriptionReceiver == receiver) {
+      descriptionReceiver = null;
+    }
+  }
+
+  private static synchronized @Nullable DescriptionReceiver takeDescriptionReceiver() {
+    DescriptionReceiver receiver = descriptionReceiver;
+    descriptionReceiver = null;
+    return receiver;
+  }
+
   public void displayImageCaptioningResultDialog(
       int requestId,
       Result imageDescriptionResult,
@@ -630,6 +663,18 @@ public class GeminiActor {
     byte[] image = cachedImageMap.get(requestId);
     // Clear all caches once there is an image used by the image caption result dialog.
     cachedImageMap.clear();
+
+    DescriptionReceiver receiver = takeDescriptionReceiver();
+    if (receiver != null) {
+      CharSequence text =
+          imageDescriptionResult == null ? null : imageDescriptionResult.text();
+      if (requestIdMap.containsKey(requestId)) {
+        requestIdMap.remove(requestId);
+      }
+      receiver.onDescription(
+          text == null || text.toString().trim().isEmpty() ? null : text.toString());
+      return;
+    }
 
     if (isScreenDescription && !GeminiConfiguration.screenOverviewEnabled(context)) {
       LogUtils.d(TAG, "Screen description is disabled");
@@ -665,6 +710,15 @@ public class GeminiActor {
             result.response().getClass().getSimpleName(),
             GeminiConfiguration.screenOverviewEnabled(context),
             isSupportImageQna(result.requestId())));
+    DescriptionReceiver receiver = takeDescriptionReceiver();
+    if (receiver != null) {
+      String text = null;
+      if (result.response() instanceof OverviewResponse.Success overview) {
+        text = overview.getOverview().getSummary();
+      }
+      receiver.onDescription(text == null || text.trim().isEmpty() ? null : text);
+      return;
+    }
     if (GeminiConfiguration.screenOverviewEnabled(context)) {
       if (result.response() instanceof OverviewResponse.Error error) {
         // Spoken, not a toast: Android hides toasts from an app whose notifications are off.
