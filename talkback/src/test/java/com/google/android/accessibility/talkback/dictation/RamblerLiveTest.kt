@@ -42,7 +42,15 @@ class RamblerLiveTest {
    * setup, the text of a phrase after the first audio, and the last phrase after the end of the
    * audio. Keeps the headers and messages it got.
    */
-  private class FakeLiveApi(private val answerAtEnd: Boolean = true) : AutoCloseable {
+  private class FakeLiveApi(
+    private val answerAtEnd: Boolean = true,
+    /**
+     * The inputTranscription texts, in order. All but the last are sent after the first audio;
+     * the last is sent after the end of the audio, when [answerAtEnd]. Defaults to the two
+     * distinct phrases of the original test.
+     */
+    private val transcriptions: List<String> = listOf("Hello there.", " How are you? "),
+  ) : AutoCloseable {
     private val server = ServerSocket(0)
     val headers = mutableMapOf<String, String>()
     val messages = CopyOnWriteArrayList<JSONObject>()
@@ -63,11 +71,19 @@ class RamblerLiveTest {
                   message.has("setup") -> send(output, """{"setupComplete":{}}""", binary = true)
                   message.optJSONObject("realtimeInput")?.has("audio") == true && !sentFirst -> {
                     sentFirst = true
-                    send(output, """{"serverContent":{"inputTranscription":{"text":"Hello there."}}}""")
+                    transcriptions.dropLast(1).forEach { text ->
+                      send(
+                        output,
+                        """{"serverContent":{"inputTranscription":{"text":${JSONObject.quote(text)}}}}""",
+                      )
+                    }
                     send(output, """{"serverContent":{"interimInputTranscription":{"text":"how are"}}}""")
                   }
                   message.optJSONObject("realtimeInput")?.has("audioStreamEnd") == true && answerAtEnd ->
-                    send(output, """{"serverContent":{"inputTranscription":{"text":" How are you? "}}}""")
+                    send(
+                      output,
+                      """{"serverContent":{"inputTranscription":{"text":${JSONObject.quote(transcriptions.last())}}}}""",
+                    )
                 }
               }
             }
@@ -192,5 +208,86 @@ class RamblerLiveTest {
     live.finish { result = it }
     waitFor { result != "not yet" }
     assertNull(result)
+  }
+
+  /** Runs one session whose server sends [transcriptions] in order and returns the text. */
+  private fun transcribe(transcriptions: List<String>): String? {
+    FakeLiveApi(transcriptions = transcriptions).use { api ->
+      val live = RamblerLive("key", api.url)
+      live.start()
+      val pcm = ByteArray(3200) { it.toByte() }
+      live.send(pcm)
+      Thread.sleep(300)
+      live.send(pcm)
+      waitFor { api.messages.size >= 3 }
+      var result: String? = "not yet"
+      live.finish { result = it }
+      waitFor { result != "not yet" }
+      return result
+    }
+  }
+
+  @Test
+  fun cumulativeTranscriptionsAreNotRepeated() {
+    // The reporter's session 3 (Messenger, build 2569): the server sent the running text again
+    // with each phrase, and the joined text repeated it.
+    assertEquals(
+      "Công việc của em dạo này thế nào? Vẫn làm ở chỗ cũ chứ hay là chuyển chỗ mới rồi? " +
+        "Mà mức lương giờ có cao hơn trước không hay là vẫn như vậy?",
+      transcribe(
+        listOf(
+          "Công việc của em dạo này thế nào?",
+          "Công việc của em dạo này thế nào? Vẫn làm ở chỗ cũ chứ hay là chuyển chỗ mới rồi?",
+          "Công việc của em dạo này thế nào? Vẫn làm ở chỗ cũ chứ hay là chuyển chỗ mới rồi?",
+          "Mà mức lương giờ có cao hơn trước không hay là vẫn như vậy?",
+        )
+      ),
+    )
+  }
+
+  @Test
+  fun cumulativeExtensionReplacesTheShorterText() {
+    // The reporter's session 1: the second message was the first phrase plus the next one.
+    assertEquals(
+      "Đang nhắn tin cho em thì buồn ngủ quá nên không nhắn nữa. " +
+        "Mà dạo này có còn dậy sớm như trước nữa không em?",
+      transcribe(
+        listOf(
+          "Đang nhắn tin cho em thì buồn ngủ quá nên không nhắn nữa.",
+          "Đang nhắn tin cho em thì buồn ngủ quá nên không nhắn nữa. " +
+            "Mà dạo này có còn dậy sớm như trước nữa không em?",
+        )
+      ),
+    )
+  }
+
+  @Test
+  fun exactDuplicateTranscriptionIsSkipped() {
+    assertEquals(
+      "Hello there. How are you?",
+      transcribe(listOf("Hello there.", "Hello there.", " How are you? ")),
+    )
+  }
+
+  @Test
+  fun subsetTranscriptionIsSkipped() {
+    assertEquals(
+      "Hello there. How are you?",
+      transcribe(listOf("Hello there. How are you?", "Hello there.")),
+    )
+  }
+
+  @Test
+  fun transcriptionContainingTheAccumulatedTextReplacesIt() {
+    assertEquals(
+      "Well, How are you? doing fine",
+      transcribe(listOf("How are you?", "Well, How are you? doing fine")),
+    )
+  }
+
+  @Test
+  fun sameLettersWithoutAWordBoundaryAreNotMerged() {
+    // "catch" starts with the letters of "cat" but is a different word.
+    assertEquals("cat catch the ball", transcribe(listOf("cat", "catch the ball")))
   }
 }
