@@ -19,10 +19,12 @@ package com.google.android.accessibility.talkback.eventprocessor;
 import static org.junit.Assert.assertEquals;
 
 import android.view.accessibility.AccessibilityEvent;
+import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -41,8 +43,26 @@ public class EventQueueTest {
 
   private final EventQueue queue = new EventQueue();
 
+  /**
+   * The pruning cap and the focus-jump behaviour depend on static policy shared with the rest
+   * of the suite: the input-priority experiment flag, the processing level, and the
+   * focus-priority switch. Other classes change them — EventFilterPrepareTest restores the
+   * input-priority flag to on, EventQueueProcessingLevelTest resets the level to medium,
+   * BackgroundEventGateTest restores the flag to off — so in a run without those classes the
+   * flag is left on and every test below sees cap 1 instead of cap 2. Pin the policy this
+   * class asserts — input-priority off, medium level (at most two of each limited type, three
+   * consecutive focus jumps) — and restore the flag afterwards.
+   */
+  @Before
+  public void setUp() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.INPUT_PRIORITY, false);
+    EventQueue.setProcessingLevel("medium");
+    EventQueue.focusPriorityEnabled = true;
+  }
+
   @After
   public void tearDown() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.INPUT_PRIORITY, true);
     EventQueue.focusPriorityEnabled = true;
   }
 
