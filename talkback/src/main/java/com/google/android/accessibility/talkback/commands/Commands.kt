@@ -32,6 +32,8 @@ import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboa
 import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboardShortcut as Key
 import com.google.android.accessibility.talkback.sandflyai.SandflyAi
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting
+import com.google.android.accessibility.talkback.scripting.ScriptCommands
+import com.google.android.accessibility.talkback.scripting.ScriptHostFactory
 import com.google.android.accessibility.talkback.speech.VoiceProfileNames
 import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport
 import com.google.android.accessibility.utils.FeatureSupport
