@@ -171,8 +171,10 @@ public class ProcessorEventQueue implements AccessibilityEventListener {
      * backlog. The rest of the queue is handled in a later message, after the ones already waiting.
      */
     private void processAllEvents(ProcessorEventQueue parent) {
+      // 8A: a 2 ms slice during input starved the compositor (about 7 ms per focus event),
+      // so the queue backed up while swiping. 4 ms still yields between messages.
       long sliceMs = LatencyExperiments.Feature.INPUT_PRIORITY.enabled()
-          ? 2 : EventQueue.processingSliceMs();
+          ? 4 : EventQueue.processingSliceMs();
       if (EventQueue.focusPriorityEnabled && LatencyExperiments.inputIsActive(150)) {
         sliceMs = Math.min(sliceMs, 4);
       }
