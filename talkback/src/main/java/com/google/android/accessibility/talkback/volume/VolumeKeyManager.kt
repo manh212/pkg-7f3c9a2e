@@ -24,6 +24,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.telephony.TelephonyManager
 import android.view.KeyEvent
 import androidx.annotation.MainThread
 import com.google.android.accessibility.talkback.TalkBackService
@@ -58,6 +59,9 @@ object VolumeKeyManager {
   private const val ACTION_INCREASE_CONTEXTUAL_VOLUME = "INCREASE_CONTEXTUAL_VOLUME"
   private const val ACTION_DECREASE_CONTEXTUAL_VOLUME = "DECREASE_CONTEXTUAL_VOLUME"
   private const val ACTION_TOGGLE_STOPWATCH = "TOGGLE_STOPWATCH"
+  // Must match R.string.shortcut_value_answer_call: the stored action value of the
+  // Answer call command.
+  private const val ACTION_ANSWER_CALL = "ANSWER_CALL"
   private const val SHORT_HOLD_MS = 1500L
   private const val LONG_HOLD_MS = 4000L
   private const val CHORD_MS = 150L
@@ -128,7 +132,10 @@ object VolumeKeyManager {
 
   private fun onDown(service: TalkBackService, press: Press): Boolean {
     if (press.active) abort(press)
-    if (service.isPhoneCallActive() || isAlarmRinging(service)) {
+    // While a call rings, a volume key with Answer call assigned still runs its commands;
+    // any other key, and any key during a call, goes to Android as before.
+    if ((service.isPhoneCallActive() && !isRingingCallAnsweredBy(service, press.isUp))
+      || isAlarmRinging(service)) {
       reset()
       return false
     }
@@ -429,7 +436,8 @@ object VolumeKeyManager {
     val screenOff = isScreenOff(service)
     return prefs.getBoolean(KEY_MANAGED, false) != press.managed ||
       anyMultiAssigned(prefs, press.isUp, stateOf(locked, screenOff)) != press.multi ||
-      service.isPhoneCallActive() || isAlarmRinging(service) ||
+      (service.isPhoneCallActive() && !isRingingCallAnsweredBy(service, press.isUp)) ||
+      isAlarmRinging(service) ||
       locked != press.locked || screenOff != press.screenOff
   }
 
@@ -441,6 +449,43 @@ object VolumeKeyManager {
 
   private fun isAlarmRinging(context: Context): Boolean =
     AudioPlaybackMonitor(context).isPlaybackSourceActive(AudioPlaybackMonitor.PlaybackSource.USAGE_ALARM)
+
+  /**
+   * Whether any assigned action of the volume key [isUp] in its current screen state is
+   * [command]: the press, short-hold and long-hold actions when volume keys are managed, and
+   * the double, triple and quadruple-press actions, which also run when unmanaged.
+   */
+  fun hasCommand(service: TalkBackService, isUp: Boolean, command: String): Boolean {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+    val state = stateOf(isKeyguardLocked(service), isScreenOff(service))
+    if (prefs.getBoolean(KEY_MANAGED, false)) {
+      if (prefs.getString(pressKey(isUp, state), ACTION_UNASSIGNED) == command ||
+        prefs.getString(shortHoldKey(isUp, state), ACTION_UNASSIGNED) == command ||
+        prefs.getString(longHoldKey(isUp, state), ACTION_UNASSIGNED) == command) {
+        return true
+      }
+    }
+    return (2..4).any { count ->
+      (prefs.getString(multiKey(isUp, count, state), ACTION_UNASSIGNED) ?: ACTION_UNASSIGNED) ==
+        command
+    }
+  }
+
+  /**
+   * Whether a call rings and a press of the volume key [isUp] has Answer call assigned, so the
+   * key still runs its commands while ringing instead of going to Android. The voice-action
+   * monitor is not ready before the service finishes starting, so a missing monitor means no
+   * ringing call.
+   */
+  private fun isRingingCallAnsweredBy(service: TalkBackService, isUp: Boolean): Boolean {
+    val callState = try {
+      service.getVoiceActionMonitor().getCurrentCallState()
+    } catch (e: IllegalStateException) {
+      return false
+    }
+    return callState == TelephonyManager.CALL_STATE_RINGING &&
+      hasCommand(service, isUp, ACTION_ANSWER_CALL)
+  }
 
   private fun stateOf(locked: Boolean, screenOff: Boolean): VolumeKeyState = when {
     screenOff -> VolumeKeyState.SCREEN_OFF
