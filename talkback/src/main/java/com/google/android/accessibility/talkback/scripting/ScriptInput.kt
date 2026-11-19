@@ -23,6 +23,7 @@ import android.content.Context
 import android.view.KeyEvent
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
+import com.google.android.accessibility.utils.gestures.GestureManifold
 
 @SuppressLint("InlinedApi")
 object ScriptInput {
@@ -67,7 +68,7 @@ object ScriptInput {
       "twoFingerTap" to AccessibilityService.GESTURE_2_FINGER_SINGLE_TAP,
       "twoFingerDoubleTap" to AccessibilityService.GESTURE_2_FINGER_DOUBLE_TAP,
       "twoFingerTripleTap" to AccessibilityService.GESTURE_2_FINGER_TRIPLE_TAP,
-      "twoFingerTapAndHold" to AccessibilityService.GESTURE_2_FINGER_SINGLE_TAP_AND_HOLD,
+      "twoFingerTapAndHold" to GestureManifold.GESTURE_2_FINGER_SINGLE_TAP_AND_HOLD,
       "twoFingerDoubleTapAndHold" to AccessibilityService.GESTURE_2_FINGER_DOUBLE_TAP_AND_HOLD,
       "twoFingerTripleTapAndHold" to AccessibilityService.GESTURE_2_FINGER_TRIPLE_TAP_AND_HOLD,
       "twoFingerSwipeUp" to AccessibilityService.GESTURE_2_FINGER_SWIPE_UP,
