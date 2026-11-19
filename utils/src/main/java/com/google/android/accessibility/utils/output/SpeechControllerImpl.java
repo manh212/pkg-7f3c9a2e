@@ -154,6 +154,8 @@ public class SpeechControllerImpl implements SpeechController {
   private final Set<Object> externalSpeech = new HashSet<>();
   private final Set<Object> blockingExternalSpeech = new HashSet<>();
   private boolean keepScreenOnWhileSpeaking;
+  /** Whether a voice-dictation session is active; it holds the same screen lock as speaking. */
+  private boolean dictationActive;
   private @Nullable PowerManager.WakeLock speakingScreenLock;
 
   private static volatile @Nullable SpeechHold speechHold;
@@ -578,7 +580,21 @@ public class SpeechControllerImpl implements SpeechController {
     else externalSpeech.remove(source);
     if (blocksQueue) blockingExternalSpeech.add(source);
     else if (blockingExternalSpeech.remove(source)) resumeQueuedSpeechAfterExternalVoice();
-    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty());
+    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
+  }
+
+  /**
+   * Marks a voice-dictation session active or finished. While active, the screen is kept on
+   * through the same lock and the same "keep screen on while speaking" switch as speaking: the
+   * user is listening for the dictated text instead of speaking it, so the screen must not turn
+   * off mid-dictation either.
+   */
+  public void setDictationActive(boolean active) {
+    if (dictationActive == active) {
+      return;
+    }
+    dictationActive = active;
+    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
   }
 
   private void resumeQueuedSpeechAfterExternalVoice() {
@@ -592,7 +608,7 @@ public class SpeechControllerImpl implements SpeechController {
 
   public void setKeepScreenOnWhileSpeaking(boolean keepOn) {
     keepScreenOnWhileSpeaking = keepOn;
-    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty());
+    updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
   }
 
   @SuppressLint({"WakelockTimeout", "Deprecated"})
@@ -2884,7 +2900,7 @@ public class SpeechControllerImpl implements SpeechController {
    * @see #handleSpeechStarting()
    */
   private void handleSpeechCompleted(int status) {
-    updateSpeakingScreenLock(!externalSpeech.isEmpty());
+    updateSpeakingScreenLock(!externalSpeech.isEmpty() || dictationActive);
     if (!mIsSpeaking) {
       // Speech already completed, such as when an interrupt completes the current item and the
       // engine then reports that it stopped. Audio focus was released then, and observers told,
