@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.scripting
 
 import android.accessibilityservice.AccessibilityService
+import com.google.android.accessibility.utils.gestures.GestureManifold
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,7 +35,7 @@ class ScriptInputTest {
     assertTrue("twoFingerTapAndHold" in ScriptInput.gestureNames)
     assertEquals(
       "twoFingerTapAndHold",
-      ScriptInput.gestureName(AccessibilityService.GESTURE_2_FINGER_SINGLE_TAP_AND_HOLD),
+      ScriptInput.gestureName(GestureManifold.GESTURE_2_FINGER_SINGLE_TAP_AND_HOLD),
     )
   }
 
