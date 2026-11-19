@@ -2406,6 +2406,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     return speechController;
   }
 
+          public boolean isSpeaking() {
+              return speechController != null && speechController.isSpeaking();
+          }
+
   public ProgressBarAnnouncer getProgressBarAnnouncer() {
     return progressBarAnnouncer;
   }
