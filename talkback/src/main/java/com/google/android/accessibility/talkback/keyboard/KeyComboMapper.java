@@ -258,6 +258,9 @@ public class KeyComboMapper {
         if (selectorController.activateLiveRecognition()) {
           break;
         }
+        if (selectorController.activateClipboardHistory()) {
+          break;
+        }
         if (SelectorController.getCurrentSetting(accessibilityService).equals(ACTIONS)) {
           selectorController.activateCurrentAction(eventId);
           break;
