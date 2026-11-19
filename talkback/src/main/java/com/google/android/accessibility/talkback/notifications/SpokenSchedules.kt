@@ -368,6 +368,7 @@ class SpokenSchedules(
       val notifications =
         runCatching { listener.activeNotifications }.getOrNull().orEmpty()
           .filter { it.packageName != context.packageName || it.notification.channelId != null }
+          .filterNot { NotificationInfo.isSamsungPlaceholder(it.packageName, it.notification) }
           .sortedBy { it.postTime }
           .let { if (prefs.getBoolean(KEY_SUMMARY_NEWEST_FIRST, true)) it.reversed() else it }
       val format = context.getString(R.string.notification_summary_item_format)
