@@ -20,6 +20,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.media.MediaPlayer
 import android.util.Base64
+import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -81,20 +82,24 @@ object SoundFileStore {
 
   /**
    * The sound files in [dirName] for the settings backup: one entry per slot that has a
-   * file, with the slot, the file's name and its contents. The chosen labels ride the
-   * settings file's preferences, so they need no entry of their own.
+   * file, with the slot, the file's name, its contents and its chosen label. The label
+   * rides here too, so that a backup of this item on its own restores the name as well
+   * as the file: the settings file's preferences do not travel with a single-item
+   * backup.
    */
   fun backupSoundsJson(context: Context, dirName: String, slots: Array<out SoundSlot>): String {
     val directory = directory(context, dirName)
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     val sounds = JSONArray()
     for (slot in slots) {
       val file = soundFile(directory, slot.fileName) ?: continue
-      sounds.put(
+      val entry =
         JSONObject()
           .put("slot", slot.fileName)
           .put("name", file.name)
           .put("data", Base64.encodeToString(file.readBytes(), Base64.NO_WRAP))
-      )
+      prefs.getString(slot.key, null)?.takeIf { it.isNotEmpty() }?.let { entry.put("label", it) }
+      sounds.put(entry)
     }
     return sounds.toString()
   }
@@ -108,6 +113,8 @@ object SoundFileStore {
   fun restoreSounds(context: Context, dirName: String, slots: Array<out SoundSlot>, json: String): Boolean {
     val byFileName = slots.associateBy { it.fileName }
     val files = ArrayList<Triple<String, String, ByteArray>>()
+    // The chosen label of each restored sound, as a preference key and label.
+    val labels = ArrayList<Pair<String, String>>()
     try {
       val sounds = JSONArray(json)
       for (i in 0 until sounds.length()) {
@@ -126,6 +133,9 @@ object SoundFileStore {
           }
         if (bytes.isEmpty() || bytes.size > MAX_SOUND_BYTES) return false
         files += Triple(slot, name, bytes)
+        entry.optString("label", "").takeIf { it.isNotEmpty() }?.let {
+          labels += byFileName.getValue(slot).key to it
+        }
       }
     } catch (e: JSONException) {
       return false
@@ -144,6 +154,13 @@ object SoundFileStore {
       } catch (e: IOException) {
         return false
       }
+    }
+    // Only after every file is written: a bad backup changes no chosen label.
+    if (labels.isNotEmpty()) {
+      val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+      val editor = prefs.edit()
+      for ((key, label) in labels) editor.putString(key, label)
+      editor.apply()
     }
     return true
   }
