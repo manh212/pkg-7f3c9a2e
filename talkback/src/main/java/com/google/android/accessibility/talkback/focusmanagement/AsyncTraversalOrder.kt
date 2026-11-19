@@ -72,15 +72,28 @@ object AsyncTraversalOrder {
     // fires, so the next swipe's targets can be prepared instead of reported MISSING_ORDER.
     // The build still runs on the single NavigationOrder thread with its 200 ms budget, and
     // warm() is still a no-op while a build is active.
-    val task = Runnable {
+    // Q6: the build must not start until the focus event's feedback is composed and queued.
+    // warm() is called before the event reaches the processor, which only queues the event
+    // for the compositor — ProcessorEventQueue posts its SPEAK turn after warm's post — so
+    // a single post would start the whole-tree walk while the main thread is still
+    // composing that feedback. The first post therefore only re-posts: the build starts on
+    // the next turn, after the queued composition turn has run. Still prompt — one extra
+    // queue turn, no timer — and cancel() still drops the pending build at either step.
+    // Paired with Q5 (EventFilter retries the prepare when the order is ready): the order
+    // arrives one turn later, and the prepare waits for it instead of a fixed timer.
+    val startTask = Runnable {
       warmTask = null
       if (active == null && LatencyExperiments.Feature.ASYNC_ORDER.enabled() &&
         !NodeOverrides.hasSource() && LatencyExperiments.preparationAllowed()) {
         start(Job(windowId, TraversalTreeCache.revision(), root, null))
       }
     }
-    warmTask = task
-    handler.post(task)
+    val deferTask = Runnable {
+      warmTask = startTask
+      handler.post(startTask)
+    }
+    warmTask = deferTask
+    handler.post(deferTask)
   }
 
   @JvmStatic

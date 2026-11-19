@@ -2043,9 +2043,9 @@ public class FocusProcessorForLogicalNavigation {
   /**
    * Returns the node that a plain swipe in {@code searchDirection} from {@code pivot} would most
    * likely focus, without scrolling, focusing or changing anything, or null if there is none on
-   * screen in the same window, or if there is no saved traversal order to search. It finds the
-   * nodes through the same saved order and node checks as a swipe, so that a swipe that follows
-   * finds them already fetched from the app.
+   * screen in the same window. It finds the nodes through the same saved order and node checks
+   * as a swipe, so that a swipe that follows finds them already fetched from the app; when there
+   * is no saved order yet it guesses the neighbour locally instead of giving up (see below).
    */
   public @Nullable AccessibilityNodeInfoCompat predictTarget(
       @NonNull AccessibilityNodeInfoCompat pivot, @SearchDirection int searchDirection) {
@@ -2055,10 +2055,11 @@ public class FocusProcessorForLogicalNavigation {
   /**
    * Returns the node that a swipe in {@code searchDirection} from {@code pivot} at the granularity
    * whose target type is {@code targetType} would most likely focus, or null if it cannot be
-   * worked out from the saved reading order. Only target types whose real move searches the saved
-   * order with a node filter can be predicted this way: the plain target, headings, controls and
-   * links. The others move by their own means (the page itself for web elements, a table walk, a
-   * screen search, another window), so they are not predicted.
+   * worked out. Only target types whose real move searches the saved order with a node filter can
+   * be predicted this way: the plain target, headings, controls and links. The others move by
+   * their own means (the page itself for web elements, a table walk, a screen search, another
+   * window), so they are not predicted. A wrong prediction only wastes the prepared speech: the
+   * real swipe re-derives its target and never reads this prediction.
    */
   public @Nullable AccessibilityNodeInfoCompat predictTarget(
       @NonNull AccessibilityNodeInfoCompat pivot,
@@ -2069,13 +2070,17 @@ public class FocusProcessorForLogicalNavigation {
         || WebInterfaceUtils.supportsWebActions(pivot)) {
       return null;
     }
-    // Only with the saved reading order: building one takes from about 10 ms to, in a big app, a
+    // Prefer the saved reading order: building one takes from about 10 ms to, in a big app, a
     // few hundred, on the main thread, where a swipe that starts meanwhile would wait for it. A
     // swipe saves the order it builds, so the next prediction has one. The root comes from the
     // saved order too, as asking the window for it would wait for the app.
     TraversalStrategy traversalStrategy = TraversalTreeCache.orderForPrediction(pivot);
     if (traversalStrategy == null) {
-      return null;
+      // Q7: no saved order yet — guess the neighbour locally instead of giving up. A
+      // SimpleTraversalStrategy finds the next/previous node from the pivot with no whole-tree
+      // build, the same local fallback navigation already uses in churning/burst windows. The
+      // search below, and the window/visibility checks after it, are unchanged.
+      traversalStrategy = new SimpleTraversalStrategy();
     }
     Filter<AccessibilityNodeInfoCompat> nodeFilter =
         composeNodeFilter(targetType, traversalStrategy.getSpeakingNodesCache());

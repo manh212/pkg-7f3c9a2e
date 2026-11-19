@@ -107,6 +107,17 @@ object TraversalTreeCache {
   private var strategy: OrderedTraversalStrategy? = null
 
   /**
+   * Q4 (c2): the order most recently thrown away by [clear], kept for prediction only. The
+   * live order is replaced by a fresh build soon after a clear, but while it is being rebuilt
+   * — or when the window keeps churning — prediction ([orderForPrediction]) can still use
+   * this one. A stale prediction only wastes synthesis; navigation ([get]) never sees this
+   * slot, so a stale order can never mis-speak. The slot always holds the newest saved
+   * order: [put] refreshes it too, so the fallback can never contradict the newest build.
+   */
+  private var lastGoodRoot: AccessibilityNodeInfoCompat? = null
+  private var lastGoodStrategy: OrderedTraversalStrategy? = null
+
+  /**
    * Who is told the window id when an operation throws the saved order away, so that window's
    * nodes can be read in the background before the next swipe, as they are when an event throws
    * the order away. An event's own clear is reported by [onAccessibilityEvent] instead, and the
@@ -285,7 +296,15 @@ object TraversalTreeCache {
         SystemClock.uptimeMillis() - firstIgnoredChangeTime > MAX_AGE_AFTER_TEXT_CHANGE_MS)) {
       return null
     }
-    return strategy?.takeIf { root?.windowId == pivot.windowId && it.containsNode(pivot) }
+    val saved = strategy?.takeIf { root?.windowId == pivot.windowId && it.containsNode(pivot) }
+    if (saved != null) return saved
+    // Q4 (c2): the last good order, kept when the live one was cleared, is still usable for
+    // prediction — a stale prediction only wastes synthesis, it never moves focus. The same
+    // guards apply as for the live order: the window must match and the pivot must be in it.
+    // Navigation (get(), holds(), rootFor(), pivotAfterRemoval()) never consults this slot.
+    return lastGoodStrategy?.takeIf {
+      lastGoodRoot?.windowId == pivot.windowId && it.containsNode(pivot)
+    }
   }
 
   internal fun noteGracedChange(windowId: Int, sourceBounds: Rect?) {
@@ -645,6 +664,9 @@ object TraversalTreeCache {
     if (!enabled) return
     this.root = root
     this.strategy = strategy
+    // Q4 (c2): the order just saved is the newest good one; keep the last-good slot on it.
+    lastGoodRoot = root
+    lastGoodStrategy = strategy
     firstIgnoredChangeTime = 0L
     resetGracedChanges()
   }
@@ -682,6 +704,9 @@ object TraversalTreeCache {
     }
     val windowId = root?.windowId ?: NO_WINDOW_ID
     clearedWindowId = windowId
+    // Q4 (c2): keep the order being thrown away as the last good one, for prediction only.
+    lastGoodRoot = root
+    lastGoodStrategy = strategy
     root = null
     strategy = null
     firstIgnoredChangeTime = 0L
@@ -713,6 +738,14 @@ object TraversalTreeCache {
     val trackedWindow = if (buildingWindowId != NO_WINDOW_ID) buildingWindowId
       else root?.windowId ?: NO_WINDOW_ID
     if (WindowCachePolicy.isForeignContentChange(event, trackedWindow)) return
+    // Q4 (c1): a change that leaves the nodes and their order as they are — text, state
+    // description or content description only — does not throw the saved order away (the
+    // cache keeps serving it for up to MAX_AGE_AFTER_TEXT_CHANGE_MS), so it must not move
+    // the revision either: an in-flight build of that same order would otherwise be
+    // discarded as STALE for a change that changed nothing about the order. Only a change
+    // that can throw the order away moves the revision — which still invalidates an
+    // in-flight build when no order is saved yet, for genuinely structural changes.
+    if (WindowCachePolicy.isNonStructuralContent(event)) return
     if ((!cacheOnly && !LatencyExperiments.Feature.SCOPED_CACHE.enabled()) ||
       WindowCachePolicy.affectsOrder(event, trackedWindow)) revisionCounter.incrementAndGet()
   }
