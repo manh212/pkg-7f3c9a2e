@@ -686,7 +686,7 @@
         },
         "pref_window_names": {
           "type": "string",
-          "value": "window_opens"
+          "value": "until_first_item"
         },
         "pref_keep_prepared_across_unrelated_key": {
           "type": "boolean",
