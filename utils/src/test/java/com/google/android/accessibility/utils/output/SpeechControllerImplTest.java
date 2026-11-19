@@ -314,6 +314,35 @@ public class SpeechControllerImplTest {
   }
 
   @Test
+  public void screenStaysAwakeWhileDictatingAndReleasesWhenDictationEnds() throws Exception {
+    PowerManager power = context.getSystemService(PowerManager.class);
+    org.robolectric.Shadows.shadowOf(power).setIsInteractive(true);
+    java.lang.reflect.Field field =
+        SpeechControllerImpl.class.getDeclaredField("speakingScreenLock");
+    field.setAccessible(true);
+
+    // With the keep-screen-on switch off, dictation holds nothing.
+    speechController.setDictationActive(true);
+    PowerManager.WakeLock lock = (PowerManager.WakeLock) field.get(speechController);
+    assertTrue(lock == null || !lock.isHeld());
+
+    // With the switch on, the lock is held for the whole dictation session, with no timeout.
+    speechController.setKeepScreenOnWhileSpeaking(true);
+    lock = (PowerManager.WakeLock) field.get(speechController);
+    assertTrue(lock.isHeld());
+    Robolectric.getForegroundThreadScheduler().advanceBy(20, TimeUnit.MINUTES);
+    assertTrue(lock.isHeld());
+
+    // Ending dictation releases it, and turning the switch off does too.
+    speechController.setDictationActive(false);
+    assertTrue(!lock.isHeld());
+    speechController.setDictationActive(true);
+    assertTrue(lock.isHeld());
+    speechController.setKeepScreenOnWhileSpeaking(false);
+    assertTrue(!lock.isHeld());
+  }
+
+  @Test
   public void windowChangeSpeech_interruptsUninterruptibleAnnouncement() {
     enablePerformanceStats();
 
