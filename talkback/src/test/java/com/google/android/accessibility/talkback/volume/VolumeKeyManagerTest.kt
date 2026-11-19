@@ -10,6 +10,7 @@ import java.time.Duration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -241,6 +242,33 @@ class VolumeKeyManagerTest {
       .putString(VolumeKeyManager.multiKey(true, 2), "BACK").commit()
     repeat(2) { tap(up) }
     prefs.edit().remove(VolumeKeyManager.multiKey(true, 2)).commit()
+    waitForSequence()
+    assertEquals(emptyList<String>(), service.actions)
+  }
+
+  @Test fun hasCommandFindsAnswerCallInAnyPressOfTheKey() {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(VolumeKeyManager.KEY_MANAGED, true)
+      .putString(VolumeKeyManager.KEY_UP_HOLD_LONG_ACTION, "ANSWER_CALL")
+      .putString(VolumeKeyManager.KEY_DOWN_PRESS_ACTION, "A")
+      .putString(VolumeKeyManager.multiKey(false, 2), "ANSWER_CALL").commit()
+    assertTrue(VolumeKeyManager.hasCommand(service, true, "ANSWER_CALL"))
+    assertTrue(VolumeKeyManager.hasCommand(service, false, "ANSWER_CALL"))
+    assertTrue(VolumeKeyManager.hasCommand(service, false, "A"))
+    assertFalse(VolumeKeyManager.hasCommand(service, true, "A"))
+  }
+
+  @Test fun hasCommandFalseWithoutAssignments() {
+    assertFalse(VolumeKeyManager.hasCommand(service, true, "ANSWER_CALL"))
+  }
+
+  @Test fun activeCallStillLeavesKeysToSystemEvenWithAnswerCallAssigned() {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(VolumeKeyManager.KEY_MANAGED, true)
+      .putString(VolumeKeyManager.KEY_DOWN_PRESS_ACTION, "ANSWER_CALL").commit()
+    service.callActive = true
+    assertFalse(key(down, KeyEvent.ACTION_DOWN))
+    assertFalse(key(down, KeyEvent.ACTION_UP))
     waitForSequence()
     assertEquals(emptyList<String>(), service.actions)
   }
