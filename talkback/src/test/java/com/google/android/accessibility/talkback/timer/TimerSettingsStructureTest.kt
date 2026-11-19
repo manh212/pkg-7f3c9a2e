@@ -154,6 +154,7 @@ class TimerSettingsStructureTest {
         "ToolsGroupFragment",
         "AdvancedGroupFragment",
         "HelpCenterGroupFragment",
+        "SettingsProfilesFragment",
       ),
       topLevel.map { it.second?.substringAfterLast('.') },
     )
