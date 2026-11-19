@@ -42,6 +42,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.content.ContextCompat;
 import androidx.core.os.LocaleListCompat;
+import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.dictation.SandflyDictation;
 import com.google.android.accessibility.talkback.permission.PermissionUtils;
 import com.google.android.accessibility.utils.DelayHandler;
@@ -518,10 +519,27 @@ public class SpeechRecognizerPerformer {
       return;
     }
     this.isListening = isListening;
+    setDictationScreenLock(isListening);
     speechRecognizerRequester.onFeedbackEvent(
         isListening
             ? SpeechRecognizerRequester.EVENT_START_LISTENING
             : SpeechRecognizerRequester.EVENT_STOP_LISTENING);
+  }
+
+  /**
+   * Holds the same screen-on lock reading uses while the platform recognizer listens, gated by
+   * the same "keep screen on while speaking" switch. No-ops when the service is not running or
+   * its speech controller is not ready yet.
+   */
+  private void setDictationScreenLock(boolean active) {
+    try {
+      TalkBackService service = TalkBackService.getInstance();
+      if (service != null) {
+        service.getSpeechController().setDictationActive(active);
+      }
+    } catch (RuntimeException unused) {
+      // Speech controller not initialized yet; nothing to hold.
+    }
   }
 
   /** Create and initialize the recognition intent. */
