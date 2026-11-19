@@ -64,6 +64,12 @@ import org.robolectric.util.ReflectionHelpers
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class AutoScrolledPivotSettleCheckTest {
+  private lateinit var processor: FocusProcessorForLogicalNavigation
+  private lateinit var service: TalkBackService
+  private val feedback = ArrayList<Feedback>()
+  private var nextId = 1L
+  private var focusedNode: AccessibilityNodeInfoCompat? = null
+
   /** A node whose parent and children are set by the test. */
   private inner class Node(className: String, vararg actions: AccessibilityAction) :
     AccessibilityNodeInfoCompat(info(className, actions)) {
