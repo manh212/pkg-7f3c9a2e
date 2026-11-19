@@ -274,6 +274,21 @@ class ScriptManager(
       ScriptMenuItem(bound.command.title) { node -> runCommand(bound, "menu", node = node) }
     }
 
+  /**
+   * Runs the script command saved as [value], as a gesture assigned to it would. Commands run
+   * by their value are the user's own choice — a taught voice phrase, a gesture — so they run
+   * without the input permission a script's own bindings need. Returns false when no running
+   * script has that command, or on Meridian's own screens, where scripts never run.
+   */
+  override fun runScriptCommand(value: String): Boolean {
+    if (activation.inBacktalk) {
+      return false
+    }
+    val bound = bindings.commands[value] ?: return false
+    runCommand(bound, "command")
+    return true
+  }
+
   override fun readingControls(): List<ScriptReadingControl> =
     bindings.controls.map { bound ->
       val key = "${bound.runtime.id}/${bound.command.id}"
@@ -312,14 +327,17 @@ class ScriptManager(
     mainHandler.removeCallbacks(evaluateRunnable)
     // What scripts still had queued is dropped, so that turning scripts off stops them now.
     scriptHandler.removeCallbacksAndMessages(null)
+    // Not on the script thread, which may be stuck in a call that never ends: dialogs and windows
+    // close on the main thread.
+    dialogs.close()
+    screen.close()
+    touch.close()
     scriptHandler.postAtFrontOfQueue {
       loaded.values.forEach(ScriptRuntime::close)
       loaded.clear()
       speechHooks.clear()
       events.clear()
       actions.clear()
-      dialogs.close()
-      screen.close()
       bindings = ScriptBindings.EMPTY
       rules = ScriptRules.EMPTY
       rulesSource = emptyList()

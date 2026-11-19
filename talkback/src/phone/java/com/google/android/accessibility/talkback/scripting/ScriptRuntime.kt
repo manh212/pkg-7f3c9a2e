@@ -489,6 +489,8 @@ class ScriptRuntime(
     val to = args.optString("to").ifEmpty { null }
     return promise { settle ->
       manager.feedback.onMain {
+        // Turning scripts off meanwhile shut the translator down; don't make a new one.
+        if (manager.isClosed) return@onMain settle(false, "Scripts are off")
         manager.translator.translateTo(text, from, to) { result ->
           when (result) {
             is Translator.Result.Done ->

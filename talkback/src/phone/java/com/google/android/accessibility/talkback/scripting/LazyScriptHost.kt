@@ -196,6 +196,9 @@ class LazyScriptHost(
 
   override fun menuItems(): List<ScriptMenuItem> = manager?.menuItems().orEmpty()
 
+  override fun runScriptCommand(value: String): Boolean =
+    manager?.runScriptCommand(value) == true
+
   override fun readingControls(): List<ScriptReadingControl> =
     manager?.readingControls().orEmpty()
 

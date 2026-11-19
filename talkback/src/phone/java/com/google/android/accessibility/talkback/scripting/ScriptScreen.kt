@@ -41,6 +41,9 @@ class ScriptScreen(private val service: AccessibilityService) {
   private val mainExecutor = Executor { mainHandler.post(it) }
   private val ocrWorker = Executors.newSingleThreadExecutor()
 
+  /** Set on the main thread once scripts are off: text is no longer recognized after that. */
+  private var closed = false
+
   /**
    * Every window on screen, top first, with a snapshot of its top item. SandFly's own windows, such
    * as its menu, are left out, as scripts change nothing in SandFly.
@@ -127,6 +130,10 @@ class ScriptScreen(private val service: AccessibilityService) {
               buffer.close()
             }
           if (bitmap == null) return done(null, "The item is not on screen")
+          if (closed) {
+            bitmap.recycle()
+            return done(null, "Scripts are off")
+          }
           try {
             ocrWorker.execute {
               val lines = try {
@@ -189,8 +196,12 @@ class ScriptScreen(private val service: AccessibilityService) {
     )
   }
 
+  /** Stops recognition and shuts the OCR worker down, on the main thread. Called from any thread. */
   fun close() {
-    ocrWorker.shutdown()
+    mainHandler.post {
+      closed = true
+      ocrWorker.shutdown()
+    }
   }
 
   companion object {
