@@ -83,7 +83,7 @@ class MultiFingerTapsTest {
   private val y = 300f
   private var downTime = 0L
 
-  private fun idle(ms: Long) = ShadowLooper.idleMainLooper(ms, TimeUnit.MILLISECONDS)
+  private fun idleFor(ms: Long) = ShadowLooper.idleMainLooper(ms, TimeUnit.MILLISECONDS)
 
   private fun send(action: Int, actionIndex: Int, count: Int) {
     val properties =
@@ -133,18 +133,18 @@ class MultiFingerTapsTest {
   private fun taps(fingers: Int, taps: Int) {
     repeat(taps) { tap ->
       if (tap > 0) {
-        idle(100)
+        idleFor(100)
       }
       downTime = SystemClock.uptimeMillis()
       send(ACTION_DOWN, 0, 1)
       for (i in 1 until fingers) {
-        idle(5)
+        idleFor(5)
         send(ACTION_POINTER_DOWN, i, i + 1)
       }
-      idle(50)
+      idleFor(50)
       for (i in fingers - 1 downTo 1) {
         send(ACTION_POINTER_UP, i, i + 1)
-        idle(5)
+        idleFor(5)
       }
       send(ACTION_UP, 0, 1)
     }
@@ -155,7 +155,7 @@ class MultiFingerTapsTest {
     assigned += GESTURE_2_FINGER_DOUBLE_TAP
     taps(fingers = 2, taps = 2)
     assertEquals(listOf(GESTURE_2_FINGER_DOUBLE_TAP), completed)
-    idle(1000)
+    idleFor(1000)
     assertEquals(listOf(GESTURE_2_FINGER_DOUBLE_TAP), completed)
   }
 
@@ -164,7 +164,7 @@ class MultiFingerTapsTest {
     assigned += listOf(GESTURE_2_FINGER_DOUBLE_TAP, GESTURE_2_FINGER_TRIPLE_TAP)
     taps(fingers = 2, taps = 2)
     assertEquals(listOf<Int>(), completed)
-    idle(1000)
+    idleFor(1000)
     assertEquals(listOf(GESTURE_2_FINGER_DOUBLE_TAP), completed)
   }
 
@@ -173,7 +173,7 @@ class MultiFingerTapsTest {
     assigned += listOf(GESTURE_2_FINGER_DOUBLE_TAP, GESTURE_2_FINGER_TRIPLE_TAP_AND_HOLD)
     taps(fingers = 2, taps = 2)
     assertEquals(listOf<Int>(), completed)
-    idle(1000)
+    idleFor(1000)
     assertEquals(listOf(GESTURE_2_FINGER_DOUBLE_TAP), completed)
   }
 
@@ -195,7 +195,7 @@ class MultiFingerTapsTest {
     assigned += GESTURE_2_FINGER_DOUBLE_TAP
     taps(fingers = 2, taps = 2)
     assertEquals(listOf<Int>(), completed)
-    idle(1000)
+    idleFor(1000)
     assertEquals(listOf(GESTURE_2_FINGER_DOUBLE_TAP), completed)
   }
 }
