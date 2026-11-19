@@ -6595,6 +6595,19 @@ public class FocusProcessorForLogicalNavigation {
         Performance.getInstance().onNavigationDetail(eventId, "scroll_live_target", 1);
       }
     }
+    // A RecyclerView can recycle focusBeforeScroll's view after a large or multi-step
+    // auto-scroll, so it still refreshes fine and stays visible, yet isn't a key in this
+    // freshly-built local tree -- searching from it below would look exactly like "no more
+    // items" to every caller. Recover by resuming from the node nearest where this pivot
+    // currently is, read live (it's still valid), within this same local tree -- not a
+    // remembered position from elsewhere, which could be stale by several auto-scroll retries.
+    // searchPivot anchors everything computed synchronously below (bounds tracking, the
+    // searchFocus call, the final focus target); focusBeforeScroll itself is left untouched
+    // so the settle check deferred further down (searchAgainWhenListMoves) keeps comparing
+    // against the node that's actually accessibility-focused right now, not a resume point
+    // that was never focused. Declared here (outside the nodeToFocus == null block) because
+    // the settle check and the final focus target below also use it as the pivot.
+    AccessibilityNodeInfoCompat searchPivot = focusBeforeScroll;
     if (nodeToFocus == null) {
       long[] orderWork = Performance.getInstance().beginNavigationWork();
       TraversalStrategy localTraversalStrategy =
@@ -6604,18 +6617,6 @@ public class FocusProcessorForLogicalNavigation {
       Filter<AccessibilityNodeInfoCompat> nodeFilter =
           composeNodeFilter(sourceAction.targetType, localTraversalStrategy.getSpeakingNodesCache());
 
-      // A RecyclerView can recycle focusBeforeScroll's view after a large or multi-step
-      // auto-scroll, so it still refreshes fine and stays visible, yet isn't a key in this
-      // freshly-built local tree -- searching from it below would look exactly like "no more
-      // items" to every caller. Recover by resuming from the node nearest where this pivot
-      // currently is, read live (it's still valid), within this same local tree -- not a
-      // remembered position from elsewhere, which could be stale by several auto-scroll retries.
-      // searchPivot anchors everything computed synchronously below (bounds tracking, the
-      // searchFocus call, the final focus target); focusBeforeScroll itself is left untouched
-      // so the settle check deferred further down (searchAgainWhenListMoves) keeps comparing
-      // against the node that's actually accessibility-focused right now, not a resume point
-      // that was never focused.
-      AccessibilityNodeInfoCompat searchPivot = focusBeforeScroll;
       if (focusBeforeScroll.refresh()
           && AccessibilityNodeInfoUtils.isVisible(focusBeforeScroll)
           && localTraversalStrategy instanceof OrderedTraversalStrategy orderedLocalStrategy
