@@ -204,6 +204,7 @@ class AiDictation(
     }
     editorTarget = AccessibilityNodeInfoCompat.obtain(target)
     phase = Phase.RECORDING
+    setDictationScreenLock(true)
     service.updateDictationDoubleTapFlag()
     pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_up))
     // Speech would be recorded with the user's.
@@ -261,6 +262,7 @@ class AiDictation(
       return false
     }
     phase = Phase.RECORDING
+    setDictationScreenLock(true)
     if (keyboardDictation) service.updateDictationDoubleTapFlag()
     pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.chime_up))
     speechSilenced = pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.speech(SILENCE))
@@ -645,6 +647,7 @@ class AiDictation(
     translateMode = false
     giveUp = null
     tones.stop()
+    setDictationScreenLock(false)
   }
 
   /** Stops recording and drops what was recorded, as when SandFly turns off. */
@@ -691,6 +694,15 @@ class AiDictation(
     offlineTask = false
     keyboardDictation = false
     callback(text)
+  }
+
+  /**
+   * Holds the same screen-on lock reading uses while a dictation session runs, gated by the
+   * same "keep screen on while speaking" switch. The speech controller is not ready before the
+   * service finishes starting; the lock then simply stays off.
+   */
+  private fun setDictationScreenLock(active: Boolean) {
+    runCatching { service.speechController?.setDictationActive(active) }
   }
 
   private fun restoreSpeech() {
