@@ -1386,6 +1386,21 @@ public class TalkBackService extends AccessibilityServiceCompat
         && SettingsProfiles.watchesFocus()) {
       SettingsProfiles.onFocused(AccessibilityEventUtils.sourceCompat(event));
     }
+    // 2C: start building the reading order at once on focus change, so it is usually ready
+    // when the 30 ms prepare timer fires. Only when no usable order is cached for the
+    // focused node; warm() itself is a no-op while a build is active.
+    if (eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED && latencyExtrasEnabled) {
+      AccessibilityNodeInfoCompat source = AccessibilityEventUtils.sourceCompat(event);
+      if (source != null) {
+        try {
+          if (TraversalTreeCache.orderForPrediction(source) == null) {
+            AsyncTraversalOrder.warm(event.getWindowId(), () -> rootOfWindow(event.getWindowId()));
+          }
+        } finally {
+          source.recycle();
+        }
+      }
+    }
     // Some launchers, such as Hyperion, don't report that their home screen is shown again after
     // the apps list, so Android's copy of its nodes keeps them hidden, and only the dock can be
     // reached until the copy is cleared.
