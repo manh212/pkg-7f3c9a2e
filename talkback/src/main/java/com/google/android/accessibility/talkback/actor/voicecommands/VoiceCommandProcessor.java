@@ -91,9 +91,15 @@ import static com.google.android.accessibility.talkback.contextmenu.ListMenuMana
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.LANGUAGE;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 
+import android.Manifest;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
@@ -105,6 +111,7 @@ import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.actor.DimScreenActor;
 import com.google.android.accessibility.talkback.actor.SpeechRateAndPitchActor;
+import com.google.android.accessibility.talkback.actor.gemini.GeminiActor;
 import com.google.android.accessibility.talkback.actor.gemini.GeminiConfiguration;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics.VoiceCommandTypeId;
@@ -112,8 +119,10 @@ import com.google.android.accessibility.talkback.collapse.CollapsedItemActions;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.contextmenu.ListMenuManager;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
+import com.google.android.accessibility.talkback.gesture.TapTextActions;
 import com.google.android.accessibility.talkback.granularediting.GranularEditing;
 import com.google.android.accessibility.talkback.menurules.RuleAction;
+import com.google.android.accessibility.talkback.permission.PermissionUtils;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.Setting;
 import com.google.android.accessibility.talkback.selector.SpeechVolumeControl;
@@ -180,8 +189,20 @@ public class VoiceCommandProcessor {
   private final Runnable confirmationTimeout = this::onConfirmationTimeout;
   private final Runnable phraseDialogueTimeout = this::onPhraseDialogueTimeout;
   private final Runnable dialStageTimeout = this::onDialStageTimeout;
+  private final Runnable messageStageTimeout = this::onMessageStageTimeout;
+  private final Runnable describeTimeout = this::onDescribeTimeout;
   private int phraseStage;
   private int dialStage;
+  private int messageStage;
+  private String messageName;
+  private String messageNumber;
+  private VoiceCommandMessages.App messageApp;
+  private int describeRequestId;
+  private GeminiActor.DescriptionReceiver describeReceiver;
+  private boolean describeForScreen;
+  private String lastDescription;
+  private long lastDescriptionAtMs;
+  private int messageGeneration;
   private String phraseDraft;
   private final List<String> phraseDraftValues = new ArrayList<>();
   private final List<String> phraseDraftLabels = new ArrayList<>();
@@ -195,6 +216,24 @@ public class VoiceCommandProcessor {
 
   private static final int DIAL_STAGE_NONE = 0;
   private static final int DIAL_STAGE_NUMBER = 1;
+
+  private static final int MESSAGE_STAGE_NONE = 0;
+  private static final int MESSAGE_STAGE_TEXT = 1;
+
+  /* How long the messaging app has to open before the confirmation is asked. */
+  private static final long MESSAGE_COMPOSE_GAP_MS = 1500;
+  /* How long the message box has to take the typed text before the confirmation is asked. */
+  private static final long MESSAGE_TYPE_GAP_MS = 500;
+  /* How long a description for sending may take to arrive. */
+  private static final long DESCRIBE_TIMEOUT_MS = 45000;
+  /* How long a description just made stays fresh enough to send without describing again. */
+  private static final long DESCRIBE_FRESH_MS = 5 * 60 * 1000;
+  /* How often to check whether the reading of a description has finished. */
+  private static final long SPEECH_POLL_MS = 100;
+  /* How long to wait for the reading of a description to start before giving up on it. */
+  private static final long SPEECH_START_MS = 1000;
+  /* How long the reading of a description may take before the question is asked anyway. */
+  private static final long SPEECH_MAX_MS = 60000;
 
   private static final long CONFIRMATION_TIMEOUT_MS = 10000;
   private static final long AI_FALLBACK_TIMEOUT_MS = 12000;
@@ -429,6 +468,16 @@ public class VoiceCommandProcessor {
       return true;
     }
 
+    // A message command asked for its text: this result is the text, never a command.
+    if (messageStage != MESSAGE_STAGE_NONE) {
+      if (isPartialResult) {
+        return false;
+      }
+      mainHandler.removeCallbacks(messageStageTimeout);
+      handleMessageTextAnswer(command, eventId);
+      return true;
+    }
+
     // Taught phrases are managed, and a taught phrase said in full is used, before any
     // built-in command, so a taught phrase wins over a built-in name. Partial results are
     // not matched: the phrase may still be growing into another command.
@@ -489,6 +538,11 @@ public class VoiceCommandProcessor {
     // an optional repeat count. Partial results are not matched: the phrase may still be
     // growing into another command.
     if (!isPartialResult && handleParameterCommand(command, eventId)) {
+      return true;
+    }
+    // A message or a description to send runs before the catalog and before chaining:
+    // its text may hold a chain connector, and must not be split into commands.
+    if (!isPartialResult && handleMessageCommand(command, eventId)) {
       return true;
     }
     if (!isPartialResult && handleCatalogCommand(command, eventId)) {
@@ -1314,6 +1368,16 @@ public class VoiceCommandProcessor {
     clearPhraseDialogue();
     dialStage = DIAL_STAGE_NONE;
     mainHandler.removeCallbacks(dialStageTimeout);
+    messageStage = MESSAGE_STAGE_NONE;
+    messageName = null;
+    messageNumber = null;
+    messageApp = null;
+    mainHandler.removeCallbacks(messageStageTimeout);
+    if (describeReceiver != null) {
+      GeminiActor.forgetDescription(describeReceiver);
+      describeReceiver = null;
+    }
+    mainHandler.removeCallbacks(describeTimeout);
     invalidateAiFallback();
   }
 
@@ -1448,6 +1512,426 @@ public class VoiceCommandProcessor {
           return kotlin.Unit.INSTANCE;
         });
     handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_DIAL);
+  }
+
+  /* The keywords a message command is read by: read fresh every time, so phrasings the user
+   * replaced in Settings apply at once. */
+  private VoiceCommandMessages.Keywords messageKeywords() {
+    return VoiceCommandMessages.Keywords.from(service);
+  }
+
+  /*
+   * Runs a command that sends a message or a description, if this is one. Returns true when
+   * the sentence was a message command, even when the message still waits for its text or
+   * its description.
+   */
+  private boolean handleMessageCommand(String command, EventId eventId) {
+    VoiceCommandMessages.Request request =
+        VoiceCommandMessages.parseCommand(command, messageKeywords());
+    if (request == null) {
+      return false;
+    }
+    resolveMessageRecipient(
+        request.getWhoAndText(),
+        request.getApp(),
+        request.getDescribeScreen(),
+        eventId);
+    return true;
+  }
+
+  /*
+   * Finds the number of a message's recipient: a number said first, or the contact whose name
+   * starts the message. Reading the contacts runs off the main thread; a newer command
+   * cancels the lookup.
+   */
+  private void resolveMessageRecipient(
+      String whoAndText,
+      VoiceCommandMessages.App app,
+      Boolean describeScreen,
+      EventId eventId) {
+    if (whoAndText == null || whoAndText.trim().isEmpty()) {
+      speakDelayed(service.getString(R.string.voice_message_no_recipient));
+      noteCommandRan();
+      return;
+    }
+    kotlin.Pair<String, String> numberAtStart = VoiceCommandContacts.numberAtStart(whoAndText);
+    if (numberAtStart != null) {
+      continueMessage(
+          numberAtStart.getFirst(),
+          numberAtStart.getFirst(),
+          app,
+          numberAtStart.getSecond(),
+          describeScreen,
+          eventId);
+      return;
+    }
+    if (!VoiceCommandContacts.canRead(service)) {
+      PermissionUtils.requestPermissions(service, Manifest.permission.READ_CONTACTS);
+      speakDelayed(service.getString(R.string.voice_message_contacts_permission));
+      noteCommandRan();
+      return;
+    }
+    final int generation = ++messageGeneration;
+    new Thread(
+            () -> {
+              List<VoiceCommandContacts.Number> numbers = VoiceCommandContacts.numbers(service);
+              kotlin.Pair<VoiceCommandContacts.Found, String> found =
+                  VoiceCommandContacts.findAtStart(numbers, whoAndText);
+              mainHandler.post(
+                  () -> {
+                    if (generation != messageGeneration) {
+                      return;
+                    }
+                    if (found == null || found.getFirst().getNumber() == null) {
+                      if (found != null && !found.getFirst().getNames().isEmpty()) {
+                        List<String> names = found.getFirst().getNames();
+                        speakDelayed(
+                            service.getString(
+                                R.string.voice_message_contacts_several,
+                                whoAndText,
+                                String.join(
+                                    ", ", names.subList(0, Math.min(5, names.size())))));
+                      } else {
+                        speakDelayed(
+                            service.getString(R.string.voice_message_no_contact, whoAndText));
+                      }
+                      noteCommandRan();
+                      return;
+                    }
+                    VoiceCommandContacts.Number number = found.getFirst().getNumber();
+                    continueMessage(
+                        number.getName(),
+                        number.getNumber(),
+                        app,
+                        found.getSecond(),
+                        describeScreen,
+                        eventId);
+                  });
+            })
+        .start();
+  }
+
+  /*
+   * Carries a message on once its recipient is known: describes first when the command asked
+   * for a description, asks for the text when there is none, else opens the app for it. The
+   * app may also be named after the recipient, and the word joining the text dropped.
+   */
+  private void continueMessage(
+      String name,
+      String number,
+      VoiceCommandMessages.App app,
+      String rest,
+      Boolean describeScreen,
+      EventId eventId) {
+    String text = rest == null ? null : rest.trim();
+    if (text != null && !text.isEmpty()) {
+      kotlin.Pair<VoiceCommandMessages.App, String> leading =
+          VoiceCommandMessages.leadingApp(text, messageKeywords());
+      if (leading.getFirst() != null) {
+        app = leading.getFirst();
+        text = leading.getSecond().trim();
+      }
+      text = VoiceCommandMessages.dropTextSeparator(text, messageKeywords()).trim();
+      if (text.isEmpty()) {
+        text = null;
+      }
+    } else {
+      text = null;
+    }
+    if (describeScreen != null) {
+      startDescribeSend(name, number, app, describeScreen, eventId);
+      return;
+    }
+    if (text == null) {
+      // "gửi cho An" with no text sends the description just made, when it is still fresh.
+      if (lastDescription != null
+          && SystemClock.uptimeMillis() - lastDescriptionAtMs < DESCRIBE_FRESH_MS) {
+        composeMessage(name, number, app, lastDescription, /* fromDescription= */ true, eventId);
+      } else {
+        askMessageText(name, number, app);
+      }
+      return;
+    }
+    composeMessage(name, number, app, text, /* fromDescription= */ false, eventId);
+  }
+
+  /* Asks for the text of a message whose recipient is known, and listens for it. */
+  private void askMessageText(String name, String number, VoiceCommandMessages.App app) {
+    messageStage = MESSAGE_STAGE_TEXT;
+    messageName = name;
+    messageNumber = number;
+    messageApp = app;
+    mainHandler.removeCallbacks(messageStageTimeout);
+    mainHandler.postDelayed(messageStageTimeout, CONFIRMATION_TIMEOUT_MS);
+    speakDelayed(service.getString(R.string.voice_message_ask_text, name));
+    if (confirmationSession != null) {
+      confirmationSession.requestListenAgain();
+    }
+  }
+
+  /* Runs when the asked-for text never arrives: the message is abandoned. */
+  private void onMessageStageTimeout() {
+    if (messageStage != MESSAGE_STAGE_NONE) {
+      messageStage = MESSAGE_STAGE_NONE;
+      messageName = null;
+      messageNumber = null;
+      messageApp = null;
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+    }
+  }
+
+  /* Takes the spoken answer to the message command's question for a text. */
+  private void handleMessageTextAnswer(String command, EventId eventId) {
+    String name = messageName;
+    String number = messageNumber;
+    VoiceCommandMessages.App app = messageApp;
+    messageStage = MESSAGE_STAGE_NONE;
+    messageName = null;
+    messageNumber = null;
+    messageApp = null;
+    if (VoiceCommandPhrases.isCancel(command, phraseKeywords())) {
+      speakDelayed(service.getString(R.string.voice_commands_confirm_cancelled));
+      return;
+    }
+    String text = command == null ? null : command.trim();
+    if (text == null || text.isEmpty()) {
+      speakDelayed(service.getString(R.string.voice_message_not_sent));
+      noteCommandRan();
+      return;
+    }
+    composeMessage(name, number, app, text, /* fromDescription= */ false, eventId);
+  }
+
+  /*
+   * Opens the messaging app with [text] to [number], then asks whether to send it and presses
+   * Send when the answer is yes. The text is also put on the clipboard first, so it is not
+   * lost when the app cannot be opened with it. Zalo has no link that carries the text, so
+   * its chat is opened and the text is typed into its message box instead.
+   */
+  private void composeMessage(
+      String name,
+      String number,
+      VoiceCommandMessages.App app,
+      String text,
+      boolean fromDescription,
+      EventId eventId) {
+    VoiceCommandMessages.App chosen = app == null ? VoiceCommandMessages.App.SMS : app;
+    copyToClipboard(text);
+    List<Intent> intents = VoiceCommandMessages.intentsFor(service, chosen, number, text);
+    if (intents.isEmpty()) {
+      String appName =
+          chosen == VoiceCommandMessages.App.WHATSAPP
+              ? "WhatsApp"
+              : chosen == VoiceCommandMessages.App.ZALO ? "Zalo" : "SMS";
+      speakDelayed(service.getString(R.string.voice_message_no_app, appName));
+      noteCommandRan();
+      return;
+    }
+    boolean started = false;
+    for (Intent intent : intents) {
+      try {
+        service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        started = true;
+        break;
+      } catch (ActivityNotFoundException | SecurityException e) {
+        LogUtils.w(LOG_TAG, "No app for message intent %s: %s", intent, e);
+      }
+    }
+    if (!started) {
+      speakDelayed(service.getString(R.string.voice_message_no_app_for_action));
+      noteCommandRan();
+      return;
+    }
+    if (VoiceCommandMessages.needsTyping(chosen)) {
+      // The chat opens first, then the text is typed into its message box, then the
+      // confirmation is asked.
+      mainHandler.postDelayed(
+          () -> typeIntoZaloChat(name, number, chosen, text, fromDescription, eventId),
+          MESSAGE_COMPOSE_GAP_MS);
+      return;
+    }
+    mainHandler.postDelayed(
+        () -> askSendConfirmation(name, text, fromDescription, () -> pressSend(name, eventId)),
+        MESSAGE_COMPOSE_GAP_MS);
+  }
+
+  /* Types [text] into the message box of the Zalo chat that just opened, then asks to send. */
+  private void typeIntoZaloChat(
+      String name,
+      String number,
+      VoiceCommandMessages.App app,
+      String text,
+      boolean fromDescription,
+      EventId eventId) {
+    boolean tapped =
+        TapTextActions.perform(
+            service,
+            TapTextActions.valueOf(
+                service.getString(R.string.voice_message_zalo_input_hint),
+                /* longPress= */ false));
+    if (!tapped) {
+      // TapTextActions already said the message box was not found; the text is on the
+      // clipboard, so say how to finish by hand.
+      speakDelayed(service.getString(R.string.voice_message_no_input));
+      noteCommandRan();
+      return;
+    }
+    mainHandler.postDelayed(
+        () -> {
+          AccessibilityNodeInfoCompat node =
+              accessibilityFocusMonitor.getAccessibilityFocus(
+                  /* useInputFocusIfEmpty= */ true);
+          if (node == null || Role.getRole(node) != Role.ROLE_EDIT_TEXT) {
+            speakDelayed(service.getString(R.string.voice_message_no_input));
+            noteCommandRan();
+            return;
+          }
+          sendInterpretation(VOICE_COMMAND_INSERT, node, text, eventId);
+          mainHandler.postDelayed(
+              () ->
+                  askSendConfirmation(
+                      name, text, fromDescription, () -> pressSend(name, eventId)),
+              MESSAGE_TYPE_GAP_MS);
+        },
+        MESSAGE_TYPE_GAP_MS);
+  }
+
+  /*
+   * Asks whether to send [text] to [name]. A description is spoken first, so the user hears
+   * what is about to be sent, and the question only comes once the reading has finished.
+   */
+  private void askSendConfirmation(
+      String name, String text, boolean fromDescription, Runnable sendAction) {
+    if (fromDescription) {
+      speakDelayed(text);
+      afterSpeech(
+          () ->
+              requestConfirmationText(
+                  service.getString(R.string.voice_message_confirm_description, name),
+                  sendAction));
+      return;
+    }
+    requestConfirmationText(
+        service.getString(R.string.voice_message_confirm, name, text), sendAction);
+  }
+
+  /* Presses the Send button of the messaging app in front, and says the message was sent. */
+  private void pressSend(String name, EventId eventId) {
+    boolean pressed =
+        TapTextActions.perform(
+            service,
+            TapTextActions.valueOf(
+                service.getString(R.string.voice_message_send_button),
+                /* longPress= */ false));
+    if (!pressed) {
+      // TapTextActions already said the button was not found.
+      noteCommandRan();
+      return;
+    }
+    speakDelayed(service.getString(R.string.voice_message_sent, name));
+    handleVoiceCommandRecognized(VOICE_COMMAND_TYPE_ACTION);
+  }
+
+  /*
+   * Asks for a description of the screen, or of the focused image, and sends it to [name]
+   * when it arrives. The description is not shown in a dialog: its text goes to the message
+   * instead, and is read back in the confirmation question.
+   */
+  private void startDescribeSend(
+      String name,
+      String number,
+      VoiceCommandMessages.App app,
+      boolean screen,
+      EventId eventId) {
+    if (accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false)
+        == null) {
+      speakDelayed(
+          service.getString(
+              screen
+                  ? R.string.voice_message_no_description
+                  : R.string.voice_message_no_description_image));
+      noteCommandRan();
+      return;
+    }
+    final int requestId = ++describeRequestId;
+    describeForScreen = screen;
+    mainHandler.removeCallbacks(describeTimeout);
+    describeReceiver =
+        text -> mainHandler.post(() -> onDescriptionArrived(requestId, name, number, app, text));
+    GeminiActor.expectDescription(describeReceiver);
+    service.performCatalogAction(
+        service.getString(
+            screen
+                ? R.string.shortcut_value_screen_overview
+                : R.string.shortcut_value_describe_image));
+    mainHandler.postDelayed(describeTimeout, DESCRIBE_TIMEOUT_MS);
+  }
+
+  /* Takes the text of a description asked for by a send command, and sends it. */
+  private void onDescriptionArrived(
+      int requestId,
+      String name,
+      String number,
+      VoiceCommandMessages.App app,
+      String text) {
+    if (requestId != describeRequestId) {
+      return;
+    }
+    mainHandler.removeCallbacks(describeTimeout);
+    describeReceiver = null;
+    if (text == null || text.trim().isEmpty()) {
+      speakDelayed(service.getString(R.string.voice_message_no_description));
+      noteCommandRan();
+      return;
+    }
+    lastDescription = text;
+    lastDescriptionAtMs = SystemClock.uptimeMillis();
+    composeMessage(name, number, app, text, /* fromDescription= */ true, EVENT_ID_UNTRACKED);
+  }
+
+  /* Runs when a description for sending never arrives: the send is abandoned. */
+  private void onDescribeTimeout() {
+    if (describeReceiver != null) {
+      GeminiActor.forgetDescription(describeReceiver);
+      describeReceiver = null;
+      speakDelayed(
+          service.getString(
+              describeForScreen
+                  ? R.string.voice_message_no_description
+                  : R.string.voice_message_no_description_image));
+      noteCommandRan();
+    }
+  }
+
+  /* Runs [then] once Meridian has stopped speaking, or after a time limit. */
+  private void afterSpeech(Runnable then) {
+    final long start = SystemClock.uptimeMillis();
+    final boolean[] started = {false};
+    Runnable check =
+        new Runnable() {
+          @Override
+          public void run() {
+            boolean speaking = service.isSpeaking();
+            started[0] = started[0] || speaking;
+            long elapsed = SystemClock.uptimeMillis() - start;
+            if (speaking && elapsed < SPEECH_MAX_MS) {
+              mainHandler.postDelayed(this, SPEECH_POLL_MS);
+            } else if (!started[0] && elapsed < SPEECH_START_MS) {
+              mainHandler.postDelayed(this, SPEECH_POLL_MS);
+            } else {
+              then.run();
+            }
+          }
+        };
+    mainHandler.postDelayed(check, SPEECH_POLL_MS);
+  }
+
+  /* Puts [text] on the clipboard, so a message is not lost when its app cannot take it. */
+  private void copyToClipboard(String text) {
+    ClipboardManager clipboard = service.getSystemService(ClipboardManager.class);
+    if (clipboard != null) {
+      clipboard.setPrimaryClip(ClipData.newPlainText(null, text));
+    }
   }
 
   /* Runs a command carrying a spoken percentage or a countdown duration, if this is one. */
@@ -1830,7 +2314,8 @@ public class VoiceCommandProcessor {
       return;
     }
     if (pendingConfirmationAction != null || phraseStage != PHRASE_STAGE_NONE
-        || dialStage != DIAL_STAGE_NONE) {
+        || dialStage != DIAL_STAGE_NONE || messageStage != MESSAGE_STAGE_NONE
+        || describeReceiver != null) {
       // A part asked a question: the chain stops there and the rest is dropped.
       chainGeneration++;
       return;
