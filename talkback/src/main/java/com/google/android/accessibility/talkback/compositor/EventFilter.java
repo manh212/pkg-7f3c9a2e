@@ -29,6 +29,7 @@ import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.compositor.rule.EventTypeViewAccessibilityFocusedFeedbackRule;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
+import com.google.android.accessibility.talkback.focusmanagement.AsyncTraversalOrder;
 import com.google.android.accessibility.talkback.focusmanagement.ColumnWrap;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget.TargetType;
@@ -109,6 +110,7 @@ public class EventFilter {
   private final Runnable prepareNextSwipeTarget = this::prepareNextSwipeTarget;
   private @Nullable PreparationPass preparationPass;
   private boolean waitingForTouchEnd;
+  /** An order-build wait is already outstanding for this preparation round (Q5). */
   private boolean retriedMissingOrder;
   private int preferredDirectionIndex;
   private long preparationGeneration;
@@ -649,6 +651,27 @@ public class EventFilter {
   }
 
   /**
+   * Q3: prepares the announcement of the focused item itself, not only the nodes a swipe
+   * would reach. The prepared audio is exactly what the user is about to hear from the
+   * focused item, and a later return to it can use it. The focused item needs no traversal
+   * order, so this runs before the order check in {@link #prepareSwipeTargets}.
+   */
+  private void prepareFocusedItem(AccessibilityNodeInfoCompat pivot) {
+    TargetPredictor predictor = targetPredictor;
+    if (predictor == null) {
+      return;
+    }
+    int targetType = predictor.currentTargetType();
+    boolean prepareAudio = LatencyExperiments.Feature.PCM_ADJACENT.enabled();
+    PreparedFocusSpeech.Prepared cached = PreparedFocusSpeech.peek(pivot, targetType);
+    if (cached == null) {
+      prepareFocusSpeech(pivot, targetType, prepareAudio);
+    } else if (prepareAudio) {
+      compositor.prepareNavigationFeedback(cached.getFeedback(), preparationGeneration);
+    }
+  }
+
+  /**
    * Works out the announcements of the nodes that a swipe forward or back from the focused node
    * would most likely reach, while the user listens to the focused node, so that the swipe can
    * speak one at once. Finding them also fetches them from the app, so that the swipe's own search
@@ -668,14 +691,45 @@ public class EventFilter {
       // This window keeps throwing preparations away unused, so preparation is paused for it.
       return;
     }
+    // Q3: also prepare the announcement of the focused item itself, not only the nodes a
+    // swipe would reach. It needs no traversal order — it is the pivot — so it is prepared
+    // here, before the order check below, and is ready even while the order is still building.
+    prepareFocusedItem(pivot);
     if (TraversalTreeCache.orderForPrediction(pivot) == null) {
       TraversalTreeCache.rememberPivot(pivot);
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.MISSING_ORDER);
       if (!retriedMissingOrder) {
         retriedMissingOrder = true;
-        handler.postDelayed(prepareSwipeTargets, PREPARE_ORDER_RETRY_MS);
+        // Q5: prepare again when the order build completes, instead of after a fixed 48 ms.
+        // Registering on the in-flight build also starts one when none is running yet: the
+        // build is the same one warm() would have started, and warm() is a no-op while a
+        // build is active. Only when no window root can be found at all, or the order cache
+        // is off, is there nothing to register on, and the single 48 ms retry is kept for
+        // that case.
+        @Nullable AccessibilityNodeInfoCompat root =
+            TraversalTreeCache.getEnabled() ? AccessibilityNodeInfoUtils.getRoot(pivot) : null;
+        if (root != null) {
+          long generation = preparationGeneration;
+          AsyncTraversalOrder.request(root, null, result -> {
+            if (result == AsyncTraversalOrder.Result.READY
+                && generation == preparationGeneration
+                && Objects.equals(lastFocusedNode, pivot)) {
+              // Drop any steps of the pass that ran without an order (see below) before
+              // starting the order-based pass, as schedulePreparation() does.
+              handler.removeCallbacks(prepareNextSwipeTarget);
+              handler.post(prepareSwipeTargets);
+            }
+          });
+        } else {
+          handler.postDelayed(prepareSwipeTargets, PREPARE_ORDER_RETRY_MS);
+        }
       }
-      return;
+      // Q7 wiring: no return here. The pass below still runs, so predictTarget is reached
+      // with no order and its local-neighbour fallback can find the swipe targets at once
+      // instead of waiting for the build. Without that fallback predictTarget returns null
+      // and the pass prepares nothing; the Q5 re-run above then prepares the order-based
+      // targets when the build lands, correcting any local guess (a wrong guess only wastes
+      // its prepared speech — the real swipe re-derives its target and never reads it).
     }
     int maximumDistance = prepareSecondAheadSpeechEnabled
         || LatencyExperiments.Feature.PCM_SECOND.enabled() ? 2 : 1;
