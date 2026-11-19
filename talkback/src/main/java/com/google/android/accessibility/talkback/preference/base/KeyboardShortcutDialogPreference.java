@@ -57,6 +57,8 @@ public class KeyboardShortcutDialogPreference extends Preference
     implements DialogInterface.OnKeyListener, ServiceKeyEventListener {
 
   private static final long SANDFLY_KEY_TWICE_MS = 500;
+  // No Enter press that saved is waiting for its key up.
+  private static final long NO_SAVING_ENTER = -1;
 
   private static final int KEY_EVENT_SOURCE_ACTIVITY = 0;
   private static final int KEY_EVENT_SOURCE_ACCESSIBILITY_SERVICE = 1;
@@ -79,6 +81,13 @@ public class KeyboardShortcutDialogPreference extends Preference
   private TextView instructionText;
   private boolean supportedSequenceKeyInfra;
   private boolean triggerModifierUp;
+
+  // Whether onKeyEventInternal consumes the key event that processKeyEvent doesn't process.
+  private boolean consumeKeyEvent;
+
+  // The down time of the Enter press that saved, so only that press's key up is consumed too. The
+  // key up may go elsewhere once the dialog closes or the "Key already in use" dialog opens.
+  private long savingEnterDownTime = NO_SAVING_ENTER;
 
   private long sandFlyKeyDownTime;
   private String summary;
@@ -355,7 +364,9 @@ public class KeyboardShortcutDialogPreference extends Preference
 
   private boolean onKeyEventInternal(KeyEvent event) {
     if (!processKeyEvent(event)) {
-      return false;
+      boolean consume = consumeKeyEvent;
+      consumeKeyEvent = false;
+      return consume;
     }
 
     @Nullable SandFlyKey sandFlyKey = keyComboManager.getSandFlyKey();
@@ -518,27 +529,31 @@ public class KeyboardShortcutDialogPreference extends Preference
       }
     }
 
-    // Uses Enter key to confirm the key combo change. If keyAlreadyInUseDialog shows up, it will
-    // not process the button click function since onKey() will receive enter key twice.
-    // keyAlreadyInUseDialog will be null when this dialog dismisses. If the sequence key infra
-    // is supported, it won't save invalid key combo and only save valid key combo when the dialog
-    // view is accessibility focused and the event action is ACTION_DOWN.
-    if (hasNoModifiers(event)
-        && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER)
-        && (keyAlreadyInUseDialog == null)) {
-      LinearLayout dialogView = setUpKeyComboDialog.findViewById(R.id.dialog_view);
-      boolean enterPressedInDialogView =
-          dialogView != null
-              && dialogView.isAccessibilityFocused()
-              && event.getAction() == KeyEvent.ACTION_DOWN;
-      if (supportedSequenceKeyInfra && !enterPressedInDialogView) {
+    // Enter that saves is consumed, down and up, so it doesn't also press the focused button,
+    // such as Clear shortcut under the "Key already in use" dialog.
+    if (hasNoModifiers(event) && event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
+      if (event.getAction() == KeyEvent.ACTION_UP) {
+        consumeKeyEvent = event.getDownTime() == savingEnterDownTime;
+        if (consumeKeyEvent) {
+          savingEnterDownTime = NO_SAVING_ENTER;
+        }
         return false;
       }
-      if (shouldAnnounceInvalidShortcutMessage()) {
+      if (keyAlreadyInUseDialog == null) {
+        LinearLayout dialogView = setUpKeyComboDialog.findViewById(R.id.dialog_view);
+        boolean enterPressedInDialogView =
+            dialogView != null && dialogView.isAccessibilityFocused();
+        if (supportedSequenceKeyInfra && !enterPressedInDialogView) {
+          return false;
+        }
+        consumeKeyEvent = true;
+        savingEnterDownTime = event.getDownTime();
+        if (shouldAnnounceInvalidShortcutMessage()) {
+          return false;
+        }
+        processSaveButtonClickListener();
         return false;
       }
-      processSaveButtonClickListener();
-      return false;
     }
 
     // Enter and Esc are used to accept/dismiss dialogs. However, the default shortcuts
@@ -652,6 +667,7 @@ public class KeyboardShortcutDialogPreference extends Preference
   }
 
   private void showSetUpKeyComboDialog() {
+    savingEnterDownTime = NO_SAVING_ENTER;
     if (supportedSequenceKeyInfra) {
       CharSequence title = getPreferenceManager().findPreference(getKey()).getTitle();
       A11yAlertDialogWrapper wrapper =
