@@ -17,18 +17,22 @@
 package com.google.android.accessibility.talkback.actor;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.TouchInteractionController;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
@@ -36,6 +40,9 @@ import com.google.android.accessibility.talkback.focusmanagement.record.FocusAct
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.talkback.monitor.InputMethodMonitor;
 import com.google.android.accessibility.utils.FocusFinder;
+import com.google.android.accessibility.utils.input.WindowEventInterpreter;
+import com.google.android.accessibility.utils.output.LowLatencyAudio;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,6 +50,9 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.Implementation;
+import org.robolectric.annotation.Implements;
+import org.robolectric.shadow.api.Shadow;
 
 /**
  * The focus-history record is posted off the swipe path instead of being built inside it, so
@@ -52,7 +62,7 @@ import org.robolectric.annotation.Config;
  * event exactly as the synchronous record did.
  */
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34)
+@Config(sdk = 34, shadows = FocusManagerInternalTest.TouchShadow.class)
 public class FocusManagerInternalTest {
 
   /** Minimal service for Robolectric to instantiate the collaborators against. */
@@ -64,16 +74,36 @@ public class FocusManagerInternalTest {
     public void onInterrupt() {}
   }
 
+  /** Stands in for the framework controller, capturing the callback the monitor registers. */
+  @Implements(TouchInteractionController.class)
+  public static class TouchShadow {
+    TouchInteractionController.Callback callback;
+
+    @Implementation
+    protected void registerCallback(
+        Executor executor, TouchInteractionController.Callback callback) {
+      this.callback = callback;
+    }
+
+    @Implementation
+    protected boolean unregisterCallback(TouchInteractionController.Callback callback) {
+      this.callback = null;
+      return true;
+    }
+  }
+
+  private TestService service;
+  private ScreenStateMonitor screenStateMonitor;
   private AccessibilityFocusActionHistory history;
   private FocusManagerInternal focusManager;
   private final AtomicInteger listenerCalls = new AtomicInteger();
 
   @Before
   public void setUp() {
-    TestService service = Robolectric.setupService(TestService.class);
+    service = Robolectric.setupService(TestService.class);
     history = new AccessibilityFocusActionHistory(service);
     FocusFinder focusFinder = new FocusFinder(service);
-    ScreenStateMonitor screenStateMonitor =
+    screenStateMonitor =
         new ScreenStateMonitor(service, new InputMethodMonitor(service));
     focusManager =
         new FocusManagerInternal(
@@ -86,6 +116,20 @@ public class FocusManagerInternalTest {
     listenerCalls.set(0);
     focusManager.setFocusSetListener(
         (node, info, eventId, actionTime) -> listenerCalls.incrementAndGet());
+  }
+
+  /**
+   * Drives the screen state stable with a window change that started long ago, so {@link
+   * FocusManagerInternal#ensureAccessibilityFocusOnScreen} reaches its focus checks instead of
+   * returning on the not-stable-yet guard.
+   */
+  private void driveStableScreenState() {
+    WindowEventInterpreter.EventInterpretation interpretation =
+        new WindowEventInterpreter.EventInterpretation();
+    interpretation.setMainWindowsChanged(true);
+    interpretation.setWindowsStable(true);
+    interpretation.setEventStartTime(SystemClock.uptimeMillis() - 10_000);
+    screenStateMonitor.handle(interpretation, null);
   }
 
   private static AccessibilityNodeInfoCompat node() {
@@ -138,5 +182,41 @@ public class FocusManagerInternalTest {
     shadowOf(Looper.getMainLooper()).idle();
 
     assertNotNull(history.matchFocusActionRecordFromEvent(focusedEvent));
+  }
+
+  @Test
+  public void ensureFocusOnScreen_restoresFocusWhenNothingRecordsOrHolds() {
+    driveStableScreenState();
+
+    assertTrue(focusManager.ensureAccessibilityFocusOnScreen(null));
+  }
+
+  @Test
+  public void ensureFocusOnScreen_leavesFocusAloneWhileMicrophoneInUse() {
+    driveStableScreenState();
+    LowLatencyAudio.setMicrophoneInUse(true);
+    try {
+      assertFalse(focusManager.ensureAccessibilityFocusOnScreen(null));
+    } finally {
+      LowLatencyAudio.setMicrophoneInUse(false);
+    }
+  }
+
+  @Test
+  public void ensureFocusOnScreen_leavesFocusAloneWhileTouchPassedToApp() {
+    driveStableScreenState();
+    TouchInteractionMonitor monitor = new TouchInteractionMonitor(service);
+    monitor.start();
+    try {
+      TouchShadow shadow =
+          Shadow.extract(service.getTouchInteractionController(Display.DEFAULT_DISPLAY));
+      shadow.callback.onStateChanged(TouchInteractionController.STATE_DELEGATING);
+      assertFalse(focusManager.ensureAccessibilityFocusOnScreen(null));
+
+      shadow.callback.onStateChanged(TouchInteractionController.STATE_CLEAR);
+      assertTrue(focusManager.ensureAccessibilityFocusOnScreen(null));
+    } finally {
+      monitor.stop();
+    }
   }
 }
