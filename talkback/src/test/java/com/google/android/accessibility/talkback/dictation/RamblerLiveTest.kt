@@ -141,7 +141,24 @@ class RamblerLiveTest {
     private fun send(output: OutputStream, text: String, binary: Boolean = false) {
       val data = text.toByteArray()
       output.write(if (binary) 0x82 else 0x81)
-      output.write(data.size)
+      // RFC 6455 §5.2: a single length byte only holds payloads up to 125 bytes. Longer
+      // payloads need the 126 marker plus a 2-byte big-endian length (127 plus 8 bytes
+      // above 65535). Writing the size as one byte made every payload over 125 bytes
+      // look like a masked server frame, which the client rejects as a protocol error
+      // and which kills the whole session instead of just losing one message.
+      when {
+        data.size < 126 -> output.write(data.size)
+        data.size < 65536 -> {
+          output.write(126)
+          output.write(data.size shr 8)
+          output.write(data.size)
+        }
+        else -> {
+          output.write(127)
+          val size = data.size.toLong()
+          for (shift in 56 downTo 0 step 8) output.write((size shr shift).toInt())
+        }
+      }
       output.write(data)
       output.flush()
     }
