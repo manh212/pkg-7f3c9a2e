@@ -95,17 +95,27 @@
     <string name="script_homepage_open">Mở</string>
     <string name="script_homepage_failed">Không có ứng dụng nào mở được <xliff:g id="address">%1$s</xliff:g></string>
     <string name="script_turned_off">Đã tắt <xliff:g id="name">%1$s</xliff:g> sau nhiều lần gặp lỗi. Hãy xem nhật ký của tập lệnh này trong mục Tập lệnh.</string>
+    <!-- Spoken when a command is run for a script that isn't running. [CHAR_LIMIT=NONE] -->
+    <string name="script_command_not_running">Lệnh tập lệnh đó chưa chạy</string>
     <string name="shortcut_inspect_item">Kiểm tra mục đang có tiêu điểm</string>
     <string name="script_inspect_no_item">Không có mục nào có tiêu điểm</string>
-    <string name="script_inspect_copied">Đã sao chép. <xliff:g id="details">%1$s</xliff:g></string>
-    <string name="script_inspect_no_id">Không có mã nhận dạng nên các quy tắc không thể gọi tên mục này. Đã sao chép. <xliff:g id="details">%1$s</xliff:g></string>
     <string name="shortcut_copy_screen_tree">Sao chép cây màn hình</string>
     <string name="script_tree_copied">Đã sao chép <xliff:g id="count">%1$d</xliff:g> mục</string>
     <string name="script_tree_none">Không có cửa sổ nào để sao chép</string>
     <string name="script_tree_clip_label">Cây màn hình</string>
     <string name="summary_copy_screen_tree_menu">Sao chép tất cả các mục trên màn hình dưới dạng JSON, để viết tập lệnh</string>
     <string name="script_inspect_clip_label">Chi tiết mục</string>
-    <string name="summary_inspect_item_menu">Đọc và sao chép chi tiết của mục bạn vừa chọn, để viết tập lệnh</string>
+    <string name="summary_inspect_item_menu">Hiển thị chi tiết của mục bạn vừa chọn, để viết tập lệnh</string>
+    <string name="shortcut_copy_item_details">Sao chép chi tiết mục</string>
+    <string name="item_details_copied_all">Đã sao chép chi tiết mục</string>
+    <string name="item_details_copied">Đã sao chép</string>
+    <string name="item_details_copy_all">Sao chép tất cả</string>
+    <string name="item_details_texts">Văn bản</string>
+    <string name="item_details_types">Loại mục</string>
+    <string name="item_details_inside">Các mục bên trong</string>
+    <string name="item_details_script">Chi tiết tập lệnh</string>
+    <string name="item_details_app">Ứng dụng</string>
+    <string name="item_details_no_id">Không có mã nhận dạng nên các quy tắc tập lệnh không thể gọi tên mục này</string>
     <string name="script_keys_backtalk_modifier">Phím bổ trợ Meridian</string>
     <string name="script_keys_then"><xliff:g id="first">%1$s</xliff:g>, rồi <xliff:g id="second">%2$s</xliff:g></string>
     <string name="script_commands_category">Lệnh</string>

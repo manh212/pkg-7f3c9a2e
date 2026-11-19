@@ -210,6 +210,54 @@
   <string name="voice_call_confirm_title">Gọi số này?</string>
   <string name="voice_call_action">Gọi</string>
   <string name="voice_call_no_permission">Chưa được cấp quyền gọi điện, đã mở trình quay số.</string>
+  <!-- The phrases that start a voice command sending a message. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_prefixes">nhắn cho,nhắn,nhắn tin cho,nhắn tin,gửi tin nhắn cho,gửi tin nhắn,gửi tin cho,gửi tin</string>
+  <!-- The phrases that start a voice command sending a description of the screen. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_describe_screen_prefixes">gửi mô tả màn hình cho,gửi mô tả màn hình</string>
+  <!-- The phrases that start a voice command sending a description of the focused image. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_describe_image_prefixes">gửi mô tả ảnh cho,gửi mô tả ảnh</string>
+  <!-- The words that join a messaging app to a message command: "qua Zalo". [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_connectors">qua,bằng</string>
+  <!-- The name of Zalo in a message command. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_zalo">zalo</string>
+  <!-- The name of WhatsApp in a message command. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_whatsapp">whatsapp</string>
+  <!-- The names of SMS in a message command. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_sms">sms,tin nhắn</string>
+  <!-- The word between the recipient and the text of a message: "nhắn cho An rằng ...". [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_text_separator">rằng</string>
+  <!-- Asks for the text of a message whose recipient is known. name is the recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_ask_text">Nhắn gì cho <xliff:g id="name">%1$s</xliff:g>?</string>
+  <!-- Asks whether to send a message, reading it back. name is the recipient, text is the message. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_confirm">Gửi tin nhắn cho <xliff:g id="name">%1$s</xliff:g> với nội dung: <xliff:g id="text">%2$s</xliff:g>?</string>
+  <!-- Asks whether to send a description. name is the recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_confirm_description">Gửi mô tả này cho <xliff:g id="name">%1$s</xliff:g>?</string>
+  <!-- Spoken when a message was sent. name is the recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_sent">Đã gửi tin nhắn cho <xliff:g id="name">%1$s</xliff:g></string>
+  <!-- Spoken when a message was not sent. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_not_sent">Chưa gửi tin nhắn</string>
+  <!-- Spoken when a message command names no recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_recipient">Chưa nghe rõ gửi tin nhắn cho ai</string>
+  <!-- Spoken when no contact has the name said. name is the name said. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_contact">Không có liên hệ tên <xliff:g id="name">%1$s</xliff:g></string>
+  <!-- Spoken when several contacts share the name said. name is the name, names are the contacts. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_contacts_several">Có nhiều liên hệ tên <xliff:g id="name">%1$s</xliff:g>: <xliff:g id="names">%2$s</xliff:g>. Hãy nói đầy đủ họ tên.</string>
+  <!-- Spoken when messaging a contact by name needs the contacts permission first. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_contacts_permission">Để nhắn tin cho một liên hệ bằng tên, hãy cho phép Meridian đọc danh bạ trước.</string>
+  <!-- Spoken when the messaging app named in a message command isn't installed. name is the app. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_app">Chưa cài ứng dụng <xliff:g id="name">%1$s</xliff:g></string>
+  <!-- Spoken when no app can send a message. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_app_for_action">Không có ứng dụng nào gửi được tin nhắn này</string>
+  <!-- Spoken when a screen could not be described for sending. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_description">Không mô tả được màn hình này</string>
+  <!-- Spoken when an image could not be described for sending. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_description_image">Không mô tả được ảnh này</string>
+  <!-- The label of the Send button of a messaging app, in the language of its interface. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_send_button">Gửi</string>
+  <!-- The hint of Zalo's message box, in the language of its interface. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_zalo_input_hint">Nhắn tin</string>
+  <!-- Spoken when a Zalo chat is open but its message box could not be found. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_input">Không tìm thấy ô nhập tin nhắn. Nội dung đã chép vào bộ nhớ tạm.</string>
   <string name="voice_param_media_volume_value">Âm lượng nhạc: %1$d%%</string>
   <string name="voice_phrase_create_openers">tạo lệnh mới,thêm lệnh mới,đặt lệnh mới</string>
   <string name="voice_phrase_set_prefixes">đặt lệnh,gán lệnh,tạo lệnh</string>

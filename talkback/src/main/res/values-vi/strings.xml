@@ -378,6 +378,8 @@
   <string name="shortcut_not_customizable">%1$s, không tùy chỉnh được</string>
   <string name="shortcut_next">Mục tiếp theo</string>
   <string name="shortcut_previous">Mục trước</string>
+  <string name="shortcut_move_to_item_below">Điều hướng dọc xuống</string>
+  <string name="shortcut_move_to_item_above">Điều hướng dọc lên</string>
   <string name="shortcut_scroll_forward">Di chuyển về phía trước</string>
   <string name="shortcut_scroll_back">Cuộn lùi</string>
   <string name="shortcut_scroll_up">Di chuyển lên</string>
@@ -397,6 +399,9 @@
   <string name="shortcut_talkback_breakout">Mở trình đơn Meridian</string>
   <string name="shortcut_pause_or_resume_feedback">Tạm dừng hoặc tiếp tục giọng nói</string>
   <string name="shortcut_toggle_voice_feedback">Bật hoặc tắt giọng nói</string>
+  <string name="shortcut_toggle_focus_text_inside_items">Chế độ tiêu điểm chi tiết</string>
+  <string name="focus_text_inside_items_now_on">Đã bật chế độ tiêu điểm chi tiết</string>
+  <string name="focus_text_inside_items_now_off">Đã tắt chế độ tiêu điểm chi tiết</string>
   <string name="shortcut_read_from_top">Đọc từ trên cùng</string>
   <string name="shortcut_read_from_current">Đọc từ mục được đặt tiêu điểm</string>
   <string name="shortcut_print_node_tree">In cây nút</string>
@@ -430,6 +435,9 @@
   <string name="shortcut_clear_all_text">Xóa tất cả nội dung trong ô nhập liệu</string>
   <string name="shortcut_direct_tap">Nhấn trực tiếp</string>
   <string name="shortcut_take_screenshot">Chụp màn hình</string>
+  <string name="shortcut_answer_call">Trả lời cuộc gọi</string>
+  <string name="answer_call_no_call">Không có cuộc gọi đến</string>
+  <string name="answer_call_permission">Cần quyền để trả lời cuộc gọi</string>
   <string name="shortcut_toggle_touch_exploration">Bật hoặc tắt duyệt bằng cách chạm</string>
   <string name="copy_focused_nothing_to_copy">Không có gì để sao chép</string>
   <string name="touch_exploration_on">Đã bật duyệt bằng cách chạm</string>
@@ -511,6 +519,7 @@
   <string name="speech_history_empty">Chưa có lịch sử câu đã nói</string>
   <string name="title_clipboard_history">Lịch sử bộ nhớ tạm</string>
   <string name="clipboard_history_empty">Chưa có lịch sử bộ nhớ tạm</string>
+  <string name="clipboard_history_hint">Vuốt lên hoặc xuống để chọn, rồi nhấn đúp để dán</string>
   <string name="title_custom_action">Thao tác</string>
   <string name="title_show_hide_screen">Ẩn hoặc hiện màn hình</string>
   <string name="title_control_speak_time">Đọc to thời gian</string>
@@ -735,7 +744,6 @@
   <string name="end_of_page">Không có %1$s tiếp theo</string>
   <string name="search_start_of_page">Không có kết quả trước trên trang này</string>
   <string name="search_end_of_page">Không có kết quả tiếp theo trên trang này</string>
-  <string name="web_granularity_not_supported">Chỉ hỗ trợ %1$s trên trang web</string>
   <string name="native_granularity_not_supported">Chỉ hỗ trợ %1$s trên trang gốc</string>
   <string name="display_name_container">vùng chứa</string>
   <string name="display_name_window">cửa sổ</string>

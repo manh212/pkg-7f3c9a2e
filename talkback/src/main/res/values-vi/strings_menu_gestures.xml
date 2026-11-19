@@ -38,6 +38,7 @@
   <string name="menu_gesture_window_menu">Mở danh sách thao tác hệ thống</string>
   <string name="menu_gesture_inspect_item">Kiểm tra mục hiện tại</string>
   <string name="menu_gesture_copy_screen_tree">Sao chép cấu trúc màn hình</string>
+  <string name="menu_gesture_copy_item_details">Sao chép chi tiết mục</string>
   <string name="menu_gesture_enable_telling_time">Bật hoặc tắt đọc giờ tự động</string>
   <string name="menu_gesture_disable_telling_time">Bật hoặc tắt đọc giờ tự động</string>
   <string name="menu_gesture_text_statistics_menu">Thống kê văn bản</string>

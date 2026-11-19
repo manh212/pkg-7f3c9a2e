@@ -9,6 +9,8 @@
   <string name="shortcut_previous_gesture_profile">Hồ sơ cử chỉ trước</string>
   <string name="shortcut_next_gesture_profile">Hồ sơ cử chỉ tiếp theo</string>
   <string name="shortcut_use_gesture_profile">Dùng hồ sơ cử chỉ %1$s</string>
+  <string name="shortcut_use_voice_profile">Dùng hồ sơ giọng nói %1$s</string>
+  <string name="voice_profile_command_deleted">Hồ sơ đã bị xóa</string>
   <string name="title_pref_gesture_profile_in_use">Hồ sơ cử chỉ đang dùng</string>
   <string name="title_pref_add_gesture_profile">Thêm hồ sơ cử chỉ</string>
   <string name="gesture_profile_new_name">Hồ sơ cử chỉ %1$d</string>
