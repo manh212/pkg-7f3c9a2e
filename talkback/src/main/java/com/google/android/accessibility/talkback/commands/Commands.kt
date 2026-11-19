@@ -31,11 +31,14 @@ import com.google.android.accessibility.talkback.gesture.TapTextActions
 import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboardShortcut
 import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboardShortcut as Key
 import com.google.android.accessibility.talkback.sandflyai.SandflyAi
+import com.google.android.accessibility.talkback.selector.SelectorController.Setting
+import com.google.android.accessibility.talkback.speech.VoiceProfileNames
 import com.google.android.accessibility.talkback.utils.TalkbackFeatureSupport
 import com.google.android.accessibility.utils.FeatureSupport
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SettingsUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.VoiceProfiles
 
 /**
  * Every command that a gesture or a keyboard shortcut can run, in one list.
@@ -73,6 +76,47 @@ object Commands {
 
   /** Returns the key combo model key for the keyboard shortcut of the command saved as [value]. */
   @JvmStatic fun shortcutKey(value: String): String = SHORTCUT_KEY_PREFIX + value
+
+  /** Prefix of the value of a command that changes one reading control without selecting it. */
+  const val READING_CONTROL_VALUE_PREFIX = "READING_CONTROL_VALUE:"
+
+  private const val READING_CONTROL_NEXT_SUFFIX = ":NEXT"
+  private const val READING_CONTROL_PREVIOUS_SUFFIX = ":PREVIOUS"
+
+  /**
+   * Reading controls with next and previous value commands. Media volume is not one: it has its
+   * own increase and decrease commands.
+   */
+  private val READING_CONTROL_VALUE_SETTINGS: List<Pair<Setting, Int>> =
+    listOf(
+      Setting.CALL_VOLUME to R.string.quick_settings_call_volume,
+      Setting.RING_VOLUME to R.string.quick_settings_ring_volume,
+      Setting.NOTIFICATION_VOLUME to R.string.quick_settings_notification_volume,
+      Setting.ALARM_VOLUME to R.string.quick_settings_alarm_volume,
+    )
+
+  /** The value of the command that sets the next (or previous) value of [setting]. */
+  @JvmStatic
+  fun readingControlValue(setting: Setting, next: Boolean): String =
+    READING_CONTROL_VALUE_PREFIX +
+      setting.name +
+      if (next) READING_CONTROL_NEXT_SUFFIX else READING_CONTROL_PREVIOUS_SUFFIX
+
+  /** The reading control the command saved as [value] changes, or null for other commands. */
+  @JvmStatic
+  fun readingControlSettingOf(value: String): Setting? {
+    if (!value.startsWith(READING_CONTROL_VALUE_PREFIX)) return null
+    val name =
+      value
+        .removePrefix(READING_CONTROL_VALUE_PREFIX)
+        .removeSuffix(READING_CONTROL_NEXT_SUFFIX)
+        .removeSuffix(READING_CONTROL_PREVIOUS_SUFFIX)
+    return READING_CONTROL_VALUE_SETTINGS.firstOrNull { it.first.name == name }?.first
+  }
+
+  /** Whether the command saved as [value] sets the next value. */
+  @JvmStatic
+  fun isReadingControlNext(value: String): Boolean = value.endsWith(READING_CONTROL_NEXT_SUFFIX)
 
   /** Returns the command value kept under a key combo model [key], or null for other keys. */
   @JvmStatic
@@ -159,6 +203,12 @@ object Commands {
     gestureProfileLabel(context, value)?.let {
       return Command(value, it, keyboardAction = null)
     }
+    voiceProfileLabel(context, value)?.let {
+      return Command(value, it, keyboardAction = null)
+    }
+    scriptCommandLabel(context, value)?.let {
+      return Command(value, it, keyboardAction = null)
+    }
     categoriesWithoutApps(context).forEach { category ->
       category.commands.firstOrNull { it.value == value }?.let {
         return it
@@ -182,11 +232,17 @@ object Commands {
     gestureProfileLabel(context, value)?.let {
       return it
     }
+    voiceProfileLabel(context, value)?.let {
+      return it
+    }
     NavigationGestureActions.label(context, value)?.let {
       return it
     }
     keyboardActionOf(context, value)?.let {
       return it.getDescription(context.resources)
+    }
+    scriptCommandLabel(context, value)?.let {
+      return it
     }
     return find(context, value)?.label
   }
@@ -194,6 +250,16 @@ object Commands {
   private fun gestureProfileLabel(context: Context, value: String): String? =
     if (GestureProfiles.isAction(value)) {
       GestureProfiles.label(context, SharedPreferencesUtils.getSharedPreferences(context), value)
+    } else {
+      null
+    }
+
+  private fun voiceProfileLabel(context: Context, value: String): String? =
+    VoiceProfileNames.commandLabel(context, SharedPreferencesUtils.getSharedPreferences(context), value)
+
+  private fun scriptCommandLabel(context: Context, value: String): String? =
+    if (ScriptCommands.isCommand(value)) {
+      ScriptHostFactory.commands(context, all = true).firstOrNull { it.value == value }?.label
     } else {
       null
     }
@@ -235,6 +301,7 @@ object Commands {
       reading()
       speech()
       readingControls()
+      settingValues()
       textEditing()
       device()
       media()
@@ -244,7 +311,9 @@ object Commands {
       developer()
       missingGestureActions()
       if (withApps) {
+        scripts()
         gestureProfiles()
+        voiceProfiles()
         openApp()
       }
       return categories
@@ -312,6 +381,8 @@ object Commands {
           R.string.shortcut_previous,
           Key.NAVIGATE_PREVIOUS_DEFAULT,
         )
+        gesture(R.string.shortcut_value_move_to_item_below, R.string.shortcut_move_to_item_below)
+        gesture(R.string.shortcut_value_move_to_item_above, R.string.shortcut_move_to_item_above)
         keyboard(Key.NAVIGATE_NEXT)
         keyboard(Key.NAVIGATE_PREVIOUS)
         keyboard(Key.NAVIGATE_BELOW)
@@ -347,6 +418,10 @@ object Commands {
           Key.NAVIGATE_PREVIOUS_WINDOW,
         )
         keyboard(Key.REFOCUS_CURRENT_NODE)
+        gesture(
+          R.string.shortcut_value_toggle_focus_text_inside_items,
+          R.string.shortcut_toggle_focus_text_inside_items,
+        )
       }
 
     private fun activation() =
@@ -668,6 +743,28 @@ object Commands {
         keyboard(Key.PREVIOUS_NAVIGATION_SETTING)
       }
 
+    private fun settingValues() =
+      category(R.string.commands_category_setting_values) {
+        if (wear) return@category
+        for ((setting, titleRes) in READING_CONTROL_VALUE_SETTINGS) {
+          val title = context.getString(titleRes)
+          commands.add(
+            Command(
+              readingControlValue(setting, next = true),
+              context.getString(R.string.command_next_value, title),
+              null,
+            )
+          )
+          commands.add(
+            Command(
+              readingControlValue(setting, next = false),
+              context.getString(R.string.command_previous_value, title),
+              null,
+            )
+          )
+        }
+      }
+
     private fun textEditing() =
       category(R.string.shortcut_title_text_editing) {
         gesture(
@@ -712,6 +809,7 @@ object Commands {
         gesture(R.string.shortcut_value_home, R.string.shortcut_home, Key.HOME)
         gesture(R.string.shortcut_value_back, R.string.shortcut_back, Key.BACK)
         gesture(R.string.shortcut_value_overview, R.string.shortcut_overview, Key.RECENT_APPS)
+        gesture(R.string.shortcut_value_answer_call, R.string.shortcut_answer_call)
         gesture(
           R.string.shortcut_value_notifications,
           R.string.shortcut_notifications,
@@ -855,6 +953,15 @@ object Commands {
           R.string.shortcut_value_previous_gesture_profile,
           R.string.shortcut_previous_gesture_profile,
         )
+        gesture(R.string.shortcut_value_settings_profiles, R.string.shortcut_settings_profiles)
+        gesture(
+          R.string.shortcut_value_next_settings_profile,
+          R.string.shortcut_next_settings_profile,
+        )
+        gesture(
+          R.string.shortcut_value_previous_settings_profile,
+          R.string.shortcut_previous_settings_profile,
+        )
         gesture(R.string.shortcut_value_toggle_arrow_key_nav, R.string.arrow_key_nav_toggle)
         gesture(R.string.shortcut_value_toggle_scripts, R.string.shortcut_toggle_scripts)
         gesture(R.string.shortcut_value_turn_off_sandfly, R.string.turn_off_talkback)
@@ -876,6 +983,7 @@ object Commands {
       category(R.string.title_pref_category_developer_settings) {
         val prefs = SharedPreferencesUtils.getSharedPreferences(context)
         gesture(R.string.shortcut_value_inspect_item, R.string.shortcut_inspect_item)
+        gesture(R.string.shortcut_value_copy_item_details, R.string.shortcut_copy_item_details)
         gesture(R.string.shortcut_value_copy_screen_tree, R.string.shortcut_copy_screen_tree)
         gesture(
           R.string.shortcut_value_print_node_tree,
@@ -895,6 +1003,13 @@ object Commands {
         )
       }
 
+    private fun scripts() =
+      category(R.string.title_pref_scripts) {
+        for (entry in ScriptHostFactory.commands(context, all = false)) {
+          commands.add(Command(entry.value, entry.label, keyboardAction = null))
+        }
+      }
+
     private fun gestureProfiles() =
       category(R.string.title_pref_gesture_profiles) {
         val prefs = SharedPreferencesUtils.getSharedPreferences(context)
@@ -908,6 +1023,20 @@ object Commands {
               keyboardAction = null,
             )
           )
+        }
+      }
+
+    private fun voiceProfiles() =
+      category(R.string.title_pref_voice_profiles) {
+        val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+        // Without a profile, the default is the only choice and changes nothing.
+        if (VoiceProfiles.ids(prefs).isEmpty()) return@category
+        val ids = listOf("") + VoiceProfiles.ids(prefs)
+        for (id in ids) {
+          val label = VoiceProfileNames.commandLabel(context, prefs, VoiceProfileNames.commandOf(id))
+          if (label != null) {
+            commands.add(Command(VoiceProfileNames.commandOf(id), label, keyboardAction = null))
+          }
         }
       }
 
