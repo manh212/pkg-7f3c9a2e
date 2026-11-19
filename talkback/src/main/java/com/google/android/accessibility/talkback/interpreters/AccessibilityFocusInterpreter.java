@@ -107,16 +107,22 @@ public class AccessibilityFocusInterpreter
 
   private final Handler handler = new Handler(Looper.getMainLooper());
 
-  private long webScrollTouchStart = -1;
+  /** Tells the user's scroll of web content from the scrolls the page makes in response. */
+  private final WebScrollSource webScrollSource = new WebScrollSource();
 
-  private @Nullable AccessibilityNodeInfoCompat webScrolled;
-
-  private boolean webScrolledSideways;
-
+  /** The last scroll event of the user's scroll of web content. */
   private @Nullable ManualScrollInterpretation webScroll;
 
+  /**
+   * Whether the page scrolled a strip that holds the focus and scrolls only sideways, after the
+   * user scrolled other content.
+   */
   private boolean pageScrolledFocusStrip;
 
+  /**
+   * The last strip of web content, scrolling only sideways, that the page scrolled while the user
+   * scrolled other content, such as category tabs fixed below a page header.
+   */
   private @Nullable AccessibilityNodeInfoCompat webStrip;
 
   private @Nullable ManualScrollInterpretation pendingManualScroll;
@@ -125,9 +131,11 @@ public class AccessibilityFocusInterpreter
         @Override
         public void run() {
           ManualScrollInterpretation interpretation = pendingManualScroll;
+          // A strip can still be moving from the page's last scroll when the user starts the next
+          // one, so wait for the user's scroll until the fingers leave the screen.
           if (interpretation != null
               && interpretation == webScroll
-              && webScrolledSideways
+              && webScrollSource.userScrollIsSideways()
               && touchMonitor.isUserTouchingScreen()) {
             handler.postDelayed(this, MANUAL_SCROLL_SETTLE_MS);
             return;
@@ -271,29 +279,28 @@ public class AccessibilityFocusInterpreter
     if (scrolled == null || !WebScrollFocus.isWebContent(scrolled)) {
       return false;
     }
-    long touchStart = touchMonitor.getTouchStartTime();
-    boolean sideways = WebScrollFocus.scrollsOnlySideways(scrolled);
-    if (touchStart != webScrollTouchStart
-        || webScrolled == null
-        || (webScrolledSideways && !sideways && !scrolled.equals(webScrolled))) {
-      webScrollTouchStart = touchStart;
-      webScrolled = scrolled;
-      webScrolledSideways = sideways;
+    @WebScrollSource.Kind
+    int kind = webScrollSource.onScroll(scrolled, touchMonitor.getTouchStartTime());
+    if (kind == WebScrollSource.USER_START) {
       webScroll = null;
-    }
-    if (sideways && !webScrolledSideways && !scrolled.equals(webScrolled)) {
+    } else if (kind == WebScrollSource.PAGE_SIDEWAYS && !webScrollSource.userScrollIsSideways()) {
       webStrip = scrolled;
     }
-    if (scrolled.equals(webScrolled)) {
+    if (kind == WebScrollSource.USER_START || kind == WebScrollSource.USER) {
+      // Copy the event, because the framework may recycle it after dispatch.
       webScroll =
           ManualScrollInterpretation.create(
               interpretation.eventId(),
               AccessibilityEvent.obtain(interpretation.event()),
               interpretation.direction(),
               interpretation.scrolledHoldsFocus());
-    } else if (webScroll != null && interpretation.scrolledHoldsFocus() && sideways) {
+    } else if (webScroll != null
+        && interpretation.scrolledHoldsFocus()
+        && kind == WebScrollSource.PAGE_SIDEWAYS) {
+      // The page moved the strip that holds the focus. Check the user's scroll again.
       pageScrolledFocusStrip = true;
     } else {
+      // Another scroll that the page made, which leaves the focus where it was.
       return true;
     }
     pendingManualScroll = webScroll;
@@ -553,7 +560,6 @@ public class AccessibilityFocusInterpreter
     cancelWebFocusRecovery();
     pendingManualScroll = null;
     webScroll = null;
-    webScrolled = null;
     webStrip = null;
     pageScrolledFocusStrip = false;
   }
