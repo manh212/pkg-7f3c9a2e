@@ -4,8 +4,19 @@
   <bool tools:ignore="MissingTranslation" name="pref_selector_auto_translation_default">false</bool>
   <string tools:ignore="MissingTranslation" name="pref_selector_auto_translation_key" translatable="false">pref_selector_auto_translation_key</string>
   <bool tools:ignore="MissingTranslation" name="pref_selector_sound_mode_default">false</bool>
+  <bool tools:ignore="MissingTranslation" name="pref_selector_stream_volume_default">false</bool>
   <string tools:ignore="MissingTranslation" name="pref_selector_sound_mode_key" translatable="false">pref_selector_sound_mode_key</string>
+  <string tools:ignore="MissingTranslation" name="pref_selector_media_volume_key" translatable="false">pref_selector_media_volume_key</string>
+  <string tools:ignore="MissingTranslation" name="pref_selector_call_volume_key" translatable="false">pref_selector_call_volume_key</string>
+  <string tools:ignore="MissingTranslation" name="pref_selector_ring_volume_key" translatable="false">pref_selector_ring_volume_key</string>
+  <string tools:ignore="MissingTranslation" name="pref_selector_notification_volume_key" translatable="false">pref_selector_notification_volume_key</string>
+  <string tools:ignore="MissingTranslation" name="pref_selector_alarm_volume_key" translatable="false">pref_selector_alarm_volume_key</string>
   <string tools:ignore="MissingTranslation" name="selector_auto_translation" translatable="false">SELECTOR_AUTO_TRANSLATION</string>
   <string tools:ignore="MissingTranslation" name="selector_sound_mode" translatable="false">SELECTOR_SOUND_MODE</string>
+  <string tools:ignore="MissingTranslation" name="selector_media_volume" translatable="false">SELECTOR_MEDIA_VOLUME</string>
+  <string tools:ignore="MissingTranslation" name="selector_call_volume" translatable="false">SELECTOR_CALL_VOLUME</string>
+  <string tools:ignore="MissingTranslation" name="selector_ring_volume" translatable="false">SELECTOR_RING_VOLUME</string>
+  <string tools:ignore="MissingTranslation" name="selector_notification_volume" translatable="false">SELECTOR_NOTIFICATION_VOLUME</string>
+  <string tools:ignore="MissingTranslation" name="selector_alarm_volume" translatable="false">SELECTOR_ALARM_VOLUME</string>
   <string tools:ignore="MissingTranslation" name="sound_mode_needs_access">Cấp quyền truy cập Không làm phiền để bật hoặc tắt Tắt tiếng.</string>
 </resources>

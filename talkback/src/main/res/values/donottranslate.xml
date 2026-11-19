@@ -20,6 +20,15 @@
     <string name="pref_dev_builds_key" translatable="false">pref_dev_builds</string>
     <string name="pref_export_settings_key" translatable="false">pref_export_settings</string>
     <string name="pref_import_settings_key" translatable="false">pref_import_settings</string>
+    <string name="pref_backup_item_settings_key" translatable="false">pref_backup_item_settings</string>
+    <string name="pref_backup_item_editor_documents_key" translatable="false">pref_backup_item_editor_documents</string>
+    <string name="pref_backup_item_custom_labels_key" translatable="false">pref_backup_item_custom_labels</string>
+    <string name="pref_backup_item_clipboard_history_key" translatable="false">pref_backup_item_clipboard_history</string>
+    <string name="pref_backup_item_favorite_texts_key" translatable="false">pref_backup_item_favorite_texts</string>
+    <string name="pref_backup_item_timer_sounds_key" translatable="false">pref_backup_item_timer_sounds</string>
+    <string name="pref_backup_item_key_sounds_key" translatable="false">pref_backup_item_key_sounds</string>
+    <string name="pref_backup_item_sound_themes_key" translatable="false">pref_backup_item_sound_themes</string>
+    <string name="pref_backup_item_scripts_key" translatable="false">pref_backup_item_scripts</string>
     <string name="pref_notification_list_key">pref_notification_list</string>
     <string name="pref_notification_parts_key">pref_notification_parts</string>
     <string name="pref_play_installer_key">pref_play_installer</string>
@@ -376,6 +385,7 @@
     <string name="pref_selector_granularity_search_key">pref_selector_granularity_search_key</string>
     <string name="pref_selector_special_widget_key" translatable="false">pref_selector_special_widget_key</string>
     <string name="pref_selector_granularity_typo_key" translatable="false">pref_selector_granularity_typo_key</string>
+    <string name="pref_selector_clipboard_history_key" translatable="false">pref_selector_clipboard_history_key</string>
     <string name="pref_selector_granularity_row_column_key" translatable="false">pref_selector_granularity_row_column_key</string>
     <string name="pref_selector_granularity_row_key" translatable="false">pref_selector_granularity_row_key</string>
     <string name="pref_selector_granularity_column_key" translatable="false">pref_selector_granularity_column_key</string>
@@ -1040,6 +1050,8 @@
         <item>@string/shortcut_perform_long_click_action</item>
         <item>@string/shortcut_previous</item>
         <item>@string/shortcut_next</item>
+        <item>@string/shortcut_move_to_item_above</item>
+        <item>@string/shortcut_move_to_item_below</item>
         <item>@string/shortcut_first_in_screen</item>
         <item>@string/shortcut_last_in_screen</item>
         <item>@string/shortcut_prev_container</item>
@@ -1060,6 +1072,8 @@
         <item>@string/shortcut_value_perform_long_click_action</item>
         <item>@string/shortcut_value_previous</item>
         <item>@string/shortcut_value_next</item>
+        <item>@string/shortcut_value_move_to_item_above</item>
+        <item>@string/shortcut_value_move_to_item_below</item>
         <item>@string/shortcut_value_first_in_screen</item>
         <item>@string/shortcut_value_last_in_screen</item>
         <item>@string/shortcut_value_prev_container</item>
@@ -1086,6 +1100,7 @@
         <item>@string/shortcut_lock_screen</item>
         <item>@string/shortcut_power_menu</item>
         <item>@string/shortcut_take_screenshot</item>
+        <item>@string/shortcut_answer_call</item>
     </string-array>
 
     <!-- Shortcut preference value of system actions -->
@@ -1100,6 +1115,7 @@
         <item>@string/shortcut_value_lock_screen</item>
         <item>@string/shortcut_value_power_menu</item>
         <item>@string/shortcut_value_take_screenshot</item>
+        <item>@string/shortcut_value_answer_call</item>
     </string-array>
 
     <!-- Shortcut preference of reading control -->
@@ -1188,6 +1204,8 @@
   <string name="shortcut_value_unassigned">UNASSIGNED</string>
   <string name="shortcut_value_previous">PREVIOUS</string>
   <string name="shortcut_value_next">NEXT</string>
+  <string name="shortcut_value_move_to_item_below" translatable="false">MOVE_TO_ITEM_BELOW</string>
+  <string name="shortcut_value_move_to_item_above" translatable="false">MOVE_TO_ITEM_ABOVE</string>
   <string name="shortcut_value_back">BACK</string>
   <string name="shortcut_value_first_in_screen">FIRST_IN_SCREEN</string>
   <string name="shortcut_value_voice_commands">VOICE_COMMANDS</string>
@@ -1298,8 +1316,10 @@
   <string name="shortcut_value_announce_battery_state" translatable="false">ANNOUNCE_BATTERY_STATE</string>
   <string name="shortcut_value_announce_status" translatable="false">ANNOUNCE_STATUS</string>
   <string name="shortcut_value_inspect_item" translatable="false">INSPECT_ITEM</string>
+  <string name="shortcut_value_copy_item_details" translatable="false">COPY_ITEM_DETAILS</string>
   <string name="shortcut_value_copy_screen_tree" translatable="false">COPY_SCREEN_TREE</string>
   <string name="shortcut_value_toggle_scripts" translatable="false">TOGGLE_SCRIPTS</string>
+  <string name="shortcut_value_toggle_focus_text_inside_items" translatable="false">TOGGLE_FOCUS_TEXT_INSIDE_ITEMS</string>
   <string name="shortcut_value_announce_current_title" translatable="false">ANNOUNCE_CURRENT_TITLE</string>
   <string name="shortcut_value_repeat_last_spoken_phrase" translatable="false">REPEAT_LAST_SPOKEN_PHRASE</string>
   <string name="shortcut_value_spell_last_spoken_phrase" translatable="false">SPELL_LAST_SPOKEN_PHRASE</string>
@@ -1310,6 +1330,7 @@
   <string name="shortcut_value_clear_all_text" translatable="false">CLEAR_ALL_TEXT</string>
   <string name="shortcut_value_direct_tap" translatable="false">DIRECT_TAP</string>
   <string name="shortcut_value_take_screenshot" translatable="false">TAKE_SCREENSHOT</string>
+  <string name="shortcut_value_answer_call" translatable="false">ANSWER_CALL</string>
   <string name="shortcut_value_toggle_touch_exploration" translatable="false">TOGGLE_TOUCH_EXPLORATION</string>
   <string name="shortcut_value_monitor_focus" translatable="false">MONITOR_FOCUS</string>
   <string name="shortcut_value_auto_translate" translatable="false">AUTO_TRANSLATE</string>
@@ -1595,6 +1616,7 @@
     <bool name="pref_selector_granularity_search_default">false</bool>
     <bool name="pref_selector_special_widget_default">true</bool>
     <bool name="pref_selector_granularity_typo_default">false</bool>
+    <bool name="pref_selector_clipboard_history_default">false</bool>
     <bool name="pref_selector_granularity_row_column_default">false</bool>
     <bool name="pref_selector_granularity_row_default">false</bool>
     <bool name="pref_selector_granularity_column_default">false</bool>
@@ -1903,6 +1925,7 @@
     <string name="selector_granularity_column">GRANULARITY_COLUMN</string>
     <string name="selector_special_widget" translatable="false">ADJUSTABLE_WIDGET</string>
     <string name="selector_granularity_typo" translatable="false">GRANULARITY_TYPO</string>
+    <string name="selector_clipboard_history" translatable="false">SELECTOR_CLIPBOARD_HISTORY</string>
 
 
     <!-- LINT.IfChange(onboarding_update) -->
@@ -1992,6 +2015,9 @@
   <string name="pref_show_context_menu_inspect_item_setting_key" translatable="false">pref_inspect_item_menu_setting_key</string>
   <bool name="pref_show_context_menu_inspect_item_default">true</bool>
   <item type="id" name="inspect_item" />
+  <string name="pref_show_context_menu_copy_item_details_setting_key" translatable="false">pref_copy_item_details_menu_setting_key</string>
+  <bool name="pref_show_context_menu_copy_item_details_default">true</bool>
+  <item type="id" name="copy_item_details" />
   <string name="pref_show_context_menu_copy_screen_tree_setting_key" translatable="false">pref_copy_screen_tree_menu_setting_key</string>
   <bool name="pref_show_context_menu_copy_screen_tree_default">true</bool>
   <item type="id" name="copy_screen_tree" />

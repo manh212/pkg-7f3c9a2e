@@ -442,6 +442,54 @@
   <string name="voice_call_confirm_title">Gọi số này?</string>
   <string name="voice_call_action">Gọi</string>
   <string name="voice_call_no_permission">Chưa được cấp quyền gọi điện, đã mở trình quay số.</string>
+  <!-- The phrases that start a voice command sending a message. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_prefixes">text,message,send a message to,send a text to,send a message,send a text</string>
+  <!-- The phrases that start a voice command sending a description of the screen. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_describe_screen_prefixes">send a description of the screen to,send the screen description to</string>
+  <!-- The phrases that start a voice command sending a description of the focused image. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_describe_image_prefixes">send a description of the image to,send the image description to</string>
+  <!-- The words that join a messaging app to a message command: "via WhatsApp". [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_connectors">via,using,through</string>
+  <!-- The name of Zalo in a message command. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_zalo">zalo</string>
+  <!-- The name of WhatsApp in a message command. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_whatsapp">whatsapp</string>
+  <!-- The names of SMS in a message command. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_app_sms">sms,text message</string>
+  <!-- The word between the recipient and the text of a message: "text Sam that ...". [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_text_separator">that</string>
+  <!-- Asks for the text of a message whose recipient is known. name is the recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_ask_text">What should the message to <xliff:g id="name">%1$s</xliff:g> say?</string>
+  <!-- Asks whether to send a message, reading it back. name is the recipient, text is the message. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_confirm">Send this message to <xliff:g id="name">%1$s</xliff:g>: <xliff:g id="text">%2$s</xliff:g>?</string>
+  <!-- Asks whether to send a description. name is the recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_confirm_description">Send this description to <xliff:g id="name">%1$s</xliff:g>?</string>
+  <!-- Spoken when a message was sent. name is the recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_sent">Message sent to <xliff:g id="name">%1$s</xliff:g></string>
+  <!-- Spoken when a message was not sent. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_not_sent">Message not sent</string>
+  <!-- Spoken when a message command names no recipient. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_recipient">I didn\'t hear who to send the message to</string>
+  <!-- Spoken when no contact has the name said. name is the name said. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_contact">No contact named <xliff:g id="name">%1$s</xliff:g></string>
+  <!-- Spoken when several contacts share the name said. name is the name, names are the contacts. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_contacts_several">Several contacts are named <xliff:g id="name">%1$s</xliff:g>: <xliff:g id="names">%2$s</xliff:g>. Say the full name.</string>
+  <!-- Spoken when messaging a contact by name needs the contacts permission first. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_contacts_permission">To message a contact by name, allow Meridian to read contacts first.</string>
+  <!-- Spoken when the messaging app named in a message command isn't installed. name is the app. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_app">No app named <xliff:g id="name">%1$s</xliff:g> is installed</string>
+  <!-- Spoken when no app can send a message. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_app_for_action">No app can send this message</string>
+  <!-- Spoken when a screen could not be described for sending. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_description">Couldn\'t describe this screen</string>
+  <!-- Spoken when an image could not be described for sending. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_description_image">Couldn\'t describe this image</string>
+  <!-- The label of the Send button of a messaging app, in the language of its interface. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_send_button">Send</string>
+  <!-- The hint of Zalo's message box, in the language of its interface. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_zalo_input_hint">Message</string>
+  <!-- Spoken when a Zalo chat is open but its message box could not be found. [CHAR_LIMIT=NONE] -->
+  <string name="voice_message_no_input">Couldn\'t find the message box. The message is on the clipboard.</string>
   <!-- Announces the media volume after a voice command sets it. [CHAR_LIMIT=NONE] -->
   <string name="voice_param_media_volume_value">Media volume: %1$d%%</string>
   <!-- Comma-separated spoken phrases that start teaching a custom voice command phrase. [CHAR_LIMIT=NONE] -->

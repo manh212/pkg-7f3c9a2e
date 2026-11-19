@@ -952,6 +952,8 @@
     <string name="quick_settings_vibrate">Vibrate</string>
     <!-- Sound mode in Meridian's quick settings panel: the phone neither rings nor vibrates. [CHAR_LIMIT=NONE] -->
     <string name="quick_settings_mute">Mute</string>
+    <!-- Spoken by the Ring volume and Notification volume reading controls when Android doesn't let Meridian change the volume, because the change would turn the ringer to or from silent and Meridian has no Do Not Disturb access. [CHAR_LIMIT=NONE] -->
+    <string name="stream_volume_needs_access">Allow Do Not Disturb access to change this volume.</string>
     <!-- State of a switch or tile in Meridian's quick settings panel that is on. [CHAR_LIMIT=NONE] -->
     <string name="quick_settings_on">On</string>
     <!-- State of a switch or tile in Meridian's quick settings panel that is off. [CHAR_LIMIT=NONE] -->
@@ -1933,6 +1935,10 @@
     <string name="shortcut_next">Next item</string>
     <!-- Label for the shortcut that moves accessibility focus to the previous item. [CHAR_LIMIT=40] -->
     <string name="shortcut_previous">Previous item</string>
+    <!-- Label for the shortcut that moves accessibility focus to the item below the focused one, past the other items of its row, as the Vertical navigation reading control does. [CHAR_LIMIT=40] -->
+    <string name="shortcut_move_to_item_below">Move to item below</string>
+    <!-- Label for the shortcut that moves accessibility focus to the item above the focused one, past the other items of its row, as the Vertical navigation reading control does. [CHAR_LIMIT=40] -->
+    <string name="shortcut_move_to_item_above">Move to item above</string>
     <!-- Label for the shortcut that tries to scroll current view forward. [CHAR_LIMIT=40] -->
     <string name="shortcut_scroll_forward">Scroll forward</string>
     <!-- Label for the shortcut that tries to scroll current view back. [CHAR_LIMIT=40] -->
@@ -1985,6 +1991,12 @@
     <string name="shortcut_pause_or_resume_feedback">Pause or resume speech</string>
     <!-- Label for the shortcut that toggle voice feedback from TalkBack. [CHAR_LIMIT=72] -->
     <string name="shortcut_toggle_voice_feedback">Turn speech on or off</string>
+    <!-- Label for the command that focuses each text and state inside a focusable item separately. [CHAR_LIMIT=40] -->
+    <string name="shortcut_toggle_focus_text_inside_items">Detailed focus mode</string>
+    <!-- Spoken when detailed focus mode is turned on. -->
+    <string name="focus_text_inside_items_now_on">Detailed focus mode on</string>
+    <!-- Spoken when detailed focus mode is turned off. -->
+    <string name="focus_text_inside_items_now_off">Detailed focus mode off</string>
     <!-- Label for menu item that reads all on-screen content, starting from the top of the screen. [CHAR_LIMIT=40] -->
     <!--
       Source: Possible user requests from voice commands to read from top.
@@ -2107,6 +2119,12 @@
     <string name="shortcut_clear_all_text">Clear all text</string>
     <string name="shortcut_direct_tap">Direct tap</string>
     <string name="shortcut_take_screenshot">Take screenshot</string>
+    <!-- Label for the shortcut that answers the incoming phone call that is ringing. [CHAR_LIMIT=40] -->
+    <string name="shortcut_answer_call">Answer call</string>
+    <!-- Spoken when the Answer call shortcut runs while no phone call is ringing. [CHAR_LIMIT=40] -->
+    <string name="answer_call_no_call">No incoming call</string>
+    <!-- Spoken when the Answer call shortcut runs before the user has allowed the screen reader to answer phone calls; Android then asks for that permission. [CHAR_LIMIT=60] -->
+    <string name="answer_call_permission">Permission needed to answer calls</string>
     <string name="shortcut_toggle_touch_exploration">Turn touch exploration on or off</string>
     <string name="copy_focused_nothing_to_copy">Nothing to copy</string>
     <string name="touch_exploration_on">Touch exploration on</string>
@@ -2256,10 +2274,12 @@
     <string name="title_speech_history">Speech history</string>
     <!-- Spoken when the speech history is opened before anything has been said. [CHAR_LIMIT=130] -->
     <string name="speech_history_empty">No speech history</string>
-    <!-- Label for the menu item and gesture action that opens the clipboard history. [CHAR_LIMIT=130] -->
+    <!-- Label for the menu item and gesture action that opens the clipboard history, and for the reading control that reads its texts in edit boxes. [CHAR_LIMIT=130] -->
     <string name="title_clipboard_history">Clipboard history</string>
     <!-- Spoken when the clipboard history is opened before anything has been copied. [CHAR_LIMIT=130] -->
     <string name="clipboard_history_empty">No clipboard history</string>
+    <!-- Hint for the Clipboard history reading control, available in edit boxes. [CHAR LIMIT=NONE] -->
+    <string name="clipboard_history_hint">Swipe up or down to choose, then double-tap to paste</string>
     <!-- Label for the menu item that lets the user open the custom action menu (this is menu items defined by the app [CHAR_LIMIT=40] -->
     <!--
       Source: Possible user requests from voice commands to show possible actions.
@@ -3045,8 +3065,6 @@
     <!-- Spoken description when the user navigates forwards with screen search granularity and there is no more items. -->
     <string name="search_end_of_page">No next result on this page</string>
 
-    <!-- Announce that selected web granularity is not supported on the current view.  [CHAR LIMIT=NONE] -->
-    <string name="web_granularity_not_supported"><xliff:g name="granularity" example="heading">%1$s</xliff:g> only supported on web pages</string>
     <!-- Announce that selected native granularity is not supported on the current view.  [CHAR LIMIT=NONE] -->
     <string name="native_granularity_not_supported"><xliff:g name="granularity" example="heading">%1$s</xliff:g> only supported on native pages</string>
 

@@ -9,6 +9,8 @@
   <string name="shortcut_previous_gesture_profile">Hồ sơ cử chỉ trước</string>
   <string name="shortcut_next_gesture_profile">Hồ sơ cử chỉ tiếp theo</string>
   <string name="shortcut_use_gesture_profile">Dùng hồ sơ cử chỉ %1$s</string>
+  <string name="shortcut_use_voice_profile">Dùng hồ sơ giọng nói %1$s</string>
+  <string name="voice_profile_command_deleted">Hồ sơ đã bị xóa</string>
   <string name="title_pref_gesture_profile_in_use">Hồ sơ cử chỉ đang dùng</string>
   <string name="title_pref_add_gesture_profile">Thêm hồ sơ cử chỉ</string>
   <string name="gesture_profile_new_name">Hồ sơ cử chỉ %1$d</string>
@@ -21,4 +23,39 @@
   <string name="shortcut_value_next_gesture_profile" translatable="false">NEXT_GESTURE_PROFILE</string>
   <bool name="pref_selector_gesture_profile_default">true</bool>
   <item type="id" name="group_gesture_profile" />
+  <string name="title_pref_settings_profiles">Hồ sơ cài đặt</string>
+  <string name="title_pref_new_settings_profile">Hồ sơ cài đặt mới</string>
+  <string name="settings_profile_new_name">Hồ sơ cài đặt %1$d</string>
+  <string name="settings_profile_name_taken">Đã có hồ sơ cài đặt tên %1$s</string>
+  <string name="settings_profile_in_use">Đang dùng</string>
+  <string name="settings_profile_menu_item_in_use">%1$s, đang dùng</string>
+  <string name="settings_profile_none">Không dùng hồ sơ cài đặt</string>
+  <string name="settings_profile_use_now">Dùng ngay</string>
+  <string name="settings_profile_stop_using">Ngừng dùng</string>
+  <string name="settings_profile_change_settings">Đổi cài đặt</string>
+  <string name="settings_profile_editing">Thay đổi sẽ lưu vào %1$s</string>
+  <string name="settings_profile_edit_saved">Đã lưu thay đổi vào %1$s</string>
+  <string name="settings_profile_use_automatically">Tự dùng</string>
+  <string name="settings_profile_web">Nội dung web</string>
+  <string name="settings_profile_reading">Đọc liên tục</string>
+  <string name="settings_profile_text_editing">Soạn văn bản</string>
+  <string name="settings_profile_apps">Ứng dụng</string>
+  <string name="settings_profile_add_app">Thêm ứng dụng</string>
+  <string name="settings_profile_keyboards">Bàn phím</string>
+  <string name="settings_profile_add_keyboard">Thêm bàn phím</string>
+  <string name="settings_profile_settings">Cài đặt trong hồ sơ này</string>
+  <string name="settings_profile_no_settings">Không có</string>
+  <string name="settings_profile_remove_confirm">Gỡ %1$s khỏi %2$s?</string>
+  <string name="settings_profile_not_saved">Không lưu được hồ sơ cài đặt</string>
+  <string name="settings_profile_in_use_announcement">Hồ sơ %1$s</string>
+  <string name="settings_profile_not_changed">Không đổi hồ sơ cài đặt</string>
+  <string name="title_settings_profile">Hồ sơ cài đặt</string>
+  <string name="shortcut_settings_profiles">Chọn hồ sơ cài đặt</string>
+  <string name="shortcut_next_settings_profile">Hồ sơ cài đặt tiếp theo</string>
+  <string name="shortcut_previous_settings_profile">Hồ sơ cài đặt trước</string>
+  <string name="pref_settings_profiles_key" translatable="false">pref_settings_profiles</string>
+  <string name="shortcut_value_settings_profiles" translatable="false">SETTINGS_PROFILES</string>
+  <string name="shortcut_value_next_settings_profile" translatable="false">NEXT_SETTINGS_PROFILE</string>
+  <string name="shortcut_value_previous_settings_profile" translatable="false">PREVIOUS_SETTINGS_PROFILE</string>
+  <item type="id" name="group_settings_profile" />
 </resources>

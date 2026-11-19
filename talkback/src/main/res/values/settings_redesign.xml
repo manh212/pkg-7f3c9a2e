@@ -45,6 +45,24 @@
   <string name="title_pref_direct_touch_backup" translatable="false">Sao lưu và khôi phục chạm trực tiếp</string>
   <string name="backup_reset_backup_category" translatable="false">Sao lưu</string>
   <string name="backup_reset_reset_category" translatable="false">Đặt lại</string>
+  <string name="backup_item_category" translatable="false">Sao lưu từng mục</string>
+  <string name="backup_item_settings" translatable="false">Cài đặt</string>
+  <string name="backup_item_editor_documents" translatable="false">Tài liệu soạn thảo</string>
+  <string name="backup_item_custom_labels" translatable="false">Nhãn tùy chỉnh</string>
+  <string name="backup_item_clipboard_history" translatable="false">Lịch sử khay nhớ tạm</string>
+  <string name="backup_item_favorite_texts" translatable="false">Văn bản yêu thích</string>
+  <string name="backup_item_timer_sounds" translatable="false">Âm thanh hẹn giờ</string>
+  <string name="backup_item_key_sounds" translatable="false">Âm thanh phím</string>
+  <string name="backup_item_sound_themes" translatable="false">Chủ đề âm thanh</string>
+  <string name="backup_item_scripts" translatable="false">Tập lệnh</string>
+  <string name="backup_item_summary" translatable="false">Sao lưu hoặc khôi phục chỉ mục này</string>
+  <string name="backup_item_dialog_message" translatable="false">Sao lưu chỉ mục này ra một tệp riêng, hoặc khôi phục chỉ mục này từ một tệp đã sao lưu. Các mục khác không thay đổi.</string>
+  <string name="backup_item_export_action" translatable="false">Sao lưu</string>
+  <string name="backup_item_import_action" translatable="false">Khôi phục</string>
+  <string name="backup_item_export_done" translatable="false">Đã sao lưu %1$s</string>
+  <string name="backup_item_export_failed" translatable="false">Không sao lưu được %1$s</string>
+  <string name="backup_item_import_done" translatable="false">Đã khôi phục %1$s</string>
+  <string name="backup_item_import_failed" translatable="false">Tệp này không phải là bản sao lưu của %1$s, hoặc không đọc được</string>
   <string name="notification_add_blocked_pattern" translatable="false">Thêm quy tắc chặn: %1$s</string>
   <string name="notification_history_mode_action" translatable="false">Đặt ứng dụng thành %1$s</string>
 </resources>

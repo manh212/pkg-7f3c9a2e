@@ -105,4 +105,10 @@
     <string name="command_choose_arrow_keys">Choose arrow keys</string>
     <!-- Button in the dialog for arrow keys of a command: the keys no longer run the command. [CHAR LIMIT=40] -->
     <string name="command_remove_arrow_keys">Remove arrow keys</string>
+    <!-- Group of commands that change the value of a setting without selecting a reading control. [CHAR LIMIT=40] -->
+    <string name="commands_category_setting_values">Setting values</string>
+    <!-- Name of a command that sets the next value of a setting. setting is the name of the setting. [CHAR LIMIT=60] -->
+    <string name="command_next_value"><xliff:g id="setting" example="Punctuation">%1$s</xliff:g>: next value</string>
+    <!-- Name of a command that sets the previous value of a setting. setting is the name of the setting. [CHAR LIMIT=60] -->
+    <string name="command_previous_value"><xliff:g id="setting" example="Punctuation">%1$s</xliff:g>: previous value</string>
 </resources>
