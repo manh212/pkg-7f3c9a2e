@@ -1911,7 +1911,7 @@ public class VoiceCommandProcessor {
         new Runnable() {
           @Override
           public void run() {
-            boolean speaking = service.isSpeaking();
+            boolean speaking = service.getSpeechController().isSpeaking();
             started[0] = started[0] || speaking;
             long elapsed = SystemClock.uptimeMillis() - start;
             if (speaking && elapsed < SPEECH_MAX_MS) {
