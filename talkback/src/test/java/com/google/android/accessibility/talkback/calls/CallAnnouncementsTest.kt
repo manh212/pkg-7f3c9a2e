@@ -110,4 +110,19 @@ class CallAnnouncementsTest {
     waitForReading()
     assertTrue(spoken.isEmpty())
   }
+
+  @Test fun ongoingFlagNotificationIsNotAnnouncedAsIncoming() {
+    // Zalo's outgoing-call notification carries FLAG_ONGOING_EVENT but no CallStyle
+    // callType extra: it must not start ringing on its own.
+    val ongoing = incoming().apply { flags = flags or Notification.FLAG_ONGOING_EVENT }
+    CallAnnouncements.onCallNotification("zalo", ongoing)
+    waitForReading()
+    assertTrue(spoken.isEmpty())
+    // And it stops ringing already started for the same app, like an ongoing
+    // CallStyle notification does.
+    CallAnnouncements.onCallNotification("zalo", incoming())
+    CallAnnouncements.onCallNotification("zalo", ongoing)
+    waitForReading()
+    assertTrue(spoken.isEmpty())
+  }
 }
