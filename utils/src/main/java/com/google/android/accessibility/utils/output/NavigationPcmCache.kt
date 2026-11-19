@@ -32,7 +32,7 @@ class NavigationPcmCache(context: Context) {
 
   private class Request(
     val key: Key, val voice: Voice, val params: Bundle,
-    val foreground: TextToSpeech, val epoch: Long,
+    val foreground: TextToSpeech, val epoch: Long, val generation: Long,
   ) {
     val id = "nav_pcm_" + nextId.incrementAndGet()
     val queuedAt = SystemClock.uptimeMillis()
@@ -47,7 +47,7 @@ class NavigationPcmCache(context: Context) {
   private val appContext = context.applicationContext
   private val thread = HandlerThread("NavigationPcm").apply { start() }
   private val handler = Handler(thread.looper)
-  private val cache = PreparedPcmStore<Key>(MAX_CACHE_BYTES, 8)
+  private val cache = PreparedPcmStore<Key>(MAX_CACHE_BYTES, 32)
   private val queue = ArrayDeque<Request>()
   private val epoch = AtomicLong()
   private val configuration = AtomicLong()
@@ -98,18 +98,34 @@ class NavigationPcmCache(context: Context) {
       }
       val key = Key(current, spoken, parameters.getInt("pitch", 100), parameters.getInt("rate", 100))
       if (generation != pendingGeneration) {
-        if (queue.isNotEmpty()) {
-          work.addAndGet(Work.SUPERSEDED.ordinal, queue.size.toLong())
-          queue.clear()
+        // 1B: a focus move only passes the items behind the new focus. Keep the previous
+        // generation's requests: its second-ahead item is the next item after one more swipe
+        // in either direction, and it is already queued (the dedup below keeps it). Drop
+        // only generations older than that.
+        val iterator = queue.iterator()
+        var dropped = 0
+        while (iterator.hasNext()) {
+          if (iterator.next().generation < generation - 1) {
+            iterator.remove()
+            dropped++
+          }
         }
+        if (dropped > 0) work.addAndGet(Work.SUPERSEDED.ordinal, dropped.toLong())
         pendingGeneration = generation
       }
       if (cache.contains(key) || active?.key == key || queue.any { it.key == key }) return@post
       if (queue.size >= 4) {
-        note(Work.QUEUE_FULL)
-        return@post
+        // 1B: make room for the new generation by dropping the oldest request from an older
+        // generation (already passed) instead of rejecting the new one outright.
+        val oldest = queue.firstOrNull { it.generation < generation }
+        if (oldest == null) {
+          note(Work.QUEUE_FULL)
+          return@post
+        }
+        queue.remove(oldest)
+        note(Work.SUPERSEDED)
       }
-      queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch))
+      queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch, generation))
       note(Work.QUEUED)
       schedule(0)
     }
@@ -142,7 +158,18 @@ class NavigationPcmCache(context: Context) {
     val request = active ?: return
     handler.post {
       if (active === request) {
-        cancelActiveRequest()
+        // 1C: input — or a new foreground utterance, via onForegroundSpeech() — no longer
+        // cancels the in-flight synthesis. The 60 ms quiet clock is reset elsewhere
+        // (LatencyExperiments.onInput() stamps lastInput; onForegroundSpeech() stamps
+        // foregroundStartedAt), so the pump still waits for quiet before STARTING the next
+        // synthesis (shouldYield). Cancel only when the active request is from a generation
+        // already passed: the same staleness rule 1B applies to the queue (drop generations
+        // older than pendingGeneration - 1). The active synthesis therefore survives at most
+        // two focus moves; a synthesis for a passed item may run to its 2.5 s timeout — the
+        // cost Kenneth accepted when approving 1C.
+        if (request.generation < pendingGeneration - 1) {
+          cancelActiveRequest()
+        }
         schedule(INPUT_QUIET_MS)
       }
     }
@@ -238,12 +265,9 @@ class NavigationPcmCache(context: Context) {
       schedule(RETRY_MS)
       return
     }
-    val foregroundBusy = try { request.foreground.isSpeaking } catch (failure: RuntimeException) { true }
-    if (foregroundBusy) {
-      note(Work.WAITING_FOR_ENGINE)
-      schedule(RETRY_MS)
-      return
-    }
+    // 1A: the background pump no longer waits for the foreground engine to finish speaking.
+    // It still yields while input is active (shouldYield above: 60 ms of input quiet), so a
+    // swipe in progress is never slowed by background synthesis.
     if (engine == null || engineName != request.key.identity.engine) {
       engine?.shutdown()
       ready = false
@@ -361,7 +385,7 @@ class NavigationPcmCache(context: Context) {
 
   companion object {
     private val nextId = AtomicLong()
-    private const val MAX_CACHE_BYTES = 8 * 1024 * 1024
+    private const val MAX_CACHE_BYTES = 32 * 1024 * 1024
     private const val MAX_PENDING_AGE_MS = 2_000L
     private const val INPUT_QUIET_MS = 60L
     private const val RETRY_MS = 24L
