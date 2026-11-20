@@ -11,7 +11,6 @@ import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.input.ScrollEventInterpreter;
 import com.google.android.accessibility.utils.WindowCachePolicy;
 import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCache;
-import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 public final class BackgroundEventGate {
   public interface Receiver {
@@ -124,10 +123,6 @@ public final class BackgroundEventGate {
     TraversalTreeCache.observeIncomingEvent(event);
     EventProcessingStats.received(event);
     int type = event.getEventType();
-    if (LogUtils.isCategoryEnabled("events")) {
-      LogUtils.i("EventDiagnostics", "received type=%d window=%d event_uptime=%d",
-          type, event.getWindowId(), event.getEventTime());
-    }
     if (type == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START) {
       touching = true;
       onUserInput();
@@ -168,9 +163,6 @@ public final class BackgroundEventGate {
     pending = AccessibilityEvent.obtain(event);
     pendingSince = receivedAt;
     EventProcessingStats.deferred(event);
-    if (LogUtils.isCategoryEnabled("events")) {
-      LogUtils.i("EventDiagnostics", "deferred type=%d window=%d", type, event.getWindowId());
-    }
     schedulePending();
     return false;
   }
@@ -302,10 +294,6 @@ public final class BackgroundEventGate {
         return;
       }
       EventProcessingStats.admitted(event, lastDispatch - pendingSince);
-      if (LogUtils.isCategoryEnabled("events")) {
-        LogUtils.i("EventDiagnostics", "released type=%d wait_ms=%d window=%d",
-            event.getEventType(), lastDispatch - pendingSince, event.getWindowId());
-      }
       receiver.accept(event, pendingSince);
     } finally {
       event.recycle();
