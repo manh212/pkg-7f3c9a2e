@@ -220,22 +220,13 @@ public class Performance {
 
   public void linkFeedbackEvent(@Nullable EventId feedback, @Nullable EventId origin) {
     if (navigationTrackingEnabled()) navigationLatency.link(feedback, origin);
-    if (feedback != null && origin != null && LogUtils.isCategoryEnabled("performance")) {
-      LogUtils.i("LatencyDiagnostics",
-          "gesture_uptime=%d linked_event_uptime=%d event_type=%d",
-          navigationLatency.origin(origin).getEventTimeMs(), feedback.getEventTimeMs(),
-          feedback.getEventSubtype());
-    }
   }
 
   public void onFeedbackPlaybackStarted(String utterance, long uptimeMs, boolean audioSubmitted) {
-    boolean first = navigationTrackingEnabled() && navigationLatency.audio(utterance,
-        audioSubmitted ? NavigationLatency.Stage.AUDIO_SUBMITTED : NavigationLatency.Stage.TTS_START,
-        uptimeMs);
-    if (first && LogUtils.isCategoryEnabled("performance")) {
-      LogUtils.i("LatencyDiagnostics", "gesture_uptime=%d utterance=%s audio_stage=%s uptime=%d",
-          navigationLatency.utteranceGestureUptime(utterance), utterance,
-          audioSubmitted ? "submitted" : "tts_start", uptimeMs);
+    if (navigationTrackingEnabled()) {
+      navigationLatency.audio(utterance,
+          audioSubmitted ? NavigationLatency.Stage.AUDIO_SUBMITTED : NavigationLatency.Stage.TTS_START,
+          uptimeMs);
     }
   }
 
@@ -261,26 +252,18 @@ public class Performance {
   }
 
   public void onFeedbackAudioAvailable(String utterance, long uptimeMs) {
-    boolean first = navigationTrackingEnabled() && utterance != null
-        && navigationLatency.audio(utterance, NavigationLatency.Stage.FIRST_PCM, uptimeMs);
-    if (first && LogUtils.isCategoryEnabled("performance")) {
-      LogUtils.i("LatencyDiagnostics",
-          "gesture_uptime=%d utterance=%s first_pcm_uptime=%d",
-          navigationLatency.utteranceGestureUptime(utterance), utterance, uptimeMs);
+    if (navigationTrackingEnabled() && utterance != null) {
+      navigationLatency.audio(utterance, NavigationLatency.Stage.FIRST_PCM, uptimeMs);
     }
   }
 
   private boolean navigationTrackingEnabled() {
-    return computeStatsEnabled || LatencyExperiments.Feature.IMMEDIATE_SPEECH.enabled()
-        || navigationTraceEnabled();
+    return computeStatsEnabled || LatencyExperiments.Feature.TRACE.enabled()
+        || LatencyExperiments.Feature.IMMEDIATE_SPEECH.enabled() || navigationMeasurementActive;
   }
 
   private boolean navigationTraceEnabled() {
-    return LatencyExperiments.Feature.TRACE.enabled() || navigationMeasurementActive
-        || LogUtils.isCategoryEnabled("performance")
-        || LogUtils.isCategoryEnabled("reading_order")
-        || LogUtils.isCategoryEnabled("focus")
-        || LogUtils.isCategoryEnabled("preparation");
+    return LatencyExperiments.Feature.TRACE.enabled() || navigationMeasurementActive;
   }
 
   public boolean isMeasuringNavigation() {
@@ -293,20 +276,10 @@ public class Performance {
 
   public void onNavigationActionStarted(EventId eventId) {
     if (navigationTrackingEnabled()) navigationLatency.navigationAction(eventId);
-    if (eventId != null && LogUtils.isCategoryEnabled("reading_order")) {
-      EventId original = navigationLatency.origin(eventId);
-      LogUtils.i("NavigationOrder", "gesture_uptime=%d gesture=%d navigation_started",
-          original.getEventTimeMs(), original.getEventSubtype());
-    }
   }
 
   public void onNavigationPcmCacheResult(String utterance, boolean hit) {
     if (navigationTraceEnabled()) navigationLatency.cacheResult(utterance, hit);
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i("PreparationDiagnostics",
-          "gesture_uptime=%d utterance=%s pcm_cache_hit=%b",
-          navigationLatency.utteranceGestureUptime(utterance), utterance, hit);
-    }
   }
 
   public void onNavigationMotionEnd(EventId eventId, long uptimeMs) {
@@ -317,45 +290,14 @@ public class Performance {
     if (navigationTraceEnabled()) {
       navigationLatency.stage(eventId, NavigationLatency.Stage.valueOf(stage));
     }
-    if (eventId != null && LogUtils.isCategoryEnabled("performance")) {
-      LogUtils.i("LatencyDiagnostics", "gesture_uptime=%d stage=%s uptime=%d",
-          navigationLatency.origin(eventId).getEventTimeMs(), stage, getUptime());
-    }
   }
 
   public void onNavigationDetail(EventId eventId, String name, long value) {
     if (navigationTraceEnabled()) navigationLatency.note(eventId, name, value);
-    String category;
-    String tag;
-    if (name.startsWith("order_") || name.startsWith("scroll_")
-        || name.startsWith("adaptive_live_")) {
-      category = "reading_order";
-      tag = "NavigationOrder";
-    } else if (name.startsWith("early_focus") || name.startsWith("pivot_")
-        || name.startsWith("focus_")) {
-      category = "focus";
-      tag = "FocusDiagnostics";
-    } else if (name.startsWith("prepared_") || name.startsWith("pcm_")) {
-      category = "preparation";
-      tag = "PreparationDiagnostics";
-    } else {
-      category = "performance";
-      tag = "LatencyDiagnostics";
-    }
-    if (eventId != null && LogUtils.isCategoryEnabled(category)) {
-      EventId original = navigationLatency.origin(eventId);
-      LogUtils.i(tag, "gesture_uptime=%d gesture=%d detail=%s value=%d",
-          original.getEventTimeMs(), original.getEventSubtype(), name, value);
-    }
   }
 
   public void onNavigationFailed(EventId eventId, String reason) {
     if (navigationTraceEnabled()) navigationLatency.failed(eventId, reason);
-    if (eventId != null && LogUtils.isCategoryEnabled("reading_order")) {
-      EventId original = navigationLatency.origin(eventId);
-      LogUtils.i("NavigationOrder", "gesture_uptime=%d gesture=%d failed=%s",
-          original.getEventTimeMs(), original.getEventSubtype(), reason);
-    }
   }
 
   public long[] beginNavigationWork() {
@@ -365,16 +307,13 @@ public class Performance {
 
   public void endNavigationWork(EventId eventId, String name, long[] started) {
     if (started == null) return;
-    onNavigationDetail(eventId, name + "_wall_ms", getUptime() - started[0]);
-    onNavigationDetail(eventId, name + "_cpu_us",
+    navigationLatency.note(eventId, name + "_wall_ms", getUptime() - started[0]);
+    navigationLatency.note(eventId, name + "_cpu_us",
         (android.os.Debug.threadCpuTimeNanos() - started[1]) / 1000);
   }
 
   public void onNavigationInterrupted(String utterance) {
     if (navigationTrackingEnabled()) navigationLatency.interrupted(utterance);
-    if (LogUtils.isCategoryEnabled("speech")) {
-      LogUtils.i("SpeechDiagnostics", "utterance=%s interrupted", utterance);
-    }
   }
 
   public void onFirstSoundPcm(String utterance, long uptimeMs) {
@@ -390,8 +329,7 @@ public class Performance {
   }
 
   public void onMainThreadStall(long durationMs, String stack) {
-    if (LatencyExperiments.Feature.STALL_CAPTURE.enabled()
-        || LogUtils.isCategoryEnabled("performance")) navigationLatency.stall(durationMs, stack);
+    if (LatencyExperiments.Feature.STALL_CAPTURE.enabled()) navigationLatency.stall(durationMs, stack);
   }
 
   public EventId onEventReceivedIfAbsent(AccessibilityEvent event) {
@@ -967,7 +905,9 @@ public class Performance {
    * latency between queueing first piece of spoken feedback and hearing audio feedback.
    */
   public void onFeedbackOutput(@NonNull String utteranceId, boolean localCache) {
-    onFeedbackAudioAvailable(utteranceId, getUptime());
+    if (navigationTrackingEnabled()) {
+      navigationLatency.audio(utteranceId, NavigationLatency.Stage.FIRST_PCM, getUptime());
+    }
     if (!trackEvents()) {
       return;
     }
@@ -1453,9 +1393,6 @@ public class Performance {
   }
 
   public void onPreparedSpeechWork(PreparedSpeechWork work) {
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i("PreparationDiagnostics", "prepared_work=%s count=1", work);
-    }
     if (computeStatsEnabled || navigationTraceEnabled()) {
       synchronized (lockLabelToStats) {
         preparedSpeechWork[work.ordinal()]++;
@@ -1467,9 +1404,6 @@ public class Performance {
   public void onPreparedSpeechWork(PreparedSpeechWork work, int count) {
     if (count <= 0) {
       return;
-    }
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i("PreparationDiagnostics", "prepared_work=%s count=%d", work, count);
     }
     if (computeStatsEnabled || navigationTraceEnabled()) {
       synchronized (lockLabelToStats) {
