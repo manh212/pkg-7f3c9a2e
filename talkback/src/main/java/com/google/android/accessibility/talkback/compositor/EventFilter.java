@@ -56,7 +56,9 @@ import com.google.android.accessibility.utils.monitor.VoiceActionDelegate;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy;
 import com.google.android.accessibility.utils.traversal.TraversalStrategy.SearchDirection;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -110,6 +112,8 @@ public class EventFilter {
   private final Runnable prepareNextSwipeTarget = this::prepareNextSwipeTarget;
   private @Nullable PreparationPass preparationPass;
   private boolean waitingForTouchEnd;
+  /** A pass step is waiting out the input-quiet delay before it runs (Q11, round 3). */
+  private boolean waitingForIdle;
   /** An order-build wait is already outstanding for this preparation round (Q5). */
   private boolean retriedMissingOrder;
   private int preferredDirectionIndex;
@@ -150,6 +154,23 @@ public class EventFilter {
     int distance = 1;
     @Nullable AccessibilityNodeInfoCompat firstAdjacent;
     @Nullable AccessibilityNodeInfoCompat secondAdjacent;
+    /**
+     * Q10 (round 3): predictions that already failed in this pass. A failed prediction —
+     * a web pivot, say — fails identically when it is re-run by the distance-2 step and
+     * the second target-type pass, so the walk is not repeated for the same pivot and
+     * direction.
+     */
+    private final Set<FailedPrediction> failedPredictions = new HashSet<>();
+
+    /** Whether predicting from {@code pivot} in {@code direction} already failed in this pass. */
+    boolean failedBefore(AccessibilityNodeInfoCompat pivot, @SearchDirection int direction) {
+      return failedPredictions.contains(new FailedPrediction(pivot, direction));
+    }
+
+    /** Records that predicting from {@code pivot} in {@code direction} failed in this pass. */
+    void noteFailed(AccessibilityNodeInfoCompat pivot, @SearchDirection int direction) {
+      failedPredictions.add(new FailedPrediction(pivot, direction));
+    }
 
     PreparationPass(
         AccessibilityNodeInfoCompat focusedNode, int maximumDistance, int controlTargetType,
@@ -194,6 +215,35 @@ public class EventFilter {
       secondAdjacent = null;
       distance = 1;
       return targetTypeIndex++ == 0 && controlTargetType != NavigationTarget.TARGET_DEFAULT;
+    }
+  }
+
+  /**
+   * A prediction that already failed in a {@link PreparationPass}, keyed by the pivot and the
+   * direction. Equality is the node's own: two wrappers for the same node in the same window
+   * are the same pivot, so a re-obtained node still hits the cache.
+   */
+  private static final class FailedPrediction {
+    final AccessibilityNodeInfoCompat pivot;
+    final int direction;
+
+    FailedPrediction(AccessibilityNodeInfoCompat pivot, int direction) {
+      this.pivot = pivot;
+      this.direction = direction;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (!(other instanceof FailedPrediction)) {
+        return false;
+      }
+      FailedPrediction that = (FailedPrediction) other;
+      return pivot.equals(that.pivot) && direction == that.direction;
+    }
+
+    @Override
+    public int hashCode() {
+      return pivot.hashCode() * 31 + direction;
     }
   }
 
@@ -623,8 +673,18 @@ public class EventFilter {
 
   private void schedulePreparation() {
     preparationGeneration++;
+    // Q11 (round 3): a deferred preparation that dies here — focus moved again while it was
+    // waiting for touch to end, or for input to go quiet — is counted, so the next round can
+    // tell a delayed preparation from a lost one.
+    if (waitingForTouchEnd) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.TOUCH_DEFERRED_DIED);
+    }
+    if (waitingForIdle) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.IDLE_DEFERRED_DIED);
+    }
     preparationPass = null;
     waitingForTouchEnd = false;
+    waitingForIdle = false;
     retriedMissingOrder = false;
     handler.removeCallbacks(prepareSwipeTargets);
     handler.removeCallbacks(prepareNextSwipeTarget);
@@ -665,7 +725,9 @@ public class EventFilter {
     boolean prepareAudio = LatencyExperiments.Feature.PCM_ADJACENT.enabled();
     PreparedFocusSpeech.Prepared cached = PreparedFocusSpeech.peek(pivot, targetType);
     if (cached == null) {
-      prepareFocusSpeech(pivot, targetType, prepareAudio);
+      // Q1 (round 3): the pivot just arrived in a live focus event, so it is current by
+      // construction — it is never vetoed as stale, whatever the saved order says.
+      prepareFocusSpeech(pivot, targetType, prepareAudio, /* isFocusedItem= */ true);
     } else if (prepareAudio) {
       compositor.prepareNavigationFeedback(cached.getFeedback(), preparationGeneration);
     }
@@ -741,6 +803,9 @@ public class EventFilter {
 
   /** Prepares one predicted node at a time, yielding to input between synchronous app queries. */
   private void prepareNextSwipeTarget() {
+    // Q11 (round 3): the idle retry ran — clear the flag first, on every path, so
+    // schedulePreparation() only counts attempts whose re-post never ran.
+    waitingForIdle = false;
     PreparationPass pass = preparationPass;
     TargetPredictor predictor = targetPredictor;
     if (pass == null
@@ -758,6 +823,7 @@ public class EventFilter {
         ? LatencyExperiments.inputQuietDelay(80) : 0;
     if (waitMs > 0) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.WAITING_FOR_IDLE);
+      waitingForIdle = true;
       handler.postDelayed(prepareNextSwipeTarget, waitMs);
       return;
     }
@@ -767,11 +833,20 @@ public class EventFilter {
     @Nullable AccessibilityNodeInfoCompat target = null;
     try {
       if (currentPivot != null) {
-        target = targetType == NavigationTarget.TARGET_DEFAULT
-              ? predictor.predictTarget(currentPivot, direction)
-              : predictor.predictTarget(currentPivot, direction, targetType);
-        if (target == null) {
-          Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.NO_TARGET);
+        // Q10 (round 3): a prediction that already failed in this pass fails identically
+        // when it is re-run — by the distance-2 step and the second target-type pass — so
+        // the walk is skipped, and so is the NO_TARGET count: the first failure already
+        // counted it (in predictTarget).
+        if (pass.failedBefore(currentPivot, direction)) {
+          Performance.getInstance()
+              .onPreparedSpeechWork(PreparedSpeechWork.NULL_PREDICTION_CACHED);
+        } else {
+          target = targetType == NavigationTarget.TARGET_DEFAULT
+                ? predictor.predictTarget(currentPivot, direction)
+                : predictor.predictTarget(currentPivot, direction, targetType);
+          if (target == null) {
+            pass.noteFailed(currentPivot, direction);
+          }
         }
       }
     } catch (RuntimeException e) {
@@ -816,24 +891,54 @@ public class EventFilter {
 
   private void prepareFocusSpeech(
       AccessibilityNodeInfoCompat focusedNode, @TargetType int targetType, boolean prepareAudio) {
+    prepareFocusSpeech(focusedNode, targetType, prepareAudio, /* isFocusedItem= */ false);
+  }
+
+  /**
+   * Prepares the announcement of focusing {@code focusedNode}. When {@code isFocusedItem} the
+   * node is the pivot itself, which just arrived in a live focus event and is current by
+   * construction, so it is never vetoed as stale.
+   */
+  private void prepareFocusSpeech(
+      AccessibilityNodeInfoCompat focusedNode, @TargetType int targetType, boolean prepareAudio,
+      boolean isFocusedItem) {
     // Read the node again from the app, as a swipe to it would, rather than prepare from a copy
     // that the saved reading order may have kept since before its text or state changed.
     @SuppressWarnings("deprecation")
     AccessibilityNodeInfoCompat node = AccessibilityNodeInfoCompat.obtain(focusedNode);
-    if (LatencyExperiments.Feature.CACHED_TEXT.enabled()
-        && TraversalTreeCache.hasSavedOrder()) {
-      // The saved order is the fast path: when it holds the node current, no second read is
-      // needed. When no order is saved at all — the order is still building, or the async
-      // order feature is off — there is nothing for the node to be stale against, so fall
-      // back to re-reading the node, as without the cached-text feature. Only when an order
-      // is saved and does not hold the node is the node stale.
-      if (!TraversalTreeCache.holdsCurrent(node)) {
+    if (!isFocusedItem) {
+      if (LatencyExperiments.Feature.CACHED_TEXT.enabled()
+          && TraversalTreeCache.hasSavedOrder()) {
+        // The saved order is the fast path: when it holds the node current, no second read is
+        // needed. When no order is saved at all — the order is still building, or the async
+        // order feature is off — there is nothing for the node to be stale against, so fall
+        // back to re-reading the node, as without the cached-text feature.
+        // Q1 (round 3): when an order is saved but does not hold the node current, the node
+        // is usually fine and the order is the stale one — a churning window clears and
+        // rebuilds the order constantly, and one bounds-less background change vetoes every
+        // node through the grace flag. So re-read the node instead of vetoing it, exactly
+        // as the no-order path already does; only a failed re-read still vetoes. The cause
+        // is counted (round-3 Q11) whether the re-read saves the preparation or not.
+        if (!TraversalTreeCache.holdsCurrent(node)) {
+          if (!TraversalTreeCache.holds(node)) {
+            Performance.getInstance()
+                .onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE_NOT_HELD);
+          } else {
+            // Held but not current: with region grace on, a graced change touches the node;
+            // with grace off, a text change arrived since the order was saved.
+            Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE_GRACED);
+          }
+          if (!node.refresh()) {
+            Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
+            Performance.getInstance()
+                .onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE_REFRESH_FAILED);
+            return;
+          }
+        }
+      } else if (!node.refresh()) {
         Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
         return;
       }
-    } else if (!node.refresh()) {
-      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.STALE_NODE);
-      return;
     }
     if (globalVariables.hasSkipFocusProcessing() || !shouldSpeakFocusEarly(node)) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.INELIGIBLE_NODE);

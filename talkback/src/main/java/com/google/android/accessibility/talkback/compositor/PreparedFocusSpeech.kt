@@ -189,6 +189,10 @@ object PreparedFocusSpeech {
     }
     if (prepared.size != previousSize) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.INVALIDATED)
+      // Q11e: INVALIDATED counts events; INVALIDATED_ENTRIES counts the entries the
+      // event actually wiped, so the loss per event is measurable.
+      Performance.getInstance().onPreparedSpeechWork(
+        PreparedSpeechWork.INVALIDATED_ENTRIES, previousSize - prepared.size)
     }
     if (prepared.isEmpty()) {
       noteWasted()
