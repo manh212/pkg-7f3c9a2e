@@ -195,6 +195,21 @@ class FocusActorForScreenStateChangeTest {
     assertEquals(1, RootsShadow.rootRequests)
   }
 
+  @Test
+  fun firstContentSkipsAToolbarUpButton() {
+    val root = root()
+    val app = window(APP, AccessibilityWindowInfo.TYPE_APPLICATION, root)
+    shadowOf(service).setWindows(listOf(app))
+    val toolbar = toolbar(app, root)
+    upButton(app, toolbar)
+    button(app, root)
+
+    assertTrue(
+      actor.focusOnRequestInitialNodeOrFirstFocusableNonTitleNode(screen(app), EVENT_ID_UNTRACKED)
+    )
+    assertEquals(listOf("Play"), focused.map { it?.text?.toString() })
+  }
+
   /** Restores the last focus into [active], counting only the roots that fetches. */
   private fun restore(active: AccessibilityWindowInfo): Boolean {
     RootsShadow.rootRequests = 0
@@ -236,6 +251,40 @@ class FocusActorForScreenStateChangeTest {
     shadowOf(node).setAccessibilityWindowInfo(window)
     shadowOf(node).setRefreshReturnValue(true)
     shadowOf(root).addChild(node)
+    return AccessibilityNodeInfoCompat.wrap(node)
+  }
+
+  /** A toolbar in the window, holding the navigation-Up button. */
+  private fun toolbar(
+    window: AccessibilityWindowInfo,
+    root: AccessibilityNodeInfo,
+  ): AccessibilityNodeInfo {
+    val toolbar = AccessibilityNodeInfo.obtain(View(service))
+    toolbar.packageName = APP_PACKAGE
+    toolbar.className = "androidx.appcompat.widget.Toolbar"
+    toolbar.isVisibleToUser = true
+    shadowOf(toolbar).setAccessibilityWindowInfo(window)
+    shadowOf(root).addChild(toolbar)
+    return toolbar
+  }
+
+  /** The navigation-Up button: clickable, no text, inside the toolbar. */
+  private fun upButton(
+    window: AccessibilityWindowInfo,
+    toolbar: AccessibilityNodeInfo,
+  ): AccessibilityNodeInfoCompat {
+    val node = AccessibilityNodeInfo.obtain(View(service))
+    node.packageName = APP_PACKAGE
+    node.className = "android.widget.ImageButton"
+    node.contentDescription = "Navigate up"
+    node.isVisibleToUser = true
+    node.isEnabled = true
+    node.isClickable = true
+    node.isFocusable = true
+    node.setBoundsInScreen(Rect(0, 0, 100, 100))
+    shadowOf(node).setAccessibilityWindowInfo(window)
+    shadowOf(node).setRefreshReturnValue(true)
+    shadowOf(toolbar).addChild(node)
     return AccessibilityNodeInfoCompat.wrap(node)
   }
 
