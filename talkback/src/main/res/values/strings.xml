@@ -1603,7 +1603,6 @@
     <string name="message_diagnostics_save_failed">Diagnostics could not be saved</string>
     <!-- Message shown when the diagnostics have been copied to the clipboard. [CHAR LIMIT=NONE] -->
     <string name="message_diagnostics_copied">Diagnostics copied</string>
-    <string name="message_diagnostics_clipboard_unavailable" translatable="false">Nhật ký quá lớn hoặc không thể sao chép. Hãy dùng Xuất nhật ký vào Tải xuống.</string>
     <!--
       Source: Preference title.
       Description: This preference allows the user to show speech output on the screen.
