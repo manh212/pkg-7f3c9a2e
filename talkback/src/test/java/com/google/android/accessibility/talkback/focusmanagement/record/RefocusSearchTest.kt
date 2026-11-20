@@ -23,6 +23,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState
+import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory.WindowIdentifier
 import com.google.android.accessibility.utils.FocusFinder
 import com.google.android.accessibility.utils.AccessibilityNode
 import com.google.android.accessibility.utils.input.WindowsDelegate
