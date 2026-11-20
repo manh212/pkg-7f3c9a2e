@@ -93,8 +93,11 @@ object DiagnosticsExport {
         SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.ROOT).format(Date()) +
         "\n\n"
     )
-    out.append(buildSnapshotSections(appContext))
-    out.append(buildPerformanceStatsSection())
+    out.append("Recording category: ${LogUtils.getSelectedCategory()}\n")
+    if (LogUtils.getSelectedCategory() == "all") {
+      out.append(buildSnapshotSections(appContext))
+      out.append(buildPerformanceStatsSection())
+    }
     val log = readLog(appContext, logMaxChars)
     out.append("== Recent log of the Meridian process ==\n")
     if (log == null) {
@@ -543,58 +546,7 @@ object DiagnosticsExport {
 
   /** The last lines of this process's log, or null if neither the file nor logcat can be read. */
   @WorkerThread
-  private fun readLog(context: Context, logMaxChars: Int): String? {
-    readDebugLogFile(context, logMaxChars)?.let { return it }
-    val process =
-      try {
-        ProcessBuilder(
-            "logcat",
-            "-d",
-            "-v",
-            "threadtime",
-            "-t",
-            LOG_LINES.toString(),
-            "--pid",
-            Process.myPid().toString(),
-          )
-          .redirectErrorStream(true)
-          .start()
-      } catch (e: IOException) {
-        LogUtils.w(TAG, "Cannot run logcat: %s", e)
-        return null
-      }
-    // The stream has to be drained on its own thread: reading it here would block until the
-    // process ends, and the timeout below could never cut a stuck read short.
-    val read = AtomicReference<String?>()
-    val reader =
-      Thread {
-        read.set(
-          try {
-            process.inputStream.bufferedReader().use { it.readText() }
-          } catch (e: IOException) {
-            LogUtils.w(TAG, "Cannot read the log: %s", e)
-            null
-          }
-        )
-      }
-    reader.start()
-    return try {
-      reader.join(TimeUnit.SECONDS.toMillis(LOG_TIMEOUT_SECONDS))
-      if (reader.isAlive) {
-        LogUtils.w(TAG, "Reading the log timed out")
-        null
-      } else {
-        read.get()?.let { log ->
-          if (log.length <= logMaxChars) log
-          else log.takeLast(logMaxChars).substringAfter('\n')
-        }
-      }
-    } catch (e: InterruptedException) {
-      Thread.currentThread().interrupt()
-      null
-    } finally {
-      process.destroy()
-    }
-  }
+  private fun readLog(context: Context, logMaxChars: Int): String? =
+    readDebugLogFile(context, logMaxChars)
 }
 

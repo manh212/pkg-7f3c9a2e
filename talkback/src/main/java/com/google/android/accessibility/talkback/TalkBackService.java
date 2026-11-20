@@ -4815,6 +4815,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   private void reloadDebugLog() {
     boolean debugLog =
         getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default);
+    LogUtils.setSelectedCategory(prefs.getString("pref_diagnostic_log_category", "all"));
     LogUtils.setEnabled(debugLog);
     MainThreadStallLogger.setEnabled(
         LatencyExperiments.Feature.STALL_CAPTURE.enabled()
