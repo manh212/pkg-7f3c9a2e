@@ -274,6 +274,44 @@ public final class AccessibilityFocusActionHistory {
     }
   }
 
+  /**
+   * Records a focus placement the app made itself — a TYPE_VIEW_ACCESSIBILITY_FOCUSED
+   * event with no matching TalkBack action — as this pane's record, so a later return
+   * to the pane can be checked against it. Only the per-pane map is updated: the
+   * placement is NOT added to the action queue, so {@link
+   * #matchFocusActionRecordFromEvent} never mistakes a later event on the same node
+   * for a TalkBack-assigned focus, and the queue's last record still says where the
+   * user was. The last-editable record is updated when the placed node is editable,
+   * so a keyboard close can find the edit field even though no TalkBack action
+   * focused it. {@code focusOnTalkBackUiBeforeWindowTransition} is not touched: it
+   * concerns TalkBack's own UI transitions, and an app placement is never one.
+   *
+   * @param node Node the app placed accessibility focus on.
+   * @param extraData Extra information of the placement, with source action {@link
+   *     FocusActionInfo#APP_PLACED_FOCUS}.
+   * @param actionTime {@link SystemClock#uptimeMillis()} when the placement was seen.
+   * @param currentScreenState Current {@link ScreenState}.
+   */
+  public void onAppPlacedFocus(
+      @NonNull AccessibilityNodeInfoCompat node,
+      @NonNull FocusActionInfo extraData,
+      long actionTime,
+      @Nullable ScreenState currentScreenState) {
+    // FocusActionRecord handles making a copy of 'node'.
+    FocusActionRecord record = new FocusActionRecord(node, extraData, actionTime);
+
+    final int windowId = node.getWindowId();
+    WindowIdentifier windowIdentifier = WindowIdentifier.create(windowId, currentScreenState);
+    lastRecordWindowIdentifier = windowIdentifier;
+    // Add to the window record map only — not to the action queue.
+    windowIdentifierToFocusActionRecordMap.put(windowIdentifier, FocusActionRecord.copy(record));
+
+    // Update the last editable node focus action.
+    if (node.isEditable() || (Role.getRole(node) == Role.ROLE_EDIT_TEXT)) {
+      lastEditableFocusActionRecord = FocusActionRecord.copy(record);
+    }
+  }
+
   /** Whether a record outside the action queue shares the web path capture of {@code record}. */
   private boolean isWebPathCaptureKept(FocusActionRecord record) {
     if (record.sharesWebPathCapture(lastEditableFocusActionRecord)

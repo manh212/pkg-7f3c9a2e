@@ -38,6 +38,7 @@ public class FocusActionInfo {
     SCREEN_STATE_CHANGE,
     ENSURE_ON_SCREEN,
     KEYBOARD_SHORTCUT_REFOCUS,
+    APP_PLACED_FOCUS,
   })
   @Retention(RetentionPolicy.SOURCE)
   public @interface SourceAction {}
@@ -62,6 +63,14 @@ public class FocusActionInfo {
 
   /** Triggered by keyboard shortcut to refocus the currently focused node. */
   public static final int KEYBOARD_SHORTCUT_REFOCUS = 7;
+
+  /**
+   * The app placed accessibility focus itself, with no TalkBack action behind it — a
+   * TYPE_VIEW_ACCESSIBILITY_FOCUSED event with no matching record. The placement is
+   * recorded as the pane's record (never in the action queue) so a later return to
+   * the pane can be checked against it.
+   */
+  public static final int APP_PLACED_FOCUS = 8;
 
   /**
    * Type of initial focus for source {@code SCREEN_STATE_CHANGE} and {@code ENSURE_ON_SCREEN}. It
@@ -149,6 +158,8 @@ public class FocusActionInfo {
         return "ENSURE_ON_SCREEN";
       case KEYBOARD_SHORTCUT_REFOCUS:
         return "KEYBOARD_SHORTCUT_REFOCUS";
+      case APP_PLACED_FOCUS:
+        return "APP_PLACED_FOCUS";
       case UNKNOWN:
         // Fall down
       default:
