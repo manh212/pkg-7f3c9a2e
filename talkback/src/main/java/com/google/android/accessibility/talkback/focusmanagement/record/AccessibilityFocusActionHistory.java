@@ -204,6 +204,9 @@ public final class AccessibilityFocusActionHistory {
 
   private int windowIdNotFound;
 
+  /** The window (id, title, pane) of the last focus action recorded, or null if none. */
+  private @Nullable WindowIdentifier lastRecordWindowIdentifier;
+
   //////////////////////////////////////////////////////////////////////////////////////////
   // Construction
 
@@ -261,6 +264,7 @@ public final class AccessibilityFocusActionHistory {
 
     final int windowId = node.getWindowId();
     WindowIdentifier windowIdentifier = WindowIdentifier.create(windowId, currentScreenState);
+    lastRecordWindowIdentifier = windowIdentifier;
     // Add to the window record map.
     windowIdentifierToFocusActionRecordMap.put(windowIdentifier, FocusActionRecord.copy(record));
 
@@ -374,6 +378,11 @@ public final class AccessibilityFocusActionHistory {
     return focusActionRecordList.peekLast();
   }
 
+  /** Returns the window of the last focus action recorded, or null if none was recorded. */
+  public @Nullable WindowIdentifier getLastRecordWindowIdentifier() {
+    return lastRecordWindowIdentifier;
+  }
+
   @Nullable NodePathDescription getLastFocusAncestorIdentityPath() {
     @Nullable FocusActionRecord record = getLastFocusActionRecord();
     return (record == null) ? null : record.getAncestorIdentityPath();
@@ -479,6 +488,7 @@ public final class AccessibilityFocusActionHistory {
     lastEditableFocusActionRecord = null;
     cachedNodeToRestoreFocus = null;
     recordNotFound = null;
+    lastRecordWindowIdentifier = null;
 
     clearPendingFocusAction();
   }

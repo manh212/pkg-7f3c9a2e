@@ -381,7 +381,10 @@ public class FocusActionRecord {
       boolean refreshed = false;
       boolean refreshAttempted = false;
 
-      // 1. Unique id match
+      // 1. Unique id match. A collection row is only reused when it still shows the
+      // recorded text, so a view recycled to different content is never mistaken for
+      // the row the user left; step 2 already requires this, the unique-id lookup
+      // skipped it.
       @Nullable String uniqueId = focusActionRecord.getUniqueId();
       if (uniqueId != null) {
         AccessibilityNodeInfoCompat uniqueIdNode = null;
@@ -407,7 +410,9 @@ public class FocusActionRecord {
             }
           }, null, deadline);
         }
-        if (uniqueIdNode != null && AccessibilityNodeInfoUtils.shouldFocusNode(uniqueIdNode)) {
+        if (uniqueIdNode != null
+            && AccessibilityNodeInfoUtils.shouldFocusNode(uniqueIdNode)
+            && isCachedNodeReusable(focusActionRecord, uniqueIdNode)) {
           LogUtils.d(TAG, "getFocusableNodeFromFocusRecord from uniqueId=%s", uniqueId);
           return uniqueIdNode;
         }
@@ -450,6 +455,18 @@ public class FocusActionRecord {
             nodePath.findUniqueCollectionItem(
                 root, lastFocusedNode.getPackageName(), searchDeadline);
         if (matchingItem != null) return matchingItem;
+      }
+      if (focusActionRecord.collectionItem
+          && nodeAtSamePosition != null
+          && !nodePath.matchesLeafText(nodeAtSamePosition)) {
+        // The node at the recorded position shows different content — the list re-sorted
+        // while the user was away, or the recorded row scrolled off-screen and is unbound
+        // so no unique text match exists. Returning it would land focus on the wrong
+        // conversation; return null so the failovers run instead.
+        LogUtils.d(
+            TAG,
+            "getFocusableNodeFromFocusRecord: node at recorded position has different text, not returning it");
+        return null;
       }
       if ((nodeAtSamePosition != null)
           && AccessibilityNodeInfoUtils.shouldFocusNode(nodeAtSamePosition)) {
@@ -694,6 +711,22 @@ public class FocusActionRecord {
     }
 
     return (focusedNode == targetNode) || focusedNode.equals(targetNode);
+  }
+
+  /**
+   * Returns whether {@code node} is the node this record describes: the same view, and for
+   * collection rows the same text. A view recycled to different content is not the recorded
+   * node even though its unique id still matches.
+   */
+  public boolean describesNode(@NonNull AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat recorded = getFocusedNode();
+    if (!recorded.refresh()) {
+      return false;
+    }
+    if (!recorded.equals(node)) {
+      return false;
+    }
+    return isCachedNodeReusable(this, recorded);
   }
 
   @Override
