@@ -165,8 +165,9 @@ public class NavigationLatencyTest {
     latency.link(focus, gesture);
     assertEquals(1000L, latency.origin(focus).getEventTimeMs());
     assertEquals(gesture, latency.origin(focus));
-    assertEquals(focus, latency.origin(new EventId(1200,
-        Performance.EVENT_TYPE_ACCESSIBILITY, AccessibilityEvent.TYPE_ANNOUNCEMENT)));
+    EventId unlinked = new EventId(1200, Performance.EVENT_TYPE_ACCESSIBILITY,
+        AccessibilityEvent.TYPE_ANNOUNCEMENT);
+    assertEquals(unlinked, latency.origin(unlinked));
   }
 
   @Test
