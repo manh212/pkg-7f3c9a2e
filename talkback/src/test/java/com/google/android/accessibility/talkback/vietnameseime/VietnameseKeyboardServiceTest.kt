@@ -831,12 +831,12 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun singleTapToTypeSpeaksHoveredKeysWithOwnVoiceOn() {
+  fun singleTapToTypeKeepsHoveredKeysSilentEvenWithOwnVoiceOn() {
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     setOwnVoice(true)
     startEditor()
 
-    assertTrue(view().speakHoveredKeys)
+    assertFalse(view().speakHoveredKeys)
   }
 
   @Test
