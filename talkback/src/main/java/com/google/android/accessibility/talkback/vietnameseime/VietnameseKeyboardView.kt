@@ -593,11 +593,9 @@ internal class VietnameseKeyboardView(
       lastDeleteTapMs = -1
       id
     }
-    val delay = when (method) {
-      SINGLE_TAP_TO_TYPE -> 100L
-      DIRECT_SILENT_TYPING -> timing.directInputMs
-      else -> 0L
-    }
+    val delay = if (method == SINGLE_TAP_TO_TYPE || method == DIRECT_SILENT_TYPING) {
+      timing.directInputMs
+    } else 0L
     if (delay == 0L) {
       activate(targetId, releasedAt)
       return
