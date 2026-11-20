@@ -49,6 +49,7 @@ import com.google.android.accessibility.talkback.focusmanagement.record.Accessib
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.FocusFinder;
@@ -432,9 +433,12 @@ public class FocusManagerInternal {
 
   /**
    * Returns whether the last accessibility focus was placed in the input method window after
-   * the current screen state began. The windows have not changed since then, so losing that
-   * focus is churn within the same screen, such as the keyboard redrawing while typing, and not
-   * a move to a new window.
+   * the current screen state began, while that window is still on screen. The windows have not
+   * changed since then, so losing that focus is churn within the same screen, such as the
+   * keyboard redrawing while typing, and not a move to a new window. Once the keyboard is gone
+   * the IME node is dead, so this no longer applies: giving up then would strand focus instead
+   * of letting {@link #refocusEditField} and the restore failovers bring it back to the edit
+   * field.
    */
   private boolean isLastFocusInImeWindowSinceScreenChange(ScreenState state) {
     if (!focusedSinceScreenChange(state)) {
@@ -442,9 +446,14 @@ public class FocusManagerInternal {
     }
     @Nullable FocusActionRecord record = history.getLastFocusActionRecord();
     AccessibilityNodeInfoCompat lastFocus = (record == null) ? null : record.getFocusedNode();
-    return lastFocus != null
-        && AccessibilityWindowInfoUtils.isImeWindow(
-            AccessibilityNodeInfoUtils.getWindow(lastFocus));
+    if (lastFocus == null
+        || !AccessibilityWindowInfoUtils.isImeWindow(
+            AccessibilityNodeInfoUtils.getWindow(lastFocus))) {
+      return false;
+    }
+    // Only give up while the keyboard is still up. After it closes the IME node is gone, and
+    // refocusEditField below is exactly what should bring focus back to the edit field.
+    return AccessibilityServiceCompatUtils.isInputWindowOnScreen(service);
   }
 
   /**
