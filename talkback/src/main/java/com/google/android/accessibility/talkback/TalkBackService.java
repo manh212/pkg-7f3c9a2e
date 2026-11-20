@@ -2746,6 +2746,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   protected void onServiceConnected() {
     ExitAfterTurnOff.cancel();
     super.onServiceConnected();
+    Performance.getInstance().clearRecentEvents();
     // Menus read the settings profiles on the main thread.
     SettingsProfiles.preload(this);
     AppGestures.setSystemUiActive(this::isSystemUiActive);

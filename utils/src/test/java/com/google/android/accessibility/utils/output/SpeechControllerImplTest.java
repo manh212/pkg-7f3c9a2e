@@ -223,6 +223,18 @@ public class SpeechControllerImplTest {
   }
 
   @Test
+  public void utteranceIdsDoNotRestartWhenSpeechControllerIsRecreated() {
+    int first = speechController.peekNextUtteranceId();
+    speak(speechController, "first", SpeechController.QUEUE_MODE_QUEUE);
+    int next = speechController.peekNextUtteranceId();
+    assertTrue(next > first);
+    SpeechControllerImpl recreated = controllerWithAlwaysInterrupt(false);
+    assertEquals(next, recreated.peekNextUtteranceId());
+    speak(recreated, "second", SpeechController.QUEUE_MODE_QUEUE);
+    assertTrue(recreated.peekNextUtteranceId() > next);
+  }
+
+  @Test
   public void gestureSpeech_interruptsUninterruptibleAnnouncement() {
     enablePerformanceStats();
 

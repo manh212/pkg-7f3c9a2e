@@ -61,6 +61,19 @@ public class NavigationLatencyTest {
   }
 
   @Test
+  public void pcmStageReportsOnlyTheFirstValidCallback() {
+    latency.start(gesture);
+    latency.queued(gesture, "one");
+    assertTrue(latency.audio("one", NavigationLatency.Stage.FIRST_PCM, 1040));
+    assertFalse(latency.audio("one", NavigationLatency.Stage.FIRST_PCM, 1050));
+    assertFalse(latency.audio("unrelated", NavigationLatency.Stage.FIRST_PCM, 1070));
+    assertFalse(latency.audio("one", NavigationLatency.Stage.AUDIO_SUBMITTED, 999));
+    assertTrue(latency.audio("one", NavigationLatency.Stage.AUDIO_SUBMITTED, 1060));
+    assertFalse(latency.audio("one", NavigationLatency.Stage.AUDIO_SUBMITTED, 1080));
+    assertTrue(report().contains("AUDIO_SUBMITTED\n    missing=0, count=1, mean=60ms"));
+  }
+
+  @Test
   public void repeatedCallbacksAndLaterFragments_doNotCountTwice() {
     latency.start(gesture);
     latency.queued(gesture, "first");

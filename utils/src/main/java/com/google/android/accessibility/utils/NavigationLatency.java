@@ -158,12 +158,17 @@ final class NavigationLatency {
     return trace;
   }
 
-  synchronized void audio(String utterance, Stage stage, long uptimeMs) {
+  synchronized boolean audio(String utterance, Stage stage, long uptimeMs) {
     Trace trace = utteranceTrace(utterance);
+    if (trace == null || trace.elapsed[stage.ordinal()] >= 0
+        || uptimeMs < trace.origin.getEventTimeMs()) {
+      return false;
+    }
     record(trace, stage, uptimeMs);
-    if (trace != null && stage == Stage.AUDIO_SUBMITTED) {
+    if (stage == Stage.AUDIO_SUBMITTED) {
       trace.outcome = trace.interrupted ? "interrupted_after_audio" : "audio_submitted";
     }
+    return true;
   }
 
   synchronized void interrupted(String utterance) {

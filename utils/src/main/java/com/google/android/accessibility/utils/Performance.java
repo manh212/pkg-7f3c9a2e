@@ -229,12 +229,10 @@ public class Performance {
   }
 
   public void onFeedbackPlaybackStarted(String utterance, long uptimeMs, boolean audioSubmitted) {
-    if (navigationTrackingEnabled()) {
-      navigationLatency.audio(utterance,
-          audioSubmitted ? NavigationLatency.Stage.AUDIO_SUBMITTED : NavigationLatency.Stage.TTS_START,
-          uptimeMs);
-    }
-    if (LogUtils.isCategoryEnabled("performance")) {
+    boolean first = navigationTrackingEnabled() && navigationLatency.audio(utterance,
+        audioSubmitted ? NavigationLatency.Stage.AUDIO_SUBMITTED : NavigationLatency.Stage.TTS_START,
+        uptimeMs);
+    if (first && LogUtils.isCategoryEnabled("performance")) {
       LogUtils.i("LatencyDiagnostics", "gesture_uptime=%d utterance=%s audio_stage=%s uptime=%d",
           navigationLatency.utteranceGestureUptime(utterance), utterance,
           audioSubmitted ? "submitted" : "tts_start", uptimeMs);
@@ -263,10 +261,9 @@ public class Performance {
   }
 
   public void onFeedbackAudioAvailable(String utterance, long uptimeMs) {
-    if (navigationTrackingEnabled() && utterance != null) {
-      navigationLatency.audio(utterance, NavigationLatency.Stage.FIRST_PCM, uptimeMs);
-    }
-    if (utterance != null && LogUtils.isCategoryEnabled("performance")) {
+    boolean first = navigationTrackingEnabled() && utterance != null
+        && navigationLatency.audio(utterance, NavigationLatency.Stage.FIRST_PCM, uptimeMs);
+    if (first && LogUtils.isCategoryEnabled("performance")) {
       LogUtils.i("LatencyDiagnostics",
           "gesture_uptime=%d utterance=%s first_pcm_uptime=%d",
           navigationLatency.utteranceGestureUptime(utterance), utterance, uptimeMs);
@@ -970,9 +967,7 @@ public class Performance {
    * latency between queueing first piece of spoken feedback and hearing audio feedback.
    */
   public void onFeedbackOutput(@NonNull String utteranceId, boolean localCache) {
-    if (navigationTrackingEnabled()) {
-      navigationLatency.audio(utteranceId, NavigationLatency.Stage.FIRST_PCM, getUptime());
-    }
+    onFeedbackAudioAvailable(utteranceId, getUptime());
     if (!trackEvents()) {
       return;
     }

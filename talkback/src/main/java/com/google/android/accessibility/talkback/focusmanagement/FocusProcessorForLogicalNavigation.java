@@ -4495,6 +4495,10 @@ public class FocusProcessorForLogicalNavigation {
       }
     }
     if (next == null) {
+      if (shouldWaitForStableScrollOrder(listStillMoving())) {
+        Performance.getInstance().onNavigationDetail(track.eventId, "scroll_order_wait", 1);
+        return false;
+      }
       readListAgain(list);
       // Prefetch can span frames; use the list's current child IDs for the reading order.
       if (!list.refresh()) {
@@ -4554,7 +4558,12 @@ public class FocusProcessorForLogicalNavigation {
         NavigationAction.Builder.copy(sourceAction)
             .setAutoScrollAttempt(sourceAction.autoScrollAttempt + 1)
             .build();
+    if (!target.refresh() || !AccessibilityNodeInfoUtils.isVisible(target)) {
+      Performance.getInstance().onNavigationDetail(track.eventId, "scroll_target_stale", 1);
+      return false;
+    }
     if (!setAccessibilityFocusInternal(target, navigationAction, track.eventId)) {
+      Performance.getInstance().onNavigationDetail(track.eventId, "scroll_focus_retry", 1);
       LogUtils.d(TAG, "The new scroll item did not take focus; keep watching the list.");
       return false;
     }
@@ -4664,6 +4673,11 @@ public class FocusProcessorForLogicalNavigation {
     CharSequence labelA = a.getContentDescription() != null ? a.getContentDescription() : a.getText();
     CharSequence labelB = b.getContentDescription() != null ? b.getContentDescription() : b.getText();
     return TextUtils.equals(labelA, labelB);
+  }
+
+  @VisibleForTesting
+  static boolean shouldWaitForStableScrollOrder(boolean moving) {
+    return moving;
   }
 
   /** Most nodes passed over by {@link #skipBackSteps}. */

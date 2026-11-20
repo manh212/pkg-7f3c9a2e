@@ -96,6 +96,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
@@ -376,7 +377,7 @@ public class SpeechControllerImpl implements SpeechController {
    * The next utterance index; each utterance value will be constructed from this ever-increasing
    * index.
    */
-  private int mNextUtteranceIndex = 0;
+  private static final AtomicInteger nextUtteranceIndex = new AtomicInteger();
 
   /** Whether rate and pitch can change. */
   private boolean mUseIntonation = true;
@@ -2005,8 +2006,7 @@ public class SpeechControllerImpl implements SpeechController {
 
     // If TTS isn't ready, this should be the only item in the queue.
     if (!failoverTts.isReady()) {
-      LogUtils.e(
-          TAG, "TTS is not ready. Attempted to speak before TTS was initialized. Item: " + item);
+      LogUtils.d(TAG, "Speech queued while TTS is initializing.");
       return;
     }
 
@@ -2548,12 +2548,12 @@ public class SpeechControllerImpl implements SpeechController {
   /** Returns the next utterance identifier. */
   @Override
   public int peekNextUtteranceId() {
-    return mNextUtteranceIndex;
+    return nextUtteranceIndex.get();
   }
 
   /** Returns the next utterance identifier and increments the utterance value. */
   private int getNextUtteranceId() {
-    return mNextUtteranceIndex++;
+    return nextUtteranceIndex.getAndIncrement();
   }
 
   /**

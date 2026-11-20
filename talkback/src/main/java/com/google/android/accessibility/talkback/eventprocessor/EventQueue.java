@@ -176,7 +176,8 @@ class EventQueue {
     }
 
     eventQueue.add(clone);
-    if (LogUtils.isCategoryEnabled("events")) {
+    if (eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        && LogUtils.isCategoryEnabled("events")) {
       LogUtils.i("EventDiagnostics", "queued type=%d depth=%d event_uptime=%d",
           eventType, eventQueue.size(), clone.getEventTime());
     }
@@ -213,7 +214,8 @@ class EventQueue {
           event, SystemClock.uptimeMillis() - enqueuedAt, eventQueue.size() + 1);
     }
 
-    if (LogUtils.isCategoryEnabled("events")) {
+    if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        && LogUtils.isCategoryEnabled("events")) {
       LogUtils.i("EventDiagnostics", "dequeued type=%d depth=%d focus_jump=%b",
           event.getEventType(), eventQueue.size(), index > 0);
     }
