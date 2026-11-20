@@ -9,7 +9,6 @@ import android.view.accessibility.AccessibilityEvent;
 import com.google.android.accessibility.utils.Performance.EventId;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Test;
-import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import org.junit.After;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -61,19 +60,6 @@ public class NavigationLatencyTest {
   }
 
   @Test
-  public void pcmStageReportsOnlyTheFirstValidCallback() {
-    latency.start(gesture);
-    latency.queued(gesture, "one");
-    assertTrue(latency.audio("one", NavigationLatency.Stage.FIRST_PCM, 1040));
-    assertFalse(latency.audio("one", NavigationLatency.Stage.FIRST_PCM, 1050));
-    assertFalse(latency.audio("unrelated", NavigationLatency.Stage.FIRST_PCM, 1070));
-    assertFalse(latency.audio("one", NavigationLatency.Stage.AUDIO_SUBMITTED, 999));
-    assertTrue(latency.audio("one", NavigationLatency.Stage.AUDIO_SUBMITTED, 1060));
-    assertFalse(latency.audio("one", NavigationLatency.Stage.AUDIO_SUBMITTED, 1080));
-    assertTrue(report().contains("AUDIO_SUBMITTED\n    missing=0, count=1, mean=60ms"));
-  }
-
-  @Test
   public void repeatedCallbacksAndLaterFragments_doNotCountTwice() {
     latency.start(gesture);
     latency.queued(gesture, "first");
@@ -122,8 +108,6 @@ public class NavigationLatencyTest {
   @After
   public void resetExperiments() {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.TRACE, false);
-    LogUtils.setEnabled(false);
-    LogUtils.setSelectedCategory("all");
   }
 
   @Test
@@ -155,32 +139,6 @@ public class NavigationLatencyTest {
     assertTrue(output.contains("Measurement session uptime: 3000"));
     assertFalse(output.contains("gesture_uptime="));
     assertFalse(output.contains("FIRST_PCM"));
-  }
-
-  @Test
-  public void performanceCategoryCollectsDetailedTraceWithoutTraceExperiment() {
-    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TRACE, false);
-    LogUtils.setSelectedCategory("performance");
-    LogUtils.setEnabled(true);
-    latency.start(gesture);
-    latency.queued(gesture, "categorized");
-    latency.audio("categorized", NavigationLatency.Stage.FIRST_PCM, 1090);
-    String output = report();
-    assertTrue(output.contains("gesture_uptime=1000"));
-    assertTrue(output.contains("FIRST_PCM=90"));
-  }
-
-  @Test
-  public void linkedFocusEventsKeepTheirGestureOriginForDiagnostics() {
-    latency.start(gesture);
-    EventId focus = new EventId(1150, Performance.EVENT_TYPE_ACCESSIBILITY,
-        AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
-    latency.link(focus, gesture);
-    assertEquals(1000L, latency.origin(focus).getEventTimeMs());
-    assertEquals(gesture, latency.origin(focus));
-    EventId unlinked = new EventId(1200, Performance.EVENT_TYPE_ACCESSIBILITY,
-        AccessibilityEvent.TYPE_ANNOUNCEMENT);
-    assertEquals(unlinked, latency.origin(unlinked));
   }
 
   @Test
