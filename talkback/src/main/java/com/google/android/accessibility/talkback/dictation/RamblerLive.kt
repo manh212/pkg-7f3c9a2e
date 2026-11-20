@@ -296,7 +296,7 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
     val checkedWords = minOf(previous.size, incoming.size, MAX_REVISED_PREFIX_WORDS)
     return checkedWords >= MIN_REVISED_WORDS &&
       wordEditDistance(previous, 0, incoming, 0, checkedWords) <=
-        maxOf(1, checkedWords / 12)
+        maxOf(1, checkedWords / 8)
   }
 
   private fun overlappingWords(
