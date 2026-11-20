@@ -450,4 +450,62 @@ class RefocusSearchTest {
     path.addSiblingContext(next, NodePathDescription.Deadline.afterSearchTimeLimit())
     assertEquals(reads, outer.childReads)
   }
+
+  private fun chatList(): Node {
+    val list = Node("list").apply {
+      text = null
+      unwrap().collectionInfo = AccessibilityNodeInfo.CollectionInfo.obtain(1, 1, false)
+    }
+    return list
+  }
+
+  private fun chatRow(label: String, id: String) =
+    Node(label).apply {
+      uniqueId = id
+      isClickable = true
+    }
+
+  @Test
+  fun aRecycledCollectionRowIsNotReturnedByUniqueId() {
+    // The chat list, with the group row focused and recorded.
+    val root = Node("root")
+    val list = chatList()
+    val group = chatRow("Meridian\nlast message", "row-group")
+    root.add(list)
+    list.add(group)
+    val record = record(group)
+
+    // Control: before any rebind, the record restores the row by its unique id.
+    assertEquals(group, seekDuringRefocus(newHistory(), root, record))
+
+    // The list re-sorts while the user is inside the group: the ViewHolder that showed
+    // the group now shows a DM. Same view, same unique id, different text.
+    group.text = "Duy Nguyen\nlast message"
+
+    assertNull(seekDuringRefocus(newHistory(), root, record))
+  }
+
+  @Test
+  fun aPositionMatchWithDifferentTextIsNotReturnedWhenTheRowIsGone() {
+    // The chat list, with the group row focused and recorded.
+    val root = Node("root")
+    val list = chatList()
+    val a = chatRow("A\nlast message", "row-a")
+    val group = chatRow("Meridian\nlast message", "row-group")
+    val dm = chatRow("Duy Nguyen\nlast message", "row-dm")
+    root.add(list)
+    list.add(a, group, dm)
+    val record = record(group)
+
+    // Control: before the re-sort, the record restores the group row.
+    assertEquals(group, seekDuringRefocus(newHistory(), root, record))
+
+    // The list re-sorts while the user is inside the group, and the group row scrolls
+    // off-screen: the DM now sits at the recorded position.
+    group.alive = false
+    list.children.remove(group)
+    group.owner = null
+
+    assertNull(seekDuringRefocus(newHistory(), root, record))
+  }
 }
