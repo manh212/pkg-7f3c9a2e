@@ -57,8 +57,16 @@ public final class NodePathDescription {
 
   private static final double MAX_DIST = Float.MAX_VALUE;
 
+  /**
+   * The most time, in milliseconds, that finding the node to refocus after a content change takes,
+   * and, separately, that reading the positions of the path's ancestors among their siblings takes.
+   * Each step asks the app for a node and waits for the answer on the main thread. A page nested in
+   * several web views, rebuilt by its app, answers slowly enough for an unbounded search to hold up
+   * input for seconds.
+   */
   static final long SEARCH_TIME_LIMIT_MS = 300;
 
+  /** The time at which a search for the node to refocus stops asking the app for nodes. */
   static final class Deadline {
     private final long endTimeMs;
     private boolean stopped = false;
@@ -69,6 +77,11 @@ public final class NodePathDescription {
 
     static @NonNull Deadline afterSearchTimeLimit() {
       return new Deadline(SystemClock.uptimeMillis() + SEARCH_TIME_LIMIT_MS);
+    }
+
+    /** Returns a deadline that never passes. */
+    static @NonNull Deadline none() {
+      return new Deadline(Long.MAX_VALUE);
     }
 
     boolean shouldStop() {
@@ -146,20 +159,37 @@ public final class NodePathDescription {
     return nodePath;
   }
 
-  @NonNull NodePathDescription withSiblingContext(@NonNull Deadline deadline) {
-    final NodePathDescription nodePath = new NodePathDescription();
+  /**
+   * Adds to this path, made by {@link #obtainWithoutSiblingContext}, each ancestor's position among
+   * its siblings, found among the children that its parent in the path had when the path was made,
+   * starting with the ancestor at {@code from}. The path end keeps the position read with the path.
+   * The ancestors not reached by {@code deadline}, which are the ones nearest the root, are left
+   * without their positions.
+   *
+   * @return the index of the first ancestor not read, or the path's size when all have been read
+   */
+  int addSiblingContext(int from, @NonNull Deadline deadline) {
     int size = nodeDescriptions.size();
-    for (int i = 0; i < size; i++) {
-      if (i == 0 || deadline.shouldStop()) {
-        nodePath.nodeDescriptions.add(nodeDescriptions.get(i));
-        continue;
+    for (int i = Math.max(from, 1); i < size; i++) {
+      if (deadline.shouldStop()) {
+        return i;
       }
       @Nullable AccessibilityNode parent =
           (i + 1 < size) ? nodeDescriptions.get(i + 1).savedNode : null;
-      nodePath.nodeDescriptions.add(
-          nodeDescriptions.get(i).withSiblingContext(parent, /* isPathEnd= */ false, deadline));
+      NodeDescription withPosition =
+          nodeDescriptions.get(i).withSiblingContext(parent, /* isPathEnd= */ false, deadline);
+      if (deadline.stopped()) {
+        // Reading the siblings was cut short, so the position is not known.
+        return i;
+      }
+      nodeDescriptions.set(i, withPosition);
     }
-    return nodePath;
+    return size;
+  }
+
+  /** Returns the number of nodes in the path. */
+  int size() {
+    return nodeDescriptions.size();
   }
 
   /**
