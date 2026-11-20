@@ -239,6 +239,10 @@ public class FocusActorForScreenStateChange {
         // tree.
         || (!WebInterfaceUtils.isWebContainer(nodeToRestoreFocus)
             && !isInWindow(nodeToRestoreFocus, windowId, root))) {
+      if (LogUtils.isCategoryEnabled("focus")) {
+        LogUtils.i("FocusDiagnostics", "restore_window=%d result=%s",
+            windowId, nodeToRestoreFocus == null ? "missing_node" : "invalid_node");
+      }
       LogUtils.e(TAG, "Do not restore focus from the invalid node " + nodeToRestoreFocus);
       return false;
     }
@@ -252,6 +256,11 @@ public class FocusActorForScreenStateChange {
 
     if (firstTime && success) {
       screenState.consumeInterpretFirstTimeWhenWakeUp();
+    }
+    if (LogUtils.isCategoryEnabled("focus")) {
+      LogUtils.i("FocusDiagnostics", "restore_window=%d result=%s duration_ms=%d",
+          windowId, success ? "restored" : "action_failed",
+          primesController.getTime() - startTime);
     }
     if (success) {
       primesController.recordDuration(

@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.IdentityHashMap;
@@ -208,6 +209,10 @@ class EventQueue {
           event, SystemClock.uptimeMillis() - enqueuedAt, eventQueue.size() + 1);
     }
 
+    if (LogUtils.isCategoryEnabled("events")) {
+      LogUtils.i("EventDiagnostics", "dequeued type=%d depth=%d focus_jump=%b",
+          event.getEventType(), eventQueue.size(), index > 0);
+    }
     if (index > 0) {
       consecutiveFocusJumps++;
       Performance.getInstance().onFocusEventQueueJump(eventQueue.size() + 1);
@@ -318,6 +323,10 @@ class EventQueue {
         iterator.remove();
         enqueueTimes.remove(next);
         EventProcessingStats.coalesced(next);
+        if (LogUtils.isCategoryEnabled("events")) {
+          LogUtils.i("EventDiagnostics", "coalesced type=%d depth=%d",
+              eventType, eventQueue.size());
+        }
         next.recycle();
 
         // Stop pruning further events of this type if the number of

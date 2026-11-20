@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityEvent;
 import com.google.android.accessibility.utils.Performance.EventId;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Test;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import org.junit.After;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -108,6 +109,8 @@ public class NavigationLatencyTest {
   @After
   public void resetExperiments() {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.TRACE, false);
+    LogUtils.setEnabled(false);
+    LogUtils.setSelectedCategory("all");
   }
 
   @Test
@@ -139,6 +142,19 @@ public class NavigationLatencyTest {
     assertTrue(output.contains("Measurement session uptime: 3000"));
     assertFalse(output.contains("gesture_uptime="));
     assertFalse(output.contains("FIRST_PCM"));
+  }
+
+  @Test
+  public void performanceCategoryCollectsDetailedTraceWithoutTraceExperiment() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.TRACE, false);
+    LogUtils.setSelectedCategory("performance");
+    LogUtils.setEnabled(true);
+    latency.start(gesture);
+    latency.queued(gesture, "categorized");
+    latency.audio("categorized", NavigationLatency.Stage.FIRST_PCM, 1090);
+    String output = report();
+    assertTrue(output.contains("gesture_uptime=1000"));
+    assertTrue(output.contains("FIRST_PCM=90"));
   }
 
   @Test

@@ -25,6 +25,7 @@ import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCa
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.Performance
 import com.google.android.accessibility.utils.Performance.PreparedSpeechWork
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import com.google.android.accessibility.utils.WindowCachePolicy
 
 /**
@@ -114,6 +115,10 @@ object PreparedFocusSpeech {
       if (oldest != null) prepared.remove(oldest)
     }
     prepared += Prepared(node, feedback, containerTitle, targetType)
+    if (LogUtils.isCategoryEnabled("preparation")) {
+      LogUtils.i("PreparationDiagnostics", "text_cached window=%d type=%d entries=%d",
+        node.windowId, targetType, prepared.size)
+    }
     Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARED)
   }
 
@@ -148,6 +153,10 @@ object PreparedFocusSpeech {
       return null
     }
     prepared.remove(found)
+    if (LogUtils.isCategoryEnabled("preparation")) {
+      LogUtils.i("PreparationDiagnostics", "text_cache_hit window=%d type=%d age_ms=%d",
+        node.windowId, found.targetType, SystemClock.uptimeMillis() - found.time)
+    }
     // A preparation was used: the window is earning its preparations again.
     wastedStreak = 0
     if (windowId == suppressedWindowId) {

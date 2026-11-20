@@ -1,6 +1,7 @@
 package com.google.android.accessibility.utils;
 
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -89,7 +90,8 @@ final class NavigationLatency {
     if (eventId == null || eventId.getEventType() != Performance.EVENT_TYPE_GESTURE) return;
     Trace trace = new Trace(eventId);
     events.put(eventId, trace);
-    if (LatencyExperiments.Feature.TRACE.enabled() || measurementActive) {
+    if (LatencyExperiments.Feature.TRACE.enabled()
+        || LogUtils.isCategoryEnabled("performance") || measurementActive) {
       if (traces.size() == MAX_LINKS) traces.removeFirst();
       traces.addLast(trace);
     }
@@ -194,7 +196,8 @@ final class NavigationLatency {
       return created;
     });
     values[stage.ordinal()].increment(elapsed);
-    if (LatencyExperiments.Feature.TRACE.enabled()) {
+    if (LatencyExperiments.Feature.TRACE.enabled()
+        || LogUtils.isCategoryEnabled("performance")) {
       long[][] counts = violations.computeIfAbsent(label, unused -> new long[Stage.values().length][2]);
       if (elapsed > 20) counts[stage.ordinal()][0]++;
       if (elapsed > 50) counts[stage.ordinal()][1]++;
@@ -218,7 +221,8 @@ final class NavigationLatency {
         for (int i = 0; i < counts.length; i++) countsCopy[i] = counts[i].clone();
         budgets.put(entry.getKey(), countsCopy);
       }
-      if (LatencyExperiments.Feature.TRACE.enabled()) {
+      if (LatencyExperiments.Feature.TRACE.enabled()
+          || LogUtils.isCategoryEnabled("performance")) {
         for (Trace trace : traces) {
           StringBuilder row = new StringBuilder();
           row.append("gesture_uptime=").append(trace.origin.getEventTimeMs())
@@ -248,7 +252,8 @@ final class NavigationLatency {
         if (value.getCount() == 0) continue;
         logger.log("NAVIGATION_%s/%s", entry.getKey(), stage);
         Performance.displayStatistics(logger, value);
-        if (LatencyExperiments.Feature.TRACE.enabled()) {
+        if (LatencyExperiments.Feature.TRACE.enabled()
+            || LogUtils.isCategoryEnabled("performance")) {
           long[] counts = budgets.get(entry.getKey())[stage.ordinal()];
           logger.log("    budget: p95=%d ms, max=%d ms, over20=%d, over50=%d",
               value.getPercentile(95), value.getMaximum(), counts[0], counts[1]);

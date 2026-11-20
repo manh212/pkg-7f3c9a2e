@@ -228,6 +228,10 @@ public class Performance {
           audioSubmitted ? NavigationLatency.Stage.AUDIO_SUBMITTED : NavigationLatency.Stage.TTS_START,
           uptimeMs);
     }
+    if (LogUtils.isCategoryEnabled("performance")) {
+      LogUtils.i("LatencyDiagnostics", "utterance=%s audio_stage=%s uptime=%d",
+          utterance, audioSubmitted ? "submitted" : "tts_start", uptimeMs);
+    }
   }
 
   public void displayNavigationStats(Logger logger) {
@@ -255,6 +259,9 @@ public class Performance {
     if (navigationTrackingEnabled() && utterance != null) {
       navigationLatency.audio(utterance, NavigationLatency.Stage.FIRST_PCM, uptimeMs);
     }
+    if (utterance != null && LogUtils.isCategoryEnabled("performance")) {
+      LogUtils.i("LatencyDiagnostics", "utterance=%s first_pcm_uptime=%d", utterance, uptimeMs);
+    }
   }
 
   private boolean navigationTrackingEnabled() {
@@ -263,7 +270,11 @@ public class Performance {
   }
 
   private boolean navigationTraceEnabled() {
-    return LatencyExperiments.Feature.TRACE.enabled() || navigationMeasurementActive;
+    return LatencyExperiments.Feature.TRACE.enabled() || navigationMeasurementActive
+        || LogUtils.isCategoryEnabled("performance")
+        || LogUtils.isCategoryEnabled("reading_order")
+        || LogUtils.isCategoryEnabled("focus")
+        || LogUtils.isCategoryEnabled("preparation");
   }
 
   public boolean isMeasuringNavigation() {
@@ -276,10 +287,17 @@ public class Performance {
 
   public void onNavigationActionStarted(EventId eventId) {
     if (navigationTrackingEnabled()) navigationLatency.navigationAction(eventId);
+    if (eventId != null && LogUtils.isCategoryEnabled("reading_order")) {
+      LogUtils.i("NavigationOrder", "gesture_uptime=%d gesture=%d navigation_started",
+          eventId.getEventTimeMs(), eventId.getEventSubtype());
+    }
   }
 
   public void onNavigationPcmCacheResult(String utterance, boolean hit) {
     if (navigationTraceEnabled()) navigationLatency.cacheResult(utterance, hit);
+    if (LogUtils.isCategoryEnabled("preparation")) {
+      LogUtils.i("PreparationDiagnostics", "utterance=%s pcm_cache_hit=%b", utterance, hit);
+    }
   }
 
   public void onNavigationMotionEnd(EventId eventId, long uptimeMs) {
@@ -290,14 +308,43 @@ public class Performance {
     if (navigationTraceEnabled()) {
       navigationLatency.stage(eventId, NavigationLatency.Stage.valueOf(stage));
     }
+    if (eventId != null && LogUtils.isCategoryEnabled("performance")) {
+      LogUtils.i("LatencyDiagnostics", "gesture_uptime=%d stage=%s uptime=%d",
+          eventId.getEventTimeMs(), stage, getUptime());
+    }
   }
 
   public void onNavigationDetail(EventId eventId, String name, long value) {
     if (navigationTraceEnabled()) navigationLatency.note(eventId, name, value);
+    String category;
+    String tag;
+    if (name.startsWith("order_") || name.startsWith("scroll_")
+        || name.startsWith("adaptive_live_")) {
+      category = "reading_order";
+      tag = "NavigationOrder";
+    } else if (name.startsWith("early_focus") || name.startsWith("pivot_")
+        || name.startsWith("focus_")) {
+      category = "focus";
+      tag = "FocusDiagnostics";
+    } else if (name.startsWith("prepared_") || name.startsWith("pcm_")) {
+      category = "preparation";
+      tag = "PreparationDiagnostics";
+    } else {
+      category = "performance";
+      tag = "LatencyDiagnostics";
+    }
+    if (eventId != null && LogUtils.isCategoryEnabled(category)) {
+      LogUtils.i(tag, "gesture_uptime=%d gesture=%d detail=%s value=%d",
+          eventId.getEventTimeMs(), eventId.getEventSubtype(), name, value);
+    }
   }
 
   public void onNavigationFailed(EventId eventId, String reason) {
     if (navigationTraceEnabled()) navigationLatency.failed(eventId, reason);
+    if (eventId != null && LogUtils.isCategoryEnabled("reading_order")) {
+      LogUtils.i("NavigationOrder", "gesture_uptime=%d gesture=%d failed=%s",
+          eventId.getEventTimeMs(), eventId.getEventSubtype(), reason);
+    }
   }
 
   public long[] beginNavigationWork() {
@@ -329,7 +376,8 @@ public class Performance {
   }
 
   public void onMainThreadStall(long durationMs, String stack) {
-    if (LatencyExperiments.Feature.STALL_CAPTURE.enabled()) navigationLatency.stall(durationMs, stack);
+    if (LatencyExperiments.Feature.STALL_CAPTURE.enabled()
+        || LogUtils.isCategoryEnabled("performance")) navigationLatency.stall(durationMs, stack);
   }
 
   public EventId onEventReceivedIfAbsent(AccessibilityEvent event) {
@@ -1393,6 +1441,9 @@ public class Performance {
   }
 
   public void onPreparedSpeechWork(PreparedSpeechWork work) {
+    if (LogUtils.isCategoryEnabled("preparation")) {
+      LogUtils.i("PreparationDiagnostics", "prepared_work=%s count=1", work);
+    }
     if (computeStatsEnabled || navigationTraceEnabled()) {
       synchronized (lockLabelToStats) {
         preparedSpeechWork[work.ordinal()]++;
@@ -1404,6 +1455,9 @@ public class Performance {
   public void onPreparedSpeechWork(PreparedSpeechWork work, int count) {
     if (count <= 0) {
       return;
+    }
+    if (LogUtils.isCategoryEnabled("preparation")) {
+      LogUtils.i("PreparationDiagnostics", "prepared_work=%s count=%d", work, count);
     }
     if (computeStatsEnabled || navigationTraceEnabled()) {
       synchronized (lockLabelToStats) {

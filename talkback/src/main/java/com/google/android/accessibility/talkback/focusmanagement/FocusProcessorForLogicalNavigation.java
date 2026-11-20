@@ -806,11 +806,16 @@ public class FocusProcessorForLogicalNavigation {
       return false;
     }
     if (deferredNavigations.size() >= MAX_DEFERRED_NAVIGATIONS) {
+      Performance.getInstance().onNavigationFailed(eventId, "scroll_queue_full");
+      LogUtils.i("NavigationOrder", "gesture_uptime=%d scroll_queue_full=%d",
+          eventId == null ? -1 : eventId.getEventTimeMs(), deferredNavigations.size());
       LogUtils.d(TAG, "Dropping a swipe: %d swipes already wait.", MAX_DEFERRED_NAVIGATIONS);
       return true;
     }
     LogUtils.d(TAG, "Swipe waits for the list to show the item of the swipe before it.");
     deferredNavigations.add(Pair.create(navigationAction, eventId));
+    Performance.getInstance().onNavigationDetail(eventId, "scroll_queue_depth",
+        deferredNavigations.size());
     if (deferredNavigations.size() == 1) {
       earlyScrollCheckHandler.postDelayed(this::runDeferredNavigations, FRAME_MS);
     }
@@ -2374,6 +2379,7 @@ public class FocusProcessorForLogicalNavigation {
       if (TraversalTreeCache.getBurstLiveAnswerEnabled() && TraversalTreeCache.inNavigationBurst()) {
         traversalStrategy = new SimpleTraversalStrategy();
         TraversalTreeCache.noteLiveAnswer();
+        Performance.getInstance().onNavigationDetail(eventId, "order_burst_local", 1);
       } else {
         boolean trace = LogUtils.shouldLog(Log.DEBUG);
         // Measure this even with debug logging off. An expensive full traversal is
@@ -2403,6 +2409,8 @@ public class FocusProcessorForLogicalNavigation {
           Performance.getInstance().endNavigationWork(eventId, "order_sync", orderWork);
           long buildDuration = SystemClock.uptimeMillis() - buildStart;
           TraversalTreeCache.noteSlowBuild(rootNode.getWindowId(), buildDuration, budgetExceeded);
+          Performance.getInstance().onNavigationDetail(eventId, "order_sync_duration_ms",
+              buildDuration);
           if (trace) {
             Trace.endSection();
             if (!budgetExceeded) {
