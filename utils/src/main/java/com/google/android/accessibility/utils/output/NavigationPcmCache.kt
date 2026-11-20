@@ -9,11 +9,15 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import com.google.android.accessibility.utils.LatencyExperiments
+import com.google.android.accessibility.utils.Performance
+import com.google.android.accessibility.utils.Performance.PreparedSpeechWork
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.ArrayDeque
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicLongArray
 
@@ -27,7 +31,10 @@ class NavigationPcmCache(context: Context) {
   private data class Key(val identity: Identity, val text: String, val pitch: Int, val rate: Int)
   private enum class Work {
     QUEUED, WAITING_FOR_INPUT, WAITING_FOR_ENGINE, NO_VOICE, DIFFERENT_LANGUAGE,
-    EXPIRED, SUPERSEDED, QUEUE_FULL, IDENTITY_MISS, TEXT_MISS
+    EXPIRED, SUPERSEDED, QUEUE_FULL, IDENTITY_MISS, TEXT_MISS,
+    // Q11f: the failure-cause split for the single `failures` total. `failures` is still
+    // counted exactly as before; each cause below is counted alongside it at its own site.
+    FAILURE_SYNTH, FAILURE_TIMEOUT, FAILURE_ON_ERROR, FAILURE_OVERSIZE, FAILURE_EXCEPTION
   }
 
   private class Request(
@@ -69,18 +76,46 @@ class NavigationPcmCache(context: Context) {
   private var engineGeneration = 0L
   private val pump = Runnable { startNext() }
 
+  /**
+   * Hashes of keys ever queued for preparation, so a TEXT_MISS can say whether its text was
+   * ever prepared. Q11a. Keyed by [Key.hashCode] (identity + text + pitch + rate), which is
+   * what [find] recomputes for the lookup, so the two agree. Cleared whenever the store is
+   * cleared (identity change, [invalidate], [shutdown], [resetStatistics]) and when it
+   * reaches [MAX_EVER_QUEUED_KEYS], so it stays bounded. A concurrent set: [prepare] writes
+   * it on the handler thread while [find] reads it on the speaking thread. Diagnostics only.
+   */
+  private val everQueuedKeys = ConcurrentHashMap.newKeySet<Int>()
+
   fun prepare(
     foreground: TextToSpeech, engineName: String, text: CharSequence,
     locale: Locale, params: Bundle, outputRate: Int, generation: Long,
   ) {
-    if (closed || !LatencyExperiments.preparePcm() || text.isEmpty() || text.length > 1200) return
+    if (closed || !LatencyExperiments.preparePcm() || text.isEmpty() || text.length > 1200) {
+      // Q11d: only the too-long text is a counted drop. The same early return also covers
+      // closed / feature-off / empty, which are not counted: an empty text is not a
+      // preparation that could ever have hit, and a disabled feature prepares nothing.
+      if (text.length > 1200 && !closed && LatencyExperiments.preparePcm()) {
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_TEXT_TOO_LONG)
+      }
+      return
+    }
     val requestedEpoch = epoch.get()
     val requestedConfiguration = configuration.get()
     val spoken = text.toString()
     val parameters = Bundle(params)
     handler.post {
-      if (closed || requestedEpoch != epoch.get() || requestedConfiguration != configuration.get()
-        || !LatencyExperiments.preparePcm() || generation < pendingGeneration) return@post
+      // Q11d: the guard below used to return silently for every cause. Split it so each
+      // drop is counted once, by its first matching cause: a closed cache or a disabled
+      // feature is never counted; a passed generation beats an epoch mismatch.
+      if (closed || !LatencyExperiments.preparePcm()) return@post
+      if (generation < pendingGeneration) {
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_STALE_GENERATION)
+        return@post
+      }
+      if (requestedEpoch != epoch.get() || requestedConfiguration != configuration.get()) {
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_EPOCH)
+        return@post
+      }
       val voice = try { foreground.voice } catch (failure: RuntimeException) { null }
       if (voice == null) {
         note(Work.NO_VOICE)
@@ -90,10 +125,15 @@ class NavigationPcmCache(context: Context) {
         note(Work.DIFFERENT_LANGUAGE)
         return@post
       }
-      if (requestedConfiguration != configuration.get()) return@post
+      if (requestedConfiguration != configuration.get()) {
+        // Q11d: the second epoch/configuration guard site — same counter as the first.
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_EPOCH)
+        return@post
+      }
       val current = Identity(engineName, voice.name, locale.toLanguageTag(), outputRate, requestedConfiguration)
       if (identity != current) {
         cache.clear()
+        everQueuedKeys.clear()
         identity = current
       }
       val key = Key(current, spoken, parameters.getInt("pitch", 100), parameters.getInt("rate", 100))
@@ -113,7 +153,11 @@ class NavigationPcmCache(context: Context) {
         if (dropped > 0) work.addAndGet(Work.SUPERSEDED.ordinal, dropped.toLong())
         pendingGeneration = generation
       }
-      if (cache.contains(key) || active?.key == key || queue.any { it.key == key }) return@post
+      // Q11d: a key already cached, being synthesized, or queued is dropped silently.
+      if (cache.contains(key) || active?.key == key || queue.any { it.key == key }) {
+        Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_DEDUP)
+        return@post
+      }
       if (queue.size >= 4) {
         // 1B: make room for the new generation by dropping the oldest request from an older
         // generation (already passed) instead of rejecting the new one outright.
@@ -126,13 +170,27 @@ class NavigationPcmCache(context: Context) {
         note(Work.SUPERSEDED)
       }
       queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch, generation))
+      // Q11a: remember that this key was queued, so a later TEXT_MISS can say whether
+      // its text was ever prepared. Bounded by MAX_EVER_QUEUED_KEYS (see everQueuedKeys).
+      if (everQueuedKeys.size >= MAX_EVER_QUEUED_KEYS) everQueuedKeys.clear()
+      everQueuedKeys.add(key.hashCode())
       note(Work.QUEUED)
       schedule(0)
     }
   }
 
+  /**
+   * Looks up prepared PCM for [text]. [chunkIndex] is the chunk of the fragment being
+   * spoken (0 for a single-chunk utterance), threaded from
+   * FailoverTextToSpeech.speakInChunks so a TEXT_MISS can say which chunk missed. The
+   * fragment index is NOT threaded: it is known only in
+   * SpeechControllerImpl.processNextFragmentInternal and reaching here would need changing
+   * the public FailoverTextToSpeech.speak() signatures, so the fragment slice is sized
+   * instead by the FRAGMENTS_PREPARED / FRAGMENTS_SPOKEN counters (Q11b).
+   */
   fun find(
     text: CharSequence, engineName: String, locale: Locale?, params: Bundle, outputRate: Int,
+    chunkIndex: Int,
   ): FloatArray? {
     if (!LatencyExperiments.preparePcm() || closed) return null
     val current = identity
@@ -148,6 +206,15 @@ class NavigationPcmCache(context: Context) {
     if (result == null) {
       misses.incrementAndGet()
       note(Work.TEXT_MISS)
+      // Q11a: classify the miss without logging raw text. The hash is diagnostics-only
+      // (String.hashCode, not crypto). everQueued splits the miss into "never prepared"
+      // (false) vs "prepared then dropped / expired / evicted / stale" (true); a
+      // prepared-but-different text — the transform bucket — shows up as everQueued
+      // false for the spoken text while its prepared twin was queued under another hash.
+      LogUtils.d(TAG,
+        "NavigationPcmCache TEXT_MISS textHash=%d pitch=%d rate=%d chunk=%d everQueued=%s",
+        text.toString().hashCode(), params.getInt("pitch", 100), params.getInt("rate", 100),
+        chunkIndex, everQueuedKeys.contains(key.hashCode()))
     } else {
       hits.incrementAndGet()
     }
@@ -207,6 +274,7 @@ class NavigationPcmCache(context: Context) {
     configuration.incrementAndGet()
     identity = null
     cache.clear()
+    everQueuedKeys.clear()
     cancelPreparation()
   }
 
@@ -215,6 +283,7 @@ class NavigationPcmCache(context: Context) {
     closed = true
     epoch.incrementAndGet()
     cache.clear()
+    everQueuedKeys.clear()
     handler.post {
       handler.removeCallbacks(pump)
       active?.timeout?.let { handler.removeCallbacks(it) }
@@ -234,6 +303,7 @@ class NavigationPcmCache(context: Context) {
     prepared.set(0)
     cancelled.set(0)
     failures.set(0)
+    everQueuedKeys.clear()
     Work.entries.forEach { work.set(it.ordinal, 0) }
   }
 
@@ -282,6 +352,7 @@ class NavigationPcmCache(context: Context) {
             schedule(0)
           } else {
             failures.incrementAndGet()
+            note(Work.FAILURE_SYNTH)
             disabledUntil = SystemClock.uptimeMillis() + 30_000
             queue.clear()
             engine?.shutdown()
@@ -316,12 +387,12 @@ class NavigationPcmCache(context: Context) {
     }
     val result = engine?.synthesizeToFile(request.key.text, params, file, request.id)
     if (result != TextToSpeech.SUCCESS) {
-      finish(request.id, false)
+      finish(request.id, false, Work.FAILURE_SYNTH)
     } else {
       val timeout = Runnable {
         if (active === request) {
           engine?.stop()
-          finish(request.id, false)
+          finish(request.id, false, Work.FAILURE_TIMEOUT)
         }
       }
       request.timeout = timeout
@@ -344,19 +415,25 @@ class NavigationPcmCache(context: Context) {
       handler.post {
         active?.takeIf { it.id == id && it.epoch == epoch.get() }?.let {
           if (it.bytes.size() + audio.size <= 2_000_000) it.bytes.write(audio)
-          else { engine?.stop(); finish(id, false) }
+          else { engine?.stop(); finish(id, false, Work.FAILURE_OVERSIZE) }
         }
       }
     }
     override fun onDone(id: String) { handler.post { finish(id, true) } }
-    override fun onError(id: String) { handler.post { finish(id, false) } }
+    override fun onError(id: String) { handler.post { finish(id, false, Work.FAILURE_ON_ERROR) } }
   }
 
-  private fun finish(id: String, success: Boolean) {
+  private fun finish(id: String, success: Boolean, failureCause: Work? = null) {
     val request = active?.takeIf { it.id == id } ?: return
     active = null
     request.timeout?.let { handler.removeCallbacks(it) }
-    if (!success) failures.incrementAndGet()
+    // Q11f: the `failures` total is counted exactly as before; the cause is counted
+    // alongside it. Every current false path passes its cause; null is only the
+    // default for a future caller.
+    if (!success) {
+      failures.incrementAndGet()
+      failureCause?.let { note(it) }
+    }
     try {
       if (success && request.epoch == epoch.get() && !closed &&
         SpatialSoundPlayer.isSupportedFormat(request.rate, request.channels) &&
@@ -378,7 +455,9 @@ class NavigationPcmCache(context: Context) {
         }
       }
     } catch (failure: RuntimeException) {
+      // Q11f: decoding / resampling threw after a successful synthesis.
       failures.incrementAndGet()
+      note(Work.FAILURE_EXCEPTION)
     } finally {
       request.file?.delete()
       schedule(0)
@@ -386,8 +465,12 @@ class NavigationPcmCache(context: Context) {
   }
 
   companion object {
+    private const val TAG = "NavigationPcmCache"
     private val nextId = AtomicLong()
     private const val MAX_CACHE_BYTES = 32 * 1024 * 1024
+    // Q11a: bound for everQueuedKeys (see the field). Cleared on identity change and
+    // when it reaches this size, so a long session cannot grow it without limit.
+    private const val MAX_EVER_QUEUED_KEYS = 8192
     private const val MAX_PENDING_AGE_MS = 2_000L
     private const val INPUT_QUIET_MS = 60L
     private const val RETRY_MS = 24L

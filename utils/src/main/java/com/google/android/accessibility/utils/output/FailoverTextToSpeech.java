@@ -68,6 +68,7 @@ import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.ChangeLocaleAction;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.Performance.PreparedSpeechWork;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.SpannableUtils.IdentifierSpan;
 import com.google.android.accessibility.utils.WeakReferenceHandler;
@@ -1931,11 +1932,14 @@ public class FailoverTextToSpeech {
                   () -> {
                     if (isReady()) {
                       attemptSetLanguage(speakRequest.locale);
+                      // Q11a: the suspend queue re-speaks the whole utterance text, so
+                      // this lookup is chunk 0; its original chunk index was not retained.
                       ttsSpeak(
                           speakRequest.text,
                           speakRequest.queueMode,
                           speakRequest.bundle,
-                          utteranceId);
+                          utteranceId,
+                          /* chunkIndex= */ 0);
                     }
                   });
             }
@@ -2072,7 +2076,7 @@ public class FailoverTextToSpeech {
       if (utteranceId != null) {
         progressEstimator.onQueued(utteranceId, text, requestRate, ttsEngine);
       }
-      return ttsSpeak(text, queueMode, bundle, utteranceId);
+      return ttsSpeak(text, queueMode, bundle, utteranceId, /* chunkIndex= */ 0);
     }
     for (int i = 0; i < starts.size(); i++) {
       int start = starts.get(i);
@@ -2081,7 +2085,7 @@ public class FailoverTextToSpeech {
       String chunkId = utteranceId + CHUNK_ID_SEPARATOR + i;
       speechChunks.put(chunkId, new SpeechChunk(utteranceId, start, i == 0, last));
       int result =
-          ttsSpeak(text.subSequence(start, end), i == 0 ? queueMode : QUEUE_ADD, bundle, chunkId);
+          ttsSpeak(text.subSequence(start, end), i == 0 ? queueMode : QUEUE_ADD, bundle, chunkId, i);
       if (result != TextToSpeech.SUCCESS) {
         speechChunks.remove(chunkId);
         if (i == 0) {
@@ -2181,16 +2185,33 @@ public class FailoverTextToSpeech {
 
   void prepareNavigationPcm(CharSequence text, @Nullable Locale locale, float pitch,
       float rate, boolean absoluteRate, long preparationGeneration) {
-    if (!LatencyExperiments.preparePcm() || !isReady() || VoiceProfiles.isProfileActive() || hasSelectedEngineVoice()
-        || TextUtils.isEmpty(text) || ttsEngine == null) return;
+    // Q11d: one counter (PREPARE_DROP_PCM_GATE) for every gate bail-out below. The
+    // feature-off return is not counted: with preparation disabled nothing is dropped.
+    // Performance.onPreparedSpeechWork is synchronized, so counting here — this runs on
+    // the main thread — is thread-safe.
+    if (!LatencyExperiments.preparePcm()) return;
+    if (!isReady() || VoiceProfiles.isProfileActive() || hasSelectedEngineVoice()
+        || TextUtils.isEmpty(text) || ttsEngine == null) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_PCM_GATE);
+      return;
+    }
     if (text instanceof android.text.Spanned spanned
-        && spanned.getSpans(0, text.length(), TtsSpan.class).length > 0) return;
+        && spanned.getSpans(0, text.length(), TtsSpan.class).length > 0) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_PCM_GATE);
+      return;
+    }
     LowLatencyAudio player = lowLatencyPlayer();
-    if (player == null) return;
+    if (player == null) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_PCM_GATE);
+      return;
+    }
     Locale spokenLocale = getUsedLocale();
     Locale requestedLocale = LanguageSwitch.localeToSpeak(locale);
     if (spokenLocale == null
-        || (requestedLocale != null && !requestedLocale.equals(spokenLocale))) return;
+        || (requestedLocale != null && !requestedLocale.equals(spokenLocale))) {
+      Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_PCM_GATE);
+      return;
+    }
     if (navigationPcmCache == null) {
       navigationPcmCache = new NavigationPcmCache(context);
       LatencyExperiments.setInputListener(navigationPcmCache::onInput);
@@ -2231,7 +2252,8 @@ public class FailoverTextToSpeech {
    * sooner than the engine's own playback.
    */
   private int ttsSpeak(
-      CharSequence text, int queueMode, Bundle bundle, @Nullable String utteranceId) {
+      CharSequence text, int queueMode, Bundle bundle, @Nullable String utteranceId,
+      int chunkIndex) {
     NavigationPcmCache cache = navigationPcmCache;
     if (cache != null) {
       cache.onForegroundSpeech();
@@ -2260,7 +2282,8 @@ public class FailoverTextToSpeech {
         && !hasSelectedEngineVoice()
         && (!(text instanceof android.text.Spanned spanned)
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
-      float[] prepared = cache.find(text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate());
+      float[] prepared = cache.find(
+          text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate(), chunkIndex);
       Performance.getInstance().onNavigationPcmCacheResult(utteranceId, prepared != null);
       if (prepared != null) {
         if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();

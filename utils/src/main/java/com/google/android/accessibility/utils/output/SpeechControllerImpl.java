@@ -60,6 +60,7 @@ import com.google.android.accessibility.utils.Logger;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.Performance.PreparedSpeechWork;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.monitor.RecentUserInput;
 import com.google.android.accessibility.utils.R;
@@ -1255,6 +1256,12 @@ public class SpeechControllerImpl implements SpeechController {
         formattingFeedbackMode, removeUnnecessarySpans, null, null, flags,
         UTTERANCE_GROUP_DEFAULT, speechParams, null, null);
     makeSpeakablePunctuation(prepared);
+    // Q11b: fragments per prepared item — the mean (FRAGMENTS_PREPARED / ITEMS_PREPARED)
+    // sizes the non-first-fragment slice of TEXT_MISS. Counted once per item generated
+    // here, before the loop below prepares only its first non-empty fragment.
+    Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.ITEMS_PREPARED);
+    Performance.getInstance()
+        .onPreparedSpeechWork(PreparedSpeechWork.FRAGMENTS_PREPARED, prepared.getFragments().size());
     for (FeedbackFragment fragment : prepared.getFragments()) {
       if (TextUtils.isEmpty(fragment.getText())) {
         continue;
@@ -2544,6 +2551,12 @@ public class SpeechControllerImpl implements SpeechController {
   }
 
   private void speakNextItemInternal(FeedbackItem item) {
+    // Q11b: fragments per spoken item — the mean (FRAGMENTS_SPOKEN / ITEMS_SPOKEN) sizes
+    // the non-first-fragment slice at speak time. Counted here, once per item entering
+    // the fragment loop, so a fragment resumed after a pause is not counted twice.
+    Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.ITEMS_SPOKEN);
+    Performance.getInstance()
+        .onPreparedSpeechWork(PreparedSpeechWork.FRAGMENTS_SPOKEN, item.getFragments().size());
     speechWaits.remove(item);
     final int utteranceIndex = getNextUtteranceId();
     final String utteranceId = UTTERANCE_ID_PREFIX + utteranceIndex;
