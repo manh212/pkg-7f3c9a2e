@@ -4819,6 +4819,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     LogUtils.setEnabled(debugLog);
     MainThreadStallLogger.setEnabled(
         LatencyExperiments.Feature.STALL_CAPTURE.enabled()
+            || LogUtils.isCategoryEnabled("performance")
             || (debugLog && !LatencyExperiments.Feature.LIGHT_LOGGING.enabled()));
     // While the debug log is on, the log itself carries the diagnostics snapshot and the
     // performance statistics; while it is off, this stops again.

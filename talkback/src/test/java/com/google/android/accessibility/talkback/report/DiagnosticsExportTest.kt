@@ -42,6 +42,8 @@ class DiagnosticsExportTest {
   @Before
   fun setUp() {
     LogUtils.setSelectedCategory("all")
+    SharedPreferencesUtils.getSharedPreferences(context).edit()
+      .remove("pref_diagnostic_log_category").commit()
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.STALL_CAPTURE, false)
     performance.clearAllStats()
     performance.setComputeStatsEnabled(false)
@@ -61,6 +63,7 @@ class DiagnosticsExportTest {
       .remove("pref_event_processing_level")
       .remove("pref_order_cache")
       .remove("pref_split_control_speech")
+      .remove("pref_diagnostic_log_category")
       .commit()
     ProcessorEventQueue.setProcessingLevel("medium")
     LogUtils.setEnabled(false)
@@ -210,6 +213,8 @@ class DiagnosticsExportTest {
     LogUtils.i("FocusDiagnostics", "recorded focus")
     LogUtils.i("NavigationPcmCache", "excluded preparation")
     LogUtils.setSelectedCategory("preparation")
+    SharedPreferencesUtils.getSharedPreferences(context).edit()
+      .putString("pref_diagnostic_log_category", "preparation").commit()
     LogUtils.i("FocusDiagnostics", "excluded focus")
     LogUtils.i("NavigationPcmCache", "recorded preparation")
     LogUtils.setEnabled(false)

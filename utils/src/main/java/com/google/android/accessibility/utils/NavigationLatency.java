@@ -121,6 +121,16 @@ final class NavigationLatency {
     return trace != null && trace.navigation;
   }
 
+  synchronized EventId origin(EventId eventId) {
+    Trace trace = events.get(eventId);
+    return trace == null ? eventId : trace.origin;
+  }
+
+  synchronized long utteranceGestureUptime(String utterance) {
+    Trace trace = utteranceTrace(utterance);
+    return trace == null ? -1 : trace.origin.getEventTimeMs();
+  }
+
   synchronized void cacheResult(String utterance, boolean hit) {
     Trace trace = utteranceTrace(utterance);
     if (trace != null) trace.details.put("pcm_cache_hit", hit ? 1L : 0L);

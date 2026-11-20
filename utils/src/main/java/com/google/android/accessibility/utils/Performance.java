@@ -220,6 +220,12 @@ public class Performance {
 
   public void linkFeedbackEvent(@Nullable EventId feedback, @Nullable EventId origin) {
     if (navigationTrackingEnabled()) navigationLatency.link(feedback, origin);
+    if (feedback != null && origin != null && LogUtils.isCategoryEnabled("performance")) {
+      LogUtils.i("LatencyDiagnostics",
+          "gesture_uptime=%d linked_event_uptime=%d event_type=%d",
+          navigationLatency.origin(origin).getEventTimeMs(), feedback.getEventTimeMs(),
+          feedback.getEventSubtype());
+    }
   }
 
   public void onFeedbackPlaybackStarted(String utterance, long uptimeMs, boolean audioSubmitted) {
@@ -229,8 +235,9 @@ public class Performance {
           uptimeMs);
     }
     if (LogUtils.isCategoryEnabled("performance")) {
-      LogUtils.i("LatencyDiagnostics", "utterance=%s audio_stage=%s uptime=%d",
-          utterance, audioSubmitted ? "submitted" : "tts_start", uptimeMs);
+      LogUtils.i("LatencyDiagnostics", "gesture_uptime=%d utterance=%s audio_stage=%s uptime=%d",
+          navigationLatency.utteranceGestureUptime(utterance), utterance,
+          audioSubmitted ? "submitted" : "tts_start", uptimeMs);
     }
   }
 
@@ -260,7 +267,9 @@ public class Performance {
       navigationLatency.audio(utterance, NavigationLatency.Stage.FIRST_PCM, uptimeMs);
     }
     if (utterance != null && LogUtils.isCategoryEnabled("performance")) {
-      LogUtils.i("LatencyDiagnostics", "utterance=%s first_pcm_uptime=%d", utterance, uptimeMs);
+      LogUtils.i("LatencyDiagnostics",
+          "gesture_uptime=%d utterance=%s first_pcm_uptime=%d",
+          navigationLatency.utteranceGestureUptime(utterance), utterance, uptimeMs);
     }
   }
 
@@ -288,15 +297,18 @@ public class Performance {
   public void onNavigationActionStarted(EventId eventId) {
     if (navigationTrackingEnabled()) navigationLatency.navigationAction(eventId);
     if (eventId != null && LogUtils.isCategoryEnabled("reading_order")) {
+      EventId original = navigationLatency.origin(eventId);
       LogUtils.i("NavigationOrder", "gesture_uptime=%d gesture=%d navigation_started",
-          eventId.getEventTimeMs(), eventId.getEventSubtype());
+          original.getEventTimeMs(), original.getEventSubtype());
     }
   }
 
   public void onNavigationPcmCacheResult(String utterance, boolean hit) {
     if (navigationTraceEnabled()) navigationLatency.cacheResult(utterance, hit);
     if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i("PreparationDiagnostics", "utterance=%s pcm_cache_hit=%b", utterance, hit);
+      LogUtils.i("PreparationDiagnostics",
+          "gesture_uptime=%d utterance=%s pcm_cache_hit=%b",
+          navigationLatency.utteranceGestureUptime(utterance), utterance, hit);
     }
   }
 
@@ -310,7 +322,7 @@ public class Performance {
     }
     if (eventId != null && LogUtils.isCategoryEnabled("performance")) {
       LogUtils.i("LatencyDiagnostics", "gesture_uptime=%d stage=%s uptime=%d",
-          eventId.getEventTimeMs(), stage, getUptime());
+          navigationLatency.origin(eventId).getEventTimeMs(), stage, getUptime());
     }
   }
 
@@ -334,16 +346,18 @@ public class Performance {
       tag = "LatencyDiagnostics";
     }
     if (eventId != null && LogUtils.isCategoryEnabled(category)) {
+      EventId original = navigationLatency.origin(eventId);
       LogUtils.i(tag, "gesture_uptime=%d gesture=%d detail=%s value=%d",
-          eventId.getEventTimeMs(), eventId.getEventSubtype(), name, value);
+          original.getEventTimeMs(), original.getEventSubtype(), name, value);
     }
   }
 
   public void onNavigationFailed(EventId eventId, String reason) {
     if (navigationTraceEnabled()) navigationLatency.failed(eventId, reason);
     if (eventId != null && LogUtils.isCategoryEnabled("reading_order")) {
+      EventId original = navigationLatency.origin(eventId);
       LogUtils.i("NavigationOrder", "gesture_uptime=%d gesture=%d failed=%s",
-          eventId.getEventTimeMs(), eventId.getEventSubtype(), reason);
+          original.getEventTimeMs(), original.getEventSubtype(), reason);
     }
   }
 
@@ -354,13 +368,16 @@ public class Performance {
 
   public void endNavigationWork(EventId eventId, String name, long[] started) {
     if (started == null) return;
-    navigationLatency.note(eventId, name + "_wall_ms", getUptime() - started[0]);
-    navigationLatency.note(eventId, name + "_cpu_us",
+    onNavigationDetail(eventId, name + "_wall_ms", getUptime() - started[0]);
+    onNavigationDetail(eventId, name + "_cpu_us",
         (android.os.Debug.threadCpuTimeNanos() - started[1]) / 1000);
   }
 
   public void onNavigationInterrupted(String utterance) {
     if (navigationTrackingEnabled()) navigationLatency.interrupted(utterance);
+    if (LogUtils.isCategoryEnabled("speech")) {
+      LogUtils.i("SpeechDiagnostics", "utterance=%s interrupted", utterance);
+    }
   }
 
   public void onFirstSoundPcm(String utterance, long uptimeMs) {

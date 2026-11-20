@@ -25,7 +25,6 @@ import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Build
 import android.os.Environment
-import android.os.Process
 import android.preference.PreferenceManager
 import android.provider.MediaStore
 import androidx.annotation.WorkerThread
@@ -51,8 +50,6 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Builds one diagnostics text out of everything Meridian itself can know: the phone and the app,
@@ -66,10 +63,8 @@ object DiagnosticsExport {
   /** The other named preference files read on the cold start, besides the default file. */
   private val OTHER_NAMED_PREFS =
     listOf("braille_keyboard", "braille_display", MigrationFiles.STATE_PREFS)
-  private const val LOG_LINES = 10_000
-  private const val LOG_MAX_CHARS_COPY = 100_000
-  private const val LOG_MAX_CHARS_EXPORT = 20_000_000
-  private const val LOG_TIMEOUT_SECONDS = 15L
+  private const val LOG_MAX_CHARS_COPY = 50_000_000
+  private const val LOG_MAX_CHARS_EXPORT = 50_000_000
 
   /** The whole diagnostics text. Slow: it reads the debug log file, or runs logcat. */
   @WorkerThread
@@ -93,15 +88,17 @@ object DiagnosticsExport {
         SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.ROOT).format(Date()) +
         "\n\n"
     )
-    out.append("Recording category: ${LogUtils.getSelectedCategory()}\n")
-    if (LogUtils.getSelectedCategory() == "all") {
+    val selectedCategory = SharedPreferencesUtils.getSharedPreferences(appContext)
+      .getString("pref_diagnostic_log_category", "all") ?: "all"
+    out.append("Recording category: $selectedCategory\n")
+    if (selectedCategory == "all") {
       out.append(buildSnapshotSections(appContext))
       out.append(buildPerformanceStatsSection())
     }
     val log = readLog(appContext, logMaxChars)
     out.append("== Recent log of the Meridian process ==\n")
     if (log == null) {
-      out.append("The log could not be read.\n")
+      out.append("No retained debug log is available.\n")
     } else {
       out.append(
         "Lines captured: ${log.count { it == '\n' }} (at most $logMaxChars characters)\n"

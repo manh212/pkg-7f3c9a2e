@@ -158,6 +158,18 @@ public class NavigationLatencyTest {
   }
 
   @Test
+  public void linkedFocusEventsKeepTheirGestureOriginForDiagnostics() {
+    latency.start(gesture);
+    EventId focus = new EventId(1150, Performance.EVENT_TYPE_ACCESSIBILITY,
+        AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
+    latency.link(focus, gesture);
+    assertEquals(1000L, latency.origin(focus).getEventTimeMs());
+    assertEquals(gesture, latency.origin(focus));
+    assertEquals(focus, latency.origin(new EventId(1200,
+        Performance.EVENT_TYPE_ACCESSIBILITY, AccessibilityEvent.TYPE_ANNOUNCEMENT)));
+  }
+
+  @Test
   public void onlyNavigationActionsAndTheirLinkedEventsGetImmediateSpeechPriority() {
     latency.start(gesture);
     assertFalse(latency.hasNavigation(gesture));
