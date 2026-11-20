@@ -1045,6 +1045,20 @@ public class FocusProcessorForLogicalNavigation {
       }
     }
 
+    if (pivot != null && !pivot.isAccessibilityFocused()
+        && isMoveToNextOrPreviousItem(navigationAction)
+        && Role.getRole(pivot) == Role.ROLE_WEB_VIEW
+        && actorState != null && actorState.getFocusHistory() != null) {
+      FocusActionRecord record = actorState.getFocusHistory().getLastFocusActionRecord();
+      if (record != null && record.getExtraInfo().sourceAction == FocusActionInfo.LOGICAL_NAVIGATION) {
+        AccessibilityNodeInfoCompat surviving = record.getSurvivingWebPivot(pivot);
+        if (surviving != null) {
+          LogUtils.d(TAG, "Continue in the same web document from surviving pivot %s", surviving);
+          pivot = surviving;
+        }
+      }
+    }
+
     boolean skipKeyboard =
         navigationAction.actionType == NavigationAction.DIRECTIONAL_NAVIGATION
             && navigationAction.targetType != NavigationTarget.TARGET_WINDOW

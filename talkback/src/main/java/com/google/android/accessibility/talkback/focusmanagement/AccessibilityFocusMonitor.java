@@ -26,7 +26,6 @@ import androidx.core.view.accessibility.AccessibilityWindowInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
-import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
 import com.google.android.accessibility.utils.ClassLoadingCache;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.FocusFinder;
@@ -186,23 +185,24 @@ public class AccessibilityFocusMonitor {
       LogUtils.w(TAG, "getAccessibilityFocus, inputFocusedNode is null");
     }
 
-    // If we can't find the focused node but the keyboard is showing, return the last editable.
-    // This will occur if the input-focused view is actually a virtual view (e.g. in WebViews).
-    // Note: need to refresh() in order to verify that the node is still available on-screen.
+    // If we can't find the focused node, return the last editable. This will occur if the
+    // input-focused view is actually a virtual view (e.g. in WebViews). It also covers the
+    // moment just after the keyboard closes: the edit field is back on screen, but input
+    // focus alone cannot find it. Note: need to refresh() in order to verify that the node
+    // is still available on-screen.
     FocusActionRecord record = history.getLastEditableFocusActionRecord();
 
     AccessibilityNodeInfoCompat lastFocusedEditFieldInHistory =
         (record == null) ? null : record.getFocusedNode();
 
     if ((lastFocusedEditFieldInHistory != null) && lastFocusedEditFieldInHistory.refresh()) {
-      // TODO: Shall we check the presence of IME window?
-      // IME window check below is copied from legacy CursorController. What if the device is
-      // connected to bluetooth keyboard?
-      if (AccessibilityServiceCompatUtils.isInputWindowOnScreen(service)) {
-        return lastFocusedEditFieldInHistory;
-      } else {
-        LogUtils.d(TAG, "getAccessibilityFocus, no ime window on the screen");
-      }
+      // The last edit field is returned whenever it is still alive, whether or not the
+      // keyboard is still up. The old code only returned it while the IME window was on
+      // screen, which left callers with no pivot right after the keyboard closed — the edit
+      // field is back on screen then, and refresh() above already verified the node is
+      // still in the tree. (The IME-window check was copied from legacy CursorController;
+      // the TODO above it questioned whether it belonged here at all.)
+      return lastFocusedEditFieldInHistory;
     }
     LogUtils.e(TAG, "getAccessibilityFocus, couldn't fallback from lastFocusedEditFieldInHistory");
     return null;
