@@ -63,6 +63,9 @@ public class NodeCachedBoundsCalculator {
   }
 
   private Map<AccessibilityNodeInfoCompat, Boolean> speakingNodesCache;
+  private Runnable beforeNodeRead = () -> {};
+
+  void setBeforeNodeRead(Runnable check) { beforeNodeRead = check; }
 
   public void setSpeakingNodesCache(Map<AccessibilityNodeInfoCompat, Boolean> speakingNodesCache) {
     this.speakingNodesCache = speakingNodesCache;
@@ -79,6 +82,7 @@ public class NodeCachedBoundsCalculator {
   }
 
   private Rect getBoundsInternal(AccessibilityNodeInfoCompat node) {
+    beforeNodeRead.run();
     TraversalBudget.check();
     if (node == null) {
       return EMPTY_RECT;
@@ -121,6 +125,7 @@ public class NodeCachedBoundsCalculator {
     int maxRight = Integer.MIN_VALUE;
     boolean hasChildBounds = false;
     for (int i = 0; i < childCount; i++) {
+      beforeNodeRead.run();
       TraversalBudget.check();
       Rect bounds = getBoundsInternal(node.getChild(i));
       if (!bounds.equals(EMPTY_RECT)) {

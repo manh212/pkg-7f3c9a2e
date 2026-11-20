@@ -56,6 +56,11 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
     return new ReorderedChildrenIterator(parent, /* isAscending= */ true, boundsCalculator);
   }
 
+  static ReorderedChildrenIterator createAscendingIterator(
+      AccessibilityNodeInfoCompat parent, NodeCachedBoundsCalculator calculator, Runnable check) {
+    return new ReorderedChildrenIterator(parent, true, calculator, check);
+  }
+
   public static @Nullable ReorderedChildrenIterator createDescendingIterator(
       AccessibilityNodeInfoCompat parent, @Nullable NodeCachedBoundsCalculator boundsCalculator) {
     if (parent == null) {
@@ -65,6 +70,7 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
     return new ReorderedChildrenIterator(parent, /* isAscending= */ false, boundsCalculator);
   }
 
+  private final Runnable beforeNodeRead;
   private final AccessibilityNodeInfoCompat parent;
   private int currentIndex;
   private final List<AccessibilityNodeInfoCompat> nodes;
@@ -82,6 +88,12 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
       AccessibilityNodeInfoCompat parent,
       boolean isAscending,
       @Nullable NodeCachedBoundsCalculator boundsCalculator) {
+    this(parent, isAscending, boundsCalculator, () -> {});
+  }
+
+  private ReorderedChildrenIterator(AccessibilityNodeInfoCompat parent, boolean isAscending,
+      @Nullable NodeCachedBoundsCalculator boundsCalculator, Runnable check) {
+    beforeNodeRead = check;
     this.parent = parent;
     this.isAscending = isAscending;
     this.boundsCalculator =
@@ -252,6 +264,7 @@ public class ReorderedChildrenIterator implements Iterator<AccessibilityNodeInfo
   private void fillNodesFromParent() {
     int count = parent.getChildCount();
     for (int i = 0; i < count; i++) {
+      beforeNodeRead.run();
       TraversalBudget.check();
       AccessibilityNodeInfoCompat node = parent.getChild(i);
       if (node != null) {
