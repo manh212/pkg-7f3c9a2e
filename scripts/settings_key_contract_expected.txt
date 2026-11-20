@@ -936,4 +936,3 @@ pref_typing_echo_screen
 pref_typing_interrupt_screen
 pref_ai_services_screen
 pref_settings_profiles
-pref_diagnostic_log_category
