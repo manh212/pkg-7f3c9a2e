@@ -29,8 +29,8 @@ import org.junit.Test
 class TypingMethodPrefFragmentTest {
 
   @Test
-  fun bothDirectTypingModesShowTheTapDelayRow() {
-    assertTrue(TypingMethodPrefFragment.isTapDelayRowVisible(SINGLE_TAP_TO_TYPE))
+  fun onlySilentDirectTypingShowsTheTapDelayRow() {
+    assertFalse(TypingMethodPrefFragment.isTapDelayRowVisible(SINGLE_TAP_TO_TYPE))
     assertTrue(TypingMethodPrefFragment.isTapDelayRowVisible(DIRECT_SILENT_TYPING))
   }
 
