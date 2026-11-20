@@ -236,7 +236,7 @@ public class TypingMethodPrefFragment extends TalkbackBaseFragment {
 
   @VisibleForTesting
   static boolean isTapDelayRowVisible(int typingMethod) {
-    return typingMethod == DIRECT_SILENT_TYPING;
+    return typingMethod == SINGLE_TAP_TO_TYPE || typingMethod == DIRECT_SILENT_TYPING;
   }
 
   private void updateTapDelayVisibility(int typingMethod) {
