@@ -57,6 +57,7 @@ public abstract class Interpretation {
       ACCESSIBILITY_FOCUSED,
       SUBTREE_CHANGED,
       ACCESSIBILITY_EVENT_IDLE,
+      APP_PLACED_FOCUS,
       SPELLING_SUGGESTION_HINT,
     }
 

@@ -171,7 +171,10 @@ public final class Mappers {
           case ACCESSIBILITY_FOCUSED -> {
             // do nothing
           }
-          case SUBTREE_CHANGED, ACCESSIBILITY_EVENT_IDLE -> {
+          // Focus the app placed itself: the ensure checks the placement against the
+          // pane record (and records it), instead of leaving the app's landing
+          // unchecked.
+          case SUBTREE_CHANGED, ACCESSIBILITY_EVENT_IDLE, APP_PLACED_FOCUS -> {
             return Feedback.create(
                 eventId,
                 Feedback.part()
