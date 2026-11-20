@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.content.Context;
 import android.os.PowerManager;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
@@ -296,6 +297,17 @@ public class SpeechControllerImplTest {
     assertTrue(failoverTts.spokenTexts.isEmpty());
     speak(speechController, "navigation", SpeechController.QUEUE_MODE_QUEUE);
     assertEquals(List.of("navigation"), failoverTts.spokenTexts);
+  }
+
+  @Test
+  public void screenOnOverlayDoesNotCoverOrCaptureApplicationControls() {
+    WindowManager.LayoutParams params = SpeechControllerImpl.createScreenOnOverlayParams();
+    assertEquals(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, params.type);
+    assertEquals(1, params.width);
+    assertEquals(1, params.height);
+    assertTrue((params.flags & WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) != 0);
+    assertTrue((params.flags & WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) != 0);
+    assertEquals(0, params.flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
   }
 
   @Test

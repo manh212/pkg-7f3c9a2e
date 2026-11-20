@@ -24,6 +24,7 @@ import static com.google.android.accessibility.utils.output.SpeechCleanupUtils.M
 import static java.lang.Math.min;
 import static java.util.stream.Collectors.toCollection;
 
+import android.accessibilityservice.AccessibilityService;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Application;
@@ -31,6 +32,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.res.Configuration;
+import android.graphics.PixelFormat;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
@@ -50,7 +52,9 @@ import android.text.TextUtils;
 import android.text.style.ReplacementSpan;
 import android.text.style.TtsSpan;
 import android.util.Range;
+import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
@@ -165,6 +169,8 @@ public class SpeechControllerImpl implements SpeechController {
   private @Nullable Activity resumedScreenOnActivity;
   private @Nullable View screenOnDecorView;
   private boolean screenOnDecorViewOriginallyEnabled;
+  private @Nullable WindowManager screenOnWindowManager;
+  private @Nullable View screenOnOverlay;
   private final Application.ActivityLifecycleCallbacks screenOnActivityCallbacks =
       new Application.ActivityLifecycleCallbacks() {
         @Override
@@ -680,10 +686,62 @@ public class SpeechControllerImpl implements SpeechController {
     return true;
   }
 
+  @VisibleForTesting
+  static WindowManager.LayoutParams createScreenOnOverlayParams() {
+    WindowManager.LayoutParams params =
+        new WindowManager.LayoutParams(
+            1,
+            1,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT);
+    params.gravity = Gravity.TOP | Gravity.START;
+    return params;
+  }
+
+  private void updateServiceScreenOn(boolean keepOn) {
+    if (screenOnOverlay == null && keepOn && mContext instanceof AccessibilityService) {
+      WindowManager manager = mContext.getSystemService(WindowManager.class);
+      if (manager != null) {
+        View view = new View(mContext);
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        try {
+          manager.addView(view, createScreenOnOverlayParams());
+          screenOnWindowManager = manager;
+          screenOnOverlay = view;
+          LogUtils.d(TAG, "Screen stay-awake: accessibility overlay attached");
+        } catch (RuntimeException e) {
+          LogUtils.w(TAG, "Screen stay-awake: accessibility overlay unavailable: %s", e);
+        }
+      }
+    }
+    if (screenOnOverlay != null && screenOnOverlay.getKeepScreenOn() != keepOn) {
+      screenOnOverlay.setKeepScreenOn(keepOn);
+      LogUtils.d(TAG, "Screen stay-awake: accessibility overlay keep-on %s", keepOn);
+    }
+  }
+
+  private void removeServiceScreenOn() {
+    if (screenOnWindowManager != null && screenOnOverlay != null) {
+      screenOnOverlay.setKeepScreenOn(false);
+      try {
+        screenOnWindowManager.removeViewImmediate(screenOnOverlay);
+      } catch (RuntimeException e) {
+        LogUtils.w(TAG, "Screen stay-awake: accessibility overlay removal failed: %s", e);
+      }
+    }
+    screenOnWindowManager = null;
+    screenOnOverlay = null;
+  }
+
   @SuppressLint({"WakelockTimeout", "Deprecated"})
   private void updateSpeakingScreenLock(boolean speaking) {
     boolean shouldKeepOn = speaking && keepScreenOnWhileSpeaking;
     boolean activityKeepsOn = updateActivityScreenOn(shouldKeepOn);
+    PowerManager power = mContext.getSystemService(PowerManager.class);
+    updateServiceScreenOn(
+        shouldKeepOn && !activityKeepsOn && power != null && power.isInteractive());
     if (!shouldKeepOn || activityKeepsOn) {
       if (speakingScreenLock != null && speakingScreenLock.isHeld()) {
         speakingScreenLock.release();
@@ -691,7 +749,6 @@ public class SpeechControllerImpl implements SpeechController {
       }
       return;
     }
-    PowerManager power = mContext.getSystemService(PowerManager.class);
     if (power == null || !power.isInteractive()) return;
     if (speakingScreenLock == null) {
       speakingScreenLock = power.newWakeLock(
@@ -2479,6 +2536,7 @@ public class SpeechControllerImpl implements SpeechController {
     externalSpeech.clear();
     resumedScreenOnActivity = null;
     updateSpeakingScreenLock(false);
+    removeServiceScreenOn();
     if (screenOnApplication != null) {
       screenOnApplication.unregisterActivityLifecycleCallbacks(screenOnActivityCallbacks);
       screenOnApplication = null;
