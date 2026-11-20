@@ -122,6 +122,9 @@ public class FocusProcessorForTapAndTouchExploration {
 
   /** The longest early-end delay the Direct key input tap-delay setting can ask for. */
   private static final long DIRECT_INPUT_TAP_DELAY_MAX_MS = 300;
+
+  /** The early-end delay when the Direct key input tap-delay setting has no stored value. */
+  private static final long DIRECT_INPUT_TAP_DELAY_DEFAULT_MS = 100;
   private static final long DIRECT_KEYBOARD_TOUCH_DELIVERY_MS = 32;
 
   // It is copied from  Gboard's code.
@@ -494,13 +497,16 @@ public class FocusProcessorForTapAndTouchExploration {
 
   /**
    * How long after the finger leaves a key the early end types it, from the Direct key input
-   * tap-delay setting. Read as the message is posted, so a change applies to the next key; this
-   * is the only reader of the setting, and only the Direct key input path reaches it.
+   * tap-delay setting. Read as the message is posted, so a change applies to the next key.
+   * VietnameseKeyboardTiming.read() shares the same setting for the keyboard's release path;
+   * both fall back to the 1.0 default of 100 ms when no value is stored.
    */
   private long directInputTapDelayMs() {
     int delayMs =
         SharedPreferencesUtils.getSharedPreferences(context)
-            .getInt(context.getString(R.string.pref_direct_input_tap_delay_key), 0);
+            .getInt(
+                context.getString(R.string.pref_direct_input_tap_delay_key),
+                (int) DIRECT_INPUT_TAP_DELAY_DEFAULT_MS);
     return Math.max(0, Math.min(delayMs, DIRECT_INPUT_TAP_DELAY_MAX_MS));
   }
 
