@@ -260,6 +260,16 @@ object DiagnosticsExport {
     performance.displayAllEventStats(logger)
     performance.displayPreparedSpeechStats(logger)
     performance.displayNavigationStats(logger)
+    // Q11f: the Navigation PCM cache/work summary, on this same shared display path, so
+    // it appears both in the periodic log dumps (VerboseDiagnosticsLogger calls this
+    // function) and in the export text (buildPerformanceStatsSection calls it), and the
+    // two can never drift apart. When the speech service is not running there is no
+    // cache to report, and nothing is logged. The summary already dumps every Work
+    // value, so the Q11 failure-cause split appears in the snapshots automatically.
+    // (The same summary is also printed once in the snapshot sections by
+    // latencyControls, via navigationCacheSummary() — that copy is the at-export-time
+    // state line; this one is the periodic series worker 1 found missing.)
+    failoverTts()?.navigationCacheSummary()?.lines()?.forEach { logger.log("%s", it) }
     logger.log("Timing: HEARD is first PCM callback, not physical speaker output. Stages overlap.")
     logger.log("AUDIO_SUBMITTED is the first successful AudioTrack write; TTS_START is the engine callback.")
     logger.log("FIRST_SOUND_PCM is the first nonzero PCM block; SOUND_SUBMITTED is its successful write, not acoustic onset.")
