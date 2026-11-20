@@ -22,10 +22,13 @@ public class DiagnosticLogCategoryTest {
   @Test public void componentsMapToTheirDiagnosticCategories() {
     assertEquals(DiagnosticLogCategory.FOCUS, DiagnosticLogCategory.forTag("FocusDiagnostics"));
     assertEquals(DiagnosticLogCategory.READING_ORDER, DiagnosticLogCategory.forTag("TraversalTreeCache"));
+    assertEquals(DiagnosticLogCategory.READING_ORDER,
+        DiagnosticLogCategory.forTag("FocusProcessorForLogicalNavigation"));
     assertEquals(DiagnosticLogCategory.PREPARATION, DiagnosticLogCategory.forTag("NavigationPcmCache"));
     assertEquals(DiagnosticLogCategory.PERFORMANCE, DiagnosticLogCategory.forTag("LatencyDiagnostics"));
     assertEquals(DiagnosticLogCategory.SPEECH, DiagnosticLogCategory.forTag("SpeechControllerImpl"));
     assertEquals(DiagnosticLogCategory.RECOGNITION, DiagnosticLogCategory.forTag("RamblerLive"));
+    assertEquals(DiagnosticLogCategory.INPUT, DiagnosticLogCategory.forTag("InputMethodMonitor"));
     assertEquals(DiagnosticLogCategory.SYSTEM, DiagnosticLogCategory.forTag("TalkBackService"));
   }
 

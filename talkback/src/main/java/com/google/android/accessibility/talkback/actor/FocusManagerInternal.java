@@ -190,6 +190,10 @@ public class FocusManagerInternal {
       @NonNull FocusActionInfo focusActionInfo,
       @Nullable EventId eventId) {
     if (shouldKeepRecordingFocus(node, focusActionInfo)) {
+      if (LogUtils.isCategoryEnabled("focus")) {
+        LogUtils.i("FocusDiagnostics", "focus_action_result=kept_recording_focus window=%d",
+            node.getWindowId());
+      }
       return false;
     }
     if (isAccessibilityFocused(node)) {
@@ -202,6 +206,10 @@ public class FocusManagerInternal {
             Feedback.nodeAction(
                 node, AccessibilityNodeInfoCompat.ACTION_CLEAR_ACCESSIBILITY_FOCUS));
       } else {
+        if (LogUtils.isCategoryEnabled("focus")) {
+          LogUtils.i("FocusDiagnostics", "focus_action_result=already_focused window=%d",
+              node.getWindowId());
+        }
         return true;
       }
     }
@@ -219,6 +227,13 @@ public class FocusManagerInternal {
         && !shouldSyncInputFocus
         && FocusActorHelper.shouldClearFocusAfterSetAccessibilityFocus(service, focusActionInfo)) {
       clearFocus(eventId, /* includeEditable= */ false);
+    }
+    if (LogUtils.isCategoryEnabled("focus")) {
+      LogUtils.i("FocusDiagnostics",
+          "focus_action_result=%s window=%d event_uptime=%d source_action=%d",
+          isAccessibilityFocusActionPerformedSuccessfully ? "success" : "failed",
+          node.getWindowId(), eventId == null ? -1 : eventId.getEventTimeMs(),
+          focusActionInfo.sourceAction);
     }
     return isAccessibilityFocusActionPerformedSuccessfully;
   }

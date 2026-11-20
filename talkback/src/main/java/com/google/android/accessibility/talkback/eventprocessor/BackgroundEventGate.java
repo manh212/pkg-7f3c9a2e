@@ -124,6 +124,10 @@ public final class BackgroundEventGate {
     TraversalTreeCache.observeIncomingEvent(event);
     EventProcessingStats.received(event);
     int type = event.getEventType();
+    if (LogUtils.isCategoryEnabled("events")) {
+      LogUtils.i("EventDiagnostics", "received type=%d window=%d event_uptime=%d",
+          type, event.getWindowId(), event.getEventTime());
+    }
     if (type == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START) {
       touching = true;
       onUserInput();

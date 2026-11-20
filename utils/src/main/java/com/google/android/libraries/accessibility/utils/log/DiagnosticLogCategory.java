@@ -26,6 +26,7 @@ public enum DiagnosticLogCategory {
     String name = tag.toLowerCase(Locale.ROOT);
     if (name.contains("prepar") || name.contains("pcmcache")
         || name.contains("speechcache") || name.contains("cachecontroller")) return PREPARATION;
+    if (name.contains("focusprocessorforlogicalnavigation")) return READING_ORDER;
     if (name.contains("focus") || name.contains("a11yfocus")
         || name.contains("directionnavigationinterpreter")) return FOCUS;
     if (name.contains("travers") || name.contains("readingorder")
@@ -43,7 +44,7 @@ public enum DiagnosticLogCategory {
         || name.contains("feedbackfragments") || name.contains("sound")) return SPEECH;
     if (name.contains("braille") || name.contains("keyboard")
         || name.contains("typing") || name.contains("textinput")
-        || name.contains("inputconnection")) return INPUT;
+        || name.contains("inputconnection") || name.contains("inputmethod")) return INPUT;
     if (name.contains("rambler") || name.contains("recognition")
         || name.contains("dictation") || name.contains("gemini")
         || name.contains("whisper") || name.contains("translation")

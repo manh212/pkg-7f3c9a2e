@@ -176,6 +176,10 @@ class EventQueue {
     }
 
     eventQueue.add(clone);
+    if (LogUtils.isCategoryEnabled("events")) {
+      LogUtils.i("EventDiagnostics", "queued type=%d depth=%d event_uptime=%d",
+          eventType, eventQueue.size(), clone.getEventTime());
+    }
     if (Performance.getInstance().getComputeStatsEnabled()) {
       enqueueTimes.put(clone, SystemClock.uptimeMillis());
     }
