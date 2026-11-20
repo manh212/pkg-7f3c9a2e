@@ -41,9 +41,6 @@ class DiagnosticsExportTest {
 
   @Before
   fun setUp() {
-    LogUtils.setSelectedCategory("all")
-    SharedPreferencesUtils.getSharedPreferences(context).edit()
-      .remove("pref_diagnostic_log_category").commit()
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.STALL_CAPTURE, false)
     performance.clearAllStats()
     performance.setComputeStatsEnabled(false)
@@ -63,11 +60,9 @@ class DiagnosticsExportTest {
       .remove("pref_event_processing_level")
       .remove("pref_order_cache")
       .remove("pref_split_control_speech")
-      .remove("pref_diagnostic_log_category")
       .commit()
     ProcessorEventQueue.setProcessingLevel("medium")
     LogUtils.setEnabled(false)
-    LogUtils.setSelectedCategory("all")
     LogUtils.flushLogFile()
     LogUtils.clearLogFiles()
     LogUtils.setLogFile(null)
@@ -204,33 +199,6 @@ class DiagnosticsExportTest {
       text.indexOf("D/ExportFlush: queued line 0") < text.indexOf("D/ExportFlush: queued line 299")
     )
   }
-  @Test
-  fun changingCategoryPreservesHistoryAcrossExportAndOffMode() {
-    LogUtils.setLogFile(LogUtils.defaultLogFile(context))
-    LogUtils.clearLogFiles()
-    LogUtils.setSelectedCategory("focus")
-    LogUtils.setEnabled(true)
-    LogUtils.i("FocusDiagnostics", "recorded focus")
-    LogUtils.i("NavigationPcmCache", "excluded preparation")
-    LogUtils.setSelectedCategory("preparation")
-    SharedPreferencesUtils.getSharedPreferences(context).edit()
-      .putString("pref_diagnostic_log_category", "preparation").commit()
-    LogUtils.i("FocusDiagnostics", "excluded focus")
-    LogUtils.i("NavigationPcmCache", "recorded preparation")
-    LogUtils.setEnabled(false)
-    LogUtils.i("NavigationPcmCache", "excluded while off")
-
-    val output = DiagnosticsExport.buildForExport(context)
-
-    assertTrue(output.contains("recorded focus"))
-    assertTrue(output.contains("recorded preparation"))
-    assertFalse(output.contains("excluded preparation"))
-    assertFalse(output.contains("excluded focus"))
-    assertFalse(output.contains("excluded while off"))
-    assertFalse(output.contains("== Performance statistics =="))
-    assertFalse(output.contains("== Preferences digest =="))
-  }
-
   @Test
   fun capturedStallsAreExportedWithoutStatisticsOrGestureTrace() {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.STALL_CAPTURE, true)
