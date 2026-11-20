@@ -19,6 +19,7 @@ package com.google.android.accessibility.utils.output;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
 import android.content.Context;
 import android.os.PowerManager;
 import android.view.accessibility.AccessibilityEvent;
@@ -40,6 +41,7 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
+import org.robolectric.android.controller.ActivityController;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
@@ -340,6 +342,67 @@ public class SpeechControllerImplTest {
     assertTrue(lock.isHeld());
     speechController.setKeepScreenOnWhileSpeaking(false);
     assertTrue(!lock.isHeld());
+  }
+
+  @Test
+  public void foregroundActivityUsesRecommendedScreenOnViewAndBackgroundUsesWakeLock()
+      throws Exception {
+    PowerManager power = context.getSystemService(PowerManager.class);
+    org.robolectric.Shadows.shadowOf(power).setIsInteractive(true);
+    java.lang.reflect.Field field =
+        SpeechControllerImpl.class.getDeclaredField("speakingScreenLock");
+    field.setAccessible(true);
+    speechController.setKeepScreenOnWhileSpeaking(true);
+    speechController.setDictationActive(true);
+    PowerManager.WakeLock lock = (PowerManager.WakeLock) field.get(speechController);
+    assertTrue(lock.isHeld());
+
+    ActivityController<Activity> activityController =
+        Robolectric.buildActivity(Activity.class).create().start();
+    Activity activity = activityController.resume().get();
+    assertTrue(activity.getWindow().getDecorView().getKeepScreenOn());
+    assertTrue(!lock.isHeld());
+
+    activityController.pause();
+    assertTrue(!activity.getWindow().getDecorView().getKeepScreenOn());
+    assertTrue(lock.isHeld());
+
+    speechController.setDictationActive(false);
+    assertTrue(!lock.isHeld());
+    activityController.stop().destroy();
+  }
+
+  @Test
+  public void foregroundActivityKeepsItsExistingScreenOnPreferenceAfterDictation() {
+    ActivityController<Activity> activityController =
+        Robolectric.buildActivity(Activity.class).create().start();
+    Activity activity = activityController.get();
+    activity.getWindow().getDecorView().setKeepScreenOn(true);
+    activityController.resume();
+
+    speechController.setKeepScreenOnWhileSpeaking(true);
+    speechController.setDictationActive(true);
+    assertTrue(activity.getWindow().getDecorView().getKeepScreenOn());
+    speechController.setDictationActive(false);
+    assertTrue(activity.getWindow().getDecorView().getKeepScreenOn());
+
+    activityController.pause().stop().destroy();
+  }
+
+  @Test
+  public void disablingKeepScreenOnDuringDictationRestoresActivityView() {
+    ActivityController<Activity> activityController =
+        Robolectric.buildActivity(Activity.class).create().start().resume();
+    Activity activity = activityController.get();
+    speechController.setKeepScreenOnWhileSpeaking(true);
+    speechController.setDictationActive(true);
+    assertTrue(activity.getWindow().getDecorView().getKeepScreenOn());
+
+    speechController.setKeepScreenOnWhileSpeaking(false);
+    assertTrue(!activity.getWindow().getDecorView().getKeepScreenOn());
+
+    speechController.setDictationActive(false);
+    activityController.pause().stop().destroy();
   }
 
   @Test

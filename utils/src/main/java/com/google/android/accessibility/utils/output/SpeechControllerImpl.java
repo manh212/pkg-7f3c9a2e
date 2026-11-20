@@ -25,6 +25,8 @@ import static java.lang.Math.min;
 import static java.util.stream.Collectors.toCollection;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.Application;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -48,6 +50,7 @@ import android.text.TextUtils;
 import android.text.style.ReplacementSpan;
 import android.text.style.TtsSpan;
 import android.util.Range;
+import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
@@ -158,6 +161,46 @@ public class SpeechControllerImpl implements SpeechController {
   /** Whether a voice-dictation session is active; it holds the same screen lock as speaking. */
   private boolean dictationActive;
   private @Nullable PowerManager.WakeLock speakingScreenLock;
+  private @Nullable Application screenOnApplication;
+  private @Nullable Activity resumedScreenOnActivity;
+  private @Nullable View screenOnDecorView;
+  private boolean screenOnDecorViewOriginallyEnabled;
+  private final Application.ActivityLifecycleCallbacks screenOnActivityCallbacks =
+      new Application.ActivityLifecycleCallbacks() {
+        @Override
+        public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle state) {}
+
+        @Override
+        public void onActivityStarted(@NonNull Activity activity) {}
+
+        @Override
+        public void onActivityResumed(@NonNull Activity activity) {
+          resumedScreenOnActivity = activity;
+          updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
+        }
+
+        @Override
+        public void onActivityPaused(@NonNull Activity activity) {
+          if (resumedScreenOnActivity == activity) {
+            resumedScreenOnActivity = null;
+            updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
+          }
+        }
+
+        @Override
+        public void onActivityStopped(@NonNull Activity activity) {}
+
+        @Override
+        public void onActivitySaveInstanceState(@NonNull Activity activity, @NonNull Bundle state) {}
+
+        @Override
+        public void onActivityDestroyed(@NonNull Activity activity) {
+          if (resumedScreenOnActivity == activity) {
+            resumedScreenOnActivity = null;
+            updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
+          }
+        }
+      };
 
   private static volatile @Nullable SpeechHold speechHold;
 
@@ -500,6 +543,11 @@ public class SpeechControllerImpl implements SpeechController {
     injectFullScreenReadCallbacks = false;
     this.removeUnnecessarySpans = removeUnnecessarySpans;
     this.catchIndexOutOfBounds = catchIndexOutOfBounds;
+    Context applicationContext = mContext.getApplicationContext();
+    if (applicationContext instanceof Application) {
+      screenOnApplication = (Application) applicationContext;
+      screenOnApplication.registerActivityLifecycleCallbacks(screenOnActivityCallbacks);
+    }
   }
 
   private FailoverTtsListener createFailoverTtsListener() {
@@ -612,11 +660,34 @@ public class SpeechControllerImpl implements SpeechController {
     updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
   }
 
+  private boolean updateActivityScreenOn(boolean keepOn) {
+    View currentView =
+        keepOn && resumedScreenOnActivity != null
+            ? resumedScreenOnActivity.getWindow().getDecorView()
+            : null;
+    if (screenOnDecorView != null && screenOnDecorView != currentView) {
+      screenOnDecorView.setKeepScreenOn(screenOnDecorViewOriginallyEnabled);
+      screenOnDecorView = null;
+      LogUtils.d(TAG, "Screen stay-awake: activity view restored");
+    }
+    if (currentView == null) return false;
+    if (screenOnDecorView == null) {
+      screenOnDecorViewOriginallyEnabled = currentView.getKeepScreenOn();
+      currentView.setKeepScreenOn(true);
+      screenOnDecorView = currentView;
+      LogUtils.d(TAG, "Screen stay-awake: activity view enabled");
+    }
+    return true;
+  }
+
   @SuppressLint({"WakelockTimeout", "Deprecated"})
   private void updateSpeakingScreenLock(boolean speaking) {
-    if (!speaking || !keepScreenOnWhileSpeaking) {
+    boolean shouldKeepOn = speaking && keepScreenOnWhileSpeaking;
+    boolean activityKeepsOn = updateActivityScreenOn(shouldKeepOn);
+    if (!shouldKeepOn || activityKeepsOn) {
       if (speakingScreenLock != null && speakingScreenLock.isHeld()) {
         speakingScreenLock.release();
+        LogUtils.d(TAG, "Screen stay-awake: service wake lock released");
       }
       return;
     }
@@ -628,7 +699,10 @@ public class SpeechControllerImpl implements SpeechController {
           "Meridian:ReadingScreen");
       speakingScreenLock.setReferenceCounted(false);
     }
-    if (!speakingScreenLock.isHeld()) speakingScreenLock.acquire();
+    if (!speakingScreenLock.isHeld()) {
+      speakingScreenLock.acquire();
+      LogUtils.d(TAG, "Screen stay-awake: service wake lock acquired");
+    }
   }
 
   @Override
@@ -2403,7 +2477,12 @@ public class SpeechControllerImpl implements SpeechController {
     failoverTts.shutdown();
     blockingExternalSpeech.clear();
     externalSpeech.clear();
+    resumedScreenOnActivity = null;
     updateSpeakingScreenLock(false);
+    if (screenOnApplication != null) {
+      screenOnApplication.unregisterActivityLifecycleCallbacks(screenOnActivityCallbacks);
+      screenOnApplication = null;
+    }
 
     setOverlayEnabled(false);
   }

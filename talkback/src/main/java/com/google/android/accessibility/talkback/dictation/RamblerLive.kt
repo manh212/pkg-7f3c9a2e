@@ -239,38 +239,109 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
     }
   }
 
-  /**
-   * Merges a newly arrived transcription into [phrases], which holds the text so far. The server
-   * sometimes sends the running text again with each phrase (cumulative messages), so a new
-   * message is not blindly appended: an exact re-send is skipped, a message that extends the
-   * text so far replaces it, a message that is only a prefix of the text so far is skipped, and
-   * a message that contains the text so far replaces it. Anything else is a genuinely new
-   * phrase and is appended. Prefix and containment matches must fall on a word boundary, so a
-   * new phrase that merely starts with the same letters ("catch" after "cat") is not merged
-   * away. Must be called while holding [lock].
-   */
   private fun mergePhrase(text: String) {
     val accumulated = phrases.joinToString(" ")
     when {
       accumulated.isEmpty() -> phrases.add(text)
-      text == accumulated -> {
-        // Exact re-send of the text so far: nothing new.
-      }
-      startsWithAtWordBoundary(text, accumulated) -> {
-        // Cumulative extension: the new message already contains everything so far.
+      text == accumulated -> Unit
+      startsWithAtWordBoundary(text, accumulated) ||
+        containsAtWordBoundary(text, accumulated) -> {
         phrases.clear()
         phrases.add(text)
       }
-      startsWithAtWordBoundary(accumulated, text) -> {
-        // Stale subset re-send: everything in it is already there.
+      startsWithAtWordBoundary(accumulated, text) -> Unit
+      else -> {
+        val previousWords = transcriptWords(accumulated)
+        val incomingWords = transcriptWords(text)
+        when {
+          isRevisedCumulativeTranscript(previousWords, incomingWords) -> {
+            if (incomingWords.size + 2 >= previousWords.size) {
+              phrases.clear()
+              phrases.add(text)
+            }
+            LogUtils.d(
+              TAG,
+              "Revised cumulative transcription: priorWords=%d, incomingWords=%d",
+              previousWords.size,
+              incomingWords.size,
+            )
+          }
+          else -> {
+            val overlap = overlappingWords(previousWords, incomingWords)
+            if (overlap > 0) {
+              if (overlap < incomingWords.size) {
+                phrases.add(text.substring(incomingWords[overlap].start).trim())
+              }
+              LogUtils.d(TAG, "Overlapping transcription: overlapWords=%d", overlap)
+            } else if (phrases.lastOrNull()?.trim() != text) {
+              phrases.add(text)
+            }
+          }
+        }
       }
-      containsAtWordBoundary(text, accumulated) -> {
-        // The new message contains the text so far plus other text: keep the new one.
-        phrases.clear()
-        phrases.add(text)
-      }
-      else -> phrases.add(text)
     }
+  }
+
+  private data class TranscriptWord(val value: String, val start: Int)
+
+  private fun transcriptWords(text: String): List<TranscriptWord> =
+    TRANSCRIPT_WORD.findAll(text)
+      .map { TranscriptWord(it.value.lowercase(java.util.Locale.ROOT), it.range.first) }
+      .toList()
+
+  private fun isRevisedCumulativeTranscript(
+    previous: List<TranscriptWord>,
+    incoming: List<TranscriptWord>,
+  ): Boolean {
+    val checkedWords = minOf(previous.size, incoming.size, MAX_REVISED_PREFIX_WORDS)
+    return checkedWords >= MIN_REVISED_WORDS &&
+      wordEditDistance(previous, 0, incoming, 0, checkedWords) <=
+        maxOf(1, checkedWords / 12)
+  }
+
+  private fun overlappingWords(
+    previous: List<TranscriptWord>,
+    incoming: List<TranscriptWord>,
+  ): Int {
+    val maximum = minOf(previous.size, incoming.size, MAX_OVERLAP_WORDS)
+    for (count in maximum downTo MIN_OVERLAP_WORDS) {
+      val previousStart = previous.size - count
+      if ((0 until count).all { previous[previousStart + it].value == incoming[it].value }) {
+        return count
+      }
+      if (count >= MIN_REVISED_WORDS &&
+        wordEditDistance(previous, previousStart, incoming, 0, count) <=
+          maxOf(1, count / 12)) {
+        return count
+      }
+    }
+    return 0
+  }
+
+  private fun wordEditDistance(
+    previous: List<TranscriptWord>,
+    previousStart: Int,
+    incoming: List<TranscriptWord>,
+    incomingStart: Int,
+    count: Int,
+  ): Int {
+    var prior = IntArray(count + 1) { it }
+    for (row in 1..count) {
+      val current = IntArray(count + 1)
+      current[0] = row
+      for (column in 1..count) {
+        val substitution =
+          if (previous[previousStart + row - 1].value ==
+              incoming[incomingStart + column - 1].value) 0 else 1
+        current[column] = minOf(
+          prior[column] + 1,
+          current[column - 1] + 1,
+          prior[column - 1] + substitution,
+        )
+      }
+      prior = current
+    }
+    return prior[count]
   }
 
   /** Whether [text] starts with [prefix] at a word boundary (end of text or a non-letter). */
@@ -302,6 +373,11 @@ internal class RamblerLive(private val apiKey: String, private val url: String =
         "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
     const val API_KEY_HEADER = "x-goog-api-key"
     const val NORMAL_CLOSURE = 1000
+    const val MIN_OVERLAP_WORDS = 4
+    const val MIN_REVISED_WORDS = 8
+    const val MAX_OVERLAP_WORDS = 64
+    const val MAX_REVISED_PREFIX_WORDS = 32
+    val TRANSCRIPT_WORD = Regex("[\\p{L}\\p{N}]+")
     /** Fifty seconds of audio. */
     const val MAX_WAITING_CHUNKS = 500
     /** How long to wait for the last phrase after the end of the audio. */
