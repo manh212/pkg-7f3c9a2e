@@ -111,6 +111,13 @@ public class FocusManagerInternal {
   // first seen; later subtree changes in the same pane keep the app's landing.
   private @Nullable WindowIdentifier paneIdentifierLastCheckedForRestore;
 
+  // Whether the keyboard was up while the user edited: set when focus is on an edit
+  // field, or the last focus is in the input method window, while the keyboard is up.
+  // The keyboard close moves no focus itself, so without this flag the close is
+  // invisible to the ensure. Cleared by renewEnsureFocus (touch or swipe) and by the
+  // keyboard-close refocus itself. (Q4)
+  private boolean wasInputWindowOnScreen = false;
+
   // Whether the last requestA11yFocusFromLastFocusRecord() call was stopped by skipRefocus
   // rather than by failing to find a node. The failovers in ensureAccessibilityFocusOnScreen must
   // not run in that case: they record a different source action, which re-arms the request and
@@ -175,6 +182,7 @@ public class FocusManagerInternal {
   public void renewEnsureFocus() {
     skipRefocus = false;
     sameItemRestores = 0;
+    wasInputWindowOnScreen = false;
   }
 
   /**
@@ -311,11 +319,22 @@ public class FocusManagerInternal {
 
     AccessibilityNodeInfoCompat currentFocus = focusFinder.findFocusCompat(FOCUS_ACCESSIBILITY);
     if (currentFocus != null) {
-      // Has focus on screen. But when the pane changed since the last recorded focus — BACK
-      // out of a chat returns to the list in the same window, so no window change runs the
-      // restore — the app's landing may be the wrong item; restore the pane record instead.
-      if (maybeRestorePaneRecordAfterPaneChange(state, currentFocus, eventId)) {
+      // The keyboard just closed while the user was editing: focus belongs back on the
+      // edit box, wherever it is now. (Q4)
+      if (maybeRefocusEditFieldAfterKeyboardClose(state, currentFocus, eventId)) {
         return true;
+      }
+      // The app placed this focus itself — BACK out of a chat returns to the list in
+      // the same window, so no window change runs the restore — check the landing
+      // against the pane record, and remember it when it is the pane's position.
+      // (Q1, Q7)
+      if (maybeCheckAppPlacedFocus(state, currentFocus, eventId)) {
+        return true;
+      }
+      // Remember that the keyboard is up while the user edits, so its close is seen
+      // even though the close itself moves no focus.
+      if (currentFocus.isEditable() || isLastFocusInImeWindowSinceScreenChange(state)) {
+        wasInputWindowOnScreen = true;
       }
       LogUtils.d(TAG, String.format("%s: Return, accessibility focus is already there.", subTag));
       return true;
@@ -586,54 +605,112 @@ public class FocusManagerInternal {
   }
 
   /**
-   * When focus is already on screen but the pane changed since the last recorded focus, the
-   * app's landing is often the wrong item: BACK out of a chat returns to the list in the same
-   * window, so no window change runs the restore, and the app puts focus on whatever it likes
-   * (another conversation, the toolbar search button). If this pane has a focus record and the
-   * current focus is not that recorded node, restore the recorded node. When the record cannot
-   * be found — the row scrolled off-screen and is unbound — the app's landing stands; this
-   * never falls back to the first focusable node.
+   * Checks the focus the app placed itself against this pane's record, and remembers
+   * the placement when it is the pane's position. (Q1, Q7: "remember the position,
+   * trust the app when right, fix only when wrong".)
    *
-   * <p>Runs at most once per pane arrival: the pane is remembered after the first check, and a
-   * successful restore records the restored node, so later subtree changes in the same pane
-   * keep the app's landing. It does not run while the user has turned off moving focus to new
-   * windows, while the microphone is in use, while touch is passed to the app, while a swipe's
-   * scroll is still to focus an item, or in the input method window.
+   * <p>The app places focus on every pane entry, and an app-assigned landing creates
+   * no record of its own, so without this check a pane the user never swiped in has
+   * nothing to remember, and a wrong landing — the search button on leaving a Zalo
+   * chat, a message below the group title on entering one — stands unchecked. The
+   * check runs once per pane arrival, when accessibility focus is already on screen:
    *
-   * @return true if focus was restored to the pane record
+   * <ul>
+   *   <li>No record for this pane: a bar control (the navigation-Up button, a search
+   *       button) is clearly wrong, so the first-content failovers run instead; any
+   *       other placement becomes the pane's first record.
+   *   <li>The placement is the recorded node: leave it.
+   *   <li>The placement is a valid entry point for the pane — a node whose text is
+   *       the pane or window title, such as a group title on chat entry: leave it,
+   *       and record it, replacing a stale record.
+   *   <li>Otherwise, only when the pane changed since the last recorded focus,
+   *       restore the pane record. When the pane did not change, the move is the
+   *       app's own business inside the pane, and the user's own navigation keeps
+   *       the record current.
+   * </ul>
+   *
+   * <p>When the recorded item cannot be restored — certainly gone, or off-screen
+   * and unbound — {@code findInitialFocusFromTargetWindowRoot} falls through to
+   * its first-content chain, and that first content item is used instead: never
+   * the node at the recorded position, never a middle item. (Q2)
+   *
+   * <p>It does not run while the user has turned off moving focus to new windows,
+   * while the microphone is in use, while touch is passed to the app, while a
+   * swipe's scroll is still to focus an item, or in the input method window. Each
+   * skip is logged (Q9), so the next diagnostics log shows why a restore did not
+   * run instead of staying silent.
+   *
+   * @return true if focus was moved to the pane record or, when the record cannot
+   *     be restored, to the first content item; or the first-content failovers ran
+   *     for a bar-control landing with no record
    */
-  private boolean maybeRestorePaneRecordAfterPaneChange(
+  private boolean maybeCheckAppPlacedFocus(
       ScreenState state, AccessibilityNodeInfoCompat currentFocus, EventId eventId) {
     if (!FocusProcessorForScreenStateChange.focusesNewWindows()) {
+      LogUtils.d(
+          TAG, "EnsureOnScreen: skip app-placed-focus check, focus-to-new-windows is off.");
       return false;
     }
     if (LowLatencyAudio.isMicrophoneInUse() || TouchInteractionMonitor.isTouchPassedToApp()) {
+      LogUtils.d(
+          TAG, "EnsureOnScreen: skip app-placed-focus check, mic in use or touch to app.");
       return false;
     }
     if (FocusProcessorForLogicalNavigation.swipeScrollPending()) {
+      LogUtils.d(TAG, "EnsureOnScreen: skip app-placed-focus check, swipe scroll pending.");
       return false;
     }
     AccessibilityWindowInfo activeWindow = state.getActiveWindow();
     if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
+      LogUtils.d(
+          TAG, "EnsureOnScreen: skip app-placed-focus check, no active window or IME window.");
       return false;
     }
     WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
     if (currentPane.equals(paneIdentifierLastCheckedForRestore)) {
+      LogUtils.d(TAG, "EnsureOnScreen: skip app-placed-focus check, pane already checked.");
       return false;
     }
     paneIdentifierLastCheckedForRestore = currentPane;
-    WindowIdentifier lastRecordPane = history.getLastRecordWindowIdentifier();
-    if (lastRecordPane == null || currentPane.equals(lastRecordPane)) {
-      return false;
-    }
     FocusActionRecord paneRecord =
         history.reader.getLastFocusActionRecordInWindow(currentPane);
-    if (paneRecord == null || paneRecord.describesNode(currentFocus)) {
+    if (paneRecord == null) {
+      if (AccessibilityNodeInfoUtils.isBarControl(currentFocus)) {
+        LogUtils.d(
+            TAG,
+            "EnsureOnScreen: app placed focus on a bar control with no pane record, first content instead.");
+        ArrayList<Feedback.Part> feedbackFailovers = new ArrayList<>();
+        feedbackFailovers.add(toFeedbackPart(INITIAL_FOCUS_RESTORE, state));
+        feedbackFailovers.add(toFeedbackPart(INITIAL_FOCUS_FOLLOW_INPUT, state));
+        feedbackFailovers.add(toFeedbackPart(INITIAL_FOCUS_FIRST_CONTENT, state));
+        return pipeline.returnFeedback(Feedback.create(eventId, feedbackFailovers));
+      }
+      history.onAppPlacedFocus(
+          currentFocus, appPlacedFocusInfo(), SystemClock.uptimeMillis(), state);
+      LogUtils.d(TAG, "EnsureOnScreen: first record for this pane is the app's placement.");
+      return false;
+    }
+    if (paneRecord.describesNode(currentFocus)) {
+      LogUtils.d(TAG, "EnsureOnScreen: app placed focus on the pane record, leaving it.");
+      return false;
+    }
+    if (isValidEntryPoint(currentFocus, state)) {
+      history.onAppPlacedFocus(
+          currentFocus, appPlacedFocusInfo(), SystemClock.uptimeMillis(), state);
+      LogUtils.d(TAG, "EnsureOnScreen: app placed focus on a valid entry point, recording it.");
+      return false;
+    }
+    WindowIdentifier lastRecordPane = history.getLastRecordWindowIdentifier();
+    if (lastRecordPane == null || currentPane.equals(lastRecordPane)) {
+      LogUtils.d(
+          TAG,
+          "EnsureOnScreen: skip app-placed-focus check, pane unchanged since last focus.");
       return false;
     }
     AccessibilityNodeInfoCompat root =
         AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
     if (root == null || !root.refresh()) {
+      LogUtils.d(TAG, "EnsureOnScreen: skip app-placed-focus check, no refreshed root.");
       return false;
     }
     // The restore is ensure-on-screen sourced, so a later loss of focus in this pane must
@@ -644,13 +721,103 @@ public class FocusManagerInternal {
     AccessibilityNodeInfoCompat nodeToFocus =
         findInitialFocusFromTargetWindowRoot(
             service, root, state, history.reader, focusFinder, type);
-    if (type.get() != FocusActionInfo.RESTORED_LAST_FOCUS || nodeToFocus == null) {
+    if (nodeToFocus == null) {
+      LogUtils.d(TAG, "EnsureOnScreen: pane record not restorable, leaving the app's landing.");
       return false;
     }
     LogUtils.d(
         TAG,
-        "EnsureOnScreen: pane changed since last focus, restoring pane record instead of the app's landing.");
+        type.get() == FocusActionInfo.RESTORED_LAST_FOCUS
+            ? "EnsureOnScreen: pane changed since last focus, restoring pane record instead of the app's landing."
+            : "EnsureOnScreen: pane record not restorable, first content instead of the app's landing.");
     return focusNodeFoundFromRecord(nodeToFocus, type.get(), state, eventId);
+  }
+
+  /** Whether the app placed focus on a valid entry point for this pane: a node whose text is the pane or window title, such as a group title on chat entry. (Q5) A bar ancestor is deliberately not required: a false negative would yank focus off a correct title, while a false positive — a message whose text exactly equals the group name — only leaves focus on a message in the right screen. */
+  private static boolean isValidEntryPoint(
+      AccessibilityNodeInfoCompat node, ScreenState state) {
+    CharSequence text = AccessibilityNodeInfoUtils.getNodeText(node);
+    if (TextUtils.isEmpty(text)) {
+      return false;
+    }
+    String placed = text.toString().trim();
+    if (placed.isEmpty()) {
+      return false;
+    }
+    AccessibilityWindowInfo activeWindow = state.getActiveWindow();
+    if (activeWindow == null) {
+      return false;
+    }
+    int windowId = activeWindow.getId();
+    CharSequence paneTitle = state.getAccessibilityPaneTitle(windowId);
+    if (!TextUtils.isEmpty(paneTitle)
+        && placed.equalsIgnoreCase(paneTitle.toString().trim())) {
+      return true;
+    }
+    CharSequence windowTitle = state.getWindowTitle(windowId);
+    return !TextUtils.isEmpty(windowTitle)
+        && placed.equalsIgnoreCase(windowTitle.toString().trim());
+  }
+
+  /** The FocusActionInfo for a recorded app placement: the app placed it, not TalkBack. */
+  private static FocusActionInfo appPlacedFocusInfo() {
+    return FocusActionInfo.builder()
+        .setSourceAction(FocusActionInfo.APP_PLACED_FOCUS)
+        .build();
+  }
+
+  /**
+   * When the keyboard was up while the user edited and is now gone, focus belongs
+   * back on the edit box, wherever it is now. (Q4: keyboard close always returns to
+   * the edit box.) Only the keyboard close is covered: the flag is set while the
+   * keyboard is up and cleared by {@link #renewEnsureFocus} when the user touches or
+   * swipes away. The check is skipped while focus is on an edit field or an input
+   * method key, where the keyboard is plainly still up, so typing pays no extra
+   * window query.
+   */
+  private boolean maybeRefocusEditFieldAfterKeyboardClose(
+      ScreenState state, AccessibilityNodeInfoCompat currentFocus, EventId eventId) {
+    if (!wasInputWindowOnScreen
+        || currentFocus.isEditable()
+        || AccessibilityWindowInfoUtils.isImeWindow(
+            AccessibilityNodeInfoUtils.getWindow(currentFocus))) {
+      return false;
+    }
+    if (AccessibilityServiceCompatUtils.isInputWindowOnScreen(service)) {
+      return false;
+    }
+    wasInputWindowOnScreen = false;
+    AccessibilityWindowInfo activeWindow = state.getActiveWindow();
+    AccessibilityNodeInfoCompat editField = focusFinder.findFocusCompat(FOCUS_INPUT);
+    if (editField == null || !editField.isEditable() || !editField.isVisibleToUser()) {
+      // The input-focused node is gone or not the field: fall back to the last edit
+      // field the user was in, refreshed and in this window.
+      FocusActionRecord editRecord = history.reader.getLastEditableFocusActionRecord();
+      AccessibilityNodeInfoCompat lastEdit =
+          (editRecord == null) ? null : editRecord.getFocusedNode();
+      if (lastEdit != null
+          && lastEdit.refresh()
+          && lastEdit.isEditable()
+          && lastEdit.isVisibleToUser()
+          && activeWindow != null
+          && lastEdit.getWindowId() == activeWindow.getId()) {
+        editField = lastEdit;
+      } else {
+        return false;
+      }
+    }
+    LogUtils.d(TAG, "EnsureOnScreen: keyboard closed, focus returns to the text field.");
+    FocusActionInfo focusActionInfo =
+        FocusActionInfo.builder()
+            .setForceMuteFeedback(true)
+            .setSourceAction(FocusActionInfo.ENSURE_ON_SCREEN)
+            .build();
+    return pipeline.returnFeedback(
+        eventId,
+        Focus.builder()
+            .setAction(Focus.Action.FOCUS)
+            .setFocusActionInfo(focusActionInfo)
+            .setTarget(editField));
   }
 
   /** Focuses {@code item}, the focused item drawn again, without speaking it again. */
@@ -796,6 +963,10 @@ public class FocusManagerInternal {
             AccessibilityNodeInfoUtils.getFilterExcludingSmallTopAndBottomBorderNode(service)
                 .and(nodeFilter);
       }
+      // The first content item is below the toolbar: a bar control (the navigation-Up
+      // button, a search button) is never the first content. (Q3)
+      Filter<AccessibilityNodeInfoCompat> contentFilter =
+          Filter.node((node) -> !AccessibilityNodeInfoUtils.isBarControl(node)).and(nodeFilter);
 
       AccessibilityNodeInfoCompat inputFocusNode =
           focusFinder.findFocusCompat(AccessibilityNodeInfo.FOCUS_INPUT);
@@ -808,11 +979,17 @@ public class FocusManagerInternal {
         nodeToFocus = strategy.focusInitial(windowRoot);
         initialFocusType.set(FocusActionInfo.REQUESTED_INITIAL_NODE);
 
-        if (nodeToFocus == null || !nodeFilter.accept(nodeToFocus)) {
+        if (nodeToFocus == null || !contentFilter.accept(nodeToFocus)) {
           nodeToFocus =
               TraversalStrategyUtils.findFirstFocusInNodeTree(
-                  strategy, windowRoot, TraversalStrategy.SEARCH_FOCUS_FORWARD, nodeFilter);
+                  strategy, windowRoot, TraversalStrategy.SEARCH_FOCUS_FORWARD, contentFilter);
           initialFocusType.set(FocusActionInfo.FIRST_FOCUSABLE_NODE);
+          if (nodeToFocus == null) {
+            // A screen with only bar controls keeps today's behavior.
+            nodeToFocus =
+                TraversalStrategyUtils.findFirstFocusInNodeTree(
+                    strategy, windowRoot, TraversalStrategy.SEARCH_FOCUS_FORWARD, nodeFilter);
+          }
         }
       }
     }
