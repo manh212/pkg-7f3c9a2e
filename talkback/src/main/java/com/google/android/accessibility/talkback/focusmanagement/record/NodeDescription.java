@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.focusmanagement.record;
 
 import android.text.TextUtils;
+import android.util.LruCache;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.CollectionItemInfoCompat;
@@ -26,12 +27,17 @@ import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.StringBuilderUtils;
+import com.google.android.accessibility.utils.WebInterfaceUtils;
 import java.util.Objects;
+import java.util.ArrayDeque;
+import java.util.HashSet;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Describes a single {@link AccessibilityNodeInfoCompat} with some immutable information. */
 public class NodeDescription {
+  /** Hints only: every remembered position is checked against the parent's current child. */
+  private static final LruCache<Integer, Integer> webChildPositions = new LruCache<>(1000);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Constants
@@ -111,6 +117,10 @@ public class NodeDescription {
     this.nextSiblingText = original.nextSiblingText;
   }
 
+  /**
+   * Describes {@code node}, with its position among the children of {@code parent}, which is the
+   * parent of {@code node} or null.
+   */
   NodeDescription(
       @NonNull AccessibilityNodeInfoCompat node,
       boolean isPathEnd,
@@ -123,15 +133,24 @@ public class NodeDescription {
         /* deadline= */ null);
   }
 
+  /**
+   * Describes {@code node} without its position among its siblings and their text, which take a
+   * request to the app for each sibling read. {@link #withSiblingContext} adds them.
+   */
   static NodeDescription withoutSiblingContext(
       @NonNull AccessibilityNodeInfoCompat node, boolean isPathEnd) {
+    return withoutSiblingContext(node, isPathEnd, Deadline.none());
+  }
+
+  static NodeDescription withoutSiblingContext(
+      @NonNull AccessibilityNodeInfoCompat node, boolean isPathEnd, Deadline deadline) {
     @NonNull AccessibilityNode savedNode = AccessibilityNode.takeOwnership(node);
     // Get position data from collection-data.
     CollectionItemInfoCompat itemInfo = node.getCollectionItemInfo();
     return new NodeDescription(
         savedNode,
         node.hashCode(),
-        getText(savedNode, isPathEnd),
+        getText(savedNode, isPathEnd, deadline),
         node.getClassName(),
         node.getViewIdResourceName(),
         itemInfo == null ? UNDEFINED_INDEX : itemInfo.getRowIndex(),
@@ -141,15 +160,33 @@ public class NodeDescription {
         /* nextSiblingText= */ null);
   }
 
+  /**
+   * Returns this description with the node's position among the children of {@code parent}, and
+   * the text of the siblings beside it. {@code parent} is the node's parent, as it was when this
+   * description was made, or null. Once {@code deadline} has passed, no more children of {@code
+   * parent} are read, and the position and the text of the siblings stay undefined.
+   */
   NodeDescription withSiblingContext(
       @Nullable AccessibilityNode parent, boolean isPathEnd, @NonNull Deadline deadline) {
     return new NodeDescription(this, parent, isPathEnd, Integer.MAX_VALUE, deadline);
   }
 
+  /**
+   * Like {@link #withSiblingContext(AccessibilityNode, boolean, Deadline)}, without a deadline, but
+   * reads at most {@code maxChildrenRead} children of {@code parent} to find the node's position.
+   * Further on, the position and the text of the siblings stay undefined.
+   */
   NodeDescription withSiblingContext(
       @Nullable AccessibilityNode parent, boolean isPathEnd, int maxChildrenRead) {
     return new NodeDescription(this, parent, isPathEnd, maxChildrenRead, /* deadline= */ null);
   }
+
+  NodeDescription withSiblingContext(
+      @Nullable AccessibilityNode parent, boolean isPathEnd, int maxChildrenRead, Deadline deadline) {
+    return new NodeDescription(this, parent, isPathEnd, maxChildrenRead, deadline);
+  }
+
+  static void clearWebPositions() { webChildPositions.evictAll(); }
 
   private NodeDescription(
       @NonNull NodeDescription original,
@@ -174,8 +211,8 @@ public class NodeDescription {
       this.previousSiblingText = null;
       this.nextSiblingText = null;
     } else {
-      this.previousSiblingText = getChildText(parent, rawIndexInParent - 1, isPathEnd);
-      this.nextSiblingText = getChildText(parent, rawIndexInParent + 1, isPathEnd);
+      this.previousSiblingText = getChildText(parent, rawIndexInParent - 1, isPathEnd, deadline);
+      this.nextSiblingText = getChildText(parent, rawIndexInParent + 1, isPathEnd, deadline);
     }
   }
 
@@ -200,6 +237,13 @@ public class NodeDescription {
     this.rawIndexInParent = rawIndexInParent;
     this.previousSiblingText = previousSiblingText;
     this.nextSiblingText = nextSiblingText;
+  }
+
+  /** Returns the same recorded context with its independently collected focused-item text. */
+  NodeDescription withText(@Nullable CharSequence focusedText) {
+    return new NodeDescription(savedNode, nodeInfoHashCode, focusedText, className,
+        viewIdResourceName, rowIndex, columnIndex, rawIndexInParent,
+        previousSiblingText, nextSiblingText);
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -267,32 +311,50 @@ public class NodeDescription {
   // Methods for extracting data from a node
 
   private static @Nullable CharSequence getChildText(
-      @Nullable AccessibilityNode parent, int childIndex, boolean isPathEnd) {
+      @Nullable AccessibilityNode parent, int childIndex, boolean isPathEnd, @Nullable Deadline deadline) {
     if ((parent == null) || (childIndex < 0) || (parent.getChildCount() <= childIndex)) {
       return OUT_OF_RANGE;
     }
+    if (deadline != null && deadline.shouldStop()) return null;
     @Nullable AccessibilityNode child = parent.getChild(childIndex);
-    return (child == null) ? null : getText(child, isPathEnd);
+    if (child != null && WebInterfaceUtils.supportsWebActions(child.getCompat())) {
+      webChildPositions.put(child.getCompat().hashCode(), childIndex);
+    }
+    return (child == null) ? null : getText(child, isPathEnd, deadline == null ? Deadline.none() : deadline);
   }
 
   public static @Nullable CharSequence getText(
       @Nullable AccessibilityNode node, boolean isPathEnd) {
-    if (node == null) {
-      return null;
+    return getText(node, isPathEnd, Deadline.none());
+  }
+
+  /** Same DFS text order, without starting another child read after the caller's deadline. */
+  static @Nullable CharSequence getText(
+      @Nullable AccessibilityNode node, boolean isPathEnd, Deadline deadline) {
+    if (node == null) return null;
+    CharSequence description = node.getContentDescription();
+    if (!TextUtils.isEmpty(description) && TextUtils.getTrimmedLength(description) > 0) return description;
+    if (!isPathEnd) return node.getText();
+    LeafTextCollector collector = new LeafTextCollector();
+    record Frame(AccessibilityNode node, int next) {}
+    ArrayDeque<Frame> stack = new ArrayDeque<>();
+    HashSet<AccessibilityNode> seen = new HashSet<>();
+    AccessibilityNode current = node;
+    while (current != null && !deadline.shouldStop()) {
+      if (seen.add(current)) {
+        if (collector.accept(current.getCompat())) break;
+        stack.addLast(new Frame(current, 0));
+      }
+      current = null;
+      while (!stack.isEmpty() && current == null && !deadline.shouldStop()) {
+        Frame frame = stack.removeLast();
+        if (frame.next() < frame.node().getChildCount()) {
+          stack.addLast(new Frame(frame.node(), frame.next() + 1));
+          current = frame.node().getChild(frame.next());
+        }
+      }
     }
-    // Use node-description, or fall-back to node-text & descendants' text.
-    @Nullable CharSequence description = node.getContentDescription();
-    if ((description != null) && (0 < TextUtils.getTrimmedLength(description))) {
-      return description;
-    }
-    if (isPathEnd) {
-      // If node is last in path... collect descendants' text.
-      LeafTextCollector textCollector = new LeafTextCollector();
-      node.hasMatchingDescendantOrRoot(textCollector);
-      return textCollector.getText();
-    } else {
-      return node.getText();
-    }
+    return collector.getText();
   }
 
   /** Node-callback that collects first {@code MAX_TEXT_COLLECT_NODES} subtree texts. */
@@ -345,6 +407,7 @@ public class NodeDescription {
     return (rowIndex != UNDEFINED_INDEX) || (columnIndex != UNDEFINED_INDEX);
   }
 
+  /** Returns the node's position among the children of {@code parent}, read until {@code deadline}. */
   static int getRawIndexInParent(
       @NonNull AccessibilityNode node,
       @Nullable AccessibilityNode parent,
@@ -357,7 +420,7 @@ public class NodeDescription {
       @Nullable AccessibilityNode parent,
       int maxChildrenRead,
       @Nullable Deadline deadline) {
-    if (parent == null) {
+    if (parent == null || (deadline != null && deadline.shouldStop())) {
       return UNDEFINED_INDEX;
     }
 
@@ -371,11 +434,26 @@ public class NodeDescription {
     }
 
     int childrenRead = Math.min(parent.getChildCount(), maxChildrenRead);
+    if ((deadline != null) && deadline.shouldStop()) {
+      return UNDEFINED_INDEX;
+    }
+    if (WebInterfaceUtils.supportsWebActions(node.getCompat())) {
+      Integer remembered = webChildPositions.get(node.getCompat().hashCode());
+      if (remembered != null && remembered < childrenRead) {
+        if (node.equals(parent.getChild(remembered))) {
+          return remembered;
+        }
+        webChildPositions.remove(node.getCompat().hashCode());
+      }
+    }
     for (int i = 0; i < childrenRead; i++) {
       if ((deadline != null) && deadline.shouldStop()) {
         return UNDEFINED_INDEX;
       }
       AccessibilityNode child = parent.getChild(i);
+      if (child != null && WebInterfaceUtils.supportsWebActions(child.getCompat())) {
+        webChildPositions.put(child.getCompat().hashCode(), i);
+      }
       if (node.equals(child)) {
         return i;
       }
