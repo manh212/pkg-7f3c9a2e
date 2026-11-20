@@ -146,7 +146,11 @@ public class AccessibilityFocusInterpreterTest {
     assertNull(pendingField());
   }
 
+  // Runs below R so image captioning stays off: interpret() reads the Gemini
+  // state to decide captioning, and this test wires only the focus history.
+  // This test pins the focus path, not captioning.
   @Test
+  @Config(sdk = 29)
   public void appPlacedFocus_inputsEnsureOnScreen() {
     AccessibilityFocusActionHistory history =
         new AccessibilityFocusActionHistory(RuntimeEnvironment.getApplication());
