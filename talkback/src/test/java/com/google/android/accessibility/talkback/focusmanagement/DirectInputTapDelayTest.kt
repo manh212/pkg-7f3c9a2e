@@ -54,6 +54,12 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 
+/**
+ * Pins the Direct key input tap delay end to end: the value of the setting — and nothing else —
+ * decides how long after the finger leaves a key the early touch end runs, which is what types
+ * the key. The end is observed as the touch-interaction-end interpretation the processor emits
+ * when the delayed message fires.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DirectInputTapDelayTest {
@@ -145,24 +151,24 @@ class DirectInputTapDelayTest {
   }
 
   @Test
-  fun setting200_keepsVersion1Delay100ms() {
+  fun setting200_typesAfter200ms_notTheDefault100() {
     setDelay(200)
 
     hoverOntoAndOff(keyNode())
 
-    runMainQueueFor(99)
+    runMainQueueFor(199)
     assertEquals(0, receiver.touchEnds())
     runMainQueueFor(2)
     assertEquals(1, receiver.touchEnds())
   }
 
   @Test
-  fun settingAboveRange_doesNotChangeVersion1Delay() {
+  fun settingAboveTheRange_isCappedAt300ms() {
     setDelay(10_000)
 
     hoverOntoAndOff(keyNode())
 
-    runMainQueueFor(99)
+    runMainQueueFor(299)
     assertEquals(0, receiver.touchEnds())
     runMainQueueFor(2)
     assertEquals(1, receiver.touchEnds())
