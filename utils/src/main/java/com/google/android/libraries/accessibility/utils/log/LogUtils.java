@@ -45,7 +45,6 @@ public class LogUtils {
   private static final String TAG = "LogUtils";
 
   private static volatile boolean debugLogEnabled = false;
-  private static volatile DiagnosticLogCategory selectedCategory = DiagnosticLogCategory.ALL;
 
   public static final String LOG_FILE_NAME = "debug-log.txt";
 
@@ -256,8 +255,7 @@ public class LogUtils {
       @Nullable Throwable throwable,
       @Nullable String format,
       @Nullable Object... args) {
-    if (!debugLogEnabled || (selectedCategory != DiagnosticLogCategory.ALL
-        && selectedCategory != DiagnosticLogCategory.forTag(tag))) {
+    if (!debugLogEnabled) {
       return;
     }
     if (priority <= Log.DEBUG && LatencyExperiments.inputIsActive(250)
@@ -319,19 +317,6 @@ public class LogUtils {
 
   public static boolean isEnabled() {
     return debugLogEnabled;
-  }
-
-  public static void setSelectedCategory(String value) {
-    selectedCategory = DiagnosticLogCategory.fromValue(value);
-  }
-
-  public static String getSelectedCategory() {
-    return selectedCategory.value;
-  }
-
-  public static boolean isCategoryEnabled(String category) {
-    return debugLogEnabled && (selectedCategory == DiagnosticLogCategory.ALL
-        || selectedCategory == DiagnosticLogCategory.fromValue(category));
   }
 
   public static boolean shouldLog(int logLevel) {
