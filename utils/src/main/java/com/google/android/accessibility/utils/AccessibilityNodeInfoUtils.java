@@ -330,6 +330,24 @@ public class AccessibilityNodeInfoUtils {
   }
 
   /**
+   * Whether the node is a control inside a bar — a toolbar, tab bar, navigation bar
+   * or search bar — with no text of its own. The navigation-Up button and Zalo's
+   * search button are this shape: a clickable image button in the action bar,
+   * announced only by its content description. A node with text is never a bar
+   * control, so a group title is never one. The test is locale-independent: it uses
+   * the node's place in the bar, not the wording of its description.
+   */
+  public static boolean isBarControl(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null || !node.isClickable()) {
+      return false;
+    }
+    if (!TextUtils.isEmpty(node.getText())) {
+      return false;
+    }
+    return isOrHasMatchingAncestor(node, FILTER_BAR);
+  }
+
+  /**
    * Filter for focusable containers with a descendant that is an unfocusable heading. This filter
    * aids navigation by headings granularity when the node that is semantically a heading isn't
    * focusable (for instance, because its text is combined with the text of other nodes to create
