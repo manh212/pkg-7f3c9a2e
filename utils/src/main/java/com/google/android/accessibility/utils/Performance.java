@@ -274,8 +274,8 @@ public class Performance {
   }
 
   private boolean navigationTrackingEnabled() {
-    return computeStatsEnabled || LatencyExperiments.Feature.TRACE.enabled()
-        || LatencyExperiments.Feature.IMMEDIATE_SPEECH.enabled() || navigationMeasurementActive;
+    return computeStatsEnabled || LatencyExperiments.Feature.IMMEDIATE_SPEECH.enabled()
+        || navigationTraceEnabled();
   }
 
   private boolean navigationTraceEnabled() {
