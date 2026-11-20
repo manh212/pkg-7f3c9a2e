@@ -170,10 +170,6 @@ class NavigationPcmCache(context: Context) {
         note(Work.SUPERSEDED)
       }
       queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch, generation))
-      if (LogUtils.isCategoryEnabled("preparation")) {
-        LogUtils.i(TAG, "pcm_queued generation=%d length=%d depth=%d",
-          generation, spoken.length, queue.size)
-      }
       // Q11a: remember that this key was queued, so a later TEXT_MISS can say whether
       // its text was ever prepared. Bounded by MAX_EVER_QUEUED_KEYS (see everQueuedKeys).
       if (everQueuedKeys.size >= MAX_EVER_QUEUED_KEYS) everQueuedKeys.clear()
@@ -207,10 +203,6 @@ class NavigationPcmCache(context: Context) {
     }
     val key = Key(current, text.toString(), params.getInt("pitch", 100), params.getInt("rate", 100))
     val result = cache.get(key)
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i(TAG, "pcm_lookup=%s chunk=%d recorded_key=%b",
-        if (result == null) "miss" else "hit", chunkIndex, everQueuedKeys.contains(key.hashCode()))
-    }
     if (result == null) {
       misses.incrementAndGet()
       note(Work.TEXT_MISS)
@@ -322,9 +314,6 @@ class NavigationPcmCache(context: Context) {
 
   private fun note(reason: Work) {
     work.incrementAndGet(reason.ordinal)
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i(TAG, "pcm_work=%s", reason)
-    }
   }
 
   private fun schedule(delay: Long) {
@@ -444,10 +433,6 @@ class NavigationPcmCache(context: Context) {
     if (!success) {
       failures.incrementAndGet()
       failureCause?.let { note(it) }
-    }
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i(TAG, "pcm_synthesis_completed success=%b cause=%s elapsed_ms=%d generation=%d",
-        success, failureCause, SystemClock.uptimeMillis() - request.queuedAt, request.generation)
     }
     try {
       if (success && request.epoch == epoch.get() && !closed &&
