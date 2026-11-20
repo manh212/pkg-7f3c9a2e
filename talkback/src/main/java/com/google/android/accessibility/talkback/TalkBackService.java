@@ -2746,7 +2746,6 @@ public class TalkBackService extends AccessibilityServiceCompat
   protected void onServiceConnected() {
     ExitAfterTurnOff.cancel();
     super.onServiceConnected();
-    Performance.getInstance().clearRecentEvents();
     // Menus read the settings profiles on the main thread.
     SettingsProfiles.preload(this);
     AppGestures.setSystemUiActive(this::isSystemUiActive);
@@ -4816,11 +4815,9 @@ public class TalkBackService extends AccessibilityServiceCompat
   private void reloadDebugLog() {
     boolean debugLog =
         getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default);
-    LogUtils.setSelectedCategory(prefs.getString("pref_diagnostic_log_category", "all"));
     LogUtils.setEnabled(debugLog);
     MainThreadStallLogger.setEnabled(
         LatencyExperiments.Feature.STALL_CAPTURE.enabled()
-            || LogUtils.isCategoryEnabled("performance")
             || (debugLog && !LatencyExperiments.Feature.LIGHT_LOGGING.enabled()));
     // While the debug log is on, the log itself carries the diagnostics snapshot and the
     // performance statistics; while it is off, this stops again.
