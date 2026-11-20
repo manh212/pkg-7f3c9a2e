@@ -663,10 +663,6 @@ public class EventFilter {
   /** Prepares the announcements of the nodes next to {@code node}, which focus just moved to. */
   private void onFocusMoved(AccessibilityNodeInfoCompat node) {
     lastFocusedNode = node;
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i("PreparationDiagnostics", "focused_window=%d next_generation=%d",
-          node.getWindowId(), preparationGeneration + 1);
-    }
     schedulePreparation();
   }
 
@@ -859,11 +855,6 @@ public class EventFilter {
       return;
     }
 
-    if (LogUtils.isCategoryEnabled("preparation")) {
-      LogUtils.i("PreparationDiagnostics",
-          "prediction_generation=%d direction=%d distance=%d found=%b target_type=%d",
-          preparationGeneration, direction, pass.distance, target != null, targetType);
-    }
     if (target != null) {
       boolean shouldPrepareSpeech =
           (pass.distance == 1 && (prepareAdjacentSpeechEnabled
@@ -972,11 +963,6 @@ public class EventFilter {
       globalVariables.restoreFocusState(saved);
     }
     if (hasSpeech(feedback)) {
-      if (LogUtils.isCategoryEnabled("preparation")) {
-        LogUtils.i("PreparationDiagnostics",
-            "text_prepared window=%d target_type=%d focused=%b generation=%d",
-            node.getWindowId(), targetType, isFocusedItem, preparationGeneration);
-      }
       PreparedFocusSpeech.put(node, feedback, containerTitle, targetType);
       if (prepareAudio) compositor.prepareNavigationFeedback(feedback, preparationGeneration);
     } else {
