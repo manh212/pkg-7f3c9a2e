@@ -19,10 +19,7 @@ internal data class VietnameseKeyboardTiming(
     const val TAP_HOLD = "pref_vietnamese_keyboard_tap_hold"
 
     fun read(context: Context, prefs: SharedPreferences): VietnameseKeyboardTiming {
-      // Same setting as FocusProcessorForTapAndTouchExploration.directInputTapDelayMs();
-      // both fall back to the 1.0 default of 100 ms when no value is stored.
-      val sharedDelay =
-          prefs.getInt(context.getString(R.string.pref_direct_input_tap_delay_key), 100)
+      val sharedDelay = prefs.getInt(context.getString(R.string.pref_direct_input_tap_delay_key), 0)
       return VietnameseKeyboardTiming(
         prefs.getInt(EXPLORE_SPEECH, 0).coerceIn(0, 300).toLong(),
         prefs.getInt(RELEASE_SPEECH, 0).coerceIn(0, 300).toLong(),
