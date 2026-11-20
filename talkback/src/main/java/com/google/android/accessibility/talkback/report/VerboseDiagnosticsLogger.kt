@@ -142,7 +142,6 @@ object VerboseDiagnosticsLogger {
   }
 
   private fun logSnapshotSections() {
-    if (LogUtils.getSelectedCategory() != "all") return
     val context = appContext ?: return
     LogUtils.v(TAG, "== Diagnostics snapshot in the log ==")
     LogUtils.v(TAG, "%s", DiagnosticsExport.performanceStatsStatusLine())
@@ -157,7 +156,7 @@ object VerboseDiagnosticsLogger {
   }
 
   private fun logPerformanceStats() {
-    if (!LogUtils.isCategoryEnabled("performance") || !Performance.getInstance().computeStatsEnabled) {
+    if (!Performance.getInstance().computeStatsEnabled) {
       return
     }
     // Forwards to the log under the Performance tag, exactly as Performance's own displays do.
