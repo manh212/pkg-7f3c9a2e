@@ -329,7 +329,8 @@ class EventQueue {
         iterator.remove();
         enqueueTimes.remove(next);
         EventProcessingStats.coalesced(next);
-        if (LogUtils.isCategoryEnabled("events")) {
+        if (eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            && LogUtils.isCategoryEnabled("events")) {
           LogUtils.i("EventDiagnostics", "coalesced type=%d depth=%d",
               eventType, eventQueue.size());
         }

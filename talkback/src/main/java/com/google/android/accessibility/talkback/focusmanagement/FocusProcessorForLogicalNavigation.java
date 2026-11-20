@@ -4320,6 +4320,7 @@ public class FocusProcessorForLogicalNavigation {
 
     /** When the list's items were last read, in {@link SystemClock#uptimeMillis()}. */
     long lastLook;
+    long lastFocusFailureAt;
 
     ScrollTrack(
         AutoScrollCallback callback,
@@ -4407,6 +4408,11 @@ public class FocusProcessorForLogicalNavigation {
     List<AccessibilityNodeInfoCompat> children = childrenOf(track.itemParent);
     boolean childrenChanged = !children.equals(track.children);
     track.children = children;
+    if (track.lastFocusFailureAt > 0
+        && !shouldRetryScrollFocus(childrenChanged,
+            SystemClock.uptimeMillis() - track.lastFocusFailureAt)) {
+      return false;
+    }
     // An item already attached off screen comes on screen without changing the children; the
     // pivot's item then leaves room past it in the list.
     Rect itemBounds = null;
@@ -4559,10 +4565,12 @@ public class FocusProcessorForLogicalNavigation {
             .setAutoScrollAttempt(sourceAction.autoScrollAttempt + 1)
             .build();
     if (!target.refresh() || !AccessibilityNodeInfoUtils.isVisible(target)) {
+      track.lastFocusFailureAt = SystemClock.uptimeMillis();
       Performance.getInstance().onNavigationDetail(track.eventId, "scroll_target_stale", 1);
       return false;
     }
     if (!setAccessibilityFocusInternal(target, navigationAction, track.eventId)) {
+      track.lastFocusFailureAt = SystemClock.uptimeMillis();
       Performance.getInstance().onNavigationDetail(track.eventId, "scroll_focus_retry", 1);
       LogUtils.d(TAG, "The new scroll item did not take focus; keep watching the list.");
       return false;
@@ -4678,6 +4686,11 @@ public class FocusProcessorForLogicalNavigation {
   @VisibleForTesting
   static boolean shouldWaitForStableScrollOrder(boolean moving) {
     return moving;
+  }
+
+  @VisibleForTesting
+  static boolean shouldRetryScrollFocus(boolean childrenChanged, long elapsedSinceFailure) {
+    return childrenChanged || elapsedSinceFailure >= LOOK_AGAIN_MS;
   }
 
   /** Most nodes passed over by {@link #skipBackSteps}. */
