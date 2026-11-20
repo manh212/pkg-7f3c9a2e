@@ -113,6 +113,9 @@ object TraversalTreeCache {
    * this one. A stale prediction only wastes synthesis; navigation ([get]) never sees this
    * slot, so a stale order can never mis-speak. The slot always holds the newest saved
    * order: [put] refreshes it too, so the fallback can never contradict the newest build.
+   * Q2: the last-good slot also serves predictions past the 1.5 s text-change age
+   * (MAX_AGE_AFTER_TEXT_CHANGE_MS), which expires the live order only — the slot is
+   * never read by navigation, so a stale prediction can only waste synthesis.
    */
   private var lastGoodRoot: AccessibilityNodeInfoCompat? = null
   private var lastGoodStrategy: OrderedTraversalStrategy? = null
@@ -218,7 +221,14 @@ object TraversalTreeCache {
   private const val NAVIGATION_BURST_WINDOW_MS = 300L
 
   private val gracedChangeRegions = ArrayList<Pair<Int, Rect>>()
-  private var gracedChangeUnknown = false
+  /**
+   * Windows whose graced changes are unknown — a bounds-less change, or more than
+   * [MAX_GRACED_CHANGE_REGIONS] regions, in that window. Q5: per window, so a
+   * bounds-less background change (e.g. a notification tick in another window)
+   * cannot veto preparation in the foreground window. Unknown changes still veto
+   * their own window's nodes.
+   */
+  private val gracedChangeUnknownWindows = HashSet<Int>()
 
   private var rereadWindowId = NO_WINDOW_ID
 
@@ -300,12 +310,19 @@ object TraversalTreeCache {
 
   @JvmStatic
   fun orderForPrediction(pivot: AccessibilityNodeInfoCompat): OrderedTraversalStrategy? {
-    if (!enabled || (firstIgnoredChangeTime != 0L &&
-        SystemClock.uptimeMillis() - firstIgnoredChangeTime > MAX_AGE_AFTER_TEXT_CHANGE_MS)) {
+    if (!enabled) {
       return null
     }
-    val saved = strategy?.takeIf { root?.windowId == pivot.windowId && it.containsNode(pivot) }
-    if (saved != null) return saved
+    // Q2: the 1.5 s text-change age expires the LIVE order only. The last-good slot
+    // below serves predictions regardless of age: a stale prediction only wastes
+    // synthesis, it never moves focus. Navigation (get()) keeps its own expiry.
+    val liveExpired =
+      firstIgnoredChangeTime != 0L &&
+        SystemClock.uptimeMillis() - firstIgnoredChangeTime > MAX_AGE_AFTER_TEXT_CHANGE_MS
+    if (!liveExpired) {
+      val saved = strategy?.takeIf { root?.windowId == pivot.windowId && it.containsNode(pivot) }
+      if (saved != null) return saved
+    }
     // Q4 (c2): the last good order, kept when the live one was cleared, is still usable for
     // prediction — a stale prediction only wastes synthesis, it never moves focus. The same
     // guards apply as for the live order: the window must match and the pivot must be in it.
@@ -315,16 +332,34 @@ object TraversalTreeCache {
     }
   }
 
-  internal fun noteGracedChange(windowId: Int, sourceBounds: Rect?) {
+  internal fun noteGracedChange(windowId: Int, sourceBounds: Rect?, packageName: String? = null) {
     if (firstIgnoredChangeTime == 0L) {
       firstIgnoredChangeTime = SystemClock.uptimeMillis()
     }
-    if (sourceBounds == null || sourceBounds.isEmpty || gracedChangeUnknown) {
-      gracedChangeUnknown = true
+    // Q11 (worker 3 §8.3, adapted to the Q5 per-window design): log once when this window
+    // becomes unknown — the false→true transition for this window — with the triggering
+    // package, so round 4 can tell how much of STALE_NODE_GRACED is cross-window
+    // poisoning (e.g. systemui notification ticks) vs the foreground window's own changes.
+    // No counter is added; the log line is the instrument. The check is the transition
+    // itself: a window already unknown logs nothing, so the deferred path logs at most
+    // once per poisoning.
+    if (windowId !in gracedChangeUnknownWindows &&
+      (sourceBounds == null || sourceBounds.isEmpty ||
+        gracedChangeRegions.count { it.first == windowId } >= MAX_GRACED_CHANGE_REGIONS)) {
+      LogUtils.d(TAG,
+        "TraversalTreeCache grace poisoned: window=%d package=%s bounds=%s regions=%d",
+        windowId, packageName, sourceBounds,
+        gracedChangeRegions.count { it.first == windowId })
+    }
+    // Q5: unknown-ness is per window — a bounds-less change poisons only its own window.
+    if (sourceBounds == null || sourceBounds.isEmpty || windowId in gracedChangeUnknownWindows) {
+      gracedChangeUnknownWindows += windowId
       return
     }
-    if (gracedChangeRegions.size >= MAX_GRACED_CHANGE_REGIONS) {
-      gracedChangeUnknown = true
+    // Q5: the region cap is per window too — regions from other windows do not count
+    // toward this window's overflow.
+    if (gracedChangeRegions.count { it.first == windowId } >= MAX_GRACED_CHANGE_REGIONS) {
+      gracedChangeUnknownWindows += windowId
       return
     }
     gracedChangeRegions += windowId to Rect(sourceBounds)
@@ -332,7 +367,7 @@ object TraversalTreeCache {
 
   private fun resetGracedChanges() {
     gracedChangeRegions.clear()
-    gracedChangeUnknown = false
+    gracedChangeUnknownWindows.clear()
   }
 
   private fun sourceBounds(event: AccessibilityEvent): Rect? {
@@ -352,7 +387,8 @@ object TraversalTreeCache {
     if (firstIgnoredChangeTime == 0L) {
       return false
     }
-    if (gracedChangeUnknown) {
+    // Q5: only an unknown change in the node's own window vetoes it.
+    if (node.windowId in gracedChangeUnknownWindows) {
       return true
     }
     val bounds = Rect()
@@ -763,8 +799,11 @@ object TraversalTreeCache {
     advanceRevision(event)
     val saved = root ?: return
     if (event.windowId >= 0 && event.windowId != saved.windowId) return
-    if (WindowCachePolicy.isNonStructuralContent(event)) {
-      noteGracedChange(event.windowId, null)
+    // Q5: a deferred non-structural change has no bounds, so it poisons only its own
+    // window — and only when the window is known; an unknown window cannot be blamed
+    // on any window.
+    if (event.windowId >= 0 && WindowCachePolicy.isNonStructuralContent(event)) {
+      noteGracedChange(event.windowId, null, event.packageName?.toString())
     }
   }
 
@@ -815,10 +854,13 @@ object TraversalTreeCache {
           changes and nonStructuralChanges.inv() == 0
       ) {
         if (regionGraceEnabled) {
-          if (!gracedChangeUnknown) {
-            val bounds = if (!cacheOnly && gracedChangeRegions.size < MAX_GRACED_CHANGE_REGIONS)
+          if (windowId !in gracedChangeUnknownWindows) {
+            // Q5: the region cap is per window — regions from other windows do not
+            // force this window's change to be recorded as unknown.
+            val bounds = if (!cacheOnly &&
+              gracedChangeRegions.count { it.first == windowId } < MAX_GRACED_CHANGE_REGIONS)
               sourceBounds(event) else null
-            noteGracedChange(windowId, bounds)
+            noteGracedChange(windowId, bounds, event.packageName?.toString())
           }
         } else if (firstIgnoredChangeTime == 0L) {
           firstIgnoredChangeTime = SystemClock.uptimeMillis()

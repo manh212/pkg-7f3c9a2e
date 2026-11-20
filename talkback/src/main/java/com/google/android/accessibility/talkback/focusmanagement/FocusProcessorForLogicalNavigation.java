@@ -104,6 +104,7 @@ import com.google.android.accessibility.utils.NodeOverrides;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
+import com.google.android.accessibility.utils.Performance.PreparedSpeechWork;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.Role.RoleName;
 import com.google.android.accessibility.utils.ScrollableNodeInfo;
@@ -778,6 +779,13 @@ public class FocusProcessorForLogicalNavigation {
       default -> false;
     };
     if (!handled) Performance.getInstance().onNavigationFailed(eventId, "not_handled");
+    if (handled && navigationAction.actionType == NavigationAction.DIRECTIONAL_NAVIGATION) {
+      // Q11: the per-swipe denominator for PREPARED. Directional navigation only:
+      // jumps, scrolls and page actions are not swipes to a neighbour. The early
+      // orderPending return above (queued) is NOT counted here — the action is counted
+      // when it actually runs, not when it is queued or deferred.
+      Performance.getInstance().onLogicalNavigationMove();
+    }
     return handled;
   }
 
@@ -2066,8 +2074,16 @@ public class FocusProcessorForLogicalNavigation {
       @SearchDirection int searchDirection,
       @TargetType int targetType) {
     if (!isPredictableTargetType(targetType)
-        || !TraversalStrategyUtils.isLogicalDirection(searchDirection)
-        || WebInterfaceUtils.supportsWebActions(pivot)) {
+        || !TraversalStrategyUtils.isLogicalDirection(searchDirection)) {
+      // Round-3 Q11: the failed prediction is counted here, in total and by cause. Every
+      // production caller funnels through this method — the prepare pass via
+      // DirectionNavigationActor, and task delegation — so the count below replaces the
+      // one the prepare pass used to keep, and the four causes sum exactly to NO_TARGET.
+      noteNoTarget(PreparedSpeechWork.NO_TARGET_UNPREDICTABLE);
+      return null;
+    }
+    if (WebInterfaceUtils.supportsWebActions(pivot)) {
+      noteNoTarget(PreparedSpeechWork.NO_TARGET_WEB_PIVOT);
       return null;
     }
     // Prefer the saved reading order: building one takes from about 10 ms to, in a big app, a
@@ -2086,13 +2102,24 @@ public class FocusProcessorForLogicalNavigation {
         composeNodeFilter(targetType, traversalStrategy.getSpeakingNodesCache());
     AccessibilityNodeInfoCompat target =
         TraversalStrategyUtils.searchFocus(traversalStrategy, pivot, searchDirection, nodeFilter);
-    if (target == null
-        || target.getWindowId() != pivot.getWindowId()
+    if (target == null) {
+      noteNoTarget(PreparedSpeechWork.NO_TARGET_SEARCH_EMPTY);
+      return null;
+    }
+    if (target.getWindowId() != pivot.getWindowId()
         || !target.isVisibleToUser()
         || WebInterfaceUtils.supportsWebActions(target)) {
+      noteNoTarget(PreparedSpeechWork.NO_TARGET_TARGET_REJECTED);
       return null;
     }
     return target;
+  }
+
+  /** Counts a failed prediction, in total and by cause (round-3 Q11). */
+  private static void noteNoTarget(PreparedSpeechWork cause) {
+    Performance perf = Performance.getInstance();
+    perf.onPreparedSpeechWork(PreparedSpeechWork.NO_TARGET);
+    perf.onPreparedSpeechWork(cause);
   }
 
   /** Whether a swipe at a granularity with this target type searches the saved reading order. */
