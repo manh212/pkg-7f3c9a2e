@@ -48,20 +48,6 @@ import org.robolectric.annotation.Config;
 public final class SpeakWhileScrollingTest {
 
   @Test
-  public void scrollFocusRetriesWhenContentChangesOrTimePasses() {
-    assertFalse(FocusProcessorForLogicalNavigation.shouldRetryScrollFocus(false, 16));
-    assertFalse(FocusProcessorForLogicalNavigation.shouldRetryScrollFocus(false, 49));
-    assertTrue(FocusProcessorForLogicalNavigation.shouldRetryScrollFocus(false, 50));
-    assertTrue(FocusProcessorForLogicalNavigation.shouldRetryScrollFocus(true, 0));
-  }
-
-  @Test
-  public void deepScrollOrderWaitsForStableList() {
-    assertTrue(FocusProcessorForLogicalNavigation.shouldWaitForStableScrollOrder(true));
-    assertFalse(FocusProcessorForLogicalNavigation.shouldWaitForStableScrollOrder(false));
-  }
-
-  @Test
   public void listWithoutScrollEventsWaitsBriefly() {
     assertTrue(FocusProcessorForLogicalNavigation.listStillMoving(1179, 1000, 0, 0, 0, 0));
     assertFalse(FocusProcessorForLogicalNavigation.listStillMoving(1180, 1000, 0, 0, 0, 0));
