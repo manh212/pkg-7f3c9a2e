@@ -806,16 +806,11 @@ public class FocusProcessorForLogicalNavigation {
       return false;
     }
     if (deferredNavigations.size() >= MAX_DEFERRED_NAVIGATIONS) {
-      Performance.getInstance().onNavigationFailed(eventId, "scroll_queue_full");
-      LogUtils.i("NavigationOrder", "gesture_uptime=%d scroll_queue_full=%d",
-          eventId == null ? -1 : eventId.getEventTimeMs(), deferredNavigations.size());
       LogUtils.d(TAG, "Dropping a swipe: %d swipes already wait.", MAX_DEFERRED_NAVIGATIONS);
       return true;
     }
     LogUtils.d(TAG, "Swipe waits for the list to show the item of the swipe before it.");
     deferredNavigations.add(Pair.create(navigationAction, eventId));
-    Performance.getInstance().onNavigationDetail(eventId, "scroll_queue_depth",
-        deferredNavigations.size());
     if (deferredNavigations.size() == 1) {
       earlyScrollCheckHandler.postDelayed(this::runDeferredNavigations, FRAME_MS);
     }
@@ -2379,7 +2374,6 @@ public class FocusProcessorForLogicalNavigation {
       if (TraversalTreeCache.getBurstLiveAnswerEnabled() && TraversalTreeCache.inNavigationBurst()) {
         traversalStrategy = new SimpleTraversalStrategy();
         TraversalTreeCache.noteLiveAnswer();
-        Performance.getInstance().onNavigationDetail(eventId, "order_burst_local", 1);
       } else {
         boolean trace = LogUtils.shouldLog(Log.DEBUG);
         // Measure this even with debug logging off. An expensive full traversal is
@@ -2409,8 +2403,6 @@ public class FocusProcessorForLogicalNavigation {
           Performance.getInstance().endNavigationWork(eventId, "order_sync", orderWork);
           long buildDuration = SystemClock.uptimeMillis() - buildStart;
           TraversalTreeCache.noteSlowBuild(rootNode.getWindowId(), buildDuration, budgetExceeded);
-          Performance.getInstance().onNavigationDetail(eventId, "order_sync_duration_ms",
-              buildDuration);
           if (trace) {
             Trace.endSection();
             if (!budgetExceeded) {
@@ -4320,7 +4312,6 @@ public class FocusProcessorForLogicalNavigation {
 
     /** When the list's items were last read, in {@link SystemClock#uptimeMillis()}. */
     long lastLook;
-    long lastFocusFailureAt;
 
     ScrollTrack(
         AutoScrollCallback callback,
@@ -4408,11 +4399,6 @@ public class FocusProcessorForLogicalNavigation {
     List<AccessibilityNodeInfoCompat> children = childrenOf(track.itemParent);
     boolean childrenChanged = !children.equals(track.children);
     track.children = children;
-    if (track.lastFocusFailureAt > 0
-        && !shouldRetryScrollFocus(childrenChanged,
-            SystemClock.uptimeMillis() - track.lastFocusFailureAt)) {
-      return false;
-    }
     // An item already attached off screen comes on screen without changing the children; the
     // pivot's item then leaves room past it in the list.
     Rect itemBounds = null;
@@ -4501,10 +4487,6 @@ public class FocusProcessorForLogicalNavigation {
       }
     }
     if (next == null) {
-      if (shouldWaitForStableScrollOrder(listStillMoving())) {
-        Performance.getInstance().onNavigationDetail(track.eventId, "scroll_order_wait", 1);
-        return false;
-      }
       readListAgain(list);
       // Prefetch can span frames; use the list's current child IDs for the reading order.
       if (!list.refresh()) {
@@ -4564,14 +4546,7 @@ public class FocusProcessorForLogicalNavigation {
         NavigationAction.Builder.copy(sourceAction)
             .setAutoScrollAttempt(sourceAction.autoScrollAttempt + 1)
             .build();
-    if (!target.refresh() || !AccessibilityNodeInfoUtils.isVisible(target)) {
-      track.lastFocusFailureAt = SystemClock.uptimeMillis();
-      Performance.getInstance().onNavigationDetail(track.eventId, "scroll_target_stale", 1);
-      return false;
-    }
     if (!setAccessibilityFocusInternal(target, navigationAction, track.eventId)) {
-      track.lastFocusFailureAt = SystemClock.uptimeMillis();
-      Performance.getInstance().onNavigationDetail(track.eventId, "scroll_focus_retry", 1);
       LogUtils.d(TAG, "The new scroll item did not take focus; keep watching the list.");
       return false;
     }
@@ -4681,16 +4656,6 @@ public class FocusProcessorForLogicalNavigation {
     CharSequence labelA = a.getContentDescription() != null ? a.getContentDescription() : a.getText();
     CharSequence labelB = b.getContentDescription() != null ? b.getContentDescription() : b.getText();
     return TextUtils.equals(labelA, labelB);
-  }
-
-  @VisibleForTesting
-  static boolean shouldWaitForStableScrollOrder(boolean moving) {
-    return moving;
-  }
-
-  @VisibleForTesting
-  static boolean shouldRetryScrollFocus(boolean childrenChanged, long elapsedSinceFailure) {
-    return childrenChanged || elapsedSinceFailure >= LOOK_AGAIN_MS;
   }
 
   /** Most nodes passed over by {@link #skipBackSteps}. */
