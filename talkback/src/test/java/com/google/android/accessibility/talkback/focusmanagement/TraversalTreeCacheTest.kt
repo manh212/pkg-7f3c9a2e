@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.focusmanagement
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -36,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSystemClock
+import org.robolectric.util.ReflectionHelpers
 
 /**
  * [TraversalTreeCache.onAccessibilityEvent] reports whether it threw the saved order away, which
@@ -119,6 +121,39 @@ class TraversalTreeCacheTest {
     val event = AccessibilityEvent.obtain(type)
     event.contentChangeTypes = contentChangeTypes
     return event
+  }
+
+  /** A text-only content change in [windowId], which starts the 1.5 s order age. */
+  private fun textChangeEvent(windowId: Int): AccessibilityEvent {
+    val change =
+      event(
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+        contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT,
+      )
+    shadowOf(change).setWindowId(windowId)
+    return change
+  }
+
+  /**
+   * Saves the order of a root with one child in window [windowId], and returns the root and
+   * that child. The window id is pinned on the nodes themselves (see EventFilterPrepareTest),
+   * so a deferred event can address this window exactly.
+   */
+  private fun savedOrderInWindow(
+    windowId: Int
+  ): Pair<AccessibilityNodeInfoCompat, AccessibilityNodeInfoCompat> {
+    val window = AccessibilityWindowInfo()
+    shadowOf(window).setId(windowId)
+    val rootInfo = node(null)
+    ReflectionHelpers.setField(rootInfo, "mWindowId", windowId)
+    shadowOf(rootInfo).setAccessibilityWindowInfo(window)
+    val childInfo = node(rootInfo)
+    ReflectionHelpers.setField(childInfo, "mWindowId", windowId)
+    shadowOf(childInfo).setAccessibilityWindowInfo(window)
+    val root = AccessibilityNodeInfoCompat.wrap(rootInfo)
+    val child = checkNotNull(root.getChild(0))
+    TraversalTreeCache.put(root, OrderedTraversalStrategy(root))
+    return root to child
   }
 
   @Test
@@ -480,5 +515,138 @@ class TraversalTreeCacheTest {
     assertFalse(cleared)
     assertTrue(TraversalTreeCache.holds(child))
     assertEquals(before, TraversalTreeCache.revision())
+  }
+
+  // Q2: the 1.5 s text-change age expires the live order only — the last-good slot
+  // still serves predictions past it.
+  @Test
+  fun prediction_lastGoodServesAfterTextChangeAge() {
+    val (_, child) = savedOrder()
+    val strategy = checkNotNull(TraversalTreeCache.orderForPrediction(child))
+    assertFalse(TraversalTreeCache.onAccessibilityEvent(textChangeEvent(child.windowId)))
+
+    ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+
+    assertSame(strategy, TraversalTreeCache.orderForPrediction(child))
+  }
+
+  // Q2: past the 1.5 s text-change age the live order is gone — navigation finds
+  // nothing — yet prediction still serves the last-good order, which can only come
+  // from the last-good slot once the live order has been cleared.
+  @Test
+  fun prediction_liveOrderExpiredAfterTextChangeAge() {
+    val (root, child) = savedOrder()
+    val strategy = checkNotNull(TraversalTreeCache.orderForPrediction(child))
+    TraversalTreeCache.onAccessibilityEvent(textChangeEvent(child.windowId))
+
+    ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+
+    assertNull(TraversalTreeCache.get(root, child))
+    assertFalse(TraversalTreeCache.holds(child))
+    assertSame(strategy, TraversalTreeCache.orderForPrediction(child))
+  }
+
+  // Q2: navigation keeps the 1.5 s text-change expiry — only prediction may use the
+  // last-good order past it. Inside the age the order still serves navigation.
+  @Test
+  fun navigation_getStillExpiresAfterTextChangeAge() {
+    val (root, child) = savedOrder()
+    TraversalTreeCache.onAccessibilityEvent(textChangeEvent(child.windowId))
+
+    ShadowSystemClock.advanceBy(Duration.ofMillis(1_000))
+    assertNotNull(TraversalTreeCache.get(root, child))
+
+    ShadowSystemClock.advanceBy(Duration.ofMillis(1_000))
+    assertNull(TraversalTreeCache.get(root, child))
+  }
+
+  // Q5: a bounds-less graced change in another window must not veto this window's nodes.
+  @Test
+  fun gracedChange_unknownChangeInOtherWindow_doesNotVetoThisWindow() {
+    val (_, child) = savedOrder()
+
+    TraversalTreeCache.noteGracedChange(child.windowId + 1, null)
+
+    assertTrue(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: the same bounds-less change still vetoes its own window's nodes.
+  @Test
+  fun gracedChange_unknownChangeInOwnWindow_vetoesItsNodes() {
+    val (_, child) = savedOrder()
+
+    TraversalTreeCache.noteGracedChange(child.windowId, null)
+
+    assertFalse(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: the >8-regions overflow is per window — overflowing another window leaves
+  // this window's nodes current.
+  @Test
+  fun gracedChange_regionOverflowInOtherWindow_doesNotVetoThisWindow() {
+    val (_, child) = savedOrder()
+    val otherWindowId = child.windowId + 1
+    repeat(9) { i ->
+      TraversalTreeCache.noteGracedChange(otherWindowId, Rect(i * 10, 0, i * 10 + 5, 5))
+    }
+
+    assertTrue(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: overflowing this window's own regions still vetoes its nodes, even where no
+  // region touches the node — the window is unknown, not just partly changed.
+  @Test
+  fun gracedChange_regionOverflowInOwnWindow_vetoesItsNodes() {
+    val (_, child) = savedOrder()
+    repeat(9) { i ->
+      TraversalTreeCache.noteGracedChange(child.windowId, Rect(i * 10, 200, i * 10 + 5, 205))
+    }
+
+    assertFalse(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: regions in another window do not count toward this window's overflow — with
+  // the old global count, the ninth region overall would have poisoned this window.
+  @Test
+  fun gracedChange_regionsInOtherWindow_doNotCountTowardThisWindowOverflow() {
+    val (_, child) = savedOrder()
+    val otherWindowId = child.windowId + 1
+    repeat(8) { i ->
+      TraversalTreeCache.noteGracedChange(otherWindowId, Rect(i * 10, 0, i * 10 + 5, 5))
+    }
+
+    TraversalTreeCache.noteGracedChange(child.windowId, Rect(200, 200, 300, 300))
+
+    assertTrue(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: a deferred bounds-less change poisons only its own window, not the saved one.
+  @Test
+  fun deferredGracedChange_inOtherWindow_doesNotVetoThisWindow() {
+    val (_, child) = savedOrderInWindow(7)
+
+    TraversalTreeCache.noteDeferredEvent(textChangeEvent(8))
+
+    assertTrue(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: a deferred bounds-less change in the saved window vetoes that window's nodes.
+  @Test
+  fun deferredGracedChange_inOwnWindow_vetoesItsNodes() {
+    val (_, child) = savedOrderInWindow(7)
+
+    TraversalTreeCache.noteDeferredEvent(textChangeEvent(7))
+
+    assertFalse(TraversalTreeCache.holdsCurrent(child))
+  }
+
+  // Q5: a deferred change from an unknown window cannot be blamed on any window.
+  @Test
+  fun deferredGracedChange_fromUnknownWindow_vetoesNoWindow() {
+    val (_, child) = savedOrderInWindow(7)
+
+    TraversalTreeCache.noteDeferredEvent(textChangeEvent(-1))
+
+    assertTrue(TraversalTreeCache.holdsCurrent(child))
   }
 }

@@ -8,6 +8,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.utils.LatencyExperiments
 import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Supplier
@@ -177,6 +179,143 @@ class AsyncTraversalOrderTest {
     assertEquals(0, starts.get())
   }
 
+  // Q3 (a): two warm() calls for the same window while the first is still pending do not
+  // re-arm the pending start — the first warm's supplier builds, the second never runs.
+  // Under the old re-arm behaviour the second supplier would build instead.
+  @Test
+  fun warmSameWindowTwiceKeepsTheFirstPendingWarm() {
+    val firstStarts = AtomicInteger(0)
+    val secondStarts = AtomicInteger(0)
+    val root = root()
+    AsyncTraversalOrder.warm(7, Supplier {
+      firstStarts.incrementAndGet()
+      root
+    })
+    AsyncTraversalOrder.warm(7, Supplier {
+      secondStarts.incrementAndGet()
+      root
+    })
+    shadowOf(Looper.getMainLooper()).idle()
+    awaitStarts(firstStarts, 1)
+    Thread.sleep(100)
+    assertEquals(1, firstStarts.get())
+    assertEquals(0, secondStarts.get())
+  }
+
+  // Q3 (b): warm() for a different window still re-arms — the first window's pending warm
+  // is cancelled and the new window's supplier builds.
+  @Test
+  fun warmDifferentWindowRearmsThePendingWarm() {
+    val firstStarts = AtomicInteger(0)
+    val secondStarts = AtomicInteger(0)
+    val root = root()
+    AsyncTraversalOrder.warm(7, Supplier {
+      firstStarts.incrementAndGet()
+      root
+    })
+    AsyncTraversalOrder.warm(9, Supplier {
+      secondStarts.incrementAndGet()
+      root
+    })
+    shadowOf(Looper.getMainLooper()).idle()
+    awaitStarts(secondStarts, 1)
+    Thread.sleep(100)
+    assertEquals(0, firstStarts.get())
+    assertEquals(1, secondStarts.get())
+  }
+
+  // Q3 (c): warm() while a build is active queues the warm behind it instead of dropping
+  // it — the queued build starts when the active build completes. The first build's root
+  // supplier blocks the NavigationOrder thread on a latch, so the active build is still
+  // running when the second warm's start task runs; the latch is always released, even if
+  // an assertion fails, so a stuck executor cannot stall later tests.
+  @Test
+  fun warmWhileBuildActiveQueuesBehindIt() {
+    val release = CountDownLatch(1)
+    val root = root()
+    try {
+      AsyncTraversalOrder.warm(7, Supplier {
+        release.await(10, TimeUnit.SECONDS)
+        root
+      })
+      shadowOf(Looper.getMainLooper()).idle()
+      val queuedStarts = AtomicInteger(0)
+      AsyncTraversalOrder.warm(7, Supplier {
+        queuedStarts.incrementAndGet()
+        root
+      })
+      shadowOf(Looper.getMainLooper()).idle()
+      // The queued warm has not started while the first build is still active.
+      Thread.sleep(100)
+      assertEquals(0, queuedStarts.get())
+      release.countDown()
+      awaitStartsIdle(queuedStarts, 1)
+      assertEquals(1, queuedStarts.get())
+    } finally {
+      release.countDown()
+    }
+  }
+
+  // Q3 (d): request() pre-empts a pending warm — the warm never starts and the request's
+  // build runs and its callback fires. The first build is a warm whose root supplier
+  // blocks the NavigationOrder thread, so the second warm is queued behind it when the
+  // request arrives and replaces it.
+  @Test
+  fun requestPreemptsPendingWarm() {
+    val release = CountDownLatch(1)
+    val root = root()
+    val warmStarts = AtomicInteger(0)
+    val result = AtomicReference<AsyncTraversalOrder.Result?>()
+    try {
+      AsyncTraversalOrder.warm(7, Supplier {
+        release.await(10, TimeUnit.SECONDS)
+        root
+      })
+      shadowOf(Looper.getMainLooper()).idle()
+      AsyncTraversalOrder.warm(7, Supplier {
+        warmStarts.incrementAndGet()
+        root
+      })
+      shadowOf(Looper.getMainLooper()).idle()
+      AsyncTraversalOrder.request(root(), null) { result.set(it) }
+      release.countDown()
+      assertEquals(AsyncTraversalOrder.Result.READY, await(result))
+      Thread.sleep(100)
+      assertEquals(0, warmStarts.get())
+    } finally {
+      release.countDown()
+    }
+  }
+
+  // Q3 (e): a pending request job is NOT clobbered by a later warm — the request's build
+  // still runs and its callback fires, and the warm never starts.
+  @Test
+  fun warmDoesNotClobberPendingRequest() {
+    val release = CountDownLatch(1)
+    val root = root()
+    val warmStarts = AtomicInteger(0)
+    val result = AtomicReference<AsyncTraversalOrder.Result?>()
+    try {
+      AsyncTraversalOrder.warm(7, Supplier {
+        release.await(10, TimeUnit.SECONDS)
+        root
+      })
+      shadowOf(Looper.getMainLooper()).idle()
+      AsyncTraversalOrder.request(root(), null) { result.set(it) }
+      AsyncTraversalOrder.warm(7, Supplier {
+        warmStarts.incrementAndGet()
+        root
+      })
+      shadowOf(Looper.getMainLooper()).idle()
+      release.countDown()
+      assertEquals(AsyncTraversalOrder.Result.READY, await(result))
+      Thread.sleep(100)
+      assertEquals(0, warmStarts.get())
+    } finally {
+      release.countDown()
+    }
+  }
+
   private fun awaitEntry(order: List<String>, entry: String) {
     val end = System.nanoTime() + 3_000_000_000L
     while (System.nanoTime() < end) {
@@ -189,6 +328,17 @@ class AsyncTraversalOrderTest {
   private fun awaitStarts(starts: AtomicInteger, expected: Int) {
     val end = System.nanoTime() + 3_000_000_000L
     while (System.nanoTime() < end) {
+      if (starts.get() == expected) return
+      Thread.sleep(5)
+    }
+    fail("Expected $expected build starts, got ${starts.get()}")
+  }
+
+  private fun awaitStartsIdle(starts: AtomicInteger, expected: Int) {
+    val shadowLooper = shadowOf(Looper.getMainLooper())
+    val end = System.nanoTime() + 3_000_000_000L
+    while (System.nanoTime() < end) {
+      shadowLooper.idle()
       if (starts.get() == expected) return
       Thread.sleep(5)
     }
