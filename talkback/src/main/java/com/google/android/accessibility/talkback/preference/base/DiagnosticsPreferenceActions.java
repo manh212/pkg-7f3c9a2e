@@ -34,15 +34,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 final class DiagnosticsPreferenceActions {
-  private static final int MAX_CLIPBOARD_CHARS = 100_000;
   private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
   private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
   private DiagnosticsPreferenceActions() {}
-
-  static boolean canCopyToClipboard(String text) {
-    return text != null && text.length() <= MAX_CLIPBOARD_CHARS;
-  }
 
   static void bind(PreferenceFragmentCompat fragment) {
     Preference export =
@@ -96,39 +91,15 @@ final class DiagnosticsPreferenceActions {
     EXECUTOR.execute(
         () -> {
           String text = DiagnosticsExport.INSTANCE.build(context);
-          if (!canCopyToClipboard(text)) {
-            MAIN_HANDLER.post(
-                () ->
-                    Toast.makeText(
-                            context,
-                            R.string.message_diagnostics_clipboard_unavailable,
-                            Toast.LENGTH_LONG)
-                        .show());
-            return;
-          }
           MAIN_HANDLER.post(
               () -> {
-                boolean copied = false;
                 ClipboardManager clipboard = context.getSystemService(ClipboardManager.class);
                 if (clipboard != null) {
-                  try {
-                    clipboard.setPrimaryClip(
-                        ClipData.newPlainText(
-                            context.getString(R.string.title_pref_export_diagnostics), text));
-                    copied = true;
-                  } catch (RuntimeException e) {
-                    LogUtils.w(
-                        "DiagnosticsPreferenceActions",
-                        "Cannot copy diagnostics: %s",
-                        e.getClass().getSimpleName());
-                  }
+                  clipboard.setPrimaryClip(
+                      ClipData.newPlainText(
+                          context.getString(R.string.title_pref_export_diagnostics), text));
                 }
-                Toast.makeText(
-                        context,
-                        copied
-                            ? R.string.message_diagnostics_copied
-                            : R.string.message_diagnostics_clipboard_unavailable,
-                        Toast.LENGTH_LONG)
+                Toast.makeText(context, R.string.message_diagnostics_copied, Toast.LENGTH_LONG)
                     .show();
               });
         });
