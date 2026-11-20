@@ -384,6 +384,16 @@ public class Performance {
 
   private long preparedSpeechMisses;
 
+  /**
+   * Completed logical-navigation moves (directional swipes that ran to completion), the
+   * denominator for prepared speech per swipe: PREPARED / logicalNavigationMoves. Counted
+   * by {@link #onLogicalNavigationMove()}, whose call site is in
+   * FocusProcessorForLogicalNavigation (see notes/q11-hooks.md); there is no existing
+   * cumulative swipe counter to reuse — NavigationLatency keeps per-gesture latency
+   * samples only, and the event table's focus-event counts are a different basis.
+   */
+  private long logicalNavigationMoves;
+
   public enum PreparedSpeechWork {
     WAITING_FOR_TOUCH,
     WAITING_FOR_IDLE,
@@ -396,7 +406,35 @@ public class Performance {
     PREPARED,
     INVALIDATED,
     MISSING_ENTRY,
-    TOO_NEW
+    TOO_NEW,
+    // Q11 (speech-prep round 3): cause splits and drop counts. The values above keep
+    // their names and ordinals; new values are appended only, so existing dumps keep
+    // their meaning. displayPreparedSpeechStats iterates all values, so these are
+    // dumped automatically wherever the prepared-speech stats are dumped.
+    STALE_NODE_NOT_HELD,
+    STALE_NODE_GRACED,
+    STALE_NODE_REFRESH_FAILED,
+    NO_TARGET_WEB_PIVOT,
+    NO_TARGET_UNPREDICTABLE,
+    NO_TARGET_SEARCH_EMPTY,
+    NO_TARGET_TARGET_REJECTED,
+    PREPARE_DROP_DEDUP,
+    PREPARE_DROP_STALE_GENERATION,
+    PREPARE_DROP_EPOCH,
+    PREPARE_DROP_TEXT_TOO_LONG,
+    PREPARE_DROP_PCM_GATE,
+    INVALIDATED_ENTRIES,
+    TOUCH_DEFERRED_DIED,
+    IDLE_DEFERRED_DIED,
+    ORDER_BUILD_READY,
+    ORDER_BUILD_STALE,
+    ORDER_BUILD_CANCELLED,
+    ORDER_BUILD_FAILED,
+    NULL_PREDICTION_CACHED,
+    FRAGMENTS_PREPARED,
+    ITEMS_PREPARED,
+    FRAGMENTS_SPOKEN,
+    ITEMS_SPOKEN
   }
 
   private final long[] preparedSpeechWork = new long[PreparedSpeechWork.values().length];
@@ -1362,6 +1400,27 @@ public class Performance {
     }
   }
 
+  /** Counts {@code count} occurrences of {@code work} at once (e.g. entries wiped by one event). */
+  public void onPreparedSpeechWork(PreparedSpeechWork work, int count) {
+    if (count <= 0) {
+      return;
+    }
+    if (computeStatsEnabled || navigationTraceEnabled()) {
+      synchronized (lockLabelToStats) {
+        preparedSpeechWork[work.ordinal()] += count;
+      }
+    }
+  }
+
+  /** Counts one logical-navigation move that ran to completion (a swipe). See {@link #logicalNavigationMoves}. */
+  public void onLogicalNavigationMove() {
+    if (computeStatsEnabled || navigationTraceEnabled()) {
+      synchronized (lockLabelToStats) {
+        logicalNavigationMoves++;
+      }
+    }
+  }
+
   /** Displays how often focus was spoken from a prepared announcement, and how often not. */
   public void displayPreparedSpeechStats(Logger logger) {
     synchronized (lockLabelToStats) {
@@ -1374,6 +1433,9 @@ public class Performance {
         if (count > 0) {
           logger.log("Prepared speech work %s: %d", work, count);
         }
+      }
+      if (logicalNavigationMoves > 0) {
+        logger.log("Prepared speech navigation moves: %d", logicalNavigationMoves);
       }
     }
   }
@@ -1391,6 +1453,7 @@ public class Performance {
       speechWaitCapHeld = 0;
       preparedSpeechHits = 0;
       preparedSpeechMisses = 0;
+      logicalNavigationMoves = 0;
       Arrays.fill(preparedSpeechWork, 0);
     }
     allEventStats.clear();
