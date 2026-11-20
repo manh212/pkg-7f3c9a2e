@@ -498,8 +498,8 @@ public class FocusProcessorForTapAndTouchExploration {
   /**
    * How long after the finger leaves a key the early end types it, from the Direct key input
    * tap-delay setting. Read as the message is posted, so a change applies to the next key.
-   * VietnameseKeyboardTiming.read() shares the same setting for the keyboard's release path;
-   * both fall back to the 1.0 default of 100 ms when no value is stored.
+   * Falls back to the 1.0 default of 100 ms when no value is stored. (The keyboard's own
+   * release path reads the same setting through VietnameseKeyboardTiming.read().)
    */
   private long directInputTapDelayMs() {
     int delayMs =
