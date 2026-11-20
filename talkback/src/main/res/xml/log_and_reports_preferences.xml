@@ -5,13 +5,6 @@
       android:key="@string/pref_debug_log_key"
       android:title="@string/title_pref_debug_log"
       android:defaultValue="@bool/pref_debug_log_default" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
-      android:key="pref_diagnostic_log_category"
-      android:title="@string/title_pref_diagnostic_log_category"
-      android:entries="@array/diagnostic_log_category_entries"
-      android:entryValues="@array/diagnostic_log_category_values"
-      android:defaultValue="all"
-      android:summary="%s" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="support_latest_log"
       android:title="@string/support_latest_log" />
