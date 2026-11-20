@@ -29,6 +29,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.ActorStateWritable;
@@ -104,6 +105,11 @@ public class FocusManagerInternal {
   // the new flag to determine the validity of source action; suppose when user touch the screen,
   // the ensure focus would need perform again.
   private boolean skipRefocus = false;
+
+  // The pane (window id, title, pane title) last checked by ensureFocusOnScreen for a
+  // pane-record restore after a pane change. A pane change is checked once, when it is
+  // first seen; later subtree changes in the same pane keep the app's landing.
+  private @Nullable WindowIdentifier paneIdentifierLastCheckedForRestore;
 
   // Whether the last requestA11yFocusFromLastFocusRecord() call was stopped by skipRefocus
   // rather than by failing to find a node. The failovers in ensureAccessibilityFocusOnScreen must
@@ -303,8 +309,14 @@ public class FocusManagerInternal {
       return false;
     }
 
-    if (focusFinder.findFocusCompat(FOCUS_ACCESSIBILITY) != null) {
-      // Has focus on screen.
+    AccessibilityNodeInfoCompat currentFocus = focusFinder.findFocusCompat(FOCUS_ACCESSIBILITY);
+    if (currentFocus != null) {
+      // Has focus on screen. But when the pane changed since the last recorded focus — BACK
+      // out of a chat returns to the list in the same window, so no window change runs the
+      // restore — the app's landing may be the wrong item; restore the pane record instead.
+      if (maybeRestorePaneRecordAfterPaneChange(state, currentFocus, eventId)) {
+        return true;
+      }
       LogUtils.d(TAG, String.format("%s: Return, accessibility focus is already there.", subTag));
       return true;
     }
@@ -529,6 +541,23 @@ public class FocusManagerInternal {
       return false;
     }
 
+    return focusNodeFoundFromRecord(nodeToFocus, type.get(), stableScreenState, eventId);
+  }
+
+  /**
+   * Focuses a node found from the last focus record, with the ensure-on-screen info.
+   * Extracted from {@link #requestA11yFocusFromLastFocusRecord} so the pane-change restore
+   * below focuses its node the same way.
+   */
+  private boolean focusNodeFoundFromRecord(
+      @Nullable AccessibilityNodeInfoCompat nodeToFocus,
+      int initialFocusType,
+      @Nullable ScreenState stableScreenState,
+      EventId eventId) {
+    if (nodeToFocus == null) {
+      return false;
+    }
+
     boolean firstTime =
         stableScreenState != null && stableScreenState.isInterpretFirstTimeWhenWakeUp();
     // Cell broadcast is an emergent announcement, so we don't mute it.
@@ -539,7 +568,7 @@ public class FocusManagerInternal {
         FocusActionInfo.builder()
             .setForceMuteFeedback(forceMuteFeedback)
             .setSourceAction(FocusActionInfo.ENSURE_ON_SCREEN)
-            .setInitialFocusType(type.get())
+            .setInitialFocusType(initialFocusType)
             .build();
 
     boolean success =
@@ -554,6 +583,74 @@ public class FocusManagerInternal {
       stableScreenState.consumeInterpretFirstTimeWhenWakeUp();
     }
     return success;
+  }
+
+  /**
+   * When focus is already on screen but the pane changed since the last recorded focus, the
+   * app's landing is often the wrong item: BACK out of a chat returns to the list in the same
+   * window, so no window change runs the restore, and the app puts focus on whatever it likes
+   * (another conversation, the toolbar search button). If this pane has a focus record and the
+   * current focus is not that recorded node, restore the recorded node. When the record cannot
+   * be found — the row scrolled off-screen and is unbound — the app's landing stands; this
+   * never falls back to the first focusable node.
+   *
+   * <p>Runs at most once per pane arrival: the pane is remembered after the first check, and a
+   * successful restore records the restored node, so later subtree changes in the same pane
+   * keep the app's landing. It does not run while the user has turned off moving focus to new
+   * windows, while the microphone is in use, while touch is passed to the app, while a swipe's
+   * scroll is still to focus an item, or in the input method window.
+   *
+   * @return true if focus was restored to the pane record
+   */
+  private boolean maybeRestorePaneRecordAfterPaneChange(
+      ScreenState state, AccessibilityNodeInfoCompat currentFocus, EventId eventId) {
+    if (!FocusProcessorForScreenStateChange.focusesNewWindows()) {
+      return false;
+    }
+    if (LowLatencyAudio.isMicrophoneInUse() || TouchInteractionMonitor.isTouchPassedToApp()) {
+      return false;
+    }
+    if (FocusProcessorForLogicalNavigation.swipeScrollPending()) {
+      return false;
+    }
+    AccessibilityWindowInfo activeWindow = state.getActiveWindow();
+    if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
+      return false;
+    }
+    WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
+    if (currentPane.equals(paneIdentifierLastCheckedForRestore)) {
+      return false;
+    }
+    paneIdentifierLastCheckedForRestore = currentPane;
+    WindowIdentifier lastRecordPane = history.getLastRecordWindowIdentifier();
+    if (lastRecordPane == null || currentPane.equals(lastRecordPane)) {
+      return false;
+    }
+    FocusActionRecord paneRecord =
+        history.reader.getLastFocusActionRecordInWindow(currentPane);
+    if (paneRecord == null || paneRecord.describesNode(currentFocus)) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat root =
+        AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
+    if (root == null || !root.refresh()) {
+      return false;
+    }
+    // The restore is ensure-on-screen sourced, so a later loss of focus in this pane must
+    // not re-announce the same node after every redraw; skipRefocus is re-armed by the
+    // next touch or swipe.
+    skipRefocus = true;
+    AtomicInteger type = new AtomicInteger(FocusActionInfo.UNDEFINED);
+    AccessibilityNodeInfoCompat nodeToFocus =
+        findInitialFocusFromTargetWindowRoot(
+            service, root, state, history.reader, focusFinder, type);
+    if (type.get() != FocusActionInfo.RESTORED_LAST_FOCUS || nodeToFocus == null) {
+      return false;
+    }
+    LogUtils.d(
+        TAG,
+        "EnsureOnScreen: pane changed since last focus, restoring pane record instead of the app's landing.");
+    return focusNodeFoundFromRecord(nodeToFocus, type.get(), state, eventId);
   }
 
   /** Focuses {@code item}, the focused item drawn again, without speaking it again. */
