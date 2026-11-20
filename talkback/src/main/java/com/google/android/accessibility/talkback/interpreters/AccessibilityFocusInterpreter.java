@@ -811,6 +811,14 @@ public class AccessibilityFocusInterpreter
 
     if (info == null) {
       if (webColumnWrap == ColumnWrap.NONE) {
+        // Focus the app placed itself, with no TalkBack action behind it: let the
+        // ensure check the placement against the pane record (and record it), instead
+        // of leaving the app's landing unchecked. A restore the ensure performs is
+        // itself a TalkBack action, so its focus event matches a record and does not
+        // re-trigger this.
+        pipelineInterpretations.input(
+            Performance.getInstance().onEventReceivedIfAbsent(event),
+            new Interpretation.ID(Interpretation.ID.Value.APP_PLACED_FOCUS));
         return null;
       }
       AccessibilityFocusEventInterpretation interpretation =
