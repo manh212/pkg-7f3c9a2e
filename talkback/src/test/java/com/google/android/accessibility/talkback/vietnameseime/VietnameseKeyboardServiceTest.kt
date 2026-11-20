@@ -849,11 +849,11 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
-  fun directInputWaitsForTheEditAndTheReleaseSpeechDelay() {
+  fun singleTapTypingUsesVersion1ReleaseDelayAndWaitsForSpeech() {
     setEcho(PREF_ECHO_CHARACTERS)
     setTypingMethod(SINGLE_TAP_TO_TYPE)
     SharedPreferencesUtils.getSharedPreferences(service).edit()
-      .putInt(service.getString(R.string.pref_direct_input_tap_delay_key), 100)
+      .putInt(service.getString(R.string.pref_direct_input_tap_delay_key), 200)
       .putInt(VietnameseKeyboardTiming.RELEASE_SPEECH, 180)
       .apply()
     startEditor()
