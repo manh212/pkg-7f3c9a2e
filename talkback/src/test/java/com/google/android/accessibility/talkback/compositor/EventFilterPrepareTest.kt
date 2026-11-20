@@ -38,7 +38,9 @@ import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy
 import com.google.android.accessibility.utils.traversal.TraversalStrategy
 import java.util.concurrent.TimeUnit
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -84,6 +86,8 @@ class EventFilterPrepareTest {
   private lateinit var root: AccessibilityNodeInfoCompat
   private lateinit var focused: AccessibilityNodeInfoCompat
   private lateinit var next: AccessibilityNodeInfoCompat
+  /** A second, separate root in the same window, whose order holds neither [focused] nor [next]. */
+  private lateinit var otherRoot: AccessibilityNodeInfoCompat
   private var nextId = 1L
 
   /** Returns [next] forward from [focused], as the predictor mode allows. */
@@ -113,6 +117,28 @@ class EventFilterPrepareTest {
     }
 
     override fun currentTargetType(): Int = NavigationTarget.TARGET_DEFAULT
+  }
+
+  /** Counts predictions and always returns null, modelling a pivot no search can resolve. */
+  private inner class CountingNullPredictor : EventFilter.TargetPredictor {
+    var invocations = 0
+
+    override fun predictTarget(
+      pivot: AccessibilityNodeInfoCompat,
+      searchDirection: Int,
+    ): AccessibilityNodeInfoCompat? =
+      predictTarget(pivot, searchDirection, NavigationTarget.TARGET_DEFAULT)
+
+    override fun predictTarget(
+      pivot: AccessibilityNodeInfoCompat,
+      searchDirection: Int,
+      targetType: Int,
+    ): AccessibilityNodeInfoCompat? {
+      invocations++
+      return null
+    }
+
+    override fun currentTargetType(): Int = NavigationTarget.TARGET_HEADING
   }
 
   @Before
@@ -205,6 +231,77 @@ class EventFilterPrepareTest {
     assertNotNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
   }
 
+  /**
+   * Q1 (round 3): an order is saved but holds neither the focused item nor the swipe target,
+   * so the old code vetoed both as stale. The refresh fallback re-reads them instead, and the
+   * focused item is never vetoed at all. The async order feature is off, so no build can save
+   * a real order meanwhile and mask the fallback.
+   */
+  @Test
+  fun refreshFallbackPreparesNodeTheSavedOrderDoesNotHold() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.ASYNC_ORDER, false)
+    TraversalTreeCache.put(otherRoot, OrderedTraversalStrategy(otherRoot))
+    eventFilter.setTargetPredictor(Predictor(local = true))
+    moveFocusTo(focused)
+    runMainQueueFor(100)
+    assertNotNull(PreparedFocusSpeech.peek(focused, NavigationTarget.TARGET_DEFAULT))
+    assertNotNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
+  }
+
+  /**
+   * Q1 (round 3): a bounds-less background text change poisons the grace flag, so the saved
+   * order no longer holds the swipe target current — the old code vetoed it. The refresh
+   * fallback re-reads it instead.
+   */
+  @Test
+  fun refreshFallbackPreparesNodeUnderAGracedChange() {
+    TraversalTreeCache.put(root, OrderedTraversalStrategy(root))
+    val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+    event.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
+    // The deferred event must carry the saved window's id: with no window (-1)
+    // noteDeferredEvent cannot blame any window and poisons nothing, so the fallback
+    // would never be exercised and the test would pass on the old veto code too.
+    shadowOf(event).setWindowId(WINDOW_ID)
+    TraversalTreeCache.noteDeferredEvent(event)
+    eventFilter.setTargetPredictor(Predictor(local = false))
+    moveFocusTo(focused)
+    runMainQueueFor(100)
+    assertNotNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
+  }
+
+  /**
+   * Q1 (round 3): the refresh fallback keeps the veto when the re-read itself fails — only
+   * then is the node stale. The focused item is still prepared: it is never vetoed.
+   */
+  @Test
+  fun failedRefreshStillVetoesTheNode() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.ASYNC_ORDER, false)
+    TraversalTreeCache.put(otherRoot, OrderedTraversalStrategy(otherRoot))
+    shadowOf(next.unwrap()).setRefreshReturnValue(false)
+    eventFilter.setTargetPredictor(Predictor(local = true))
+    moveFocusTo(focused)
+    runMainQueueFor(100)
+    assertNotNull(PreparedFocusSpeech.peek(focused, NavigationTarget.TARGET_DEFAULT))
+    assertNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
+  }
+
+  /**
+   * Q10 (round 3): a prediction that fails in the first target-type pass is not repeated in
+   * the second one. The predictor fails for the focused pivot in both directions, so without
+   * the cache it would be called four times (heading forward/back, then default forward/back);
+   * with it, twice.
+   */
+  @Test
+  fun failedPredictionIsNotRepeatedInTheSamePass() {
+    TraversalTreeCache.put(root, OrderedTraversalStrategy(root))
+    val predictor = CountingNullPredictor()
+    eventFilter.setTargetPredictor(predictor)
+    moveFocusTo(focused)
+    runMainQueueFor(100)
+    assertEquals(2, predictor.invocations)
+    assertNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
+  }
+
   /** Moves focus to [node], driving the private `onFocusMoved` by reflection. */
   private fun moveFocusTo(node: AccessibilityNodeInfoCompat) {
     ReflectionHelpers.callInstanceMethod<Any>(
@@ -254,6 +351,18 @@ class EventFilterPrepareTest {
     root = AccessibilityNodeInfoCompat.wrap(rootInfo)
     focused = child(window, rootInfo, "Focused item", Rect(0, 0, 1080, 200))
     next = child(window, rootInfo, "Next item", Rect(0, 200, 1080, 400))
+    // A second root in the same window, with no children: an order built from it holds
+    // neither the focused item nor the next one.
+    val otherRootInfo = AccessibilityNodeInfo.obtain(View(context)).apply {
+      packageName = APP_PACKAGE
+      className = "android.widget.LinearLayout"
+      isVisibleToUser = true
+      setBoundsInScreen(Rect(0, 0, 1080, 2340))
+      ReflectionHelpers.setField(this, "mSourceNodeId", nextId++)
+      ReflectionHelpers.setField(this, "mWindowId", WINDOW_ID)
+      shadowOf(this).setAccessibilityWindowInfo(window)
+    }
+    otherRoot = AccessibilityNodeInfoCompat.wrap(otherRootInfo)
   }
 
   private fun child(

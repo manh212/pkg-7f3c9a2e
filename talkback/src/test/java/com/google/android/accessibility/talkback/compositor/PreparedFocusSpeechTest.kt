@@ -21,6 +21,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget
+import com.google.android.accessibility.utils.Logger
+import com.google.android.accessibility.utils.Performance
 import java.time.Duration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -251,5 +253,65 @@ class PreparedFocusSpeechSuppressionTest {
 
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(105)))
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(106)))
+  }
+
+  /** Q11e: one invalidating event wipes three entries — INVALIDATED counts 1, INVALIDATED_ENTRIES counts 3. */
+  @Test
+  fun invalidation_countsEntriesWiped_notJustTheEvent() {
+    val performance = Performance.getInstance()
+    performance.clearAllStats()
+    performance.setComputeStatsEnabled(true)
+    try {
+      val windowId = 107
+      // One node, three target types: put() keys on (node, targetType), so this is three
+      // entries. Three fresh node(107) calls would NOT be: under Robolectric they compare
+      // equal (identical default source id + window) and collapse to one entry.
+      val node = node(windowId)
+      PreparedFocusSpeech.put(node, feedback(), "", NavigationTarget.TARGET_DEFAULT)
+      PreparedFocusSpeech.put(node, feedback(), "", NavigationTarget.TARGET_HEADING)
+      PreparedFocusSpeech.put(node, feedback(), "", NavigationTarget.TARGET_LINK)
+      val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+      shadowOf(event).setWindowId(windowId)
+      PreparedFocusSpeech.onAccessibilityEvent(event)
+      event.recycle()
+
+      val lines = mutableListOf<String>()
+      performance.displayPreparedSpeechStats(
+        Logger { format, args -> lines.add(String.format(format, *(args ?: emptyArray()))) }
+      )
+      assertTrue(lines.contains("Prepared speech work PREPARED: 3"))
+      assertTrue(lines.contains("Prepared speech work INVALIDATED: 1"))
+      assertTrue(lines.contains("Prepared speech work INVALIDATED_ENTRIES: 3"))
+    } finally {
+      performance.setComputeStatsEnabled(false)
+      performance.clearAllStats()
+    }
+  }
+
+  /** Q11e: an event that removes nothing counts neither INVALIDATED nor INVALIDATED_ENTRIES. */
+  @Test
+  fun invalidationInAnotherWindow_countsNothing() {
+    val performance = Performance.getInstance()
+    performance.clearAllStats()
+    performance.setComputeStatsEnabled(true)
+    try {
+      val kept = node(108)
+      PreparedFocusSpeech.put(kept, feedback(), "")
+      val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+      shadowOf(event).setWindowId(109)
+      PreparedFocusSpeech.onAccessibilityEvent(event)
+      event.recycle()
+
+      val lines = mutableListOf<String>()
+      performance.displayPreparedSpeechStats(
+        Logger { format, args -> lines.add(String.format(format, *(args ?: emptyArray()))) }
+      )
+      assertTrue(lines.contains("Prepared speech work PREPARED: 1"))
+      assertTrue(lines.none { it.contains("INVALIDATED") })
+      assertTrue(PreparedFocusSpeech.has(kept))
+    } finally {
+      performance.setComputeStatsEnabled(false)
+      performance.clearAllStats()
+    }
   }
 }
