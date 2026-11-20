@@ -30,7 +30,7 @@
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
   <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
-      android:defaultValue="0"
+      android:defaultValue="100"
       android:key="@string/pref_direct_input_tap_delay_key"
       android:max="300"
       android:summary="@string/summary_pref_direct_input_tap_delay"

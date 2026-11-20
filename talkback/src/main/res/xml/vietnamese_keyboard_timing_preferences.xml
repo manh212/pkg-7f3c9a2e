@@ -22,7 +22,7 @@
         app:seekBarIncrement="10"
         app:showSeekBarValue="true" />
     <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
-        android:defaultValue="0"
+        android:defaultValue="100"
         android:key="@string/pref_direct_input_tap_delay_key"
         android:max="300"
         android:title="@string/vietnamese_ime_direct_input_delay"
