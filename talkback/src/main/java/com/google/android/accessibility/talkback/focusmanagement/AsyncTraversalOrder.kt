@@ -76,7 +76,8 @@ object AsyncTraversalOrder {
   @JvmStatic
   fun warm(windowId: Int, root: Supplier<AccessibilityNodeInfoCompat?>) {
     if (!LatencyExperiments.Feature.ASYNC_ORDER.enabled() || !TraversalTreeCache.enabled ||
-      !LatencyExperiments.preparationAllowed() || NodeOverrides.hasSource() || windowId < 0) {
+      !LatencyExperiments.preparationAllowed() || NodeOverrides.hasSource() || windowId < 0 ||
+      TraversalTreeCache.shouldUseLiveTraversal(windowId)) {
       // The build may not run: drop any pending warm, as today.
       warmTask?.let { handler.removeCallbacks(it) }
       warmTask = null
@@ -189,6 +190,7 @@ object AsyncTraversalOrder {
       val token = perf.beginNavigationWork()
       val started = SystemClock.uptimeMillis()
       var root: AccessibilityNodeInfoCompat? = null
+      var budgetExceeded = false
       val strategy = try {
         if (job.cancelled) {
           job.discard?.run()
@@ -198,11 +200,17 @@ object AsyncTraversalOrder {
         root?.let { value ->
           TraversalBudget.run(started + 200, Supplier { OrderedTraversalStrategy(value) })
         }
+      } catch (exhausted: java.util.concurrent.CancellationException) {
+        budgetExceeded = true
+        null
       } catch (failure: RuntimeException) {
         null
       }
       val resolvedRoot = root
       val duration = SystemClock.uptimeMillis() - started
+      if (budgetExceeded || duration >= 150L) {
+        TraversalTreeCache.noteSlowBuild(job.windowId, duration, budgetExceeded)
+      }
       if (job.eventId != null) perf.endNavigationWork(job.eventId, "order_async", token)
       handler.post {
         if (active !== job) {

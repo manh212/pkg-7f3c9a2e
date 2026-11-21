@@ -113,10 +113,13 @@ public final class BackgroundEventGate {
   private static final int FOREGROUND_STORM_THRESHOLD = 4;
   private static final long FOREGROUND_SCROLL_STORM_WINDOW_MS = 120L;
   private static final int FOREGROUND_SCROLL_STORM_THRESHOLD = 3;
+  private static final int CHURNING_SUBTREE_STORM_THRESHOLD = 6;
   private long fgContentBurstWindowStartMs;
   private int fgContentBurstCount;
   private long fgScrollBurstWindowStartMs;
   private int fgScrollBurstCount;
+  private long fgSubtreeBurstWindowStartMs;
+  private int fgSubtreeBurstCount;
 
   public void onUserInput() {
     lastInput = SystemClock.uptimeMillis();
@@ -155,6 +158,8 @@ public final class BackgroundEventGate {
         fgContentBurstCount = 0;
         fgScrollBurstWindowStartMs = 0;
         fgScrollBurstCount = 0;
+        fgSubtreeBurstWindowStartMs = 0;
+        fgSubtreeBurstCount = 0;
       }
       interactionWindowId = event.getWindowId();
       interactionPackage = event.getPackageName() == null ? null : event.getPackageName().toString();
@@ -216,6 +221,19 @@ public final class BackgroundEventGate {
       // Preserve structural subtree updates needed during active accessibility navigation.
       // Only repeated non-structural text and state changes enter this throttling lane.
       if (!WindowCachePolicy.isNonStructuralContent(event)) {
+        // Trên các ứng dụng nặng tự làm mới cây liên tục (TikTok, Shopee Voucher, Gemini đang đổ
+        // chữ) đã vào trạng thái churning, gộp bớt bão SUBTREE khi người dùng không chạm tay để
+        // không làm tắc hàng đợi và giữ độ trễ vuốt đồng đều như ứng dụng nhẹ.
+        if (!touching && TraversalTreeCache.shouldUseLiveTraversal(event.getWindowId())) {
+          if (receivedAt < fgSubtreeBurstWindowStartMs
+              || receivedAt - fgSubtreeBurstWindowStartMs > FOREGROUND_STORM_WINDOW_MS) {
+            fgSubtreeBurstWindowStartMs = receivedAt;
+            fgSubtreeBurstCount = 1;
+            return false;
+          }
+          fgSubtreeBurstCount++;
+          return fgSubtreeBurstCount >= CHURNING_SUBTREE_STORM_THRESHOLD;
+        }
         return false;
       }
       if (receivedAt < fgContentBurstWindowStartMs

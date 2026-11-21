@@ -212,7 +212,7 @@ public class FocusProcessorForLogicalNavigation {
   /** Callback to handle scroll success or failure. */
   private @Nullable AutoScrollCallback scrollCallback;
 
-  private static final long ORDER_BUILD_BUDGET_MS = 60;
+  private static final long ORDER_BUILD_BUDGET_MS = 45;
 
   /** Set while searching again after showing an off-screen item, so it is tried only once. */
   private boolean revealingOffscreen;

@@ -40,7 +40,7 @@ internal class StructuralChurnTracker {
     durationMs: Long,
     budgetExceeded: Boolean = false,
   ) {
-    if (windowId < 0 || (!budgetExceeded && durationMs < 250L)) return
+    if (windowId < 0 || (!budgetExceeded && durationMs < 150L)) return
     record(windowId, nowMs)
     val state = windows[windowId] ?: return
     state.liveUntilMs = maxOf(state.liveUntilMs, nowMs + 8_000L)
