@@ -9,24 +9,30 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 /**
  * Bộ điều phối khôi phục tiêu điểm duy nhất có hàng đợi thử lại ngắn (Single Arbitrator + Bounded
- * Retry).
+ * Retry) — phiên bản v2.1.
  *
- * <p>Giải quyết trực tiếp hai nút thắt trong nhật ký Meridian:
+ * <p>Các cải tiến trực tiếp từ nhật ký {@code meridian-diagnostics-20261121-111115.txt}:
  * <ul>
- *   <li>{@code FocusActorForScreen: Do not restore focus from the invalid node null} khi cây UI mới
- *       chưa dựng xong lúc vừa chuyển màn hình.</li>
- *   <li>{@code EnsureOnScreen: App UI (...) is not stable so stop searching focus on it} khiến yêu
- *       cầu khôi phục bị bỏ hẳn mà không thử lại sau khi UI ổn định.</li>
+ *   <li>Tăng cửa sổ chờ mặc định từ {@code 450 ms} lên {@code 900 ms} (tối đa {@code 10} lần thử)
+ *       để ứng dụng nặng như Zalo/MIUI/WebView kịp dựng xong cây UI, đồng thời vẫn tự hủy tức thì
+ *       khi người dùng chạm hoặc vuốt.</li>
+ *   <li>Chống giật ngược tiêu điểm khi tiêu đề cửa sổ nhấp nháy tạm thời (ví dụ Chrome đổi {@code
+ *       "Chrome: Chat — Muse"} -> {@code "Chrome: Muse"} sau 400 ms): nếu cùng cửa sổ vừa khôi phục
+ *       thành công trong {@value #TITLE_FLICKER_GUARD_MS} ms và chữ ký cấu trúc không đổi, bỏ qua
+ *       {@code isPaneTransition}.</li>
+ *   <li>Cung cấp cửa sổ bảo vệ {@link #shouldSuppressInputFocusSync(int, long)} ({@value
+ *       #INPUT_SYNC_SUPPRESSION_MS} ms) để chặn {@code FOCUS_SYNCHRONIZATION} của ô {@code EditText}
+ *       cướp tiêu điểm ngay sau khi {@code RESTORED_LAST_FOCUS} vừa thành công (như lỗi Zalo lúc
+ *       11:01:40.778).</li>
  * </ul>
- *
- * <p>Mọi yêu cầu chờ sẽ tự hết hạn sau {@value #DEFAULT_RETRY_WINDOW_MS} ms và <strong>tự hủy ngay
- * lập tức</strong> khi người dùng chạm tay hoặc vuốt ({@link #cancelOnUserInteraction()}).
  */
 public final class FocusRestoreCoordinator {
 
   private static final String TAG = "FocusMemoryV2Coord";
-  public static final long DEFAULT_RETRY_WINDOW_MS = 450L;
-  private static final int MAX_ATTEMPTS = 6;
+  public static final long DEFAULT_RETRY_WINDOW_MS = 900L;
+  public static final long INPUT_SYNC_SUPPRESSION_MS = 350L;
+  public static final long TITLE_FLICKER_GUARD_MS = 1200L;
+  private static final int MAX_ATTEMPTS = 10;
 
   private static final class PendingRestore {
     @NonNull final SemanticScreenKey screenKey;
@@ -44,6 +50,8 @@ public final class FocusRestoreCoordinator {
   private final long retryWindowMs;
   @Nullable private PendingRestore pendingRestore;
   @Nullable private SemanticScreenKey lastCompletedScreenKey;
+  private int lastRestoredWindowId = -1;
+  private long lastRestoredAtUptimeMs = 0L;
 
   public FocusRestoreCoordinator(@NonNull ScreenFocusMemoryStore store) {
     this(store, DEFAULT_RETRY_WINDOW_MS);
@@ -66,31 +74,78 @@ public final class FocusRestoreCoordinator {
     if (store.lookup(screenKey) == null) {
       return;
     }
-    long now = nowUptimeMs > 0 ? nowUptimeMs : SystemClock.uptimeMillis();
+    long now = resolveNow(nowUptimeMs);
     pendingRestore = new PendingRestore(screenKey, now + retryWindowMs);
     LogUtils.d(TAG, "Armed pending restore for %s (window=%dms)", screenKey, retryWindowMs);
   }
 
   /**
-   * Hủy ngay yêu cầu đang chờ khi người dùng chạm tay, vuốt, hoặc điều hướng chủ động.
+   * Hủy ngay yêu cầu đang chờ và tắt cửa sổ chặn đồng bộ input khi người dùng chạm tay hoặc vuốt.
    */
   public synchronized void cancelOnUserInteraction() {
     if (pendingRestore != null) {
       LogUtils.d(TAG, "Cancelled pending restore on user interaction: %s", pendingRestore.screenKey);
       pendingRestore = null;
     }
+    lastRestoredAtUptimeMs = 0L;
   }
 
   /**
-   * Đánh dấu đã khôi phục xong cho một màn hình để tránh khôi phục lặp trên các sự kiện vẽ lại kế tiếp.
+   * Đánh dấu đã khôi phục xong cho một màn hình (tương thích ngược với v2.0).
    */
   public synchronized void markRestored(@Nullable SemanticScreenKey screenKey) {
+    markRestored(screenKey, -1, 0L);
+  }
+
+  /**
+   * Đánh dấu đã khôi phục xong cho một màn hình kèm {@code windowId} và thời điểm để kích hoạt
+   * bảo vệ chống cướp tiêu điểm bởi {@code EditText} và chống nhấp nháy tiêu đề trang web.
+   */
+  public synchronized void markRestored(
+      @Nullable SemanticScreenKey screenKey, int windowId, long nowUptimeMs) {
     lastCompletedScreenKey = screenKey;
+    lastRestoredWindowId = windowId;
+    lastRestoredAtUptimeMs = resolveNow(nowUptimeMs);
     pendingRestore = null;
+  }
+
+  /**
+   * Kiểm tra xem có nên bỏ qua sự kiện {@code FOCUS_SYNCHRONIZATION} (từ {@code TYPE_VIEW_FOCUSED}
+   * trên {@code EditText}) hay không vì vừa khôi phục thành công tiêu điểm đã nhớ trên cùng cửa sổ.
+   */
+  public synchronized boolean shouldSuppressInputFocusSync(int windowId, long nowUptimeMs) {
+    if (lastRestoredAtUptimeMs <= 0L) {
+      return false;
+    }
+    if (lastRestoredWindowId >= 0 && windowId >= 0 && lastRestoredWindowId != windowId) {
+      return false;
+    }
+    long now = resolveNow(nowUptimeMs);
+    return now >= lastRestoredAtUptimeMs
+        && (now - lastRestoredAtUptimeMs) <= INPUT_SYNC_SUPPRESSION_MS;
   }
 
   public synchronized boolean hasPendingRestore() {
     return pendingRestore != null;
+  }
+
+  /**
+   * Kiểm tra xem {@code currentKey} có phải chỉ là nhấp nháy tiêu đề tạm thời trên cùng cửa sổ vừa
+   * khôi phục hay không (gói package-private để unit test kiểm chứng trực tiếp).
+   */
+  synchronized boolean isGuardedTitleFlicker(
+      @NonNull SemanticScreenKey currentKey, int windowId, long now) {
+    if (lastCompletedScreenKey == null || lastRestoredAtUptimeMs <= 0L) {
+      return false;
+    }
+    if (lastRestoredWindowId >= 0 && windowId >= 0 && lastRestoredWindowId != windowId) {
+      return false;
+    }
+    long elapsed = now - lastRestoredAtUptimeMs;
+    if (elapsed < 0 || elapsed > TITLE_FLICKER_GUARD_MS) {
+      return false;
+    }
+    return currentKey.isLikelyTitleFlickerOf(lastCompletedScreenKey);
   }
 
   /**
@@ -106,10 +161,10 @@ public final class FocusRestoreCoordinator {
       @Nullable ScreenState screenState,
       int windowId,
       long nowUptimeMs) {
-    if (root == null) {
+    if (root == null || store.isEmpty()) {
       return null;
     }
-    long now = nowUptimeMs > 0 ? nowUptimeMs : SystemClock.uptimeMillis();
+    long now = resolveNow(nowUptimeMs);
     SemanticScreenKey currentKey = SemanticScreenKey.create(root, screenState, windowId);
     if (currentKey == null) {
       return null;
@@ -121,7 +176,6 @@ public final class FocusRestoreCoordinator {
         LogUtils.d(TAG, "Pending restore expired for %s", pendingRestore.screenKey);
         pendingRestore = null;
       } else if (!pendingRestore.screenKey.equals(currentKey)) {
-        // Màn hình đã chuyển sang trang khác -> cập nhật nếu trang mới cũng có bản ghi.
         if (store.lookup(currentKey) != null) {
           pendingRestore = new PendingRestore(currentKey, now + retryWindowMs);
         } else {
@@ -130,8 +184,15 @@ public final class FocusRestoreCoordinator {
       }
     }
 
-    // 2. Nếu chưa có pending nhưng người dùng vừa chuyển sang một màn hình ngữ nghĩa khác
-    //    (ví dụ nhấn Back từ phòng chat ra danh sách chat trong cùng windowId) -> thử khôi phục 1 lần.
+    // 2. Bỏ qua nhấp nháy tiêu đề tạm thời (ví dụ Chrome đổi title khi reconnect) nếu không có
+    //    pendingRestore đang chủ động chờ.
+    if (pendingRestore == null && isGuardedTitleFlicker(currentKey, windowId, now)) {
+      LogUtils.d(TAG, "Ignored transient title flicker on %s", currentKey);
+      return null;
+    }
+
+    // 3. Nếu chưa có pending nhưng người dùng vừa chuyển sang một màn hình ngữ nghĩa khác
+    //    (ví dụ nhấn Back từ phòng chat ra danh sách chat trong cùng windowId) -> thử khôi phục.
     boolean isPaneTransition =
         pendingRestore == null
             && !currentKey.equals(lastCompletedScreenKey)
@@ -149,7 +210,7 @@ public final class FocusRestoreCoordinator {
 
     // Nếu tiêu điểm hiện tại đã nằm đúng trên phần tử đã nhớ -> đánh dấu hoàn tất, không giật focus.
     if (currentFocus != null && entry.fingerprint.matchesNode(currentFocus)) {
-      markRestored(currentKey);
+      markRestored(currentKey, windowId, now);
       return null;
     }
 
@@ -160,14 +221,17 @@ public final class FocusRestoreCoordinator {
     AccessibilityNodeInfoCompat target = entry.fingerprint.findBestMatch(root);
     if (target != null) {
       LogUtils.d(TAG, "Resolved restore on %s -> %s", currentKey, entry.fingerprint);
-      markRestored(currentKey);
+      markRestored(currentKey, windowId, now);
       return target;
     }
 
-    // Nếu là lần đầu phát hiện đổi pane mà cây danh sách chưa tải xong -> bật hàng đợi thử lại ngắn.
     if (isPaneTransition) {
       armPendingRestore(currentKey, now);
     }
     return null;
+  }
+
+  private static long resolveNow(long nowUptimeMs) {
+    return nowUptimeMs > 0L ? nowUptimeMs : SystemClock.uptimeMillis();
   }
 }

@@ -273,7 +273,10 @@ public class FocusActorForScreenStateChange {
     if (success) {
       history
           .getRestoreCoordinator()
-          .markRestored(SemanticScreenKey.create(root, screenState, windowId));
+          .markRestored(
+              SemanticScreenKey.create(root, screenState, windowId),
+              windowId,
+              SystemClock.uptimeMillis());
       primesController.recordDuration(
           TimerAction.INITIAL_FOCUS_RESTORE, startTime, primesController.getTime());
     }

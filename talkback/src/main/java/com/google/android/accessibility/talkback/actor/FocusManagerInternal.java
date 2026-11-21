@@ -197,6 +197,13 @@ public class FocusManagerInternal {
       boolean forceRefocusIfAlreadyFocused,
       @NonNull FocusActionInfo focusActionInfo,
       @Nullable EventId eventId) {
+    if (focusActionInfo.sourceAction == FocusActionInfo.FOCUS_SYNCHRONIZATION
+        && history
+            .getRestoreCoordinator()
+            .shouldSuppressInputFocusSync(node.getWindowId(), SystemClock.uptimeMillis())) {
+      LogUtils.d(TAG, "Suppressing FOCUS_SYNCHRONIZATION right after FocusMemoryV2 restore.");
+      return false;
+    }
     if (shouldKeepRecordingFocus(node, focusActionInfo)) {
       return false;
     }
@@ -369,6 +376,12 @@ public class FocusManagerInternal {
       return true;
     }
 
+    // No focus record could be restored, including when skipRefocus blocked the record search.
+    // Give a pending semantic restore a chance before the failovers or early return.
+    if (tryRestoreSemanticMemory(state, /* root= */ null, eventId)) {
+      return true;
+    }
+
     if (ensureRequestBlockedBySkipRefocus) {
       // Ensure-focus already placed the last focus and nothing has touched the screen since.
       // Running the failovers would place it again under a different source action, which
@@ -537,12 +550,48 @@ public class FocusManagerInternal {
         sameItemRestores++;
         return focusSameItem(sameItem, eventId);
       }
+      // The record lookup failed. Try semantic memory before using the input or first node.
+      if (tryRestoreSemanticMemory(stableScreenState, root, eventId)) {
+        return true;
+      }
     }
     if (nodeToFocus == null) {
       return false;
     }
 
     return focusNodeFoundFromRecord(nodeToFocus, type.get(), stableScreenState, eventId);
+  }
+
+  /** Tries semantic memory in the active window before the normal initial-focus failovers. */
+  private boolean tryRestoreSemanticMemory(
+      @Nullable ScreenState state, @Nullable AccessibilityNodeInfoCompat root, EventId eventId) {
+    if (state == null
+        || !FocusProcessorForScreenStateChange.focusesNewWindows()
+        || history.getMemoryStore().isEmpty()) {
+      return false;
+    }
+    AccessibilityWindowInfo activeWindow = state.getActiveWindow();
+    if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
+      return false;
+    }
+    if (root == null || root.getWindowId() != activeWindow.getId()) {
+      root = AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
+      if (root == null || !root.refresh()) {
+        return false;
+      }
+    }
+    AccessibilityNodeInfoCompat nodeToFocus =
+        history
+            .getRestoreCoordinator()
+            .tryResolvePendingOrPaneChange(
+                root, /* currentFocus= */ null, state, activeWindow.getId(),
+                SystemClock.uptimeMillis());
+    if (nodeToFocus == null) {
+      return false;
+    }
+    skipRefocus = true;
+    return focusNodeFoundFromRecord(
+        nodeToFocus, FocusActionInfo.RESTORED_LAST_FOCUS, state, eventId);
   }
 
   /**

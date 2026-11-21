@@ -1,7 +1,6 @@
 package com.google.android.accessibility.talkback.focusmanagement.memory;
 
 import android.graphics.Rect;
-import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -16,27 +15,31 @@ import java.util.regex.Pattern;
  * AccessibilityNodeInfoCompat} vốn dễ chết/detached khi rời màn hình hoặc bị {@code RecyclerView}
  * tái sử dụng).
  *
- * <p>Hỗ trợ khớp lại theo thứ tự tin cậy giảm dần:
- * <ol>
- *   <li>Khớp chính xác {@code uniqueId}</li>
- *   <li>Khớp {@code viewIdResourceName + normalizedText} (hoặc {@code viewId} duy nhất trên màn hình)</li>
- *   <li>Khớp chính xác {@code normalizedText + className} (bền vững khi tin nhắn mới đẩy vị trí hàng xuống)</li>
- *   <li>Khớp tiền tố/mờ {@code primaryToken} trong cùng {@code parentViewId / className}</li>
- * </ol>
+ * <p>Phiên bản v2.1:
+ * <ul>
+ *   <li>Mở rộng lọc chuỗi động Việt/Anh trong Nekogram & Zalo ({@code "2 tin nhắn mới"}, {@code "1
+ *       lượt nhắc"}, {@code "đã tắt âm"}, {@code "truy cập 59 phút trước"}, {@code "hoạt động
+ *       11:03"}, {@code "trực tuyến"}).</li>
+ *   <li>Bổ sung dấu chấm ({@code '.'}) vào danh sách phân tách {@code primaryToken} để hàng chat
+ *       dạng {@code "Meridian. 2 tin nhắn mới. Đã nhận 11:02..."} tách đúng tên hội thoại {@code
+ *       "meridian"}.</li>
+ *   <li>Không phụ thuộc {@code android.text.TextUtils} để unit test JVM chạy mượt mà.</li>
+ * </ul>
  */
 public final class FocusTargetFingerprint {
 
   private static final int MAX_TREE_SCAN_NODES = 350;
 
-  // Lọc bỏ các phần động thường gặp trong ứng dụng chat Việt/Anh (Nekogram, Zalo, Messenger):
-  // giờ "08:26", "23:59", "Đã nhận lúc 08:28", "Đã gửi 08:26", "Đã xem", "5 phút trước", v.v.
   private static final Pattern DYNAMIC_STATUS_PATTERN =
       Pattern.compile(
           "(?iu)(đã\\s+(nhận|gửi|xem|đọc)(\\s+lúc)?\\s*\\d{1,2}:\\d{2}|"
-              + "đã\\s+(nhận|gửi|xem|đọc)|"
+              + "đã\\s+(nhận|gửi|xem|đọc|tắt\\s+âm)|"
+              + "truy\\s+cập\\s+\\d+\\s*(giây|phút|giờ|ngày|tuần)\\s*trước|"
+              + "hoạt\\s+động\\s+\\d{1,2}:\\d{2}|"
+              + "\\btrực\\s+tuyến\\b|"
               + "\\b\\d{1,2}:\\d{2}(\\s*(am|pm))?\\b|"
               + "\\b\\d+\\s*(giây|phút|giờ|ngày|tuần|sec|min|hr|day)s?\\s*(trước|ago)?\\b|"
-              + "\\b\\d+\\s+tin\\s+nhắn\\s+chưa\\s+đọc\\b)");
+              + "\\b\\d+\\+?\\s+(tin\\s+nhắn\\s+(mới|chưa\\s+đọc)|lượt\\s+nhắc|chat\\s+chưa\\s+đọc)\\b)");
 
   @NonNull private final String uniqueId;
   @NonNull private final String viewId;
@@ -93,7 +96,6 @@ public final class FocusTargetFingerprint {
     node.getBoundsInScreen(bounds);
     int cy = bounds.isEmpty() ? -1 : bounds.centerY();
 
-    // Không tạo fingerprint vô nghĩa nếu node hoàn toàn không có định danh nào.
     if (unique.isEmpty() && vid.isEmpty() && normLabel.isEmpty()) {
       return null;
     }
@@ -122,6 +124,11 @@ public final class FocusTargetFingerprint {
     return normalizedLabel;
   }
 
+  @NonNull
+  public String getPrimaryToken() {
+    return primaryToken;
+  }
+
   public boolean isEditable() {
     return editable;
   }
@@ -143,7 +150,6 @@ public final class FocusTargetFingerprint {
     String candVid = safeString(candidate.getViewIdResourceName());
     String candLabel = normalizeDynamicLabel(extractLabel(candidate));
     if (!viewId.isEmpty() && viewId.equals(candVid)) {
-      // Ô nhập liệu thay đổi text khi gõ nhưng vẫn là cùng một EditText nếu khớp viewId + editable.
       if (editable && candidate.isEditable()) {
         return true;
       }
@@ -199,7 +205,6 @@ public final class FocusTargetFingerprint {
       }
     }
 
-    // Ngưỡng tối thiểu 55 để tránh nhảy nhầm sang một node không liên quan.
     return bestScore >= 55 ? bestNode : null;
   }
 
@@ -222,12 +227,12 @@ public final class FocusTargetFingerprint {
       return 95;
     }
 
-    // 2. Ô nhập liệu khớp viewId + editable (văn bản có thể đã thay đổi từ hint sang nội dung gõ)
+    // 2. Ô nhập liệu khớp viewId + editable
     if (sameVid && editable && candidate.isEditable()) {
       return 90;
     }
 
-    // 3. Khớp văn bản chuẩn hóa + className (rất quan trọng cho hàng trong RecyclerView chat)
+    // 3. Khớp văn bản chuẩn hóa + className
     if (sameLabel && sameCls) {
       int bonus = matchesParentViewId(candidate) ? 5 : 0;
       return 85 + bonus;
@@ -238,22 +243,34 @@ public final class FocusTargetFingerprint {
       return 75;
     }
 
-    // 5. Khớp tiền tố/tên người gửi (primaryToken) trong cùng container/class
-    //    (ví dụ trong danh sách chat, tin nhắn cuối của "Đức Vương" đổi nhưng tên hội thoại giữ nguyên)
+    // 5. Khớp tiền tố/tên hội thoại (primaryToken) trong cùng container/class
+    //    (ví dụ "Meridian. 2 tin nhắn mới..." -> primaryToken="meridian")
     if (!primaryToken.isEmpty()
-        && primaryToken.length() >= 4
-        && candLabel.startsWith(primaryToken)
-        && sameCls) {
+        && primaryToken.length() >= 2
+        && sameCls
+        && matchesPrimaryToken(candLabel, primaryToken)) {
       int bonus = matchesParentViewId(candidate) ? 8 : 0;
       return 62 + bonus;
     }
 
-    // 6. Khớp viewId duy nhất không có văn bản (nút icon có id cố định)
+    // 6. Khớp viewId duy nhất không có văn bản
     if (sameVid && normalizedLabel.isEmpty() && candLabel.isEmpty() && sameCls) {
       return 60 + proximityTieBreaker(candidate);
     }
 
     return 0;
+  }
+
+  private static boolean matchesPrimaryToken(
+      @NonNull String candLabel, @NonNull String primaryToken) {
+    if (!candLabel.startsWith(primaryToken)) {
+      return false;
+    }
+    if (candLabel.length() == primaryToken.length()) {
+      return true;
+    }
+    char next = candLabel.charAt(primaryToken.length());
+    return next == '.' || next == ',' || next == ':' || next == ' ' || next == '\n' || next == '|';
   }
 
   private int proximityTieBreaker(@NonNull AccessibilityNodeInfoCompat candidate) {
@@ -287,13 +304,13 @@ public final class FocusTargetFingerprint {
   }
 
   @NonNull
-  private static String extractPrimaryToken(@NonNull String normalizedLabel) {
+  static String extractPrimaryToken(@NonNull String normalizedLabel) {
     if (normalizedLabel.isEmpty()) {
       return "";
     }
-    // Lấy mệnh đề đầu tiên (trước dấu xuống dòng, dấu phẩy hoặc dấu hai chấm) làm định danh ổn định.
+    // Lấy mệnh đề đầu tiên (trước dấu chấm, xuống dòng, phẩy, hai chấm, •, |) làm định danh ổn định.
     int cut = normalizedLabel.length();
-    for (char sep : new char[] {'\n', ',', ':', '•', '|'}) {
+    for (char sep : new char[] {'.', '\n', ',', ':', '•', '|'}) {
       int idx = normalizedLabel.indexOf(sep);
       if (idx > 0 && idx < cut) {
         cut = idx;
@@ -306,14 +323,13 @@ public final class FocusTargetFingerprint {
   @NonNull
   private static String extractLabel(@NonNull AccessibilityNodeInfoCompat node) {
     CharSequence text = node.getText();
-    if (!TextUtils.isEmpty(text)) {
+    if (!isNullOrEmpty(text)) {
       return text.toString();
     }
     CharSequence desc = node.getContentDescription();
-    if (!TextUtils.isEmpty(desc)) {
+    if (!isNullOrEmpty(desc)) {
       return desc.toString();
     }
-    // Một số item RecyclerView bọc text trong node con đầu tiên
     StringBuilder sb = new StringBuilder();
     int childCount = Math.min(node.getChildCount(), 4);
     for (int i = 0; i < childCount; i++) {
@@ -321,8 +337,8 @@ public final class FocusTargetFingerprint {
       if (child == null) {
         continue;
       }
-      CharSequence ct = !TextUtils.isEmpty(child.getText()) ? child.getText() : child.getContentDescription();
-      if (!TextUtils.isEmpty(ct)) {
+      CharSequence ct = !isNullOrEmpty(child.getText()) ? child.getText() : child.getContentDescription();
+      if (!isNullOrEmpty(ct)) {
         if (sb.length() > 0) {
           sb.append(", ");
         }
@@ -335,9 +351,13 @@ public final class FocusTargetFingerprint {
     return sb.toString();
   }
 
+  private static boolean isNullOrEmpty(@Nullable CharSequence raw) {
+    return raw == null || raw.length() == 0;
+  }
+
   @NonNull
   private static String safeString(@Nullable CharSequence raw) {
-    return TextUtils.isEmpty(raw) ? "" : raw.toString().trim();
+    return isNullOrEmpty(raw) ? "" : raw.toString().trim();
   }
 
   @NonNull

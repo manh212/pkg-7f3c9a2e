@@ -11,18 +11,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Kho lưu trữ tiêu điểm theo {@link SemanticScreenKey} (bộ nhớ tập trung cho Focus Memory v2).
+ * Kho lưu trữ tiêu điểm theo {@link SemanticScreenKey} (bộ nhớ tập trung cho Focus Memory v2.1).
  *
- * <p>Nguyên tắc cốt lõi:
- * <ul>
- *   <li>Dung lượng đủ lớn ({@value #MAX_ENTRIES} màn hình theo LRU) thay vì giới hạn 10 mục dễ bị
- *       đẩy khỏi cache khi chuyển qua lại nhiều ứng dụng.</li>
- *   <li><strong>Chỉ ghi đè từ hành động có chủ đích của người dùng</strong> (vuốt, chạm khám phá,
- *       điều hướng). Không cho phép tiêu điểm mặc định do app tự đặt hoặc fallback tự động ghi đè
- *       mất điểm nhớ cũ.</li>
- *   <li>Hỗ trợ tra cứu 2 tầng: khớp chính xác {@code SemanticScreenKey} trước, sau đó fallback sang
- *       khóa không kèm {@code structureSignature} nếu thanh tiêu đề thay đổi nhẹ.</li>
- * </ul>
+ * <p>Bổ sung {@link #isEmpty()} và {@link #hasAnyEntryForPackage(CharSequence)} (tương thích hướng
+ * tối ưu commit {@code b101c86}) để bỏ qua thao tác lấy cây {@code root} khi chưa có bản ghi nào.
  */
 public final class ScreenFocusMemoryStore {
 
@@ -65,10 +57,6 @@ public final class ScreenFocusMemoryStore {
 
   /**
    * Kiểm tra nguồn gốc hành động tiêu điểm có phải là ý định của người dùng hay không.
-   *
-   * <p>Chỉ các hành động điều hướng logic, chạm khám phá hoặc tương tác chủ động mới được phép
-   * cập nhật điểm nhớ. Các nguồn tự động như {@code SCREEN_STATE_CHANGE} hay {@code ENSURE_ON_SCREEN}
-   * không được ghi đè điểm nhớ hiện có.
    */
   public static boolean isUserIntentionalSource(@Nullable FocusActionInfo info) {
     if (info == null) {
@@ -149,6 +137,30 @@ public final class ScreenFocusMemoryStore {
   }
 
   /**
+   * Kiểm tra nhanh xem kho có bản ghi nào không để tránh gọi IPC {@code getRootCompat()} không cần
+   * thiết khi kho đang rỗng.
+   */
+  public synchronized boolean isEmpty() {
+    return exactStore.isEmpty();
+  }
+
+  /**
+   * Kiểm tra nhanh xem kho có ít nhất một bản ghi cho {@code packageName} hay không.
+   */
+  public synchronized boolean hasAnyEntryForPackage(@Nullable CharSequence packageName) {
+    if (exactStore.isEmpty() || packageName == null || packageName.length() == 0) {
+      return false;
+    }
+    String target = packageName.toString().trim().toLowerCase(java.util.Locale.ROOT);
+    for (SemanticScreenKey key : exactStore.keySet()) {
+      if (target.equals(key.getPackageName())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Tìm trực tiếp node cần khôi phục trên cây {@code root} dựa theo bộ nhớ ngữ nghĩa.
    */
   @Nullable
@@ -156,7 +168,7 @@ public final class ScreenFocusMemoryStore {
       @Nullable AccessibilityNodeInfoCompat root,
       @Nullable ScreenState screenState,
       int windowId) {
-    if (root == null) {
+    if (root == null || isEmpty()) {
       return null;
     }
     SemanticScreenKey key = SemanticScreenKey.create(root, screenState, windowId);

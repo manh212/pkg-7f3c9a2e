@@ -8,8 +8,8 @@ import com.google.android.accessibility.talkback.focusmanagement.record.FocusAct
 import org.junit.Test;
 
 /**
- * Kiểm thử đơn vị cho chuẩn hóa nhãn động và chính sách lọc nguồn ý định người dùng của Focus
- * Memory v2.
+ * Kiểm thử đơn vị cho Focus Memory v2.1: chuẩn hóa nhãn/khóa động, tách primaryToken Nekogram/Zalo,
+ * chống nhấp nháy tiêu đề Chrome, và cửa sổ chặn EditText FOCUS_SYNCHRONIZATION.
  */
 public final class FocusMemoryV2Test {
 
@@ -28,14 +28,92 @@ public final class FocusMemoryV2Test {
   }
 
   @Test
-  public void normalizeDynamicLabel_stripsSentTimeAndDeliveryState() {
-    String msg = "Kệ anh Đã gửi lúc 08:26, Đã xem";
-    String norm = FocusTargetFingerprint.normalizeDynamicLabel(msg);
+  public void normalizeDynamicLabel_stripsNekogramUnreadMentionsAndMutedState() {
+    String first = "Meridian. Đã nhận 10:57. Nguyễn Quyết Thắng. Wow!";
+    String second = "Meridian. 2 tin nhắn mới. 1 lượt nhắc. Đã nhận 11:02. Hoàng Nhuần. Ok";
 
-    assertTrue(norm.contains("kệ anh"));
-    assertFalse(norm.contains("08:26"));
-    assertFalse(norm.contains("đã gửi"));
-    assertFalse(norm.contains("đã xem"));
+    String tokenFirst =
+        FocusTargetFingerprint.extractPrimaryToken(
+            FocusTargetFingerprint.normalizeDynamicLabel(first));
+    String tokenSecond =
+        FocusTargetFingerprint.extractPrimaryToken(
+            FocusTargetFingerprint.normalizeDynamicLabel(second));
+
+    assertEquals("meridian", tokenFirst);
+    assertEquals("meridian", tokenSecond);
+  }
+
+  @Test
+  public void semanticScreenKey_normalizesDynamicUnreadCountersInTabLabels() {
+    String before = SemanticScreenKey.normalizeTitle("💬Tất cả 21 chat chưa đọc");
+    String after = SemanticScreenKey.normalizeTitle("💬Tất cả 22 chat chưa đọc");
+
+    assertEquals(before, after);
+    assertFalse(before.contains("21"));
+    assertTrue(before.contains("chat chưa đọc"));
+  }
+
+  @Test
+  public void semanticScreenKey_detectsBrowserTitleFlickerWithSameSignature() {
+    SemanticScreenKey chatMuse =
+        new SemanticScreenKey(
+            "com.android.chrome",
+            "chrome: chat — muse",
+            "",
+            "hdr:bắt đầu tìm kiếm bằng giọng nói|sel:muse.ai",
+            -1);
+    SemanticScreenKey bareMuse =
+        new SemanticScreenKey(
+            "com.android.chrome",
+            "chrome: muse",
+            "",
+            "hdr:bắt đầu tìm kiếm bằng giọng nói|sel:muse.ai",
+            -1);
+
+    assertTrue(bareMuse.isLikelyTitleFlickerOf(chatMuse));
+    assertFalse(chatMuse.isLikelyTitleFlickerOf(chatMuse));
+  }
+
+  @Test
+  public void coordinator_suppressesInputFocusSyncWithinGuardWindowAndClearsOnUserTouch() {
+    ScreenFocusMemoryStore store = new ScreenFocusMemoryStore();
+    FocusRestoreCoordinator coordinator = new FocusRestoreCoordinator(store, 900L);
+    SemanticScreenKey zaloChat =
+        new SemanticScreenKey("com.zing.zalo", "zalo", "", "mode:input", -1);
+
+    coordinator.markRestored(zaloChat, /* windowId= */ 1477, /* nowUptimeMs= */ 10_000L);
+
+    assertTrue(coordinator.shouldSuppressInputFocusSync(1477, 10_031L));
+    assertFalse(coordinator.shouldSuppressInputFocusSync(1477, 10_500L));
+    assertFalse(coordinator.shouldSuppressInputFocusSync(1493, 10_031L));
+
+    coordinator.cancelOnUserInteraction();
+    assertFalse(coordinator.shouldSuppressInputFocusSync(1477, 10_031L));
+  }
+
+  @Test
+  public void coordinator_guardsTransientTitleFlickerRightAfterRestore() {
+    ScreenFocusMemoryStore store = new ScreenFocusMemoryStore();
+    FocusRestoreCoordinator coordinator = new FocusRestoreCoordinator(store, 900L);
+    SemanticScreenKey chatMuse =
+        new SemanticScreenKey(
+            "com.android.chrome",
+            "chrome: chat — muse",
+            "",
+            "hdr:bắt đầu tìm kiếm bằng giọng nói|sel:muse.ai",
+            -1);
+    SemanticScreenKey bareMuse =
+        new SemanticScreenKey(
+            "com.android.chrome",
+            "chrome: muse",
+            "",
+            "hdr:bắt đầu tìm kiếm bằng giọng nói|sel:muse.ai",
+            -1);
+
+    coordinator.markRestored(chatMuse, /* windowId= */ 1485, /* nowUptimeMs= */ 20_000L);
+
+    assertTrue(coordinator.isGuardedTitleFlicker(bareMuse, 1485, 20_400L));
+    assertFalse(coordinator.isGuardedTitleFlicker(bareMuse, 1485, 22_000L));
   }
 
   @Test
@@ -54,15 +132,5 @@ public final class FocusMemoryV2Test {
     assertFalse(ScreenFocusMemoryStore.isUserIntentionalSource(screenStateChange));
     assertFalse(ScreenFocusMemoryStore.isUserIntentionalSource(ensureOnScreen));
     assertFalse(ScreenFocusMemoryStore.isUserIntentionalSource(null));
-  }
-
-  @Test
-  public void coordinator_cancelsPendingRestoreOnUserInteraction() {
-    ScreenFocusMemoryStore store = new ScreenFocusMemoryStore();
-    FocusRestoreCoordinator coordinator = new FocusRestoreCoordinator(store, 450L);
-
-    assertFalse(coordinator.hasPendingRestore());
-    coordinator.cancelOnUserInteraction();
-    assertFalse(coordinator.hasPendingRestore());
   }
 }
