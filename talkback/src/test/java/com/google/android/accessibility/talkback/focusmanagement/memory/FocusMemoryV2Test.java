@@ -96,11 +96,26 @@ public final class FocusMemoryV2Test {
     coordinator.markRestored(zaloChat, /* windowId= */ 1477, /* nowUptimeMs= */ 10_000L);
 
     assertTrue(coordinator.shouldSuppressInputFocusSync(1477, 10_031L));
-    assertFalse(coordinator.shouldSuppressInputFocusSync(1477, 10_500L));
+    assertTrue(coordinator.shouldSuppressInputFocusSync(1477, 10_473L));
+    assertFalse(coordinator.shouldSuppressInputFocusSync(1477, 11_200L));
     assertFalse(coordinator.shouldSuppressInputFocusSync(1493, 10_031L));
 
     coordinator.cancelOnUserInteraction();
     assertFalse(coordinator.shouldSuppressInputFocusSync(1477, 10_031L));
+  }
+
+  @Test
+  public void coordinator_guardsMessengerEditTextHijackWithinSuppressionWindow() {
+    ScreenFocusMemoryStore store = new ScreenFocusMemoryStore();
+    FocusRestoreCoordinator coordinator = new FocusRestoreCoordinator(store, 900L);
+    SemanticScreenKey messengerChat =
+        new SemanticScreenKey("com.facebook.orca", "messenger", "", "hdr:trung duy", -1);
+
+    coordinator.markRestored(messengerChat, /* windowId= */ 637, /* nowUptimeMs= */ 20_000L);
+
+    assertTrue(coordinator.isGuardedEditTextHijack(messengerChat, 637, 20_473L));
+    assertFalse(coordinator.isGuardedEditTextHijack(messengerChat, 637, 21_200L));
+    assertFalse(coordinator.isGuardedEditTextHijack(messengerChat, 999, 20_473L));
   }
 
   @Test

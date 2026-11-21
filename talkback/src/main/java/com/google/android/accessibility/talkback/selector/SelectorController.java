@@ -1523,7 +1523,8 @@ public class SelectorController implements UserInputEventListener {
     }
     AccessibilityNodeInfoCompat focusedNode = AccessibilityNodeInfoCompat.wrap(nodeInfo);
     if (isTextReadingControl(currentSetting)
-        && accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null) {
+        && (Role.getRole(focusedNode) == Role.ROLE_EDIT_TEXT
+            || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null)) {
       return;
     }
     if (actionsSettingActivatedForEditText

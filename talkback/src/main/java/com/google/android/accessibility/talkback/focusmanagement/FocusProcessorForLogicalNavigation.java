@@ -229,6 +229,9 @@ public class FocusProcessorForLogicalNavigation {
   private final Handler earlyScrollCheckHandler = new Handler(Looper.getMainLooper());
   private static final long SETTLE_CHECK_MS = 16;
   private static final int SETTLE_CHECKS = 20;
+  private static final int FILLS_LIST_SETTLE_CHECKS = 3;
+  private static final long FILLS_LIST_QUIET_MS = 120L;
+  private static final long MAX_AUTO_SCROLL_SETTLE_MS = 900L;
   private int navigationSerial;
 
   // A consumed scroll callback can still have its focus search posted for the next frame.
@@ -5036,7 +5039,9 @@ public class FocusProcessorForLogicalNavigation {
               elapsed, events, uptime - lastScrollEventUptime, scrollOfOneEventList);
       // A pivot taller than the list shows no next item until the list stops; its scroll events
       // show it slowing down sooner than the quiet time after them.
-      if (state == LIST_MOVING && track.pivotFillsList && events > 0 && !listStillMoving()) {
+      if (state == LIST_MOVING
+          && track.pivotFillsList
+          && ((events > 0 && !listStillMoving()) || elapsed >= MAX_AUTO_SCROLL_SETTLE_MS)) {
         state = LIST_STOPPED;
       }
       if (state == LIST_MOVING) {
@@ -6787,7 +6792,18 @@ public class FocusProcessorForLogicalNavigation {
     if (validAccessibilityFocus) {
       if (nodeToFocus == null) {
         Rect newRect = getBoundsAfterScroll(searchPivot);
-        if ((!previousRect.equals(newRect) || fillsList(newRect, scrolledNode))
+        long nowUptime = SystemClock.uptimeMillis();
+        boolean withinSettleBudget =
+            (nowUptime - lastAutoScrollUptime) < MAX_AUTO_SCROLL_SETTLE_MS;
+        boolean pivotMoved = !previousRect.equals(newRect);
+        boolean fillingListStillScrolling =
+            !pivotMoved
+                && fillsList(newRect, scrolledNode)
+                && !listSettled
+                && (nowUptime - lastScrollEventUptime) < FILLS_LIST_QUIET_MS
+                && settleChecksLeft > (SETTLE_CHECKS - FILLS_LIST_SETTLE_CHECKS);
+        if ((pivotMoved || fillingListStillScrolling)
+            && withinSettleBudget
             && settleChecksLeft > 0
             && sourceAction.shouldScroll) {
           LogUtils.d(TAG, "List still moving; searching again on the next frame.");

@@ -30,9 +30,10 @@ public final class FocusRestoreCoordinator {
 
   private static final String TAG = "FocusMemoryV2Coord";
   public static final long DEFAULT_RETRY_WINDOW_MS = 900L;
-  public static final long INPUT_SYNC_SUPPRESSION_MS = 350L;
+  public static final long INPUT_SYNC_SUPPRESSION_MS = 1100L;
   public static final long TITLE_FLICKER_GUARD_MS = 1200L;
   private static final int MAX_ATTEMPTS = 10;
+  private static final int MAX_EXTERNAL_HIJACK_RECOVERIES = 2;
 
   private static final class PendingRestore {
     @NonNull final SemanticScreenKey screenKey;
@@ -52,6 +53,7 @@ public final class FocusRestoreCoordinator {
   @Nullable private SemanticScreenKey lastCompletedScreenKey;
   private int lastRestoredWindowId = -1;
   private long lastRestoredAtUptimeMs = 0L;
+  private int externalHijackRecoveries = 0;
 
   public FocusRestoreCoordinator(@NonNull ScreenFocusMemoryStore store) {
     this(store, DEFAULT_RETRY_WINDOW_MS);
@@ -93,6 +95,7 @@ public final class FocusRestoreCoordinator {
       pendingRestore = null;
     }
     lastRestoredAtUptimeMs = 0L;
+    externalHijackRecoveries = 0;
   }
 
   /**
@@ -111,6 +114,7 @@ public final class FocusRestoreCoordinator {
     lastCompletedScreenKey = screenKey;
     lastRestoredWindowId = windowId;
     lastRestoredAtUptimeMs = resolveNow(nowUptimeMs);
+    externalHijackRecoveries = 0;
     pendingRestore = null;
   }
 
@@ -128,6 +132,17 @@ public final class FocusRestoreCoordinator {
     long now = resolveNow(nowUptimeMs);
     return now >= lastRestoredAtUptimeMs
         && (now - lastRestoredAtUptimeMs) <= INPUT_SYNC_SUPPRESSION_MS;
+  }
+
+  /**
+   * Kiểm tra xem tiêu điểm hiện tại có bị ứng dụng (như Messenger) tự ý kéo sang {@code EditText}
+   * ngay sau khi vừa khôi phục {@code RESTORED_LAST_FOCUS} hay không.
+   */
+  synchronized boolean isGuardedEditTextHijack(
+      @NonNull SemanticScreenKey currentKey, int windowId, long now) {
+    return currentKey.equals(lastCompletedScreenKey)
+        && shouldSuppressInputFocusSync(windowId, now)
+        && externalHijackRecoveries < MAX_EXTERNAL_HIJACK_RECOVERIES;
   }
 
   public synchronized boolean hasPendingRestore() {
@@ -202,8 +217,13 @@ public final class FocusRestoreCoordinator {
         pendingRestore == null
             && !currentKey.equals(lastCompletedScreenKey)
             && store.lookup(currentKey) != null;
+    boolean isEditTextHijack =
+        pendingRestore == null
+            && currentFocus != null
+            && currentFocus.isEditable()
+            && isGuardedEditTextHijack(currentKey, windowId, now);
 
-    if (pendingRestore == null && !isPaneTransition) {
+    if (pendingRestore == null && !isPaneTransition && !isEditTextHijack) {
       return null;
     }
 
@@ -226,7 +246,12 @@ public final class FocusRestoreCoordinator {
     AccessibilityNodeInfoCompat target = entry.fingerprint.findBestMatch(root);
     if (target != null) {
       LogUtils.d(TAG, "Resolved restore on %s -> %s", currentKey, entry.fingerprint);
-      markRestored(currentKey, windowId, now);
+      if (isEditTextHijack) {
+        externalHijackRecoveries++;
+        pendingRestore = null;
+      } else {
+        markRestored(currentKey, windowId, now);
+      }
       return target;
     }
 
