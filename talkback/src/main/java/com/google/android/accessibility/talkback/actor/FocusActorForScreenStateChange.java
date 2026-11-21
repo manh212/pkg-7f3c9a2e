@@ -23,6 +23,7 @@ import static com.google.android.accessibility.utils.traversal.TraversalStrategy
 
 import android.accessibilityservice.AccessibilityService;
 import android.graphics.Rect;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -35,6 +36,7 @@ import com.google.android.accessibility.talkback.actor.helper.FocusActorHelper;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
+import com.google.android.accessibility.talkback.focusmanagement.memory.SemanticScreenKey;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory.WindowIdentifier;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
@@ -198,20 +200,19 @@ public class FocusActorForScreenStateChange {
     if (exactCollectionMatch && windowType == AccessibilityWindowInfo.TYPE_APPLICATION) {
       lastFocusAction = history.getLastFocusActionRecordInWindow(windowId);
     }
-    if (lastFocusAction == null) return false;
-
-    int lastFocusedWindowType =
-        AccessibilityWindowInfoUtils.getType(
-            AccessibilityNodeInfoUtils.getWindow(lastFocusAction.getFocusedNode()));
-    if (windowType == AccessibilityWindowInfo.TYPE_SYSTEM
-        && lastFocusedWindowType != AccessibilityWindowInfo.TYPE_SYSTEM) {
-      // Don't restore focus in system window if the last focused window is not system window.
-      LogUtils.d(TAG, "Do not restore focus in system ui window.");
-      return false;
+    if (lastFocusAction != null) {
+      int lastFocusedWindowType =
+          AccessibilityWindowInfoUtils.getType(
+              AccessibilityNodeInfoUtils.getWindow(lastFocusAction.getFocusedNode()));
+      if (windowType == AccessibilityWindowInfo.TYPE_SYSTEM
+          && lastFocusedWindowType != AccessibilityWindowInfo.TYPE_SYSTEM) {
+        // Don't restore focus in system window if the last focused window is not system window.
+        LogUtils.d(TAG, "Do not restore focus in system ui window.");
+        return false;
+      }
     }
 
-    // Fetching the root waits for the window's app, which is drawing the new screen, so it is
-    // fetched only when there is a focus to restore, and a single time.
+    // Fetch the root only once, including when only semantic memory can restore focus.
     AccessibilityNodeInfoCompat root =
         AccessibilityWindowInfoUtils.getRootCompat(currentActiveWindow);
     if (root == null) {
@@ -220,9 +221,21 @@ public class FocusActorForScreenStateChange {
 
     long startTime = primesController.getTime();
 
-    AccessibilityNodeInfoCompat nodeToRestoreFocus = exactCollectionMatch
-        ? lastFocusAction.findMatchingCollectionItem(root)
-        : history.getFocusableNodeFromFocusRecord(root, focusFinder, lastFocusAction);
+    AccessibilityNodeInfoCompat nodeToRestoreFocus = null;
+    if (lastFocusAction != null) {
+      nodeToRestoreFocus =
+          exactCollectionMatch
+              ? lastFocusAction.findMatchingCollectionItem(root)
+              : history.getFocusableNodeFromFocusRecord(root, focusFinder, lastFocusAction);
+    }
+    if (nodeToRestoreFocus == null) {
+      nodeToRestoreFocus = history.getMemoryStore().findRestoreNode(root, screenState, windowId);
+    }
+    if (nodeToRestoreFocus == null) {
+      SemanticScreenKey screenKey = SemanticScreenKey.create(root, screenState, windowId);
+      history.getRestoreCoordinator().armPendingRestore(screenKey, SystemClock.uptimeMillis());
+      return false;
+    }
 
     boolean firstTime = screenState.isInterpretFirstTimeWhenWakeUp();
     boolean forceMuteFeedback =
@@ -254,6 +267,9 @@ public class FocusActorForScreenStateChange {
       screenState.consumeInterpretFirstTimeWhenWakeUp();
     }
     if (success) {
+      history
+          .getRestoreCoordinator()
+          .markRestored(SemanticScreenKey.create(root, screenState, windowId));
       primesController.recordDuration(
           TimerAction.INITIAL_FOCUS_RESTORE, startTime, primesController.getTime());
     }
