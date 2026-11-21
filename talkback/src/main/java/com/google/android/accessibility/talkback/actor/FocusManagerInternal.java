@@ -111,6 +111,15 @@ public class FocusManagerInternal {
   // first seen; later subtree changes in the same pane keep the app's landing.
   private @Nullable WindowIdentifier paneIdentifierLastCheckedForRestore;
 
+  // The placement the check last evaluated in that pane, as a stable identity of the
+  // node (view id, class, spoken text). Meridian's Settings screens share one
+  // WindowIdentifier — same window id and title, no pane title — so the identifier
+  // alone cannot tell them apart; a different placement in the same pane is a new
+  // arrival and is checked again. A bar control is checked again even for the same
+  // placement: the Up button is identical on every Settings screen, so its identity
+  // cannot tell them apart either.
+  private @Nullable String lastCheckedFocusIdentity;
+
   // Whether the keyboard was up while the user edited: set when focus is on an edit
   // field, or the last focus is in the input method window, while the keyboard is up.
   // The keyboard close moves no focus itself, so without this flag the close is
@@ -605,6 +614,46 @@ public class FocusManagerInternal {
   }
 
   /**
+   * A stable identity of a node for the pane-check gate: its view id, class and spoken
+   * text (content description preferred, as {@link AccessibilityNodeInfoUtils#getNodeText}
+   * returns). Two different content nodes in two screens that share one pane identifier
+   * differ in text, so the gate sees the second arrival; two identical rows share an
+   * identity, and the gate then skips the re-check, which only leaves a placement the
+   * check already saw. A node with no view id, class or spoken text has no identity.
+   */
+  @VisibleForTesting
+  static @Nullable String focusIdentityForGate(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null) {
+      return null;
+    }
+    String viewId = node.getViewIdResourceName();
+    CharSequence className = node.getClassName();
+    CharSequence text = AccessibilityNodeInfoUtils.getNodeText(node);
+    if (viewId == null && className == null && TextUtils.isEmpty(text)) {
+      return null;
+    }
+    return String.valueOf(viewId) + "|" + String.valueOf(className) + "|" + String.valueOf(text);
+  }
+
+  /**
+   * The node's spoken text for the check's logs, truncated so a long message does not
+   * flood the diagnostics log. The placement and the pane record are only auditable in
+   * the next device test if their texts are in the log.
+   */
+  private static String logTextForCheck(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null) {
+      return "null";
+    }
+    CharSequence text = AccessibilityNodeInfoUtils.getNodeText(node);
+    if (TextUtils.isEmpty(text)) {
+      CharSequence className = node.getClassName();
+      return className == null ? "?" : "no-text:" + className;
+    }
+    String spoken = text.toString().trim().replace('\n', ' ');
+    return spoken.length() > 60 ? spoken.substring(0, 60) + "..." : spoken;
+  }
+
+  /**
    * Checks the focus the app placed itself against this pane's record, and remembers
    * the placement when it is the pane's position. (Q1, Q7: "remember the position,
    * trust the app when right, fix only when wrong".)
@@ -612,8 +661,8 @@ public class FocusManagerInternal {
    * <p>The app places focus on every pane entry, and an app-assigned landing creates
    * no record of its own, so without this check a pane the user never swiped in has
    * nothing to remember, and a wrong landing — the search button on leaving a Zalo
-   * chat, a message below the group title on entering one — stands unchecked. The
-   * check runs once per pane arrival, when accessibility focus is already on screen:
+   * chat, the Up button on entering a Settings screen — stands unchecked. The check
+   * runs once per pane arrival, when accessibility focus is already on screen:
    *
    * <ul>
    *   <li>No record for this pane: a bar control (the navigation-Up button, a search
@@ -623,11 +672,20 @@ public class FocusManagerInternal {
    *   <li>The placement is a valid entry point for the pane — a node whose text is
    *       the pane or window title, such as a group title on chat entry: leave it,
    *       and record it, replacing a stale record.
-   *   <li>Otherwise, only when the pane changed since the last recorded focus,
-   *       restore the pane record. When the pane did not change, the move is the
-   *       app's own business inside the pane, and the user's own navigation keeps
-   *       the record current.
+   *   <li>The placement is a bar control and a record exists: the app put focus on
+   *       the toolbar, not the content, so restore the pane record, or the first
+   *       content item when the record cannot be restored.
+   *   <li>Any other content placement: it is the app's entry placement for this
+   *       pane, so record it and leave it — the pane record never overrides an
+   *       entry placement. The record restores only after a focus loss within the
+   *       pane, through {@link #requestA11yFocusFromLastFocusRecord}.
    * </ul>
+   *
+   * <p>An "arrival" is a pane the identifier has not seen, a different placement in
+   * the same pane (Meridian's Settings screens share one identifier, so the
+   * identifier alone cannot tell them apart), or a bar-control placement (the Up
+   * button is identical on every Settings screen). The same placement in the same
+   * pane is checked once; later subtree changes keep the app's landing.
    *
    * <p>When the recorded item cannot be restored — certainly gone, or off-screen
    * and unbound — {@code findInitialFocusFromTargetWindowRoot} falls through to
@@ -667,18 +725,38 @@ public class FocusManagerInternal {
       return false;
     }
     WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
-    if (currentPane.equals(paneIdentifierLastCheckedForRestore)) {
-      LogUtils.d(TAG, "EnsureOnScreen: skip app-placed-focus check, pane already checked.");
+    // The gate is per arrival, not per identifier: screens that share one identifier
+    // (Meridian's Settings screens) arrive as a new placement, and a bar-control
+    // placement is checked again even when the placement is the same — the Up button
+    // is identical on every Settings screen, and a Zalo BACK lands on the search
+    // button in a pane the check already saw. Only the same content placement in
+    // the same pane is skipped.
+    String focusIdentity = focusIdentityForGate(currentFocus);
+    boolean barControl = AccessibilityNodeInfoUtils.isBarControl(currentFocus);
+    if (currentPane.equals(paneIdentifierLastCheckedForRestore)
+        && !barControl
+        && focusIdentity != null
+        && focusIdentity.equals(lastCheckedFocusIdentity)) {
+      LogUtils.d(
+          TAG,
+          "EnsureOnScreen: skip app-placed-focus check, pane already checked for this placement. focus=\""
+              + logTextForCheck(currentFocus)
+              + "\"");
       return false;
     }
     paneIdentifierLastCheckedForRestore = currentPane;
+    lastCheckedFocusIdentity = focusIdentity;
     FocusActionRecord paneRecord =
         history.reader.getLastFocusActionRecordInWindow(currentPane);
+    String recordText =
+        paneRecord == null ? "null" : logTextForCheck(paneRecord.getFocusedNode());
     if (paneRecord == null) {
-      if (AccessibilityNodeInfoUtils.isBarControl(currentFocus)) {
+      if (barControl) {
         LogUtils.d(
             TAG,
-            "EnsureOnScreen: app placed focus on a bar control with no pane record, first content instead.");
+            "EnsureOnScreen: app placed focus on a bar control with no pane record, first content instead. focus=\""
+                + logTextForCheck(currentFocus)
+                + "\"");
         ArrayList<Feedback.Part> feedbackFailovers = new ArrayList<>();
         feedbackFailovers.add(toFeedbackPart(INITIAL_FOCUS_RESTORE, state));
         feedbackFailovers.add(toFeedbackPart(INITIAL_FOCUS_FOLLOW_INPUT, state));
@@ -687,30 +765,79 @@ public class FocusManagerInternal {
       }
       history.onAppPlacedFocus(
           currentFocus, appPlacedFocusInfo(), SystemClock.uptimeMillis(), state);
-      LogUtils.d(TAG, "EnsureOnScreen: first record for this pane is the app's placement.");
+      LogUtils.d(
+          TAG,
+          "EnsureOnScreen: first record for this pane is the app's placement. focus=\""
+              + logTextForCheck(currentFocus)
+              + "\"");
       return false;
     }
     if (paneRecord.describesNode(currentFocus)) {
-      LogUtils.d(TAG, "EnsureOnScreen: app placed focus on the pane record, leaving it.");
+      LogUtils.d(
+          TAG,
+          "EnsureOnScreen: app placed focus on the pane record, leaving it. focus=\""
+              + logTextForCheck(currentFocus)
+              + "\" record=\""
+              + recordText
+              + "\"");
       return false;
     }
     if (isValidEntryPoint(currentFocus, state)) {
       history.onAppPlacedFocus(
           currentFocus, appPlacedFocusInfo(), SystemClock.uptimeMillis(), state);
-      LogUtils.d(TAG, "EnsureOnScreen: app placed focus on a valid entry point, recording it.");
-      return false;
-    }
-    WindowIdentifier lastRecordPane = history.getLastRecordWindowIdentifier();
-    if (lastRecordPane == null || currentPane.equals(lastRecordPane)) {
       LogUtils.d(
           TAG,
-          "EnsureOnScreen: skip app-placed-focus check, pane unchanged since last focus.");
+          "EnsureOnScreen: app placed focus on a valid entry point, recording it. focus=\""
+              + logTextForCheck(currentFocus)
+              + "\" record=\""
+              + recordText
+              + "\"");
       return false;
     }
+    if (barControl) {
+      // The app put focus on the toolbar, not the content: restore the pane record,
+      // or the first content item when the record cannot be restored. A bar-control
+      // landing is never an entry placement to leave alone.
+      return restorePaneRecordOrFirstContent(state, currentFocus, recordText, eventId);
+    }
+    // Any other content placement is the app's entry placement for this pane: record
+    // it and leave it. The pane record never overrides an entry placement — it
+    // restores only after a focus loss within the pane. (Kenneth: no restore on entry.)
+    history.onAppPlacedFocus(
+        currentFocus, appPlacedFocusInfo(), SystemClock.uptimeMillis(), state);
+    LogUtils.d(
+        TAG,
+        "EnsureOnScreen: app placed focus on a content node on entry, recording it and leaving it. focus=\""
+            + logTextForCheck(currentFocus)
+            + "\" record=\""
+            + recordText
+            + "\"");
+    return false;
+  }
+
+  /**
+   * Restores the pane record over a bar-control landing, or the first content item when
+   * the record cannot be restored. Extracted from {@link #maybeCheckAppPlacedFocus} so
+   * the bar-control branch reads as one step.
+   */
+  private boolean restorePaneRecordOrFirstContent(
+      ScreenState state,
+      AccessibilityNodeInfoCompat currentFocus,
+      String recordText,
+      EventId eventId) {
+    AccessibilityWindowInfo activeWindow = state.getActiveWindow();
     AccessibilityNodeInfoCompat root =
-        AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
+        activeWindow == null
+            ? null
+            : AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
     if (root == null || !root.refresh()) {
-      LogUtils.d(TAG, "EnsureOnScreen: skip app-placed-focus check, no refreshed root.");
+      LogUtils.d(
+          TAG,
+          "EnsureOnScreen: skip app-placed-focus check, no refreshed root. focus=\""
+              + logTextForCheck(currentFocus)
+              + "\" record=\""
+              + recordText
+              + "\"");
       return false;
     }
     // The restore is ensure-on-screen sourced, so a later loss of focus in this pane must
@@ -722,14 +849,24 @@ public class FocusManagerInternal {
         findInitialFocusFromTargetWindowRoot(
             service, root, state, history.reader, focusFinder, type);
     if (nodeToFocus == null) {
-      LogUtils.d(TAG, "EnsureOnScreen: pane record not restorable, leaving the app's landing.");
+      LogUtils.d(
+          TAG,
+          "EnsureOnScreen: pane record not restorable, leaving the app's landing. focus=\""
+              + logTextForCheck(currentFocus)
+              + "\" record=\""
+              + recordText
+              + "\"");
       return false;
     }
     LogUtils.d(
         TAG,
-        type.get() == FocusActionInfo.RESTORED_LAST_FOCUS
-            ? "EnsureOnScreen: pane changed since last focus, restoring pane record instead of the app's landing."
-            : "EnsureOnScreen: pane record not restorable, first content instead of the app's landing.");
+        (type.get() == FocusActionInfo.RESTORED_LAST_FOCUS
+                ? "EnsureOnScreen: bar-control landing, restoring pane record instead of the app's landing. focus=\""
+                : "EnsureOnScreen: pane record not restorable, first content instead of the app's landing. focus=\"")
+            + logTextForCheck(currentFocus)
+            + "\" record=\""
+            + recordText
+            + "\"");
     return focusNodeFoundFromRecord(nodeToFocus, type.get(), state, eventId);
   }
 
@@ -919,7 +1056,10 @@ public class FocusManagerInternal {
 
   /**
    * Finds the initial focus from the specified window root for accessibility focus. At first it
-   * will try to restore the accessibility focus from the record. If restoring fail, then try to
+   * will try to restore the accessibility focus from the record. When the record for the
+   * exact pane identifier cannot be restored, the most recent record for the window is
+   * tried next: the pane title can change while the pane loads, so the exact identifier
+   * may no longer match the pane's freshest record. If restoring fail, then try to
    * report the input focus node. Finally, reports the node with {@link
    * AccessibilityNodeInfoCompat#hasRequestInitialAccessibilityFocus()} or the first focusable node
    * under the same root. It also updates {@code initialFocusType} with the type.
@@ -949,6 +1089,25 @@ public class FocusManagerInternal {
         nodeToFocus =
             history.getFocusableNodeFromFocusRecord(
                 windowRoot, focusFinder, windowIdentifierRecord);
+      }
+      if (nodeToFocus == null) {
+        // The pane title can change between the check that recorded the pane's
+        // position and the loss of focus — messages loading, a list re-sorting — so
+        // the exact identifier no longer matches that record, or it matches an
+        // older pane's record whose node the position-text guard rightly refuses.
+        // The most recent record for this window, titles ignored, is the pane's
+        // freshest position; try it before falling through to input focus and
+        // first content. A record from another pane in this window can only return
+        // a node that is focusable in the current tree, so a wrong pane's record
+        // harmlessly finds nothing.
+        FocusActionRecord mostRecentRecord =
+            history.getLastFocusActionRecordInWindow(windowRoot.getWindowId());
+        if (mostRecentRecord != null && !mostRecentRecord.equals(windowIdentifierRecord)) {
+          initialFocusType.set(FocusActionInfo.RESTORED_LAST_FOCUS);
+          nodeToFocus =
+              history.getFocusableNodeFromFocusRecord(
+                  windowRoot, focusFinder, mostRecentRecord);
+        }
       }
     }
 
