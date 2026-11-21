@@ -24,8 +24,11 @@ import androidx.annotation.VisibleForTesting;
 import androidx.collection.LruCache;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
+import com.google.android.accessibility.talkback.focusmanagement.memory.FocusRestoreCoordinator;
+import com.google.android.accessibility.talkback.focusmanagement.memory.ScreenFocusMemoryStore;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.FocusFinder;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.PackageManagerUtils;
@@ -36,10 +39,8 @@ import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.auto.value.AutoValue;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,6 +71,14 @@ public final class AccessibilityFocusActionHistory {
 
   /** Read-only limited interface. */
   public class Reader {
+
+    public ScreenFocusMemoryStore getMemoryStore() {
+      return AccessibilityFocusActionHistory.this.getMemoryStore();
+    }
+
+    public FocusRestoreCoordinator getRestoreCoordinator() {
+      return AccessibilityFocusActionHistory.this.getRestoreCoordinator();
+    }
 
     public boolean isEventFromFocusManagement(AccessibilityEvent event) {
       return matchFocusActionRecordFromEvent(event) != null;
@@ -138,7 +147,7 @@ public final class AccessibilityFocusActionHistory {
 
   /** Maximum size of {@link #windowIdentifierToFocusActionRecordMap} */
   @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-  static final int MAXIMUM_WINDOW_MAP_SIZE = 10;
+  static final int MAXIMUM_WINDOW_MAP_SIZE = 40;
 
   /** Maximum size of {@link #focusActionRecordList} */
   @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -171,6 +180,18 @@ public final class AccessibilityFocusActionHistory {
 
   //////////////////////////////////////////////////////////////////////////////////////////
   // Member variables
+
+  private final ScreenFocusMemoryStore memoryStore = new ScreenFocusMemoryStore();
+  private final FocusRestoreCoordinator restoreCoordinator =
+      new FocusRestoreCoordinator(memoryStore);
+
+  public ScreenFocusMemoryStore getMemoryStore() {
+    return memoryStore;
+  }
+
+  public FocusRestoreCoordinator getRestoreCoordinator() {
+    return restoreCoordinator;
+  }
 
   /**
    * A queue of {@link FocusActionRecord} with maximum size of {@link #MAXIMUM_RECORD_QUEUE_SIZE}.
@@ -268,6 +289,16 @@ public final class AccessibilityFocusActionHistory {
     // Add to the window record map.
     windowIdentifierToFocusActionRecordMap.put(windowIdentifier, FocusActionRecord.copy(record));
 
+    if (ScreenFocusMemoryStore.isUserIntentionalSource(extraData)
+        && currentScreenState != null
+        && currentScreenState.getActiveWindow() != null
+        && currentScreenState.getActiveWindow().getId() == windowId) {
+      AccessibilityNodeInfoCompat activeRoot =
+          AccessibilityWindowInfoUtils.getRootCompat(currentScreenState.getActiveWindow());
+      memoryStore.recordIfUserIntentional(
+          activeRoot, node, extraData, currentScreenState, windowId, actionTime);
+    }
+
     // Update the last editable node focus action.
     if (node.isEditable() || (Role.getRole(node) == Role.ROLE_EDIT_TEXT)) {
       lastEditableFocusActionRecord = FocusActionRecord.copy(record);
@@ -362,15 +393,16 @@ public final class AccessibilityFocusActionHistory {
   public @Nullable FocusActionRecord getLastFocusActionRecordInWindow(int windowId) {
     Map<WindowIdentifier, FocusActionRecord> orderedMap =
         windowIdentifierToFocusActionRecordMap.snapshot();
-    List<WindowIdentifier> list = new ArrayList<>(orderedMap.keySet());
-    // Traverse in reversed order, from MRU to LRU.
-    for (int i = list.size() - 1; i >= 0; i--) {
-      WindowIdentifier windowIdentifier = list.get(i);
-      if (windowIdentifier.windowId() == windowId) {
-        return orderedMap.get(windowIdentifier);
+    // LRU reads change access order; select by actual action time instead.
+    FocusActionRecord latestRecord = null;
+    for (Map.Entry<WindowIdentifier, FocusActionRecord> entry : orderedMap.entrySet()) {
+      if (entry.getKey().windowId() == windowId
+          && (latestRecord == null
+              || entry.getValue().getActionTime() >= latestRecord.getActionTime())) {
+        latestRecord = entry.getValue();
       }
     }
-    return null;
+    return latestRecord;
   }
 
   /** Returns the last focus action. */
