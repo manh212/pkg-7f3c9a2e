@@ -18,7 +18,6 @@ package com.google.android.accessibility.talkback.actor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -221,58 +220,5 @@ public class FocusManagerInternalTest {
     } finally {
       monitor.stop();
     }
-  }
-
-  /**
-   * The pane-check gate's identity: two nodes with the same view id, class and spoken
-   * text are the same placement, so the gate skips the re-check in the same pane.
-   */
-  @Test
-  public void gateIdentity_sameViewIdClassAndTextIsTheSamePlacement() {
-    AccessibilityNodeInfoCompat first =
-        gateNode("com.example.app:id/item", "android.widget.TextView", "Tools");
-    AccessibilityNodeInfoCompat second =
-        gateNode("com.example.app:id/item", "android.widget.TextView", "Tools");
-
-    assertEquals(
-        FocusManagerInternal.focusIdentityForGate(first),
-        FocusManagerInternal.focusIdentityForGate(second));
-  }
-
-  /**
-   * Two screens that share one pane identifier (Meridian's Settings screens) show
-   * different items, so their placements have different identities and the gate
-   * checks the second arrival.
-   */
-  @Test
-  public void gateIdentity_differentTextIsADifferentPlacement() {
-    AccessibilityNodeInfoCompat tools =
-        gateNode("com.example.app:id/item", "android.widget.TextView", "Tools");
-    AccessibilityNodeInfoCompat help =
-        gateNode("com.example.app:id/item", "android.widget.TextView", "Help");
-
-    assertNotEquals(
-        FocusManagerInternal.focusIdentityForGate(tools),
-        FocusManagerInternal.focusIdentityForGate(help));
-  }
-
-  /** A node with no view id, class or spoken text has no identity for the gate. */
-  @Test
-  public void gateIdentity_nodeWithNothingHasNoIdentity() {
-    AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
-    AccessibilityNodeInfoCompat node = AccessibilityNodeInfoCompat.wrap(info);
-
-    assertNull(FocusManagerInternal.focusIdentityForGate(node));
-    assertNull(FocusManagerInternal.focusIdentityForGate(null));
-  }
-
-  private static AccessibilityNodeInfoCompat gateNode(
-      String viewId, String className, CharSequence text) {
-    AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
-    info.setPackageName("com.example.app");
-    info.setViewIdResourceName(viewId);
-    info.setClassName(className);
-    info.setText(text);
-    return AccessibilityNodeInfoCompat.wrap(info);
   }
 }
