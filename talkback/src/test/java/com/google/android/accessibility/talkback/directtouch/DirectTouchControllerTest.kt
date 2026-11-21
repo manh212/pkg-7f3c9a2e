@@ -41,6 +41,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
+import com.google.android.accessibility.talkback.focusmanagement.LiftToActivateMode
 import com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardService
 import com.google.android.accessibility.utils.input.WindowEventInterpreter
 import com.google.android.accessibility.utils.monitor.DisplayMonitor
@@ -232,7 +233,7 @@ class DirectTouchControllerTest {
   @Test
   fun navBarDirectKeepsRegionWhileNotificationShadeIsOpen() {
     val liftKey = service.getString(R.string.pref_lift_to_activate_key)
-    prefs.edit().putString(liftKey, "navigation_bar").commit()
+    prefs.edit().putString(liftKey, LiftToActivateMode.NAVIGATION_BAR.prefValue).commit()
     val underShade = game(inactive = true)
     windowsChange(SHADE, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), underShade, shade())
 
