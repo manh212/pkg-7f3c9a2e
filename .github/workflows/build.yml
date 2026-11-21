@@ -4,6 +4,9 @@ on:
   push:
     branches: [master, feat/vietnamese-task-assistant, feature/bilingual-translation-voice-profiles]
     tags: ['v*']
+    # Catalog metadata-only commits must not interrupt an in-flight APK validation.
+    paths-ignore:
+      - 'docs/catalog/**'
   pull_request:
   workflow_dispatch:
   schedule:
