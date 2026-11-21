@@ -278,7 +278,7 @@ public final class FocusTargetFingerprint {
 
   @NonNull
   static String normalizeDynamicLabel(@Nullable String raw) {
-    if (TextUtils.isEmpty(raw)) {
+    if (raw == null || raw.isEmpty()) {
       return "";
     }
     String cleaned = DYNAMIC_STATUS_PATTERN.matcher(raw).replaceAll(" ");
