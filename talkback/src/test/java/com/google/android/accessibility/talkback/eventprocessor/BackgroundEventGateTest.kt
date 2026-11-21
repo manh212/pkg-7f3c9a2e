@@ -203,6 +203,24 @@ class BackgroundEventGateTest {
     assertEquals(listOf("foreground"), delivered)
   }
 
+  @Test
+  fun foregroundNonStructuralRefreshStormIsCoalescedWithoutBlockingFocus() {
+    gate.setProcessingLevel("medium")
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.INPUT_PRIORITY, true)
+    advance(1_000)
+    repeat(3) {
+      val update = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "foreground", 1)
+      update.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
+      assertTrue(gate.onAccessibilityEvent(update))
+    }
+    val fourthUpdate = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "foreground", 1)
+    fourthUpdate.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
+    assertFalse(gate.onAccessibilityEvent(fourthUpdate))
+    assertTrue(gate.onAccessibilityEvent(
+      event(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED, "foreground", 1)
+    ))
+  }
+
   private fun structural(window: Int = 1, pkg: String = "foreground"): AccessibilityEvent =
     event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, pkg, window).also {
       it.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE

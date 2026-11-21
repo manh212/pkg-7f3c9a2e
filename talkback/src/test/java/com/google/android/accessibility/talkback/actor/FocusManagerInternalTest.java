@@ -171,7 +171,7 @@ public class FocusManagerInternalTest {
   }
 
   @Test
-  public void focusAction_recordMatchesTheAppsFocusEventOnceTheQueueRuns() {
+  public void focusAction_recordMatchesTheAppsFocusEventBeforeAndAfterQueueRuns() {
     AccessibilityNodeInfoCompat node = node();
 
     focusManager.performAccessibilityFocusActionInternal(node, actionInfo(), null);
@@ -179,7 +179,11 @@ public class FocusManagerInternalTest {
     AccessibilityEvent focusedEvent =
         AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
     shadowOf(focusedEvent).setSourceNode(node.unwrap());
-    assertNull(history.matchFocusActionRecordFromEvent(focusedEvent));
+    // The fast record bridges the gap before the queued full history record exists.
+    FocusActionRecord immediate = history.matchFocusActionRecordFromEvent(focusedEvent);
+    assertNotNull(immediate);
+    assertEquals(FocusActionInfo.LOGICAL_NAVIGATION, immediate.getExtraInfo().sourceAction);
+    assertNull(history.getLastFocusActionRecord());
 
     shadowOf(Looper.getMainLooper()).idle();
 

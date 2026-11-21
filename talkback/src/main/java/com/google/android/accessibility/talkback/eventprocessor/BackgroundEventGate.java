@@ -146,6 +146,10 @@ public final class BackgroundEventGate {
             && !"com.android.systemui".contentEquals(event.getPackageName())
             && (!LatencyExperiments.Feature.SCOPED_CACHE.enabled()
                 || interactionWindowId < 0 || interactionWindowId == event.getWindowId()))) {
+      if (interactionWindowId != event.getWindowId()) {
+        fgContentBurstWindowStartMs = 0;
+        fgContentBurstCount = 0;
+      }
       interactionWindowId = event.getWindowId();
       interactionPackage = event.getPackageName() == null ? null : event.getPackageName().toString();
     }
@@ -191,6 +195,11 @@ public final class BackgroundEventGate {
       return false;
     }
     if (type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+      // Preserve structural subtree updates needed during active accessibility navigation.
+      // Only repeated non-structural text and state changes enter this throttling lane.
+      if (!WindowCachePolicy.isNonStructuralContent(event)) {
+        return false;
+      }
       if (receivedAt < fgContentBurstWindowStartMs
           || receivedAt - fgContentBurstWindowStartMs > FOREGROUND_STORM_WINDOW_MS) {
         fgContentBurstWindowStartMs = receivedAt;
