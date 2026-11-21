@@ -175,6 +175,7 @@ public class FocusManagerInternal {
   public void renewEnsureFocus() {
     skipRefocus = false;
     sameItemRestores = 0;
+    history.getRestoreCoordinator().cancelOnUserInteraction();
   }
 
   /**
@@ -617,6 +618,22 @@ public class FocusManagerInternal {
     if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
       return false;
     }
+    AccessibilityNodeInfoCompat root =
+        AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
+    if (root == null || !root.refresh()) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat semanticTarget =
+        history
+            .getRestoreCoordinator()
+            .tryResolvePendingOrPaneChange(
+                root, currentFocus, state, activeWindow.getId(), SystemClock.uptimeMillis());
+    if (semanticTarget != null) {
+      skipRefocus = true;
+      return focusNodeFoundFromRecord(
+          semanticTarget, FocusActionInfo.RESTORED_LAST_FOCUS, state, eventId);
+    }
+
     WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
     if (currentPane.equals(paneIdentifierLastCheckedForRestore)) {
       return false;
@@ -629,11 +646,6 @@ public class FocusManagerInternal {
     FocusActionRecord paneRecord =
         history.reader.getLastFocusActionRecordInWindow(currentPane);
     if (paneRecord == null || paneRecord.describesNode(currentFocus)) {
-      return false;
-    }
-    AccessibilityNodeInfoCompat root =
-        AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
-    if (root == null || !root.refresh()) {
       return false;
     }
     // The restore is ensure-on-screen sourced, so a later loss of focus in this pane must
