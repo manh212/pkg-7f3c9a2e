@@ -37,6 +37,7 @@ import com.google.android.accessibility.utils.FocusFinder
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.input.WindowsDelegate
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -86,6 +87,18 @@ class FocusActorForScreenStateChangeTest {
       override fun getWindowTitle(windowId: Int): CharSequence = "Window $windowId"
 
       override fun getAccessibilityPaneTitle(windowId: Int): CharSequence = ""
+
+      override fun isSplitScreenMode(displayId: Int): Boolean = false
+
+      override fun hasAccessibilityPane(windowId: Int): Boolean = false
+    }
+
+  /** Names the group pane by its title, as the check sees it when the group opens. */
+  private val windowsGroup =
+    object : WindowsDelegate {
+      override fun getWindowTitle(windowId: Int): CharSequence = "Window $windowId"
+
+      override fun getAccessibilityPaneTitle(windowId: Int): CharSequence = "Group"
 
       override fun isSplitScreenMode(displayId: Int): Boolean = false
 
@@ -210,14 +223,100 @@ class FocusActorForScreenStateChangeTest {
     assertEquals(listOf("Play"), focused.map { it?.text?.toString() })
   }
 
+  @Test
+  fun firstContentSkipsAFrameworkActionBarUpButton() {
+    // Meridian's own Settings uses the framework ActionBar, not a Toolbar: the Up
+    // button sits in an ActionBarView inside an ActionBarContainer. Both class names
+    // must count as a bar for the Q3 first-content exclusion.
+    val root = root()
+    val app = window(APP, AccessibilityWindowInfo.TYPE_APPLICATION, root)
+    shadowOf(service).setWindows(listOf(app))
+    val actionBar = actionBar(app, root)
+    upButton(app, actionBar)
+    button(app, root)
+
+    assertTrue(
+      actor.focusOnRequestInitialNodeOrFirstFocusableNonTitleNode(screen(app), EVENT_ID_UNTRACKED)
+    )
+    assertEquals(listOf("Play"), focused.map { it?.text?.toString() })
+  }
+
+  @Test
+  fun firstContentSkipsAnUpButtonInAnActionBarContainerByViewId() {
+    // The framework ActionBar's container id is android:id/action_bar_container: it
+    // ends in "container", not "action_bar", so the bar id pattern must list it on
+    // its own.
+    val root = root()
+    val app = window(APP, AccessibilityWindowInfo.TYPE_APPLICATION, root)
+    shadowOf(service).setWindows(listOf(app))
+    val container = plainViewGroup(app, root)
+    container.viewIdResourceName = "android:id/action_bar_container"
+    upButton(app, container)
+    button(app, root)
+
+    assertTrue(
+      actor.focusOnRequestInitialNodeOrFirstFocusableNonTitleNode(screen(app), EVENT_ID_UNTRACKED)
+    )
+    assertEquals(listOf("Play"), focused.map { it?.text?.toString() })
+  }
+
+  @Test
+  fun focusLostInAGroupRestoresThePanesFreshestRecordNotTheStaleRow() {
+    // The group entry from the diagnostics log: the check recorded the group header
+    // under the group pane's identifier, then focus was lost while the messages
+    // loaded. The pane title churned, so the exact identifier now matches the older
+    // list row's record, whose node the position-text guard rightly refuses. The
+    // most recent record for the window — the header, titles ignored — must be
+    // tried before falling through to input focus and first content.
+    val root = root()
+    val app = window(APP, AccessibilityWindowInfo.TYPE_APPLICATION, root)
+    shadowOf(service).setWindows(listOf(app))
+    val list = collection(app, root)
+    val staleRow = row(app, list, "OldRow", Rect(100, 1000, 980, 1150))
+    row(app, list, "OtherRow", Rect(100, 1150, 980, 1300))
+    val header = header(app, root)
+    history.onAccessibilityFocusAction(staleRow, focusInfo(), 1, screen(app))
+    history.onAppPlacedFocus(
+      header,
+      FocusActionInfo.builder().setSourceAction(FocusActionInfo.APP_PLACED_FOCUS).build(),
+      2,
+      screen(app, windowsGroup),
+    )
+
+    // The list is laid out again with other rows at the recorded positions, and the
+    // header stays: the stale row's node is gone and its position shows new text.
+    val newRoot = root()
+    shadowOf(newRoot).setAccessibilityWindowInfo(app)
+    val newList = collection(app, newRoot)
+    row(app, newList, "NewRow1", Rect(100, 1000, 980, 1150))
+    row(app, newList, "NewRow2", Rect(100, 1150, 980, 1300))
+    shadowOf(newRoot).addChild(header.unwrap())
+
+    val type = AtomicInteger(FocusActionInfo.UNDEFINED)
+    val found =
+      FocusManagerInternal.findInitialFocusFromTargetWindowRoot(
+        service,
+        AccessibilityNodeInfoCompat.wrap(newRoot),
+        screen(app),
+        history.reader,
+        FocusFinder(service),
+        type,
+      )
+
+    // Only one Header node exists in the tree, so its text pins the node without
+    // relying on equality through the record's copy of it.
+    assertEquals("Header", found?.text?.toString())
+    assertEquals(FocusActionInfo.RESTORED_LAST_FOCUS, type.get())
+  }
+
   /** Restores the last focus into [active], counting only the roots that fetches. */
   private fun restore(active: AccessibilityWindowInfo): Boolean {
     RootsShadow.rootRequests = 0
     return actor.restoreLastFocusedNode(screen(active), EVENT_ID_UNTRACKED)
   }
 
-  private fun screen(active: AccessibilityWindowInfo) =
-    ScreenState(windows, active, SystemClock.uptimeMillis())
+  private fun screen(active: AccessibilityWindowInfo, delegate: WindowsDelegate = windows) =
+    ScreenState(delegate, active, SystemClock.uptimeMillis())
 
   private fun root() =
     AccessibilityNodeInfo.obtain(View(service)).apply { packageName = APP_PACKAGE }
@@ -285,6 +384,60 @@ class FocusActorForScreenStateChangeTest {
     shadowOf(node).setAccessibilityWindowInfo(window)
     shadowOf(node).setRefreshReturnValue(true)
     shadowOf(toolbar).addChild(node)
+    return AccessibilityNodeInfoCompat.wrap(node)
+  }
+
+  /** The framework ActionBar: a container holding the bar view, holding the Up button. */
+  private fun actionBar(
+    window: AccessibilityWindowInfo,
+    root: AccessibilityNodeInfo,
+  ): AccessibilityNodeInfo {
+    val container = AccessibilityNodeInfo.obtain(View(service))
+    container.packageName = APP_PACKAGE
+    container.className = "android.widget.ActionBarContainer"
+    container.isVisibleToUser = true
+    shadowOf(container).setAccessibilityWindowInfo(window)
+    shadowOf(root).addChild(container)
+    val bar = AccessibilityNodeInfo.obtain(View(service))
+    bar.packageName = APP_PACKAGE
+    bar.className = "android.widget.ActionBarView"
+    bar.isVisibleToUser = true
+    shadowOf(bar).setAccessibilityWindowInfo(window)
+    shadowOf(container).addChild(bar)
+    return bar
+  }
+
+  /** A plain view group: no bar class name, so only its view id can mark it a bar. */
+  private fun plainViewGroup(
+    window: AccessibilityWindowInfo,
+    root: AccessibilityNodeInfo,
+  ): AccessibilityNodeInfo {
+    val group = AccessibilityNodeInfo.obtain(View(service))
+    group.packageName = APP_PACKAGE
+    group.className = "android.view.ViewGroup"
+    group.isVisibleToUser = true
+    shadowOf(group).setAccessibilityWindowInfo(window)
+    shadowOf(root).addChild(group)
+    return group
+  }
+
+  /** A group header: a focusable frame the pane record points at, which stays on screen. */
+  private fun header(
+    window: AccessibilityWindowInfo,
+    root: AccessibilityNodeInfo,
+  ): AccessibilityNodeInfoCompat {
+    val node = AccessibilityNodeInfo.obtain(View(service))
+    node.packageName = APP_PACKAGE
+    node.className = "android.widget.FrameLayout"
+    node.text = "Header"
+    node.isVisibleToUser = true
+    node.isEnabled = true
+    node.isClickable = true
+    node.isFocusable = true
+    node.setBoundsInScreen(Rect(100, 200, 980, 400))
+    shadowOf(node).setAccessibilityWindowInfo(window)
+    shadowOf(node).setRefreshReturnValue(true)
+    shadowOf(root).addChild(node)
     return AccessibilityNodeInfoCompat.wrap(node)
   }
 
