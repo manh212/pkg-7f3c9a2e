@@ -36,10 +36,8 @@ import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import com.google.auto.value.AutoValue;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -400,15 +398,23 @@ public final class AccessibilityFocusActionHistory {
   public @Nullable FocusActionRecord getLastFocusActionRecordInWindow(int windowId) {
     Map<WindowIdentifier, FocusActionRecord> orderedMap =
         windowIdentifierToFocusActionRecordMap.snapshot();
-    List<WindowIdentifier> list = new ArrayList<>(orderedMap.keySet());
-    // Traverse in reversed order, from MRU to LRU.
-    for (int i = list.size() - 1; i >= 0; i--) {
-      WindowIdentifier windowIdentifier = list.get(i);
-      if (windowIdentifier.windowId() == windowId) {
-        return orderedMap.get(windowIdentifier);
+    // The map is an LruCache, so a get() promotes the entry it reads: after the
+    // exact-identifier lookup, the entry that lookup just refused is the MRU one,
+    // and "first in reversed order" returns it again instead of the pane's freshest
+    // record. Action time is the only ordering a read cannot disturb, so the most
+    // recent record is the one with the greatest action time. Without any promotion
+    // this returns exactly what the old order did — puts happen in action-time
+    // order, and a tie keeps the later-put entry.
+    FocusActionRecord mostRecent = null;
+    for (Map.Entry<WindowIdentifier, FocusActionRecord> entry : orderedMap.entrySet()) {
+      if (entry.getKey().windowId() == windowId) {
+        FocusActionRecord record = entry.getValue();
+        if (mostRecent == null || record.getActionTime() >= mostRecent.getActionTime()) {
+          mostRecent = record;
+        }
       }
     }
-    return null;
+    return mostRecent;
   }
 
   /** Returns the last focus action. */
