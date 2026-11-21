@@ -200,6 +200,10 @@ public class FocusActorForScreenStateChange {
     if (exactCollectionMatch && windowType == AccessibilityWindowInfo.TYPE_APPLICATION) {
       lastFocusAction = history.getLastFocusActionRecordInWindow(windowId);
     }
+    // Do not fetch a busy app's root when there is no focus history or semantic memory.
+    if (lastFocusAction == null && history.getMemoryStore().size() == 0) {
+      return false;
+    }
     if (lastFocusAction != null) {
       int lastFocusedWindowType =
           AccessibilityWindowInfoUtils.getType(
