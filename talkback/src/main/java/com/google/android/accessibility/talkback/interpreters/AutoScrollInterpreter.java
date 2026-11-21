@@ -143,6 +143,10 @@ public class AutoScrollInterpreter implements ScrollEventHandler {
       directionNavigationActor.onAutoScrollFailed(record.scrolledNodeCompat);
     } else if (record.scrollSource == SearchScreenOverlay.SEARCH && record.scrolledNode != null) {
       universalSearchActor.onAutoScrollFailed(record.scrolledNode);
+    } else if (ScrollActionRecord.SCROLL_AHEAD.equals(record.scrollSource)
+        && record.scrolledNodeCompat != null
+        && directionNavigationActor != null) {
+      directionNavigationActor.onAutoScrollFailed(record.scrolledNodeCompat);
     }
   }
 
@@ -163,6 +167,11 @@ public class AutoScrollInterpreter implements ScrollEventHandler {
           record.scrolledNodeCompat, eventId, scrollDeltaX, scrollDeltaY);
     } else if (record.scrollSource == SearchScreenOverlay.SEARCH && record.scrolledNode != null) {
       universalSearchActor.onAutoScrolled(record.scrolledNode, eventId);
+    } else if (ScrollActionRecord.SCROLL_AHEAD.equals(record.scrollSource)
+        && record.scrolledNodeCompat != null
+        && directionNavigationActor != null) {
+      directionNavigationActor.onAutoScrolled(
+          record.scrolledNodeCompat, eventId, scrollDeltaX, scrollDeltaY);
     }
   }
 

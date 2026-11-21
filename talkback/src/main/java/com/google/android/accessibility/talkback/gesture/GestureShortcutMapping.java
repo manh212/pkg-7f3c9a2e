@@ -1113,7 +1113,7 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
       // Load TalkBack gestures.
       for (TalkBackGesture gesture : TalkBackGesture.values()) {
         if ((gesture.gestureId == ROTATE_CLOCKWISE || gesture.gestureId == ROTATE_COUNTERCLOCKWISE)
-            && !prefs.getBoolean(context.getString(R.string.pref_two_finger_rotation_key), false)) continue;
+            && !prefs.getBoolean(context.getString(R.string.pref_two_finger_rotation_key), true)) continue;
         if (com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.contains(gesture.gestureId)
             && !com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures.isEnabled(prefs)) {
           continue;

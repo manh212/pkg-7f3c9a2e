@@ -231,6 +231,12 @@ public class FocusActorForScreenStateChange {
           exactCollectionMatch
               ? lastFocusAction.findMatchingCollectionItem(root)
               : history.getFocusableNodeFromFocusRecord(root, focusFinder, lastFocusAction);
+      if (nodeToRestoreFocus != null
+          && (!nodeToRestoreFocus.isVisibleToUser()
+              || (!WebInterfaceUtils.isWebContainer(nodeToRestoreFocus)
+                  && !isInWindow(nodeToRestoreFocus, windowId, root)))) {
+        nodeToRestoreFocus = null;
+      }
     }
     if (nodeToRestoreFocus == null) {
       nodeToRestoreFocus = history.getMemoryStore().findRestoreNode(root, screenState, windowId);

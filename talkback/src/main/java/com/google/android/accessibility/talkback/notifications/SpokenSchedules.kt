@@ -171,7 +171,9 @@ class SpokenSchedules(
   }
 
   private fun onClock() {
+    val now = System.currentTimeMillis()
     schedule()
+    if (MINUTE_MS - Math.floorMod(now, MINUTE_MS) < EARLY_CLOCK_MS) return
     catchUpSummary()
     if (!clockEnabled(prefs)) return
     if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) !in selectedHours(prefs)) return
@@ -242,9 +244,11 @@ class SpokenSchedules(
     private const val TAG = "SpokenSchedules"
     private const val MINUTE_MS = 60_000L
     private const val MINUTES_PER_DAY = 24 * 60
+    private const val EARLY_CLOCK_MS = 2_000L
     private const val MIN_CLOCK_GAP_MS = 60_000L
     private const val KEEP_FOR_SUMMARY_MS = 60_000L
     private const val RETRY_MS = 1_500L
+    private const val MS_PER_CHAR = 70L
     private const val CLOCK_PREFIX = "pref_notification_clock"
     private const val SUMMARY_PREFIX = "pref_notification_summary"
     /** Runs the summary's later lines, so that stopping notification speech drops them. */
@@ -401,15 +405,31 @@ class SpokenSchedules(
           .joinToString(" ")
       LogUtils.d(TAG, "Reading a summary of %d notifications", lines.size)
       say(intro, interrupt = true)
+      if (lines.isEmpty()) return
       val gap = NotificationSettings.int(prefs, KEY_SUMMARY_GAP, 2).coerceIn(0, 10)
       if (gap == 0) {
         lines.forEach { say(it) }
         return
       }
-      lines.forEachIndexed { index, line ->
-        summaryHandler.postDelayed({ say(line) }, (index + 1) * gap * 1000L)
+      val gapMs = gap * 1000L
+      fun scheduleNext(index: Int, previous: CharSequence) {
+        val delayMs = estimatedSpeechMs(previous) + gapMs
+        summaryHandler.postDelayed(
+          {
+            val line = lines[index]
+            say(line)
+            if (index + 1 < lines.size) {
+              scheduleNext(index + 1, line)
+            }
+          },
+          delayMs,
+        )
       }
+      scheduleNext(0, intro)
     }
+
+    private fun estimatedSpeechMs(text: CharSequence): Long =
+      (text.trim().length * MS_PER_CHAR).coerceAtLeast(0L)
 
     /** Drops the summary's lines that are still to be said. */
     @JvmStatic

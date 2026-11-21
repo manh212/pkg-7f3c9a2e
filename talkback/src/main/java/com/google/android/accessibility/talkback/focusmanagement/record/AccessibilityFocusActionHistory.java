@@ -324,8 +324,14 @@ public final class AccessibilityFocusActionHistory {
         && currentScreenState.getActiveWindow().getId() == windowId) {
       AccessibilityNodeInfoCompat activeRoot =
           AccessibilityWindowInfoUtils.getRootCompat(currentScreenState.getActiveWindow());
-      memoryStore.recordIfUserIntentional(
-          activeRoot, node, extraData, currentScreenState, windowId, actionTime);
+      if (activeRoot != null
+          && node.refresh()
+          && node.isVisibleToUser()
+          && (node.equals(activeRoot)
+              || AccessibilityNodeInfoUtils.hasDescendant(activeRoot, node))) {
+        memoryStore.recordIfUserIntentional(
+            activeRoot, node, extraData, currentScreenState, windowId, actionTime);
+      }
     }
 
     // Update the last editable node focus action.

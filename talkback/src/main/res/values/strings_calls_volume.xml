@@ -17,7 +17,7 @@
   <string name="call_quiet_title" translatable="false">Bật giờ im lặng cho cuộc gọi</string>
   <string name="call_quiet_start_title" translatable="false">Bắt đầu im lặng cuộc gọi</string>
   <string name="call_quiet_end_title" translatable="false">Kết thúc im lặng cuộc gọi</string>
-  <string name="call_duration_announcement" translatable="false">Thời lượng cuộc gọi: %1$d giây</string>
+  <string name="call_duration_announcement">Call duration: %1$s</string>
   <string name="call_incoming" translatable="false">Cuộc gọi đến từ %1$s</string>
   <string name="call_incoming_unknown" translatable="false">Có cuộc gọi đến</string>
   <string name="call_permission_contacts_title" translatable="false">Quyền đọc danh bạ</string>

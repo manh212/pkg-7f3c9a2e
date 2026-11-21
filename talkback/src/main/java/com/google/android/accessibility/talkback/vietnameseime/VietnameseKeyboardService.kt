@@ -492,7 +492,7 @@ class VietnameseKeyboardService : InputMethodService() {
     micEnabled = newMicEnabled
     showKeyboardPicker = newShowKeyboardPicker
     showLanguageKey = newShowLanguageKey
-    quickTelex = prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_quick_telex_key), false)
+    quickTelex = prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_quick_telex_key), true)
     shortcuts = if (prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_shortcuts_enabled_key), false)) {
       VietnameseKeyboardShortcuts.read(prefs)
     } else emptyMap()

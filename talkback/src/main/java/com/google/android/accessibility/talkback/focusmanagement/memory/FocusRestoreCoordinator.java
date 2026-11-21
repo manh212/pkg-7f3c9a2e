@@ -213,13 +213,14 @@ public final class FocusRestoreCoordinator {
 
     // 3. Nếu chưa có pending nhưng người dùng vừa chuyển sang một màn hình ngữ nghĩa khác
     //    (ví dụ nhấn Back từ phòng chat ra danh sách chat trong cùng windowId) -> thử khôi phục.
+    ScreenFocusMemoryStore.MemoryEntry entry = store.lookup(currentKey);
     boolean isPaneTransition =
         pendingRestore == null
             && !currentKey.equals(lastCompletedScreenKey)
-            && store.lookup(currentKey) != null;
-    // Nếu người dùng đang trực tiếp nhập liệu / đọc chính tả (DICTATE) trong ô EditText đã có
-    // input focus, không tự ý kéo tiêu điểm ngược về tin nhắn cũ.
+            && entry != null;
+    boolean storedTargetEditable = entry != null && entry.fingerprint.isEditable();
     if (pendingRestore == null
+        && (!isPaneTransition || storedTargetEditable)
         && currentFocus != null
         && currentFocus.isEditable()
         && currentFocus.isFocused()
@@ -236,8 +237,6 @@ public final class FocusRestoreCoordinator {
     if (pendingRestore == null && !isPaneTransition && !isEditTextHijack) {
       return null;
     }
-
-    ScreenFocusMemoryStore.MemoryEntry entry = store.lookup(currentKey);
     if (entry == null) {
       pendingRestore = null;
       return null;

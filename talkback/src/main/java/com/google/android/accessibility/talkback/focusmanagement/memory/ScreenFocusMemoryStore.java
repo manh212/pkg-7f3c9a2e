@@ -131,9 +131,41 @@ public final class ScreenFocusMemoryStore {
       return exact;
     }
     if (key.hasStructureSignature()) {
-      return relaxedStore.get(key.withoutStructureSignature());
+      MemoryEntry relaxed = relaxedStore.get(key.withoutStructureSignature());
+      if (relaxed != null && canUseRelaxedMatch(key, relaxed)) {
+        return relaxed;
+      }
     }
     return null;
+  }
+
+  private static boolean canUseRelaxedMatch(
+      @NonNull SemanticScreenKey key, @NonNull MemoryEntry entry) {
+    if (!key.getPaneTitle().isEmpty()) {
+      return true;
+    }
+    return sharesDistinctiveSignatureToken(
+        key.getStructureSignature(), entry.screenKey.getStructureSignature());
+  }
+
+  private static boolean sharesDistinctiveSignatureToken(
+      @NonNull String currentSig, @NonNull String storedSig) {
+    if (currentSig.isEmpty() || storedSig.isEmpty()) {
+      return false;
+    }
+    String[] currentTokens = currentSig.split("\\|");
+    String[] storedTokens = storedSig.split("\\|");
+    for (String currentToken : currentTokens) {
+      if (!currentToken.startsWith("hdr:") && !currentToken.startsWith("sel:")) {
+        continue;
+      }
+      for (String storedToken : storedTokens) {
+        if (currentToken.equals(storedToken)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**

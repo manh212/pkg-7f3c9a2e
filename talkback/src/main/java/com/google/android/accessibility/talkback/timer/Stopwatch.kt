@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
+import android.os.SystemClock
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
@@ -28,9 +29,12 @@ object Stopwatch {
   const val KEY_INTERVAL_MINUTES = "pref_stopwatch_interval_minutes"
   const val KEY_INTERVAL_SLIDER = "pref_stopwatch_interval_slider"
   const val KEY_STARTED_AT = "pref_stopwatch_started_at"
+  const val KEY_STARTED_ELAPSED = "pref_stopwatch_started_elapsed"
   const val KEY_LAST_ANNOUNCED = "pref_stopwatch_last_announced"
   const val KEY_PAUSED_AT = "pref_stopwatch_paused_at"
+  const val KEY_PAUSED_ELAPSED_AT = "pref_stopwatch_paused_elapsed_at"
   const val KEY_PAUSED_TOTAL = "pref_stopwatch_paused_total"
+  const val KEY_PAUSED_ELAPSED_TOTAL = "pref_stopwatch_paused_elapsed_total"
   const val KEY_HISTORY = "pref_stopwatch_history"
   const val MAX_HISTORY = 50
   const val DEFAULT_INTERVAL_MINUTES = 10
@@ -80,6 +84,17 @@ object Stopwatch {
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     val startedAt = prefs.getLong(KEY_STARTED_AT, 0)
     if (startedAt <= 0) return 0
+    val startedElapsed = prefs.getLong(KEY_STARTED_ELAPSED, 0)
+    val elapsedNow = SystemClock.elapsedRealtime()
+    if (startedElapsed > 0 && elapsedNow >= startedElapsed) {
+      val pausedElapsedAt = prefs.getLong(KEY_PAUSED_ELAPSED_AT, 0)
+      val pausedElapsedTotal = prefs.getLong(KEY_PAUSED_ELAPSED_TOTAL, 0)
+      val endElapsed = if (pausedElapsedAt > 0) pausedElapsedAt else elapsedNow
+      if (endElapsed >= startedElapsed) {
+        val delta = if (pausedElapsedAt > 0) 0L else (now - System.currentTimeMillis())
+        return (endElapsed - startedElapsed - pausedElapsedTotal + delta).coerceAtLeast(0)
+      }
+    }
     val pausedAt = prefs.getLong(KEY_PAUSED_AT, 0)
     val end = if (pausedAt > 0) pausedAt else now
     return (end - startedAt - prefs.getLong(KEY_PAUSED_TOTAL, 0)).coerceAtLeast(0)

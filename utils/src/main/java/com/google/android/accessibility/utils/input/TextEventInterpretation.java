@@ -238,6 +238,14 @@ public class TextEventInterpretation extends ReadOnly {
   ////////////////////////////////////////////////////////////////////////////////////
   // Methods to display the data
 
+  @Nullable
+  private CharSequence redactIfPassword(@Nullable CharSequence text) {
+    if (!isPassword || text == null) {
+      return text;
+    }
+    return "[REDACTED]";
+  }
+
   /** Display only non-default fields. */
   @Override
   public String toString() {
@@ -247,13 +255,13 @@ public class TextEventInterpretation extends ReadOnly {
         StringBuilderUtils.optionalTag("isCut", mIsCutAction),
         StringBuilderUtils.optionalTag("isPaste", mIsPasteAction),
         StringBuilderUtils.optionalTag("isPassword", isPassword),
-        StringBuilderUtils.optionalText("textOrDescription", textOrDescription),
-        StringBuilderUtils.optionalText("removedText", mRemovedText),
-        StringBuilderUtils.optionalText("addedText", mAddedText),
-        StringBuilderUtils.optionalText("initialWord", mInitialWord),
-        StringBuilderUtils.optionalText("deselectedText", mDeselectedText),
-        StringBuilderUtils.optionalText("selectedText", mSelectedText),
-        StringBuilderUtils.optionalText("traversedText", mTraversedText));
+        StringBuilderUtils.optionalText("textOrDescription", redactIfPassword(textOrDescription)),
+        StringBuilderUtils.optionalText("removedText", redactIfPassword(mRemovedText)),
+        StringBuilderUtils.optionalText("addedText", redactIfPassword(mAddedText)),
+        StringBuilderUtils.optionalText("initialWord", redactIfPassword(mInitialWord)),
+        StringBuilderUtils.optionalText("deselectedText", redactIfPassword(mDeselectedText)),
+        StringBuilderUtils.optionalText("selectedText", redactIfPassword(mSelectedText)),
+        StringBuilderUtils.optionalText("traversedText", redactIfPassword(mTraversedText)));
   }
 
   public static String eventTypeToString(@TextEvent int eventType) {

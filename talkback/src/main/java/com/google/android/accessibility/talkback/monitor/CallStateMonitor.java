@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.monitor;
 
 import static androidx.core.content.ContextCompat.RECEIVER_EXPORTED;
+import static androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED;
 import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.ACTION_DONE;
 import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.GRANT_RESULTS;
 import static com.google.android.accessibility.talkback.permission.PermissionRequestActivity.PERMISSIONS;
@@ -68,14 +69,19 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
           if (permissions == null || grantResults == null) {
             return;
           }
-          // If the phone permission request is accepted by the user, start monitoring call state.
-          for (int i = 0; i < permissions.length; i++) {
+          for (int i = 0; i < permissions.length && i < grantResults.length; i++) {
             if (TextUtils.equals(permissions[i], permission.READ_PHONE_STATE)) {
-              context.unregisterReceiver(permissionRequestReceiver);
+              isPermissionReceiverRegistered = false;
+              try {
+                context.unregisterReceiver(permissionRequestReceiver);
+              } catch (IllegalArgumentException e) {
+                LogUtils.w(TAG, "Permission request receiver already unregistered.");
+              }
 
               if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
                 startMonitoring();
               }
+              break;
             }
           }
         }
@@ -88,6 +94,7 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
 
   private int lastCallState;
   @VisibleForTesting boolean isStarted;
+  private boolean isPermissionReceiverRegistered = false;
 
   public CallStateMonitor(TalkBackService context) {
     service = context;
@@ -167,6 +174,14 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
       service.unregisterReceiver(this);
       isStarted = false;
     }
+    if (isPermissionReceiverRegistered) {
+      isPermissionReceiverRegistered = false;
+      try {
+        service.unregisterReceiver(permissionRequestReceiver);
+      } catch (IllegalArgumentException e) {
+        LogUtils.w(TAG, "Permission request receiver already unregistered.");
+      }
+    }
   }
 
   /**
@@ -193,7 +208,11 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
   private void startPhonePermissionRequestActivity() {
     IntentFilter filter = new IntentFilter();
     filter.addAction(ACTION_DONE);
-    ContextCompat.registerReceiver(service, permissionRequestReceiver, filter, RECEIVER_EXPORTED);
+    if (!isPermissionReceiverRegistered) {
+      ContextCompat.registerReceiver(
+          service, permissionRequestReceiver, filter, RECEIVER_NOT_EXPORTED);
+      isPermissionReceiverRegistered = true;
+    }
     PermissionUtils.requestPermissions(service, permission.READ_PHONE_STATE);
   }
 

@@ -474,6 +474,9 @@ public class GeminiActor {
                       TalkBackAnalytics.GEMINI_FAIL_USER_ABORT, /* serverSide= */ true);
             }
             progressTonePlayer.stop();
+            if (errorReason == ErrorReason.JOB_CANCELLED) {
+              return;
+            }
             String text =
                 context.getString(
                     errorReason == ErrorReason.UNSUPPORTED

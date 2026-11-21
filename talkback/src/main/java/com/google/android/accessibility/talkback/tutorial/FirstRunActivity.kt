@@ -2,6 +2,7 @@ package com.google.android.accessibility.talkback.tutorial
 
 import android.os.Bundle
 import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -61,7 +62,7 @@ class FirstRunActivity : AppCompatActivity() {
     continueButton.visibility = View.VISIBLE
     yesButton.visibility = View.GONE
     noButton.visibility = View.GONE
-    titleView.post { titleView.requestFocus() }
+    titleView.post { titleView.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
   }
 
   private fun showQuestion() {
@@ -71,7 +72,7 @@ class FirstRunActivity : AppCompatActivity() {
     continueButton.visibility = View.GONE
     yesButton.visibility = View.VISIBLE
     noButton.visibility = View.VISIBLE
-    titleView.post { titleView.requestFocus() }
+    titleView.post { titleView.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
   }
 
   private fun acceptTutorial() {

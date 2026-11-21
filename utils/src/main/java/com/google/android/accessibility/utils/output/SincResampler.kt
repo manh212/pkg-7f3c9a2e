@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.utils.output
 
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.min
@@ -32,7 +33,15 @@ class SincResampler(
   private val outRate: Int,
   private val channels: Int,
 ) {
-  private val table = kernel(min(1.0, outRate.toDouble() / inRate) * CUTOFF)
+  private val table: Array<FloatArray> =
+    if (inRate == outRate) {
+      emptyArray()
+    } else {
+      val key = (inRate.toLong() shl 32) or (outRate.toLong() and 0xffffffffL)
+      kernelCache.computeIfAbsent(key) {
+        kernel(min(1.0, outRate.toDouble() / inRate) * CUTOFF)
+      }
+    }
 
   // Input frames not yet used up, interleaved, starting with zeros so the first frames have
   // history. Positions are kept as whole numbers, so that converting in pieces gives exactly the
@@ -103,6 +112,7 @@ class SincResampler(
     private const val PHASES = 256
     private const val CUTOFF = 0.95
     private const val KAISER_BETA = 8.0
+    private val kernelCache = ConcurrentHashMap<Long, Array<FloatArray>>()
 
     /** Filter taps for each fractional position between input frames. */
     private fun kernel(cutoff: Double): Array<FloatArray> =

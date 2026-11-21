@@ -21,11 +21,17 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicReference
 
 /** Downloads a model file, resuming a partial download and checking the result. */
 class ModelDownloader(
   private val connect: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
 ) {
+  private val activeConnection = AtomicReference<HttpURLConnection?>(null)
+
+  fun cancel() {
+    activeConnection.getAndSet(null)?.disconnect()
+  }
   sealed interface Result {
     data object Done : Result
 
@@ -54,23 +60,36 @@ class ModelDownloader(
       part.delete()
       have = 0L
     }
-    if (have < expectedSize) {
+    var retriedRange = false
+    while (have < expectedSize) {
+      if (isCancelled()) return Result.Cancelled
       val connection = connect(URL(url))
+      activeConnection.set(connection)
       try {
         connection.connectTimeout = TIMEOUT_MS
         connection.readTimeout = TIMEOUT_MS
         if (have > 0) connection.setRequestProperty("Range", "bytes=$have-")
+        val code = connection.responseCode
+        if (code == HTTP_RANGE_NOT_SATISFIABLE && have > 0 && !retriedRange) {
+          part.delete()
+          have = 0L
+          retriedRange = true
+          continue
+        }
         val append =
-          when (connection.responseCode) {
+          when (code) {
             HttpURLConnection.HTTP_PARTIAL -> true
             HttpURLConnection.HTTP_OK -> false
             else -> return Result.Failed(ModelFiles.Failure.HTTP)
           }
         if (!append) have = 0L
         if (!copy(connection, part, append, have, onProgress, isCancelled)) return Result.Cancelled
+        break
       } catch (_: IOException) {
+        if (isCancelled()) return Result.Cancelled
         return Result.Failed(ModelFiles.Failure.NETWORK)
       } finally {
+        activeConnection.compareAndSet(connection, null)
         connection.disconnect()
       }
     }
@@ -113,5 +132,6 @@ class ModelDownloader(
   private companion object {
     const val TIMEOUT_MS = 30_000
     const val BUFFER_SIZE = 64 * 1024
+    const val HTTP_RANGE_NOT_SATISFIABLE = 416
   }
 }

@@ -102,6 +102,9 @@ class AudioDeviceRouter @JvmOverloads constructor(
   private var eventReceiver: BroadcastReceiver? = null
   private val mainHandler = Handler(Looper.getMainLooper())
   private var lastEnsureRoutingTimeMs: Long = 0L
+  private var lastCommReassertTimeMs: Long = 0L
+  private var commReassertWindowStartMs: Long = 0L
+  private var commReassertCount: Int = 0
   @Volatile private var isRoutingActive: Boolean = false
   @Volatile private var isPhoneCallActive: Boolean = false
   // Another app is listening the way a call or a voice assistant does, such as Gemini. It needs the
@@ -546,6 +549,20 @@ class AudioDeviceRouter @JvmOverloads constructor(
     val targetDevice = getTargetAudioDevice()
     if (targetDevice == null) return
     if (device == null || device.id != targetDevice.id) {
+      val now = SystemClock.uptimeMillis()
+      if (now - lastCommReassertTimeMs < COMM_REASSERT_COOLDOWN_MS) {
+        return
+      }
+      if (now - commReassertWindowStartMs > COMM_REASSERT_WINDOW_MS) {
+        commReassertWindowStartMs = now
+        commReassertCount = 0
+      }
+      if (commReassertCount >= MAX_COMM_REASSERTS_PER_WINDOW) {
+        Log.w(TAG, "Communication device re-assertion rate limit reached, skipping")
+        return
+      }
+      lastCommReassertTimeMs = now
+      commReassertCount++
       Log.i(
         TAG,
         "System altered communication device to ${device?.productName}, immediately re-asserting ${targetDevice.productName}",
@@ -555,6 +572,7 @@ class AudioDeviceRouter @JvmOverloads constructor(
       scheduleReassertion()
     } else {
       isRoutingActive = true
+      commReassertCount = 0
     }
   }
 
@@ -577,6 +595,12 @@ class AudioDeviceRouter @JvmOverloads constructor(
         override fun onReceive(ctx: Context?, intent: Intent?) {
           val action = intent?.action ?: return
           Log.i(TAG, "Broadcast received: $action for currentTarget: $currentTarget")
+
+          if (action == Intent.ACTION_SCREEN_OFF) {
+            mainHandler.removeCallbacks(reassertionRunnable)
+            stopKeepAlive()
+            return
+          }
 
           if (action == TelephonyManager.ACTION_PHONE_STATE_CHANGED) {
             val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
@@ -817,6 +841,9 @@ class AudioDeviceRouter @JvmOverloads constructor(
     private const val TAG = "AudioDeviceRouter"
     // Gaps between re-assertion passes, covering slow Bluetooth profile switches.
     private val REASSERTION_DELAYS_MS = longArrayOf(150L, 300L, 500L, 800L, 1200L, 2000L)
+    private const val COMM_REASSERT_COOLDOWN_MS = 500L
+    private const val COMM_REASSERT_WINDOW_MS = 3_000L
+    private const val MAX_COMM_REASSERTS_PER_WINDOW = 3
 
     @Volatile
     @JvmStatic

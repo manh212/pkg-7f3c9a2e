@@ -32,6 +32,7 @@ import com.google.android.accessibility.utils.screencapture.ScreenshotCapture
 import com.google.android.libraries.accessibility.utils.screencapture.ScreenCaptureController.CaptureListener
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal interface SubtitleSpeaker {
   fun isBusy(): Boolean
@@ -64,8 +65,9 @@ class SubtitleController internal constructor(
   private val worker = Executors.newSingleThreadExecutor { task ->
     Thread(task, "subtitle-ocr").apply { isDaemon = true }
   }
-  private var active = false
-  private var generation = 0
+  @Volatile private var active = false
+  @Volatile private var generation = 0
+  private val ocrBusy = AtomicBoolean(false)
   private var owner = ""
   private var ownerWindowId = -1
   private var viewport = Rect()
@@ -454,6 +456,10 @@ class SubtitleController internal constructor(
   private fun captureFrame() {
     if (!canUseFeature("ocr")) { stop(false); return }
     if (!active || closed || capturePending) return
+    if (ocrBusy.get()) {
+      schedule()
+      return
+    }
     if (service.getSystemService(PowerManager::class.java)?.isInteractive != true || !sameApplication()) {
       LogUtils.i(TAG, "Stopped: screen off or app changed")
       stop(false)
@@ -528,9 +534,17 @@ class SubtitleController internal constructor(
             val enhance = emptyFrames >= 2 && emptyFrames % 4 >= 2
             LogUtils.d(TAG, "Screenshot ready: %dx%d crop=%s dark=%d%% contrast=%d enhanced=%s",
               cropped.width, cropped.height, region, stats.darkPercent, stats.contrastRange, enhance)
+            if (!ocrBusy.compareAndSet(false, true)) {
+              cropped.recycle()
+              handler.removeCallbacks(captureTimeout)
+              capturePending = false
+              schedule()
+              return
+            }
             try {
               worker.execute { recognize(cropped, region, exclusions, request, enhance) }
             } catch (e: RuntimeException) {
+              ocrBusy.set(false)
               cropped.recycle()
               LogUtils.w(TAG, "OCR worker unavailable: %s", e.message)
               complete(request, null)
@@ -548,17 +562,28 @@ class SubtitleController internal constructor(
   private fun recognize(
     bitmap: Bitmap, region: Rect, exclusions: ScreenExclusions, request: Int, enhanced: Boolean,
   ) {
-    val prepared = SubtitleImageProcessor.prepare(bitmap, enhanced)
-    val image = prepared.bitmap
-    val lines = try {
-      TesseractOcr.recognizeSegments(service, image)?.map {
-        SubtitleLine(it.text, prepared.screenBounds(it.bounds, region), it.confidence)
+    try {
+      if (!active || request != generation) {
+        bitmap.recycle()
+        return
+      }
+      val prepared = SubtitleImageProcessor.prepare(bitmap, enhanced)
+      val image = prepared.bitmap
+      val lines = try {
+        if (!active || request != generation) {
+          return
+        }
+        TesseractOcr.recognizeSegments(service, image)?.map {
+          SubtitleLine(it.text, prepared.screenBounds(it.bounds, region), it.confidence)
+        }
+      } finally {
+        image.recycle()
+      }
+      handler.post {
+        complete(request, lines?.filterNot(exclusions::contains))
       }
     } finally {
-      image.recycle()
-    }
-    handler.post {
-      complete(request, lines?.filterNot(exclusions::contains))
+      ocrBusy.set(false)
     }
   }
 

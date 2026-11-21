@@ -2,6 +2,7 @@ package com.google.android.accessibility.talkback.calls
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -40,7 +41,10 @@ object CallLimitController {
   private var phoneGeneration = 0L
   private val telecomCalls = mutableMapOf<Call, Int>()
   private val finished = mutableSetOf<Call>()
+  private var nextAlarmId = 1
+  private val alarmActions = mutableMapOf<Int, Runnable>()
   private const val PHONE = "legacyPhone"
+  private const val EXTRA_ALARM_ID = "alarm_id"
 
   private val engine = CallLimitEngine(
     { SystemClock.elapsedRealtime() },
@@ -71,6 +75,16 @@ object CallLimitController {
     }
   }
 
+  private val alarmReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+      val alarmId = intent.getIntExtra(EXTRA_ALARM_ID, 0)
+      alarmActions.remove(alarmId)?.run()
+    }
+  }
+
+  private fun alarmAction(context: Context): String = "${context.packageName}.calls.action.CALL_LIMIT"
+
+
   @JvmStatic
   @JvmOverloads
   fun attach(context: Context, warningFeedback: Runnable = Runnable {}) {
@@ -82,6 +96,8 @@ object CallLimitController {
     prefs?.registerOnSharedPreferenceChangeListener(listener)
     ContextCompat.registerReceiver(context, receiver,
       IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+    ContextCompat.registerReceiver(context, alarmReceiver,
+      IntentFilter(alarmAction(context)), ContextCompat.RECEIVER_NOT_EXPORTED)
     if (has(context, Manifest.permission.READ_PHONE_STATE)) {
       @Suppress("DEPRECATION")
       val current = runCatching { context.getSystemService(TelephonyManager::class.java)?.callState }
@@ -95,9 +111,13 @@ object CallLimitController {
 
   @JvmStatic
   fun detach() {
-    context?.let { runCatching { it.unregisterReceiver(receiver) } }
+    context?.let {
+      runCatching { it.unregisterReceiver(receiver) }
+      runCatching { it.unregisterReceiver(alarmReceiver) }
+    }
     prefs?.unregisterOnSharedPreferenceChangeListener(listener)
     engine.cancelAll()
+    alarmActions.clear()
     tones.toList().forEach { runCatching { it.release() } }
     tones.clear()
     warningFeedback = null
@@ -245,22 +265,41 @@ object CallLimitController {
     val context = context ?: return {}
     val alarms = context.getSystemService(AlarmManager::class.java)
     var cancelled = false
+    val alarmId = nextAlarmId++
     val runnable = Runnable {
       if (!cancelled) {
         cancelled = true
+        alarmActions.remove(alarmId)
         action()
       }
     }
-    val listener = AlarmManager.OnAlarmListener { runnable.run() }
+    alarmActions[alarmId] = runnable
+    val pending = PendingIntent.getBroadcast(
+      context,
+      alarmId,
+      Intent(alarmAction(context)).setPackage(context.packageName).putExtra(EXTRA_ALARM_ID, alarmId),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    val triggerAt = SystemClock.elapsedRealtime() + delay
     main.postDelayed(runnable, delay)
-    runCatching {
-      alarms?.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-        SystemClock.elapsedRealtime() + delay, "MeridianCallLimit", listener, main)
+    if (alarms != null) {
+      val exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
+      if (exactAllowed) {
+        try {
+          alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pending)
+        } catch (_: SecurityException) {
+          alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pending)
+        }
+      } else {
+        alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pending)
+      }
     }
     return {
       cancelled = true
+      alarmActions.remove(alarmId)
       main.removeCallbacks(runnable)
-      alarms?.cancel(listener)
+      alarms?.cancel(pending)
+      pending.cancel()
     }
   }
 }

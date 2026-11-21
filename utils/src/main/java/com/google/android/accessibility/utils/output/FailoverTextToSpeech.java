@@ -1115,6 +1115,12 @@ public class FailoverTextToSpeech {
       if (generation != bilingualSpeechGeneration) return;
       if (profileEngine.ready) {
         try {
+          if (flush) {
+            stopLowLatencySpeech();
+            if (tts != null) {
+              tts.stop();
+            }
+          }
           TextToSpeech voice = profileEngine.engine;
           if (profileEngine.stream != stream
               && voice.setAudioAttributes(speechAttributes(stream)) == TextToSpeech.SUCCESS) {
@@ -1346,6 +1352,7 @@ public class FailoverTextToSpeech {
     dropAfterCallSpeech();
     dropHeldSpeech();
     stopLowLatencySpeech();
+    speechChunks.clear();
     try {
       allowDeviceSleep();
       ensureQueueFlush();
@@ -1385,6 +1392,7 @@ public class FailoverTextToSpeech {
     LatencyExperiments.setInputListener(null);
     // The player outlives this engine, so speech it holds or waits for must not block the next.
     releaseLowLatencyAudio();
+    speechChunks.clear();
     allowDeviceSleep();
     context.unregisterReceiver(mediaStateMonitor);
     context.unregisterReceiver(screenReceiver);
@@ -1938,7 +1946,7 @@ public class FailoverTextToSpeech {
                           speakRequest.text,
                           speakRequest.queueMode,
                           speakRequest.bundle,
-                          utteranceId,
+                          speakRequest.utteranceId,
                           /* chunkIndex= */ 0);
                     }
                   });
@@ -2029,7 +2037,16 @@ public class FailoverTextToSpeech {
   /** One queued piece of a split utterance, by its own utterance ID. */
   private record SpeechChunk(String utteranceId, int offset, boolean first, boolean last) {}
 
-  private final Map<String, SpeechChunk> speechChunks = new ConcurrentHashMap<>();
+  private static final int MAX_SPEECH_CHUNKS = 256;
+
+  private final Map<String, SpeechChunk> speechChunks =
+      Collections.synchronizedMap(
+          new LinkedHashMap<String, SpeechChunk>(64, 0.75f, false) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, SpeechChunk> eldest) {
+              return size() > MAX_SPEECH_CHUNKS;
+            }
+          });
 
   /** Estimates progress through speech from engines that report no word positions. */
   private final SpeechProgressEstimator progressEstimator = new SpeechProgressEstimator();
@@ -2126,6 +2143,7 @@ public class FailoverTextToSpeech {
       return true;
     }
     if (key.startsWith(VoiceSwitching.SELECTED_PREFIX)) return true;
+    if (key.startsWith("pref_speech_dictionary")) return true;
     return isVoiceRelevantProfileKey(key);
   }
 
@@ -2282,8 +2300,16 @@ public class FailoverTextToSpeech {
         && !hasSelectedEngineVoice()
         && (!(text instanceof android.text.Spanned spanned)
             || spanned.getSpans(0, text.length(), TtsSpan.class).length == 0)) {
+      @Nullable String voiceName = null;
+      try {
+        Voice currentVoice = tts != null ? tts.getVoice() : null;
+        if (currentVoice != null) {
+          voiceName = currentVoice.getName();
+        }
+      } catch (RuntimeException ignored) {
+      }
       float[] prepared = cache.find(
-          text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate(), chunkIndex);
+          text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate(), chunkIndex, voiceName);
       Performance.getInstance().onNavigationPcmCacheResult(utteranceId, prepared != null);
       if (prepared != null) {
         if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();
@@ -2504,11 +2530,13 @@ public class FailoverTextToSpeech {
     // Pieces are already moved by the offset of any earlier resume.
     @Nullable Integer earlier = resumeOffsets.put(held, offset);
     int moved = offset - (earlier == null ? 0 : earlier);
-    for (Map.Entry<String, SpeechChunk> entry : speechChunks.entrySet()) {
-      SpeechChunk chunk = entry.getValue();
-      if (held.equals(chunk.utteranceId())) {
-        entry.setValue(
-            new SpeechChunk(held, chunk.offset() - moved, chunk.first(), chunk.last()));
+    synchronized (speechChunks) {
+      for (Map.Entry<String, SpeechChunk> entry : speechChunks.entrySet()) {
+        SpeechChunk chunk = entry.getValue();
+        if (held.equals(chunk.utteranceId())) {
+          entry.setValue(
+              new SpeechChunk(held, chunk.offset() - moved, chunk.first(), chunk.last()));
+        }
       }
     }
     // The pause is not speaking time, for the speed learned from this utterance.
@@ -2857,7 +2885,11 @@ public class FailoverTextToSpeech {
           }
           String retryId = RESPOKEN_ID_PREFIX + utteranceId;
           watchForEngineHang(QUEUE_ADD, retryId);
-          if (speakOnRequestedStream(request.first, QUEUE_ADD, request.second, retryId)
+          Bundle nativeParams = new Bundle(request.second);
+          nativeParams.putFloat(
+              SpeechParam.VOLUME,
+              Math.max(0f, Math.min(1f, floatParam(request.second, SpeechParam.VOLUME, 1f))));
+          if (speakOnRequestedStream(request.first, QUEUE_ADD, nativeParams, retryId)
               != TextToSpeech.SUCCESS) {
             lowLatencyRouter.onError(retryId);
           }
@@ -3226,6 +3258,7 @@ public class FailoverTextToSpeech {
     mHandler.removeCallbacks(checkEngineHang);
     engineQuietSince = 0;
     unfinishedUtterances.clear();
+    speechChunks.clear();
 
     tts = newTts;
     tts.setOnUtteranceProgressListener(lowLatencyRouter);
@@ -3591,6 +3624,7 @@ public class FailoverTextToSpeech {
    */
   private void updateDefaultPitch() {
     defaultPitch = (Secure.getInt(resolver, Secure.TTS_DEFAULT_PITCH, 100) / 100.0f);
+    if (navigationPcmCache != null) navigationPcmCache.invalidate();
     for (FailoverTtsListener listener : listeners) {
       listener.onDefaultPitchChanged(defaultPitch);
     }
@@ -3602,6 +3636,7 @@ public class FailoverTextToSpeech {
    */
   private void updateDefaultRate() {
     defaultRate = (Secure.getInt(resolver, Secure.TTS_DEFAULT_RATE, 100) / 100.0f);
+    if (navigationPcmCache != null) navigationPcmCache.invalidate();
     for (FailoverTtsListener listener : listeners) {
       listener.onDefaultRateChanged(defaultRate);
     }
@@ -3870,6 +3905,7 @@ public class FailoverTextToSpeech {
     // The default locale changed, which may mean we can restore the user's
     // preferred locale.
     localeInUse = ensureSupportedLocale();
+    if (navigationPcmCache != null) navigationPcmCache.invalidate();
   }
 
   /** Handles updating the system locale. */
@@ -3885,6 +3921,7 @@ public class FailoverTextToSpeech {
     // The system locale changed, which may mean we need to override the
     // current TTS locale.
     localeInUse = ensureSupportedLocale();
+    if (navigationPcmCache != null) navigationPcmCache.invalidate();
   }
 
   /** Registers the configuration change callback. */

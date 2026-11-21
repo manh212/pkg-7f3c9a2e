@@ -1380,7 +1380,24 @@ public class SpeechControllerImpl implements SpeechController {
 
   private void prepareNavigationSpeech(
       CharSequence text, int flags, @Nullable Bundle speechParams, long preparationGeneration) {
-    if (isMuteSpeech || TextUtils.isEmpty(text)) return;
+    if (isMuteSpeech || speechHold != null || TextUtils.isEmpty(text)) return;
+    @Nullable SpeechFilter filter = speechFilter;
+    boolean fromScript = speechParams != null && speechParams.containsKey(SPEECH_PARAM_FROM_SCRIPT);
+    if (filter != null && !fromScript) {
+      @Nullable CharSequence filtered = filter.filter(text);
+      if (filtered != null) {
+        text = filtered;
+      }
+    }
+    boolean released = speechParams != null && speechParams.containsKey(SPEECH_PARAM_RELEASED);
+    @Nullable SpeechFilter dictionary = dictionaryFilter;
+    if (dictionary != null && !released && !TextUtils.isEmpty(text)) {
+      @Nullable CharSequence said = dictionary.filter(text);
+      if (said != null) {
+        text = said;
+      }
+    }
+    if (TextUtils.isEmpty(text)) return;
     CharSequence source = EmojiSpeech.process(mContext, replaceSpanByContentDescription(text));
     FeedbackItem prepared = FeedbackProcessingUtils.generateFeedbackItemFromInput(
         mContext, source, mUsePunctuation, cachedInlineFormattingHistory, formattingOptions,
@@ -2061,12 +2078,15 @@ public class SpeechControllerImpl implements SpeechController {
       mHandler.postDelayed(() -> enforceSpeechWaitCap(waiting), SPEECH_WAIT_CAP_MS);
       return;
     }
-    for (FeedbackItem queued : new ArrayList<>(feedbackQueue)) {
+    ListIterator<FeedbackItem> iterator = feedbackQueue.listIterator();
+    while (iterator.hasNext()) {
+      FeedbackItem queued = iterator.next();
       if (queued == waiting) {
         break;
       }
       if (!queued.isInterruptibleByNewSpeech()
           && !queued.hasFlag(FeedbackItem.FLAG_EXEMPT_FROM_SPEECH_WAIT_CAP)) {
+        iterator.remove();
         notifyItemInterrupted(queued);
       }
     }

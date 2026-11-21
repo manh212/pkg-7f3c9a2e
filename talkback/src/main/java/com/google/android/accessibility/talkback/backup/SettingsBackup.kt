@@ -21,6 +21,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -43,6 +44,7 @@ import com.google.android.accessibility.talkback.utils.VerbosityPreferences
 import com.google.android.accessibility.talkback.vietnameseime.KeyboardKeySounds
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.labeling.LabelsTable
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.io.IOException
@@ -617,14 +619,30 @@ object SettingsBackup {
         }
         val format = root.optString("format")
         if ((format != FORMAT && format != LEGACY_FORMAT) || root.optInt("version") > VERSION) return false
-        documents = root.optJSONArray(DOCUMENTS_KEY)
-        labels = root.optJSONArray(LABELS_KEY)
-        clipboardHistory = root.optJSONArray(CLIPBOARD_HISTORY_KEY)
-        favorites = root.optJSONArray(FAVORITES_KEY)
-        timerSounds = root.optJSONArray(TIMER_SOUNDS_KEY)
-        keySounds = root.optJSONArray(KEY_SOUNDS_KEY)
-        soundThemes = root.optJSONArray(SOUND_THEMES_KEY)
-        scripts = root.optJSONArray(SCRIPTS_KEY)
+        if (root.has(DOCUMENTS_KEY) && !root.isNull(DOCUMENTS_KEY)) {
+          documents = root.optJSONArray(DOCUMENTS_KEY) ?: return false
+        }
+        if (root.has(LABELS_KEY) && !root.isNull(LABELS_KEY)) {
+          labels = root.optJSONArray(LABELS_KEY) ?: return false
+        }
+        if (root.has(CLIPBOARD_HISTORY_KEY) && !root.isNull(CLIPBOARD_HISTORY_KEY)) {
+          clipboardHistory = root.optJSONArray(CLIPBOARD_HISTORY_KEY) ?: return false
+        }
+        if (root.has(FAVORITES_KEY) && !root.isNull(FAVORITES_KEY)) {
+          favorites = root.optJSONArray(FAVORITES_KEY) ?: return false
+        }
+        if (root.has(TIMER_SOUNDS_KEY) && !root.isNull(TIMER_SOUNDS_KEY)) {
+          timerSounds = root.optJSONArray(TIMER_SOUNDS_KEY) ?: return false
+        }
+        if (root.has(KEY_SOUNDS_KEY) && !root.isNull(KEY_SOUNDS_KEY)) {
+          keySounds = root.optJSONArray(KEY_SOUNDS_KEY) ?: return false
+        }
+        if (root.has(SOUND_THEMES_KEY) && !root.isNull(SOUND_THEMES_KEY)) {
+          soundThemes = root.optJSONArray(SOUND_THEMES_KEY) ?: return false
+        }
+        if (root.has(SCRIPTS_KEY) && !root.isNull(SCRIPTS_KEY)) {
+          scripts = root.optJSONArray(SCRIPTS_KEY) ?: return false
+        }
         root.getJSONObject("files")
       } catch (e: JSONException) {
         return false
@@ -651,6 +669,33 @@ object SettingsBackup {
         edits += prefs to decoded
       }
     }
+    if (documents != null && !validateDocumentsBackup(documents)) {
+      return false
+    }
+    if (labels != null && !validateLabelsBackup(labels)) {
+      return false
+    }
+    if (clipboardHistory != null && !validateStringArrayBackup(clipboardHistory)) {
+      return false
+    }
+    if (favorites != null && !validateStringArrayBackup(favorites)) {
+      return false
+    }
+    if (timerSounds != null && !validateSoundsBackup(timerSounds, TimerSounds.Slot.entries.map { it.fileName }.toSet())) {
+      return false
+    }
+    if (keySounds != null && !validateSoundsBackup(keySounds, KeyboardKeySounds.Slot.entries.map { it.fileName }.toSet())) {
+      return false
+    }
+    if (soundThemes != null && !validateSoundThemesBackup(soundThemes)) {
+      return false
+    }
+    val parsedScripts =
+      if (scripts != null) {
+        parseScriptsBackup(scripts) ?: return false
+      } else {
+        null
+      }
     if (documents != null && !EditorDocuments.restoreBackup(context, documents.toString())) {
       return false
     }
@@ -672,7 +717,7 @@ object SettingsBackup {
     if (soundThemes != null && !SoundThemes.restoreBackup(context, soundThemes.toString())) {
       return false
     }
-    if (scripts != null && !restoreScriptsBackup(context, scripts)) {
+    if (parsedScripts != null && !writeScriptsBackup(context, parsedScripts)) {
       return false
     }
     for ((prefs, values) in edits) {
@@ -706,18 +751,99 @@ object SettingsBackup {
    * read is skipped when the scripts load. The scripts list in memory stays as it was
    * until the app restarts, like the script index the preferences already restore.
    */
-  private fun restoreScriptsBackup(context: Context, scripts: JSONArray): Boolean {
+  private fun validateDocumentsBackup(documents: JSONArray): Boolean {
+    for (i in 0 until documents.length()) {
+      if (documents.optJSONObject(i) == null) return false
+    }
+    return true
+  }
+
+  private fun validateLabelsBackup(labels: JSONArray): Boolean {
+    val requiredColumns =
+      arrayOf(
+        LabelsTable.KEY_PACKAGE_NAME,
+        LabelsTable.KEY_PACKAGE_SIGNATURE,
+        LabelsTable.KEY_VIEW_NAME,
+        LabelsTable.KEY_TEXT,
+        LabelsTable.KEY_LOCALE,
+        LabelsTable.KEY_PACKAGE_VERSION,
+        LabelsTable.KEY_TIMESTAMP,
+        LabelsTable.KEY_SOURCE_TYPE,
+      )
+    for (i in 0 until labels.length()) {
+      val entry = labels.optJSONObject(i) ?: return false
+      for (column in requiredColumns) {
+        if (!entry.has(column)) return false
+      }
+    }
+    return true
+  }
+
+  private fun validateStringArrayBackup(array: JSONArray): Boolean {
+    for (i in 0 until array.length()) {
+      if (array.isNull(i) || array.opt(i) !is String) return false
+    }
+    return true
+  }
+
+  private fun validateSoundsBackup(sounds: JSONArray, allowedSlots: Set<String>): Boolean {
+    for (i in 0 until sounds.length()) {
+      val entry = sounds.optJSONObject(i) ?: return false
+      val slot = entry.optString("slot", "")
+      val name = entry.optString("name", "")
+      val data = entry.optString("data", "")
+      if (
+        slot !in allowedSlots ||
+          !name.startsWith("$slot.") ||
+          name.contains('/') ||
+          name.contains('\\') ||
+          name.contains('\u0000')
+      ) {
+        return false
+      }
+      val bytes =
+        try {
+          Base64.decode(data, Base64.DEFAULT)
+        } catch (e: IllegalArgumentException) {
+          return false
+        }
+      if (bytes.isEmpty() || bytes.size > SoundThemes.MAX_SOUND_BYTES) return false
+    }
+    return true
+  }
+
+  private fun validateSoundThemesBackup(themes: JSONArray): Boolean {
+    val seen = HashSet<String>()
+    for (i in 0 until themes.length()) {
+      val entry = themes.optJSONObject(i) ?: return false
+      val id = entry.optString("id", "")
+      if (id.isEmpty() || id.startsWith(".") || !seen.add(id)) return false
+      if (FileTreeBackup.parse(entry.optJSONArray("files"), SoundThemes.MAX_THEME_BYTES, 1000) == null) {
+        return false
+      }
+    }
+    return true
+  }
+
+  private fun parseScriptsBackup(scripts: JSONArray): LinkedHashMap<String, List<Pair<String, ByteArray>>>? {
     val wanted = LinkedHashMap<String, List<Pair<String, ByteArray>>>()
     for (i in 0 until scripts.length()) {
-      val entry = scripts.optJSONObject(i) ?: return false
+      val entry = scripts.optJSONObject(i) ?: return null
       val id = entry.optString("id", "")
-      if (!MigrationFiles.isSafeScriptId(id) || wanted.containsKey(id)) return false
+      if (!MigrationFiles.isSafeScriptId(id) || wanted.containsKey(id)) return null
       val files =
         FileTreeBackup.parse(entry.optJSONArray("files"), SCRIPTS_MAX_BYTES, SCRIPTS_MAX_FILES)
-          ?: return false
-      if (files.none { it.first == "main.lua" }) return false
+          ?: return null
+      if (files.none { it.first == "main.lua" }) return null
       wanted[id] = files
     }
+    return wanted
+  }
+
+  private fun writeScriptsBackup(
+    context: Context,
+    wanted: LinkedHashMap<String, List<Pair<String, ByteArray>>>,
+  ): Boolean {
     val scriptsDir = File(context.filesDir, MigrationFiles.SCRIPTS_DIR)
     for (dir in scriptsDir
       .listFiles()

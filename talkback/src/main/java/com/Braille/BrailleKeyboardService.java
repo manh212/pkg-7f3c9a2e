@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -455,6 +456,20 @@ public class BrailleKeyboardService extends InputMethodService {
         );
         container.addView(imeCanvasView, params);
         return container;
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (imeCanvasView != null) {
+            ViewGroup.LayoutParams params = imeCanvasView.getLayoutParams();
+            if (params != null) {
+                params.height = getResources().getDisplayMetrics().heightPixels;
+                imeCanvasView.setLayoutParams(params);
+            }
+            imeCanvasView.requestLayout();
+            imeCanvasView.invalidate();
+        }
     }
 
     @Override

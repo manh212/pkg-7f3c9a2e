@@ -38,7 +38,7 @@ internal object OcrModelDownload {
 
   fun start(context: Context) {
     if (!downloading.compareAndSet(false, true)) return
-    status.value = Status(progress = 0)
+    status.postValue(Status(progress = 0))
     val directory = directory(context.applicationContext)
     executor.execute {
       val ok = try {

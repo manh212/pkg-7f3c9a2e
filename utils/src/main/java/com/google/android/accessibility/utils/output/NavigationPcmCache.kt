@@ -70,6 +70,7 @@ class NavigationPcmCache(context: Context) {
   private var engineName: String? = null
   private var ready = false
   private var pendingGeneration = Long.MIN_VALUE
+  private val latestGeneration = AtomicLong(0L)
   @Volatile private var active: Request? = null
   private val failures = AtomicLong()
   private var disabledUntil = 0L
@@ -99,6 +100,7 @@ class NavigationPcmCache(context: Context) {
       }
       return
     }
+    latestGeneration.accumulateAndGet(generation, ::maxOf)
     val requestedEpoch = epoch.get()
     val requestedConfiguration = configuration.get()
     val spoken = text.toString()
@@ -180,13 +182,15 @@ class NavigationPcmCache(context: Context) {
    * the public FailoverTextToSpeech.speak() signatures, so the fragment slice is sized
    * instead by the FRAGMENTS_PREPARED / FRAGMENTS_SPOKEN counters (Q11b).
    */
+  @JvmOverloads
   fun find(
     text: CharSequence, engineName: String, locale: Locale?, params: Bundle, outputRate: Int,
-    chunkIndex: Int,
+    chunkIndex: Int, voiceName: String? = null,
   ): FloatArray? {
     if (!LatencyExperiments.preparePcm() || closed) return null
     val current = identity
     if (current == null || current.engine != engineName ||
+      (voiceName != null && current.voice != voiceName) ||
       current.outputRate != outputRate || current.configuration != configuration.get() ||
       current.locale != locale?.toLanguageTag()) {
       misses.incrementAndGet()
@@ -213,30 +217,32 @@ class NavigationPcmCache(context: Context) {
     return result
   }
 
+  fun onFocusMoved() {
+    val currentGeneration = latestGeneration.incrementAndGet()
+    checkActiveStaleness(currentGeneration)
+  }
+
   fun onInput() {
+    val currentGeneration = latestGeneration.incrementAndGet()
+    checkActiveStaleness(currentGeneration)
+  }
+
+  fun onForegroundSpeech() {
+    foregroundStartedAt = SystemClock.uptimeMillis()
+    checkActiveStaleness(latestGeneration.get())
+  }
+
+  private fun checkActiveStaleness(currentGeneration: Long) {
     val request = active ?: return
     handler.post {
       if (active === request) {
-        // 1C: input — or a new foreground utterance, via onForegroundSpeech() — no longer
-        // cancels the in-flight synthesis. The 60 ms quiet clock is reset elsewhere
-        // (LatencyExperiments.onInput() stamps lastInput; onForegroundSpeech() stamps
-        // foregroundStartedAt), so the pump still waits for quiet before STARTING the next
-        // synthesis (shouldYield). Cancel only when the active request is from a generation
-        // already passed: the same staleness rule 1B applies to the queue (drop generations
-        // older than pendingGeneration - 1). The active synthesis therefore survives at most
-        // two focus moves; a synthesis for a passed item may run to its length-scaled
-        // timeout (Q8: 2–4 s) — the cost Kenneth accepted when approving 1C.
-        if (request.generation < pendingGeneration - 1) {
+        val effectiveGeneration = maxOf(pendingGeneration, currentGeneration)
+        if (request.generation < effectiveGeneration - 1) {
           cancelActiveRequest()
         }
         schedule(INPUT_QUIET_MS)
       }
     }
-  }
-
-  fun onForegroundSpeech() {
-    foregroundStartedAt = SystemClock.uptimeMillis()
-    onInput()
   }
 
   private fun shouldYield(): Boolean =

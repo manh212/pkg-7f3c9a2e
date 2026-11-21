@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="call_duration_announcement">Thời lượng cuộc gọi: %1$s</string>
+</resources>

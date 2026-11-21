@@ -86,8 +86,7 @@ public class TalkBackExitController implements AccessibilityEventListener, Scree
   private TrainingState trainingState;
 
   private static final String TAG = "TalkBackExitController";
-  private static final String EXIT_BUTTON_RES_NAME =
-      "com.google.android.marvin.talkback:id/training_exit_talkback_button";
+  private static final String EXIT_BUTTON_RES_SUFFIX = ":id/training_exit_talkback_button";
   private static final long TAP_TIMEOUT_MS = ViewConfiguration.getJumpTapTimeout();
 
   private final TalkBackService service;
@@ -129,7 +128,8 @@ public class TalkBackExitController implements AccessibilityEventListener, Scree
       }
       case AccessibilityEvent.TYPE_VIEW_HOVER_ENTER -> {
         String viewResIdName = node == null ? "" : node.getViewIdResourceName();
-        targetNode = TextUtils.equals(viewResIdName, EXIT_BUTTON_RES_NAME) ? node : null;
+        String exitButtonResName = service.getPackageName() + EXIT_BUTTON_RES_SUFFIX;
+        targetNode = TextUtils.equals(viewResIdName, exitButtonResName) ? node : null;
       }
       default -> {}
     }
@@ -177,7 +177,7 @@ public class TalkBackExitController implements AccessibilityEventListener, Scree
         TAG,
         "turnOffTalkBackIfTutorialActive:  trainingActive=%b, current pageId=%d",
         trainingRecentActive,
-        currentPageId.ordinal());
+        currentPageId == null ? -1 : currentPageId.ordinal());
     if (!service.hasTrainingFinishedByUser()
         && trainingRecentActive
         && currentPageId == PAGE_ID_WELCOME_TO_TALKBACK) {

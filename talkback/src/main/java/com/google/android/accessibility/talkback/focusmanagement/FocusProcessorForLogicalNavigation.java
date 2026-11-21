@@ -2400,7 +2400,10 @@ public class FocusProcessorForLogicalNavigation {
       AsyncTraversalOrder.request(rootNode, eventId, result -> {
         orderPending = false;
         if (result == AsyncTraversalOrder.Result.CANCELLED) {
-          Performance.getInstance().onNavigationDetail(eventId, "order_async_cancelled_fallback", 1);
+          orderQueue.clear();
+          savedPivot.recycle();
+          Performance.getInstance().onNavigationFailed(eventId, "order_async_cancelled");
+          return;
         }
         resumingOrder = true;
         try {
@@ -6280,6 +6283,8 @@ public class FocusProcessorForLogicalNavigation {
       } else {
         LogUtils.w(TAG, "Skip onAutoScrolled because currentFocus is assigned by another actor.");
       }
+    } else {
+      resetScrollRecord(eventId);
     }
   }
 
@@ -6309,6 +6314,8 @@ public class FocusProcessorForLogicalNavigation {
     if (scrollCallback != null) {
       scrollCallback.onAutoScrollFailed(scrolledNode);
       scrollCallback = null;
+    } else {
+      resetScrollRecord(EVENT_ID_UNTRACKED);
     }
   }
 

@@ -59,8 +59,12 @@ internal class BoundedNodeWalk<T : Any>(
           reads++
           try { tasks.add(executor.submit { read() }) }
           catch (_: RejectedExecutionException) {
-            // The original read is still available on saturation, within this same deadline.
-            if (executor.isAccepting) read() else break
+            if (executor.isAccepting) {
+              read()
+            } else {
+              pending--
+              return Result(found, matches, complete = false)
+            }
           }
           while (frames.isNotEmpty() && frames.first.next >= frames.first.count) frames.removeFirst()
         }

@@ -25,12 +25,14 @@ local assert, error, getmetatable, ipairs, next, pairs, pcall, rawequal, rawget,
   assert, error, getmetatable, ipairs, next, pairs, pcall, rawequal, rawget, rawlen, rawset,
   select, setmetatable, tonumber, tostring, type, xpcall, load, collectgarbage
 local string, table, math, utf8, coroutine, os, debug = string, table, math, utf8, coroutine, os, debug
-local byte, char, find, format, gsub, rep, sub, lower, upper =
-  string.byte, string.char, string.find, string.format, string.gsub, string.rep, string.sub,
-  string.lower, string.upper
+local byte, char, find, format, gmatch, gsub, rep, sub, lower, upper =
+  string.byte, string.char, string.find, string.format, string.gmatch, string.gsub, string.rep,
+  string.sub, string.lower, string.upper
 local concat, insert, remove, pack, unpack, sort =
   table.concat, table.insert, table.remove, table.pack, table.unpack, table.sort
-local floor, huge, mtype = math.floor, math.huge, math.type
+local abs, floor, huge, math_max, math_min, math_pi, math_sin, math_tointeger, mtype =
+  math.abs, math.floor, math.huge, math.max, math.min, math.pi, math.sin, math.tointeger, math.type
+local utf8_len, utf8_char = utf8.len, utf8.char
 local co_create, co_resume, co_yield, co_status, co_close, co_isyieldable, co_running =
   coroutine.create, coroutine.resume, coroutine.yield, coroutine.status, coroutine.close,
   coroutine.isyieldable, coroutine.running
@@ -78,7 +80,7 @@ local escapes = {
 
 local function encode_string(s)
   -- Text that isn't UTF-8 can't reach Java intact.
-  if not utf8.len(s) then
+  if not utf8_len(s) then
     s = gsub(s, '[\128-\255]', '?')
   end
   return '"' .. gsub(s, '[%c"\\]', function(c)
@@ -192,7 +194,7 @@ local function decode_string(text, i)
           j = j + 6
         end
       end
-      parts[#parts + 1] = utf8.char(code)
+      parts[#parts + 1] = utf8_char(code)
     else
       local map = { b = '\b', f = '\f', n = '\n', r = '\r', t = '\t', ['"'] = '"', ['\\'] = '\\', ['/'] = '/' }
       local ch = map[esc]
@@ -277,7 +279,7 @@ decode_value = function(text, i, depth)
     if not number then
       decode_error(text, i, 'bad number')
     end
-    return math.tointeger(number) or number, e + 1
+    return math_tointeger(number) or number, e + 1
   end
 end
 
@@ -502,10 +504,18 @@ env.tostring = tostring
 env.type = type
 env.getmetatable = getmetatable
 env._VERSION = _VERSION
-env.string = string
-env.table = table
-env.math = math
-env.utf8 = utf8
+local function shallow_copy(t)
+  local result = {}
+  for k, v in pairs(t) do
+    result[k] = v
+  end
+  return result
+end
+
+env.string = shallow_copy(string)
+env.table = shallow_copy(table)
+env.math = shallow_copy(math)
+env.utf8 = shallow_copy(utf8)
 env.coroutine = script_coroutine
 env.os = { time = os.time, clock = os.clock, date = os.date, difftime = os.difftime }
 env.json = json
@@ -920,7 +930,7 @@ local function add_timer(fn, ms, args, repeating)
   end
   local id = next_timer
   next_timer = next_timer + 1
-  local delay = math.max(repeating and 10 or 0, tonumber(ms) or 0)
+  local delay = math_max(repeating and 10 or 0, tonumber(ms) or 0)
   timers[id] = { fn = fn, args = args, delay = delay, repeating = repeating }
   send('timer.set', { id = id, ms = delay })
   return id
@@ -940,7 +950,7 @@ local function sleep(ms)
   local id = next_timer
   next_timer = next_timer + 1
   timers[id] = { sleep = true }
-  send('timer.set', { id = id, ms = math.max(0, tonumber(ms) or 0) })
+  send('timer.set', { id = id, ms = math_max(0, tonumber(ms) or 0) })
   co_yield(WAIT, 'timer:' .. id)
 end
 
@@ -1287,7 +1297,7 @@ local PLURAL_RULES = {
 }
 
 local function plural_category(language, count)
-  local n = math.abs(tonumber(count) or 0)
+  local n = abs(tonumber(count) or 0)
   if n ~= floor(n) then
     return 'other'
   end
@@ -1357,11 +1367,11 @@ end
 
 local function tone(frequency, ms)
   local length = floor(ms * SAMPLE_RATE / 1000 + 0.5)
-  local fade = math.min(length / 2, SAMPLE_RATE / 200)
+  local fade = math_min(length / 2, SAMPLE_RATE / 200)
   local samples = {}
   for i = 0, length - 1 do
-    local envelope = math.min(1, i / fade, (length - i) / fade)
-    samples[i + 1] = math.sin(2 * math.pi * frequency * i / SAMPLE_RATE) * envelope
+    local envelope = math_min(1, i / fade, (length - i) / fade)
+    samples[i + 1] = math_sin(2 * math_pi * frequency * i / SAMPLE_RATE) * envelope
   end
   return samples
 end
@@ -1454,7 +1464,7 @@ local function key_list(keys)
     return list
   end
   local list = {}
-  for k in string.gmatch(tostring(keys), '%S+') do
+  for k in gmatch(tostring(keys), '%S+') do
     list[#list + 1] = k
   end
   return list
@@ -1474,7 +1484,7 @@ local function wait_for(query, timeout, interval)
   end
   local started = call('clock')
   timeout = tonumber(timeout) or 5000
-  interval = math.max(100, tonumber(interval) or 250)
+  interval = math_max(100, tonumber(interval) or 250)
   while true do
     local found = node(find_nodes(query, 1)[1])
     if found then

@@ -60,6 +60,7 @@ class StreamingPcmPlayer(
     )
     private val paused = AtomicBoolean(false)
     private val pauseLock = Any()
+    private val trackLock = Any()
     private val pausedBacklog = ArrayDeque<ByteArray>()
     private var pausedBacklogBytes = 0L
 
@@ -75,7 +76,7 @@ class StreamingPcmPlayer(
         require(minimum > 0) { "AudioTrack không hỗ trợ sampleRate=$sampleRate, minBuffer=$minimum" }
         val chosenBuffer = maxOf(minimum, bufferBytes).coerceAtLeast(sampleRate / 2)
         val resolvedUsage = resolveUsage()
-        track = AudioTrack.Builder()
+        val created = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(resolvedUsage)
@@ -98,6 +99,7 @@ class StreamingPcmPlayer(
                 applyPlaybackSpeed(it, playbackSpeed)
                 logger?.log(2, diagnosticName, "Khởi tạo AudioTrack sampleRate=$sampleRate bufferBytes=$chosenBuffer sessionId=${it.audioSessionId} jitter=$initialJitterChunks speed=${formatSpeed(playbackSpeed)}x usage=$resolvedUsage deadlineQueue=$usesOriginalDeadlineQueue")
             }
+        synchronized(trackLock) { track = created }
         worker = scope.launch {
             runCatching {
                 if (usesOriginalDeadlineQueue) {
@@ -145,7 +147,7 @@ class StreamingPcmPlayer(
 
     fun setVolume(percent: Int) {
         volume = percent.coerceIn(0, 100) / 100f
-        track?.setVolume(volume)
+        synchronized(trackLock) { track?.setVolume(volume) }
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -166,7 +168,7 @@ class StreamingPcmPlayer(
         if (usesOriginalDeadlineQueue) {
             originalDeadlineQueue?.retime(safe, SystemClock.elapsedRealtime())
         }
-        track?.let { applyPlaybackSpeed(it, safe) }
+        synchronized(trackLock) { track?.let { applyPlaybackSpeed(it, safe) } }
     }
 
     fun currentPlaybackSpeed(): Float = playbackSpeed
@@ -176,7 +178,7 @@ class StreamingPcmPlayer(
             if (!paused.compareAndSet(false, true)) return
             val now = SystemClock.elapsedRealtime()
             originalDeadlineQueue?.pause(now)
-            runCatching { track?.pause() }
+            synchronized(trackLock) { runCatching { track?.pause() } }
             val scheduled = originalDeadlineQueue?.stats()
             logger?.log(
                 2,
@@ -195,7 +197,7 @@ class StreamingPcmPlayer(
                 moved++
             }
         }
-        runCatching { track?.pause() }
+        synchronized(trackLock) { runCatching { track?.pause() } }
         val stats = stats()
         logger?.log(
             2,
@@ -211,8 +213,10 @@ class StreamingPcmPlayer(
         } else {
             0L
         }
-        runCatching { track?.play() }
-        track?.let { applyPlaybackSpeed(it, playbackSpeed) }
+        synchronized(trackLock) {
+            runCatching { track?.play() }
+            track?.let { applyPlaybackSpeed(it, playbackSpeed) }
+        }
         if (usesOriginalDeadlineQueue) {
             val scheduled = originalDeadlineQueue?.stats()
             logger?.log(
@@ -235,7 +239,7 @@ class StreamingPcmPlayer(
             val planner = originalDeadlineQueue
             val before = planner?.stats()
             val removed = planner?.clear() ?: 0
-            runCatching { track?.flush() }
+            synchronized(trackLock) { runCatching { track?.flush() } }
             logger?.log(
                 2,
                 diagnosticName,
@@ -252,7 +256,7 @@ class StreamingPcmPlayer(
             pausedBacklog.clear()
             pausedBacklogBytes = 0L
         }
-        runCatching { track?.flush() }
+        synchronized(trackLock) { runCatching { track?.flush() } }
         logger?.log(2, diagnosticName, "Xả output queue removed=$removed pausedRemoved=$pausedRemoved")
     }
 
@@ -267,8 +271,7 @@ class StreamingPcmPlayer(
     }
 
     fun stop() {
-        val current = track
-        val underruns = current?.underrunCount ?: 0
+        val underruns = synchronized(trackLock) { track?.underrunCount ?: 0 }
         val stats = stats()
         val scheduled = originalDeadlineQueue?.stats()
         logger?.log(
@@ -284,11 +287,14 @@ class StreamingPcmPlayer(
             pausedBacklog.clear()
             pausedBacklogBytes = 0L
         }
-        runCatching { current?.pause() }
-        runCatching { current?.flush() }
-        runCatching { current?.stop() }
-        runCatching { current?.release() }
-        track = null
+        synchronized(trackLock) {
+            val current = track
+            track = null
+            runCatching { current?.pause() }
+            runCatching { current?.flush() }
+            runCatching { current?.stop() }
+            runCatching { current?.release() }
+        }
         scope.cancel()
     }
 
@@ -300,7 +306,7 @@ class StreamingPcmPlayer(
             withTimeoutOrNull(750) { receiveNextChunk() }?.let(prebuffer::add)
         }
         logger?.log(3, diagnosticName, "Bắt đầu phát sau prebuffer chunks=${prebuffer.size}")
-        prebuffer.forEach(::writeBlocking)
+        for (chunk in prebuffer) writeBlocking(chunk)
         while (scope.isActive) {
             val data = receiveNextChunk() ?: break
             writeBlocking(data)
@@ -381,15 +387,24 @@ class StreamingPcmPlayer(
         }
     }
 
-    private fun writeBlocking(data: ByteArray) {
-        while (paused.get() && worker?.isActive == true) Thread.sleep(25)
-        val audioTrack = track ?: return
+    private suspend fun writeBlocking(data: ByteArray) {
         var offset = 0
-        while (offset < data.size) {
-            val written = audioTrack.write(data, offset, data.size - offset, AudioTrack.WRITE_BLOCKING)
-            if (written <= 0) {
+        while (offset < data.size && scope.isActive) {
+            if (paused.get()) {
+                delay(25)
+                continue
+            }
+            val written = synchronized(trackLock) {
+                val audioTrack = track ?: return
+                audioTrack.write(data, offset, data.size - offset, AudioTrack.WRITE_NON_BLOCKING)
+            }
+            if (written < 0) {
                 logger?.log(0, diagnosticName, "AudioTrack.write thất bại code=$written remaining=${data.size - offset}")
                 return
+            }
+            if (written == 0) {
+                delay(10)
+                continue
             }
             offset += written
             writtenBytes.addAndGet(written.toLong())

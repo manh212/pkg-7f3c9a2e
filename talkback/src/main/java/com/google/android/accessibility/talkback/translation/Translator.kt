@@ -34,6 +34,8 @@ import java.util.Locale
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import org.json.JSONException
 
 class Translator(context: Context) {
@@ -48,7 +50,11 @@ class Translator(context: Context) {
       .apply { allowCoreThreadTimeOut(true) }
 
   private var request = 0
-  private var usedOnDevice = false
+  private val countedOnDevice = AtomicBoolean(false)
+
+  fun interface RequestHandle {
+    fun cancel()
+  }
 
   sealed interface Result {
     data class Done(val translation: Translation) : Result
@@ -86,8 +92,9 @@ class Translator(context: Context) {
    * Translates [text] into [to], from [from] or the language it's found to be in, with the chosen
    * service, waiting for on-device models to download. For scripts.
    */
-  fun translateTo(text: String, from: String?, to: String?, onResult: (Result) -> Unit) =
+  fun translateTo(text: String, from: String?, to: String?, onResult: (Result) -> Unit) {
     run(text, service(), from, to ?: TranslationSettings.target(prefs), second = null, Downloads.WAIT, report = onResult)
+  }
 
   /**
    * Translates [text] from [from] into [to] with [service], for Automatic translation, alongside
@@ -102,7 +109,7 @@ class Translator(context: Context) {
     downloads: Downloads,
     onDownloaded: () -> Unit,
     onResult: (Result) -> Unit,
-  ) = run(text, service, from, to, second = null, downloads, onDownloaded, onResult)
+  ): RequestHandle = run(text, service, from, to, second = null, downloads, onDownloaded, onResult)
 
   enum class Downloads {
 
@@ -122,24 +129,31 @@ class Translator(context: Context) {
     downloads: Downloads,
     onDownloaded: () -> Unit = {},
     report: (Result) -> Unit,
-  ) {
+  ): RequestHandle {
     val fail: (Kind, String) -> Unit = { kind, detail -> report(Result.Failed(TranslationFailure(kind, detail), service)) }
     if (!com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.allows(appContext, "translation")) {
-      return fail(Kind.OTHER, "Giấy phép hiện tại không có tính năng dịch văn bản.")
+      fail(Kind.OTHER, "Giấy phép hiện tại không có tính năng dịch văn bản.")
+      return RequestHandle {}
     }
-    if (!isSetUp(service)) return fail(Kind.NOT_SET_UP, "")
+    if (!isSetUp(service)) {
+      fail(Kind.NOT_SET_UP, "")
+      return RequestHandle {}
+    }
     val input = text.take(TranslationApis.MAX_TEXT)
-    when (service) {
+    return when (service) {
       TranslationService.ON_DEVICE -> onDevice(input, source, target, second, downloads, onDownloaded, report, fail)
-      TranslationService.AI ->
-        enqueue(appContext, Ask(this, AiTranslationPrompt.prompt(input, source, target, second)) { answer, failure ->
-          when {
-            answer != null -> report(Result.Done(AiTranslationPrompt.parse(answer, target)))
-            failure != null -> fail(Kind.OTHER, failure.userMessage(appContext))
-            // Cancelled by another user of the AI service, such as the on-device model's.
-            else -> fail(Kind.OTHER, "")
+      TranslationService.AI -> {
+        val ask =
+          Ask(this, AiTranslationPrompt.prompt(input, source, target, second)) { answer, failure ->
+            when {
+              answer != null -> report(Result.Done(AiTranslationPrompt.parse(answer, target)))
+              failure != null -> fail(Kind.OTHER, failure.userMessage(appContext))
+              else -> fail(Kind.OTHER, "")
+            }
           }
-        })
+        enqueue(appContext, ask)
+        RequestHandle { cancelAsk(ask) }
+      }
       else -> web(service, input, source, target, second, report)
     }
   }
@@ -152,7 +166,9 @@ class Translator(context: Context) {
   fun shutdown() {
     cancel()
     worker.shutdownNow()
-    if (usedOnDevice) OnDeviceTranslations.get()?.close()
+    if (countedOnDevice.compareAndSet(true, false) && onDeviceUsers.decrementAndGet() == 0) {
+      OnDeviceTranslations.get()?.close()
+    }
   }
 
   private fun web(
@@ -162,30 +178,41 @@ class Translator(context: Context) {
     target: String,
     second: String?,
     report: (Result) -> Unit,
-  ) {
+  ): RequestHandle {
     val key = TranslationSettings.apiKey(prefs, service)
     val region = TranslationSettings.microsoftRegion(prefs)
     val address = TranslationSettings.libreTranslateAddress(prefs)
     val locale = Locale.getDefault()
-    worker.execute {
-      val result =
-        try {
-          var translation = ask(service, key, region, address, locale, text, source, target)
-          if (second != null && TranslationLanguages.same(translation.from, target)) {
-            translation = ask(service, key, region, address, locale, text, translation.from, second)
+    val cancelled = AtomicBoolean(false)
+    val future =
+      worker.submit {
+        if (cancelled.get()) return@submit
+        val result =
+          try {
+            var translation = ask(service, key, region, address, locale, text, source, target)
+            if (cancelled.get()) return@submit
+            if (second != null && TranslationLanguages.same(translation.from, target)) {
+              translation = ask(service, key, region, address, locale, text, translation.from, second)
+            }
+            Result.Done(translation)
+          } catch (e: FailureException) {
+            Result.Failed(e.failure, service)
+          } catch (e: IOException) {
+            LogUtils.w(TAG, "%s not reached: %s", service.id, e)
+            Result.Failed(TranslationFailure(Kind.CONNECTION), service)
+          } catch (e: Throwable) {
+            LogUtils.w(TAG, "%s failed: %s", service.id, e)
+            Result.Failed(TranslationFailure(Kind.OTHER), service)
           }
-          Result.Done(translation)
-        } catch (e: FailureException) {
-          Result.Failed(e.failure, service)
-        } catch (e: IOException) {
-          LogUtils.w(TAG, "%s not reached: %s", service.id, e)
-          Result.Failed(TranslationFailure(Kind.CONNECTION), service)
-        } catch (e: Throwable) {
-
-          LogUtils.w(TAG, "%s failed: %s", service.id, e)
-          Result.Failed(TranslationFailure(Kind.OTHER), service)
+        if (!cancelled.get()) {
+          handler.post { if (!cancelled.get()) report(result) }
         }
-      handler.post { report(result) }
+      }
+    return RequestHandle {
+      if (cancelled.compareAndSet(false, true)) {
+        future.cancel(true)
+        if (future is Runnable) worker.remove(future)
+      }
     }
   }
 
@@ -235,18 +262,30 @@ class Translator(context: Context) {
     onDownloaded: () -> Unit,
     report: (Result) -> Unit,
     fail: (Kind, String) -> Unit,
-  ) {
-    val models = OnDeviceTranslations.get() ?: return fail(Kind.NOT_SET_UP, "")
-    usedOnDevice = true
+  ): RequestHandle {
+    val models = OnDeviceTranslations.get()
+    if (models == null) {
+      fail(Kind.NOT_SET_UP, "")
+      return RequestHandle {}
+    }
+    if (countedOnDevice.compareAndSet(false, true)) onDeviceUsers.incrementAndGet()
+    val cancelled = AtomicBoolean(false)
+    val guardedReport: (Result) -> Unit = { if (!cancelled.get()) report(it) }
+    val guardedFail: (Kind, String) -> Unit = { kind, detail -> if (!cancelled.get()) fail(kind, detail) }
     val withSource: (String) -> Unit = { from ->
-      val to = if (second != null && from == target) second else target
-      val unsupported = listOf(from, to).firstOrNull { it !in models.languages }
-      when {
-        from == to -> report(Result.Done(Translation(text, from, to)))
-        unsupported != null -> fail(Kind.LANGUAGE, unsupported)
-        else -> withModels(models, from, to, downloads, onDownloaded, report, fail) {
-          models.translate(text, from, to) { translated ->
-            if (translated == null) fail(Kind.OTHER, "") else report(Result.Done(Translation(translated, from, to)))
+      if (!cancelled.get()) {
+        val to = if (second != null && from == target) second else target
+        val unsupported = listOf(from, to).firstOrNull { it !in models.languages }
+        when {
+          from == to -> guardedReport(Result.Done(Translation(text, from, to)))
+          unsupported != null -> guardedFail(Kind.LANGUAGE, unsupported)
+          else -> withModels(models, from, to, downloads, onDownloaded, guardedReport, guardedFail) {
+            if (!cancelled.get()) {
+              models.translate(text, from, to) { translated ->
+                if (translated == null) guardedFail(Kind.OTHER, "")
+                else guardedReport(Result.Done(Translation(translated, from, to)))
+              }
+            }
           }
         }
       }
@@ -255,13 +294,16 @@ class Translator(context: Context) {
       withSource(source)
     } else {
       models.detect(text) { detected, unavailable ->
-        when {
-          detected != null -> withSource(detected)
-          unavailable -> fail(Kind.DETECTION_DOWNLOADING, "")
-          else -> fail(Kind.NOT_DETECTED, "")
+        if (!cancelled.get()) {
+          when {
+            detected != null -> withSource(detected)
+            unavailable -> guardedFail(Kind.DETECTION_DOWNLOADING, "")
+            else -> guardedFail(Kind.NOT_DETECTED, "")
+          }
         }
       }
     }
+    return RequestHandle { cancelled.set(true) }
   }
 
   private fun withModels(
@@ -305,6 +347,8 @@ class Translator(context: Context) {
     const val TAG = "Translator"
     const val ENGLISH = "en"
     const val IDLE_SECONDS = 30L
+
+    private val onDeviceUsers = AtomicInteger(0)
 
     private var ai: AiTextRequests? = null
 
@@ -356,6 +400,20 @@ class Translator(context: Context) {
      * Drops [owner]'s AI translations, waiting or being answered. They don't report, as [owner]
      * cancelled them.
      */
+    private fun cancelAsk(ask: Ask) {
+      val wasRunning: Boolean
+      synchronized(asks) {
+        if (ask.ended) return
+        ask.ended = true
+        asks.remove(ask)
+        wasRunning = asking === ask
+        if (wasRunning) asking = null
+      }
+      if (!wasRunning) return
+      ai?.cancel()
+      askNext(ask.owner.appContext)
+    }
+
     private fun cancelAsks(owner: Translator) {
       val running: Ask?
       synchronized(asks) {

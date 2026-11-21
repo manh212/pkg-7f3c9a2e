@@ -19,6 +19,12 @@ public final class BackgroundEventGate {
   private static final long INTERVAL_MS = 500;
   private static final long INPUT_GRACE_MS = 150;
   private static final long RECENT_INPUT_MS = 500;
+  private static final long FLING_CHAIN_GAP_MS = 250;
+  private static final long FLING_MAX_EXTENSION_MS = 1800;
+  private static final int PANE_CONTENT_CHANGES =
+      AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_TITLE
+          | AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_APPEARED
+          | AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_DISAPPEARED;
   private static final int STRICT_EVENTS =
       AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
           | AccessibilityEvent.TYPE_WINDOWS_CHANGED
@@ -63,11 +69,14 @@ public final class BackgroundEventGate {
   private boolean touching;
   private boolean releaseScheduled;
   private long lastInput;
+  private long lastInteractiveScrollAt;
   private long lastDispatch = SystemClock.uptimeMillis();
-  private long pendingSince;
+  private long pendingForegroundSince;
+  private long pendingBackgroundSince;
   private int interactionWindowId = -1;
   private String interactionPackage;
-  private AccessibilityEvent pending;
+  private AccessibilityEvent pendingForeground;
+  private AccessibilityEvent pendingBackground;
 
   public BackgroundEventGate(Receiver receiver) {
     this(receiver, event -> false);
@@ -151,8 +160,7 @@ public final class BackgroundEventGate {
         || (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             && event.getPackageName() != null
             && !"com.android.systemui".contentEquals(event.getPackageName())
-            && (!LatencyExperiments.Feature.SCOPED_CACHE.enabled()
-                || interactionWindowId < 0 || interactionWindowId == event.getWindowId()))) {
+            && !isPurePaneContentChange(event))) {
       if (interactionWindowId != event.getWindowId()) {
         fgContentBurstWindowStartMs = 0;
         fgContentBurstCount = 0;
@@ -160,6 +168,7 @@ public final class BackgroundEventGate {
         fgScrollBurstCount = 0;
         fgSubtreeBurstWindowStartMs = 0;
         fgSubtreeBurstCount = 0;
+        lastInteractiveScrollAt = 0;
       }
       interactionWindowId = event.getWindowId();
       interactionPackage = event.getPackageName() == null ? null : event.getPackageName().toString();
@@ -171,19 +180,31 @@ public final class BackgroundEventGate {
     // gate at all — no 200 ms active-update deferral while touching. They are admitted
     // below, like focus and clicks, so list content changing during a swipe is read at
     // once. Background windows keep the 500 ms slot (see isBackgroundUpdate).
-    if (!LatencyExperiments.Feature.INPUT_PRIORITY.enabled()
-        || (!isBackgroundUpdate(event)
-            && !isForegroundStormOrPassiveScroll(event, receivedAt))) {
+    if (!LatencyExperiments.Feature.INPUT_PRIORITY.enabled()) {
       EventProcessingStats.admitted(event, 0);
       return true;
     }
-    if (pending != null) {
-      EventProcessingStats.coalesced(pending);
-      pending.recycle();
+    boolean background = isBackgroundUpdate(event);
+    if (!background && !isForegroundStormOrPassiveScroll(event, receivedAt)) {
+      EventProcessingStats.admitted(event, 0);
+      return true;
     }
     deferredInvalidation.accept(event);
-    pending = AccessibilityEvent.obtain(event);
-    pendingSince = receivedAt;
+    if (background) {
+      if (pendingBackground != null) {
+        EventProcessingStats.coalesced(pendingBackground);
+        pendingBackground.recycle();
+      }
+      pendingBackground = AccessibilityEvent.obtain(event);
+      pendingBackgroundSince = receivedAt;
+    } else {
+      if (pendingForeground != null) {
+        EventProcessingStats.coalesced(pendingForeground);
+        pendingForeground.recycle();
+      }
+      pendingForeground = AccessibilityEvent.obtain(event);
+      pendingForegroundSince = receivedAt;
+    }
     EventProcessingStats.deferred(event);
     schedulePending();
     return false;
@@ -295,9 +316,35 @@ public final class BackgroundEventGate {
   }
 
   private boolean isRecentInteraction(AccessibilityEvent event) {
-    return (touching || (lastInput > 0 && SystemClock.uptimeMillis() - lastInput < RECENT_INPUT_MS))
-        && (interactionWindowId < 0 || event.getWindowId() < 0
-            || event.getWindowId() == interactionWindowId);
+    if (interactionWindowId >= 0
+        && event.getWindowId() >= 0
+        && event.getWindowId() != interactionWindowId) {
+      return false;
+    }
+    long now = SystemClock.uptimeMillis();
+    if (touching || (lastInput > 0 && now - lastInput < RECENT_INPUT_MS)) {
+      if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+        lastInteractiveScrollAt = now;
+      }
+      return true;
+    }
+    if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED
+        && lastInput > 0
+        && lastInteractiveScrollAt >= lastInput
+        && now - lastInteractiveScrollAt <= FLING_CHAIN_GAP_MS
+        && now - lastInput <= FLING_MAX_EXTENSION_MS) {
+      lastInteractiveScrollAt = now;
+      return true;
+    }
+    return false;
+  }
+
+  private static boolean isPurePaneContentChange(AccessibilityEvent event) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+      return false;
+    }
+    int changes = event.getContentChangeTypes();
+    return changes != 0 && (changes & ~PANE_CONTENT_CHANGES) == 0;
   }
 
   private static boolean isWindowTransition(AccessibilityEvent event) {
@@ -310,7 +357,9 @@ public final class BackgroundEventGate {
   }
 
   private void schedulePending() {
-    if (pending != null && !touching && !releaseScheduled) {
+    if ((pendingForeground != null || pendingBackground != null)
+        && !touching
+        && !releaseScheduled) {
       releaseScheduled = true;
       handler.postDelayed(releasePending, nextDelay());
     }
@@ -330,9 +379,9 @@ public final class BackgroundEventGate {
     // Without this carve-out, a foreground text/state/description change while touching
     // would still wait in the background slot below (non-structural content), even though
     // the 200 ms active deferral above is gone.
+    if (interactionWindowId >= 0 && event.getWindowId() == interactionWindowId) return false;
     if (WindowCachePolicy.isNonStructuralContent(event)
         && (touching || SystemClock.uptimeMillis() - lastInput < INPUT_GRACE_MS)) return true;
-    if (interactionWindowId >= 0 && event.getWindowId() == interactionWindowId) return false;
     CharSequence sourcePackage = event.getPackageName();
     boolean background;
     if (sourcePackage != null
@@ -358,7 +407,7 @@ public final class BackgroundEventGate {
 
   private void releasePending() {
     releaseScheduled = false;
-    if (pending == null || touching) {
+    if ((pendingForeground == null && pendingBackground == null) || touching) {
       return;
     }
     long delay = nextDelay();
@@ -367,8 +416,17 @@ public final class BackgroundEventGate {
       handler.postDelayed(releasePending, delay);
       return;
     }
-    AccessibilityEvent event = pending;
-    pending = null;
+    AccessibilityEvent event;
+    long since;
+    if (pendingForeground != null) {
+      event = pendingForeground;
+      since = pendingForegroundSince;
+      pendingForeground = null;
+    } else {
+      event = pendingBackground;
+      since = pendingBackgroundSince;
+      pendingBackground = null;
+    }
     lastDispatch = SystemClock.uptimeMillis();
     try {
       if (interactionWindowId >= 0 && event.getWindowId() == interactionWindowId
@@ -376,10 +434,13 @@ public final class BackgroundEventGate {
         EventProcessingStats.dropped(event);
         return;
       }
-      EventProcessingStats.admitted(event, lastDispatch - pendingSince);
-      receiver.accept(event, pendingSince);
+      EventProcessingStats.admitted(event, lastDispatch - since);
+      receiver.accept(event, since);
     } finally {
       event.recycle();
+      if (pendingForeground != null || pendingBackground != null) {
+        schedulePending();
+      }
     }
   }
 
@@ -387,11 +448,17 @@ public final class BackgroundEventGate {
     handler.removeCallbacks(releasePending);
     releaseScheduled = false;
     TraversalTreeCache.resetChurnTracking();
-    if (pending != null) {
-      EventProcessingStats.dropped(pending);
-      pending.recycle();
-      pending = null;
+    if (pendingForeground != null) {
+      EventProcessingStats.dropped(pendingForeground);
+      pendingForeground.recycle();
+      pendingForeground = null;
     }
+    if (pendingBackground != null) {
+      EventProcessingStats.dropped(pendingBackground);
+      pendingBackground.recycle();
+      pendingBackground = null;
+    }
+    lastInteractiveScrollAt = 0;
     touching = false;
   }
 }

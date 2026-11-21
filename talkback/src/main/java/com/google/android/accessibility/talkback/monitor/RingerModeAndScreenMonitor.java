@@ -101,7 +101,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
   @Nullable private final StatusReader statusReader;
 
   /** The current ringer mode. */
-  private int ringerMode = AudioManager.RINGER_MODE_NORMAL;
+  private volatile int ringerMode = AudioManager.RINGER_MODE_NORMAL;
 
   /** The time format of time feedback. */
   @TimeFeedbackFormat private int timeFormat = DateTimeUtils.TIME_FEEDBACK_FORMAT_UNDEFINED;
@@ -120,7 +120,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
   /** The list containing device unlocked listeners from other function callback. */
   private final List<DeviceUnlockedListener> deviceUnlockedListeners = new CopyOnWriteArrayList<>();
 
-  private boolean monitoring = false;
+  private volatile boolean monitoring = false;
 
   private final ExecutorService executor;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -179,11 +179,17 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
   }
 
   public void stopMonitoring(Context context) {
+    mainHandler.removeCallbacksAndMessages(null);
     if (monitoring) {
+      monitoring = false;
       context.unregisterReceiver(this);
       displayMonitor.removeDisplayStateChangedListener(this);
-      monitoring = false;
     }
+  }
+
+  public void shutdown() {
+    executor.shutdownNow();
+    mainHandler.removeCallbacksAndMessages(null);
   }
 
   public void clearListeners() {
@@ -348,8 +354,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
     final Feedback.Part.@Nullable Builder screenOffFeedback = feedback;
     mainHandler.post(
         () -> {
-          if (isInteractive) {
-            // The screen came back on meanwhile, so it is too late to say it went off.
+          if (isInteractive || !monitoring || !TalkBackService.isServiceActive()) {
             return;
           }
           // Always reset the television remote mode to the standard (navigate) mode on screen off.

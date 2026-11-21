@@ -20,11 +20,13 @@ import com.google.android.accessibility.talkback.actor.gemini.GeminiRestRequestP
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalLlm
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalLlmCancelledException
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalLlmMemoryException
+import com.google.android.accessibility.talkback.actor.gemini.local.RemoteLocalLlm
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.Base64
 import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 import org.json.JSONException
@@ -53,10 +55,17 @@ internal class LocalGemmaRunner(
   private val callbackExecutor: Executor,
   private val announce: Consumer<String>,
 ) {
-  private class Job(val prompt: String, val jpeg: ByteArray?, val json: Boolean) {
+  private class Job(
+    val generation: Int,
+    val prompt: String,
+    val jpeg: ByteArray?,
+    val json: Boolean,
+  ) {
     val cancelled = AtomicBoolean(false)
   }
 
+  private val nextGeneration = AtomicInteger(0)
+  private val runningGeneration = AtomicInteger(0)
   private val pending = AtomicReference<Job?>(null)
 
   val hasPending: Boolean
@@ -78,9 +87,20 @@ internal class LocalGemmaRunner(
   }
 
   fun cancel() {
-    pending.get()?.let {
-      it.cancelled.set(true)
-      canceller.execute { activeLlm()?.cancel() }
+    pending.get()?.let { job ->
+      job.cancelled.set(true)
+      val targetGeneration = job.generation
+      val remoteRequestId = (activeLlm() as? RemoteLocalLlm)?.currentRequestId() ?: 0
+      canceller.execute {
+        if (runningGeneration.get() == targetGeneration) {
+          val active = activeLlm()
+          if (active is RemoteLocalLlm && remoteRequestId != 0) {
+            active.cancelIfCurrent(remoteRequestId)
+          } else {
+            active?.cancel()
+          }
+        }
+      }
     }
   }
 
@@ -95,6 +115,11 @@ internal class LocalGemmaRunner(
         report(job) {
           callback.onFailure(GeminiFailure.other("No on-device model is installed"))
         }
+        return
+      }
+      runningGeneration.set(job.generation)
+      if (job.cancelled.get()) {
+        report(job) { callback.onCancelled() }
         return
       }
       val raw = model.generate(job.prompt, job.jpeg)
@@ -124,7 +149,7 @@ internal class LocalGemmaRunner(
       LogUtils.w(TAG, "On-device AI failed: %s", e)
       report(job) { callback.onFailure(GeminiFailure.other(e.toString())) }
     } finally {
-      // Already cleared when a result was reported, unless something unexpected was thrown.
+      runningGeneration.compareAndSet(job.generation, 0)
       pending.compareAndSet(job, null)
     }
   }
@@ -153,7 +178,7 @@ internal class LocalGemmaRunner(
     val json =
       postData.optJSONObject("generationConfig")?.optString("responseMimeType") ==
         "application/json"
-    return Job(prompt, jpeg, json)
+    return Job(nextGeneration.incrementAndGet(), prompt, jpeg, json)
   }
 
   companion object {

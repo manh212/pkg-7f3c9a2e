@@ -42,6 +42,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -56,15 +57,18 @@ class InternalLiveRecognitionService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var source: InternalAudioSource? = null
     private var projection: MediaProjection? = null
-    private var client: GeminiLiveClient? = null
+    @Volatile private var client: GeminiLiveClient? = null
     private var player: StreamingPcmPlayer? = null
     private var sourceJob: Job? = null
     private var sendJob: Job? = null
+    private var reconnectJob: Job? = null
     private var queue: LinkedBlockingDeque<ByteArray>? = null
     private val droppedInputChunks = AtomicLong(0)
     private var voice = VOICE_GEMINI
     @Volatile private var active = false
-    private var connectionGeneration = 0
+    private val connectionLock = Any()
+    private val connectionGeneration = AtomicInteger(0)
+    private var reconnecting = false
     private var lastRawTranscript = ""
     private var reconnectAttempts = 0
     private var setupFailures = 0
@@ -149,92 +153,101 @@ class InternalLiveRecognitionService : Service() {
     }
 
     private fun connectGemini(key: String) {
-        if (!active) return
-        val generation = ++connectionGeneration
-        setupCompleted = false
-        val model = TRANSLATE_MODEL
-        val operation = GeminiLiveClient.OperationMode.TRANSLATE
-        val liveClient = GeminiLiveClient(
-            apiKey = key,
-            model = model,
-            targetLanguage = "vi",
-            echoTargetLanguage = false,
-            logger = logger,
-            resumeHandle = resumeHandle,
-            operationMode = operation,
-            transcriptPlacement = transcriptPlacement,
-            listener = object : GeminiLiveClient.Listener {
-                override fun onOpen() {
-                    if (active && generation == connectionGeneration) {
-                        LogUtils.i("SubtitleFlow", "Session socket opened; retry=%d", reconnectAttempts)
+        val generation: Int
+        val liveClient: GeminiLiveClient
+        synchronized(connectionLock) {
+            if (!active) return
+            reconnecting = false
+            reconnectJob?.cancel()
+            reconnectJob = null
+            client?.close(false)
+            client = null
+            generation = connectionGeneration.incrementAndGet()
+            setupCompleted = false
+            val model = TRANSLATE_MODEL
+            val operation = GeminiLiveClient.OperationMode.TRANSLATE
+            liveClient = GeminiLiveClient(
+                apiKey = key,
+                model = model,
+                targetLanguage = "vi",
+                echoTargetLanguage = false,
+                logger = logger,
+                resumeHandle = resumeHandle,
+                operationMode = operation,
+                transcriptPlacement = transcriptPlacement,
+                listener = object : GeminiLiveClient.Listener {
+                    override fun onOpen() {
+                        if (active && generation == connectionGeneration.get()) {
+                            LogUtils.i("SubtitleFlow", "Session socket opened; retry=%d", reconnectAttempts)
+                        }
                     }
-                }
-                @SuppressLint("NewApi")
-                override fun onSetupComplete() {
-                    if (!active || generation != connectionGeneration) return
-                    setupCompleted = true
-                    setupFailures = 0
-                    reconnectAttempts = 0
-                    LogUtils.i("SubtitleFlow", "Session setup complete")
-                    notifyStatus("Đang đọc phụ đề")
-                    if (source == null) launchSource() else source?.resume()
-                }
-
-                override fun onText(text: String) {
-                    if (!active || generation != connectionGeneration) return
-                    appendTranslation(text)
-                }
-
-                override fun onAudio(pcm24kMono: ByteArray) {
-                    if (!active || generation != connectionGeneration) return
-                    if (voice == VOICE_GEMINI) player?.enqueue(pcm24kMono)
-                }
-
-                override fun onInterrupted() {
-                    if (generation != connectionGeneration) return
-                    player?.flush()
-                    mainHandler.post {
-                        mainHandler.removeCallbacks(ttsFlush)
-                        ttsBuffer.clear()
-                        lastRawTranscript = ""
+                    @SuppressLint("NewApi")
+                    override fun onSetupComplete() {
+                        if (!active || generation != connectionGeneration.get()) return
+                        setupCompleted = true
+                        setupFailures = 0
+                        reconnectAttempts = 0
+                        LogUtils.i("SubtitleFlow", "Session setup complete")
+                        notifyStatus("Đang đọc phụ đề")
+                        if (source == null) launchSource() else source?.resume()
                     }
-                }
 
-                override fun onTurnComplete() {
-                    if (generation != connectionGeneration) return
-                    mainHandler.post {
-                        lastRawTranscript = ""
-                        flushTtsBuffer()
+                    override fun onText(text: String) {
+                        if (!active || generation != connectionGeneration.get()) return
+                        appendTranslation(text)
                     }
-                }
 
-                override fun onSessionResumptionUpdate(resumable: Boolean, newHandle: String?) {
-                    if (generation == connectionGeneration && resumable && !newHandle.isNullOrBlank()) {
-                        resumeHandle = newHandle
+                    override fun onAudio(pcm24kMono: ByteArray) {
+                        if (!active || generation != connectionGeneration.get()) return
+                        if (voice == VOICE_GEMINI) player?.enqueue(pcm24kMono)
                     }
-                }
 
-                override fun onGoAway(timeLeft: String?) {
-                    if (generation == connectionGeneration) reconnect(key)
-                }
-
-                override fun onError(error: Throwable) {
-                    if (generation != connectionGeneration) return
-                    val code = (error as? GeminiLiveClient.GeminiApiException)?.code ?: 0
-                    recordConnectionFailure("error", code, error.javaClass.simpleName)
-                    reconnect(key)
-                }
-
-                override fun onClosed(reason: String) {
-                    if (generation == connectionGeneration && active) {
-                        val code = reason.substringAfter("code=", "").toIntOrNull() ?: 0
-                        recordConnectionFailure("closed", code, "WebSocket")
-                        reconnect(key)
+                    override fun onInterrupted() {
+                        if (generation != connectionGeneration.get()) return
+                        player?.flush()
+                        mainHandler.post {
+                            mainHandler.removeCallbacks(ttsFlush)
+                            ttsBuffer.clear()
+                            lastRawTranscript = ""
+                        }
                     }
-                }
-            },
-        )
-        client = liveClient
+
+                    override fun onTurnComplete() {
+                        if (generation != connectionGeneration.get()) return
+                        mainHandler.post {
+                            lastRawTranscript = ""
+                            flushTtsBuffer()
+                        }
+                    }
+
+                    override fun onSessionResumptionUpdate(resumable: Boolean, newHandle: String?) {
+                        if (generation == connectionGeneration.get() && resumable && !newHandle.isNullOrBlank()) {
+                            resumeHandle = newHandle
+                        }
+                    }
+
+                    override fun onGoAway(timeLeft: String?) {
+                        if (generation == connectionGeneration.get()) reconnect(key, generation)
+                    }
+
+                    override fun onError(error: Throwable) {
+                        if (generation != connectionGeneration.get()) return
+                        val code = (error as? GeminiLiveClient.GeminiApiException)?.code ?: 0
+                        recordConnectionFailure("error", code, error.javaClass.simpleName)
+                        reconnect(key, generation)
+                    }
+
+                    override fun onClosed(reason: String) {
+                        if (generation == connectionGeneration.get() && active) {
+                            val code = reason.substringAfter("code=", "").toIntOrNull() ?: 0
+                            recordConnectionFailure("closed", code, "WebSocket")
+                            reconnect(key, generation)
+                        }
+                    }
+                },
+            )
+            client = liveClient
+        }
         liveClient.connect()
     }
 
@@ -271,7 +284,7 @@ class InternalLiveRecognitionService : Service() {
                         GeminiLiveClient.SendResult.SENT -> delivered = true
                         GeminiLiveClient.SendResult.BACKPRESSURED -> delay(12)
                         GeminiLiveClient.SendResult.NOT_READY,
-                        GeminiLiveClient.SendResult.CLOSED -> delay(30)
+                        GeminiLiveClient.SendResult.CLOSED -> break
                         GeminiLiveClient.SendResult.FAILED -> delay(50)
                     }
                 }
@@ -353,25 +366,30 @@ class InternalLiveRecognitionService : Service() {
     }
 
     @SuppressLint("NewApi")
-    private fun reconnect(key: String) {
-        if (!active) return
-        reconnectAttempts++
-        if (reconnectAttempts > 5) {
-            LogUtils.w("SubtitleFlow", "Session stopped after retries; setupFailures=%d", setupFailures)
-            announce("Không thể tiếp tục đọc phụ đề.")
-            stopSelf()
-            return
-        }
-        ++connectionGeneration
-        client?.close(false)
-        client = null
-        queue?.clear()
-        source?.pause()
-        scope.launch {
-            delay(minOf(1_000L * reconnectAttempts, 5_000L))
-            if (!active) return@launch
-            // Match the original source: resume capture only after Gemini setup completes.
-            connectGemini(key)
+    private fun reconnect(key: String, expectedGeneration: Int) {
+        synchronized(connectionLock) {
+            if (!active || reconnecting || expectedGeneration != connectionGeneration.get()) return
+            reconnecting = true
+            reconnectAttempts++
+            if (reconnectAttempts > 5) {
+                reconnecting = false
+                LogUtils.w("SubtitleFlow", "Session stopped after retries; setupFailures=%d", setupFailures)
+                announce("Không thể tiếp tục đọc phụ đề.")
+                stopSelf()
+                return
+            }
+            connectionGeneration.incrementAndGet()
+            client?.close(false)
+            client = null
+            queue?.clear()
+            source?.pause()
+            val delayMs = minOf(1_000L * reconnectAttempts, 5_000L)
+            reconnectJob?.cancel()
+            reconnectJob = scope.launch {
+                delay(delayMs)
+                if (!active) return@launch
+                connectGemini(key)
+            }
         }
     }
 
@@ -407,15 +425,20 @@ class InternalLiveRecognitionService : Service() {
         ttsBuffer.clear()
         // Do not erase a spoken startup/revocation error from the accessibility
         // queue. Explicit user STOP clears it in onStartCommand above.
-        connectionGeneration++
+        synchronized(connectionLock) {
+            reconnecting = false
+            reconnectJob?.cancel()
+            reconnectJob = null
+            connectionGeneration.incrementAndGet()
+            client?.close(false)
+            client = null
+        }
         source?.stop()
         source = null
         sourceJob?.cancel()
         sendJob?.cancel()
         queue?.clear()
         queue = null
-        client?.close(false)
-        client = null
         player?.stop()
         player = null
         runCatching { projection?.stop() }

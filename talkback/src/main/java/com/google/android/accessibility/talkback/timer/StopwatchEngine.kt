@@ -24,6 +24,8 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.text.format.DateFormat
 import com.google.android.accessibility.utils.output.VibrationIntensity
+import android.os.Build
+import android.os.SystemClock
 import android.os.Vibrator
 import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
@@ -52,7 +54,12 @@ class StopwatchEngine(
   private val alarmReceiver =
     object : BroadcastReceiver() {
       override fun onReceive(receiverContext: Context, intent: Intent) {
-        if (intent.action == alarmAction()) onReminder()
+        when (intent.action) {
+          alarmAction() -> onReminder()
+          Intent.ACTION_TIME_CHANGED,
+          Intent.ACTION_TIMEZONE_CHANGED,
+          AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> schedule()
+        }
       }
     }
   private var started = false
@@ -69,7 +76,14 @@ class StopwatchEngine(
     ContextCompat.registerReceiver(
       context,
       alarmReceiver,
-      IntentFilter(alarmAction()),
+      IntentFilter().apply {
+        addAction(alarmAction())
+        addAction(Intent.ACTION_TIME_CHANGED)
+        addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          addAction(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)
+        }
+      },
       ContextCompat.RECEIVER_NOT_EXPORTED,
     )
     prefs.registerOnSharedPreferenceChangeListener(settingsListener)
@@ -98,20 +112,34 @@ class StopwatchEngine(
     if (!Stopwatch.isRunning(context)) return
     if (Stopwatch.isPaused(context)) {
       val now = System.currentTimeMillis()
+      val elapsedNow = SystemClock.elapsedRealtime()
       val pausedAt = prefs.getLong(Stopwatch.KEY_PAUSED_AT, 0)
-      prefs
-        .edit()
-        .putLong(
-          Stopwatch.KEY_PAUSED_TOTAL,
-          prefs.getLong(Stopwatch.KEY_PAUSED_TOTAL, 0) + (now - pausedAt).coerceAtLeast(0),
+      val pausedElapsedAt = prefs.getLong(Stopwatch.KEY_PAUSED_ELAPSED_AT, 0)
+      val editor =
+        prefs
+          .edit()
+          .putLong(
+            Stopwatch.KEY_PAUSED_TOTAL,
+            prefs.getLong(Stopwatch.KEY_PAUSED_TOTAL, 0) + (now - pausedAt).coerceAtLeast(0),
+          )
+          .putLong(Stopwatch.KEY_PAUSED_AT, 0)
+          .putLong(Stopwatch.KEY_PAUSED_ELAPSED_AT, 0)
+      if (pausedElapsedAt > 0 && elapsedNow >= pausedElapsedAt) {
+        editor.putLong(
+          Stopwatch.KEY_PAUSED_ELAPSED_TOTAL,
+          prefs.getLong(Stopwatch.KEY_PAUSED_ELAPSED_TOTAL, 0) + (elapsedNow - pausedElapsedAt),
         )
-        .putLong(Stopwatch.KEY_PAUSED_AT, 0)
-        .apply()
+      }
+      editor.apply()
       say(context.getString(R.string.stopwatch_resumed), false)
       schedule()
       announceLatestMilestone()
     } else {
-      prefs.edit().putLong(Stopwatch.KEY_PAUSED_AT, System.currentTimeMillis()).apply()
+      prefs
+        .edit()
+        .putLong(Stopwatch.KEY_PAUSED_AT, System.currentTimeMillis())
+        .putLong(Stopwatch.KEY_PAUSED_ELAPSED_AT, SystemClock.elapsedRealtime())
+        .apply()
       alarms?.let { cancelAlarm(it) }
       say(context.getString(R.string.stopwatch_paused), false)
     }
@@ -138,9 +166,12 @@ class StopwatchEngine(
     prefs
       .edit()
       .putLong(Stopwatch.KEY_STARTED_AT, System.currentTimeMillis())
+      .putLong(Stopwatch.KEY_STARTED_ELAPSED, SystemClock.elapsedRealtime())
       .putLong(Stopwatch.KEY_LAST_ANNOUNCED, 0)
       .putLong(Stopwatch.KEY_PAUSED_AT, 0)
+      .putLong(Stopwatch.KEY_PAUSED_ELAPSED_AT, 0)
       .putLong(Stopwatch.KEY_PAUSED_TOTAL, 0)
+      .putLong(Stopwatch.KEY_PAUSED_ELAPSED_TOTAL, 0)
       .apply()
     signal(R.raw.chime_up)
     say(context.getString(R.string.stopwatch_started), false)
@@ -153,9 +184,12 @@ class StopwatchEngine(
     prefs
       .edit()
       .putLong(Stopwatch.KEY_STARTED_AT, 0)
+      .putLong(Stopwatch.KEY_STARTED_ELAPSED, 0)
       .putLong(Stopwatch.KEY_LAST_ANNOUNCED, 0)
       .putLong(Stopwatch.KEY_PAUSED_AT, 0)
+      .putLong(Stopwatch.KEY_PAUSED_ELAPSED_AT, 0)
       .putLong(Stopwatch.KEY_PAUSED_TOTAL, 0)
+      .putLong(Stopwatch.KEY_PAUSED_ELAPSED_TOTAL, 0)
       .apply()
     alarms?.let { cancelAlarm(it) }
     if (startedAt > 0 && duration >= MIN_HISTORY_MS) {

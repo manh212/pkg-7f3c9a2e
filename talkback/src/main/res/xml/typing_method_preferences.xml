@@ -29,7 +29,7 @@
         app:singleLineTitle="false"/>
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
-  <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+  <com.google.android.accessibility.talkback.vietnameseime.MillisecondsSeekBarPreference
       android:defaultValue="100"
       android:key="@string/pref_direct_input_tap_delay_key"
       android:max="300"

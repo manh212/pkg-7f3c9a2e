@@ -86,6 +86,7 @@ public class PermissionRequestActivity extends FragmentActivity {
     broadcastIntent.setAction(ACTION_DONE);
     broadcastIntent.putExtra(PERMISSIONS, permissions);
     broadcastIntent.putExtra(GRANT_RESULTS, grantResults);
+    broadcastIntent.setPackage(getPackageName());
     sendBroadcast(broadcastIntent);
   }
 

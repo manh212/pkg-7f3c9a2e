@@ -325,7 +325,7 @@ public class TextEventInterpreter {
 
     // Display interpretation, seal interpretation.
     interpretation.setReadOnly();
-    LogUtils.i(TAG, "interpretation: %s", interpretation);
+    LogUtils.v(TAG, "interpretation: %s", interpretation);
     return interpretation;
   }
 

@@ -64,6 +64,7 @@ class LuaEngine(private val host: Host, private val withJava: Boolean) : Closeab
 
   /** The allocator's budget for the state, or 0 when there is none. */
   private var memory = 0L
+  private var memoryLimitBytes = 0L
 
   val isClosed: Boolean
     get() = lua == null
@@ -73,6 +74,7 @@ class LuaEngine(private val host: Host, private val withJava: Boolean) : Closeab
   fun start(prelude: String, memoryLimitBytes: Long) {
     val state = open()
     synchronized(state.mainState) {
+      this.memoryLimitBytes = memoryLimitBytes
       if (!withJava) {
         memory = LuaMemory.attach(state.pointer, memoryLimitBytes)
         if (memory == 0L && LuaMemory.isAvailable) {
@@ -179,8 +181,29 @@ class LuaEngine(private val host: Host, private val withJava: Boolean) : Closeab
     return ByteBuffer.allocateDirect(bytes.size).put(bytes).also { it.flip() }
   }
 
-  private fun pushText(state: Lua, text: String) {
-    state.push(utf8(text))
+  private fun usedMemoryBytes(state: Lua): Long {
+    val top = state.top
+    return try {
+      state.getGlobal("collectgarbage")
+      state.push("count")
+      state.pCall(1, 1)
+      (state.toNumber(-1) * 1024.0).toLong()
+    } catch (_: LuaException) {
+      0L
+    } finally {
+      state.top = top
+    }
+  }
+
+  private fun pushText(state: Lua, text: String, enforceBudget: Boolean = true) {
+    val bytes = text.toByteArray()
+    if (enforceBudget && memoryLimitBytes > 0L) {
+      val remaining = memoryLimitBytes - usedMemoryBytes(state)
+      if (bytes.size.toLong() > remaining) {
+        throw ScriptError(OUT_OF_MEMORY, interrupted = true)
+      }
+    }
+    state.push(ByteBuffer.allocateDirect(bytes.size).put(bytes).also { it.flip() })
   }
 
   private fun readText(state: Lua, index: Int): String? {
@@ -198,16 +221,19 @@ class LuaEngine(private val host: Host, private val withJava: Boolean) : Closeab
   private fun call(state: Lua): Int {
     val method = readText(state, 1).orEmpty()
     val json = if (state.isString(2)) readText(state, 2) else null
+    val top = state.top
     try {
       val result = host.call(method, json)
       state.push(true)
       if (result == null) state.pushNil() else pushText(state, result)
     } catch (e: ScriptError) {
+      state.top = top
       state.push(false)
-      pushText(state, e.message.orEmpty())
+      pushText(state, e.message.orEmpty(), enforceBudget = false)
     } catch (e: RuntimeException) {
+      state.top = top
       state.push(false)
-      pushText(state, e.message ?: e.toString())
+      pushText(state, e.message ?: e.toString(), enforceBudget = false)
     }
     return 2
   }

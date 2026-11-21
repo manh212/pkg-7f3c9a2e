@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.scripting
 
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.MalformedURLException
@@ -25,11 +26,14 @@ import java.util.concurrent.Future
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import org.json.JSONObject
 
 object ScriptFetch {
   private const val MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+  private const val MAX_TOTAL_INFLIGHT_BYTES = 4L * 1024 * 1024
   private const val MAX_BODY_CHARS = 1024 * 1024
+  private val inflightBytes = AtomicLong(0L)
   private const val DEFAULT_TIMEOUT_MS = 30_000
   private const val MAX_TIMEOUT_MS = 60_000
   private val METHODS = setOf("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS")
@@ -88,31 +92,61 @@ object ScriptFetch {
         )
     }
 
-  private fun HttpURLConnection.send(request: Request): JSONObject {
-    requestMethod = request.method
-    connectTimeout = request.timeoutMs
-    readTimeout = request.timeoutMs
-    useCaches = false
-    request.headers.forEach { (key, value) -> setRequestProperty(key, value) }
-    request.body?.let { body ->
-      doOutput = true
-      outputStream.use { it.write(body) }
+  private fun reserveInflight(delta: Long): Boolean {
+    while (true) {
+      val current = inflightBytes.get()
+      if (current + delta > MAX_TOTAL_INFLIGHT_BYTES) return false
+      if (inflightBytes.compareAndSet(current, current + delta)) return true
     }
-    val status = responseCode
-    val stream = if (status >= 400) errorStream else inputStream
-    val bytes = stream?.use { it.readAtMost(MAX_RESPONSE_BYTES + 1) } ?: ByteArray(0)
-    if (bytes.size > MAX_RESPONSE_BYTES) throw IOException("The response is larger than 5 MB")
-    val headers =
-      headerFields.entries
-        .filter { it.key != null }
-        .associate { (key, values) -> key.lowercase() to values.joinToString(", ") }
-    return jsonObject(
-      "status" to status,
-      "statusText" to responseMessage.orEmpty(),
-      "url" to url.toString(),
-      "headers" to JSONObject(headers),
-      "body" to String(bytes, charsetOf(contentType)),
-    )
+  }
+
+  private fun HttpURLConnection.send(request: Request): JSONObject {
+    var reserved = 0L
+    try {
+      val bodySize = request.body?.size?.toLong() ?: 0L
+      if (bodySize > 0L) {
+        if (!reserveInflight(bodySize)) throw IOException("Too much network data in flight")
+        reserved += bodySize
+      }
+      requestMethod = request.method
+      connectTimeout = request.timeoutMs
+      readTimeout = request.timeoutMs
+      useCaches = false
+      request.headers.forEach { (key, value) -> setRequestProperty(key, value) }
+      request.body?.let { body ->
+        doOutput = true
+        outputStream.use { it.write(body) }
+      }
+      val status = responseCode
+      val stream = if (status >= 400) errorStream else inputStream
+      val bytes =
+        stream?.use { input ->
+          val out = ByteArrayOutputStream()
+          val buffer = ByteArray(16 * 1024)
+          while (out.size() <= MAX_RESPONSE_BYTES) {
+            val read = input.read(buffer, 0, minOf(buffer.size, MAX_RESPONSE_BYTES + 1 - out.size()))
+            if (read < 0) break
+            if (!reserveInflight(read.toLong())) throw IOException("Too much network data in flight")
+            reserved += read.toLong()
+            out.write(buffer, 0, read)
+          }
+          out.toByteArray()
+        } ?: ByteArray(0)
+      if (bytes.size > MAX_RESPONSE_BYTES) throw IOException("The response is larger than 5 MB")
+      val headers =
+        headerFields.entries
+          .filter { it.key != null }
+          .associate { (key, values) -> key.lowercase() to values.joinToString(", ") }
+      return jsonObject(
+        "status" to status,
+        "statusText" to responseMessage.orEmpty(),
+        "url" to url.toString(),
+        "headers" to JSONObject(headers),
+        "body" to String(bytes, charsetOf(contentType)),
+      )
+    } finally {
+      if (reserved > 0L) inflightBytes.addAndGet(-reserved)
+    }
   }
 
   private fun charsetOf(contentType: String?): Charset =

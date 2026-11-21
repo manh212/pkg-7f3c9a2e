@@ -57,6 +57,7 @@ public abstract class IpcClient implements ServiceConnection {
   private final Messenger clientMessenger;
   // To send messages to IpcService.
   private @Nullable Messenger serviceMessenger;
+  private boolean isBound = false;
 
   public IpcClient(Context context) {
     this.context = context;
@@ -76,28 +77,32 @@ public abstract class IpcClient implements ServiceConnection {
 
   /** Establishes a connection with {@link IpcService}. */
   public void bindService() {
-    if (serviceMessenger != null) {
+    if (isBound || serviceMessenger != null) {
       return;
     }
 
-    context.bindService(new Intent(context, IpcService.class), this, Context.BIND_AUTO_CREATE);
+    isBound =
+        context.bindService(new Intent(context, IpcService.class), this, Context.BIND_AUTO_CREATE);
   }
 
   /** Finishes the connection with {@link IpcService}. */
   public void unbindService() {
-    if (serviceMessenger == null) {
-      return;
+    if (serviceMessenger != null) {
+      sendMessage(Message.obtain(/* h= */ null, MSG_ON_CLIENT_DISCONNECTED));
     }
-
-    context.unbindService(this);
-    // The method of unbindService won't necessarily trigger onServiceDisconnected.
-    sendMessage(Message.obtain(/* h= */ null, MSG_ON_CLIENT_DISCONNECTED));
+    if (isBound) {
+      context.unbindService(this);
+      isBound = false;
+    }
     serviceMessenger = null;
   }
 
   /** Called when the connection with service has been established. */
   @Override
   public void onServiceConnected(ComponentName name, IBinder binder) {
+    if (!isBound) {
+      return;
+    }
     serviceMessenger = new Messenger(binder);
     sendMessage(Message.obtain(/* h= */ null, MSG_ON_CLIENT_CONNECTED));
   }
@@ -105,7 +110,6 @@ public abstract class IpcClient implements ServiceConnection {
   /** Called when the service has crashed or been killed. */
   @Override
   public final void onServiceDisconnected(ComponentName name) {
-    sendMessage(Message.obtain(/* h= */ null, MSG_ON_CLIENT_DISCONNECTED));
     serviceMessenger = null;
   }
 

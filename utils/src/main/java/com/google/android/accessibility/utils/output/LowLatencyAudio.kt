@@ -263,18 +263,18 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private val compressor: SpeechCompressor.Settings?,
     private val listener: StreamListener,
   ) {
-    private var resampler: SincResampler? = null
+    @Volatile private var resampler: SincResampler? = null
     private val decodeLock = Any()
     private val convertOutsideLock = LatencyExperiments.Feature.AUDIO_RESAMPLE.enabled()
     private var soundStarted = false
     private var filter: SpeechEqualizer.Filter? = null
     private var compressorFilter: SpeechCompressor.Filter? = null
-    private var inChannels = 1
+    @Volatile private var inChannels = 1
     private var inRate = 0
     private var inFrames = 0L
     private var heardSound = false
     private var reportedSilent = false
-    private var inEncoding = AudioFormat.ENCODING_PCM_16BIT
+    @Volatile private var inEncoding = AudioFormat.ENCODING_PCM_16BIT
     private val pending = ArrayDeque<FloatArray>()
     private var headOffset = 0
     private var framesWritten = 0L
@@ -286,7 +286,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       listener.onAudioSubmitted(id, uptimeMs)
     }
     private var ended = false
-    private var finished = false
+    @Volatile private var finished = false
     // When the engine last gave this stream anything, or it reached the front of the queue.
     private var lastActivity = SystemClock.uptimeMillis()
     // When this stream reached the front of the queue, or 0 before.
@@ -327,15 +327,20 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
 
     /** A piece of the engine's audio. */
     fun write(audio: ByteArray) {
-      if (resampler == null || finished) return
+      val initialResampler = resampler
+      if (initialResampler == null || finished) return
+      val encoding = inEncoding
+      val channels = inChannels
       val availableAt = SystemClock.uptimeMillis()
       val samples = AudioDecoder.FloatList()
-      AudioDecoder.toFloats(ByteBuffer.wrap(audio), inEncoding, samples)
+      AudioDecoder.toFloats(ByteBuffer.wrap(audio), encoding, samples)
       val floats = samples.toArray()
       val hasSound = floats.any { it != 0f }
       val firstSound = if (convertOutsideLock) {
         synchronized(decodeLock) {
-          val converted = resampler?.let { toStereo(filtered(it.process(floats)), inChannels) } ?: return
+          val current = resampler ?: return
+          if (finished) return
+          val converted = toStereo(filtered(current.process(floats)), channels)
           synchronized(lock) { appendDecoded(floats, converted, hasSound) }
         }
       } else {

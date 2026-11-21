@@ -76,6 +76,7 @@ internal constructor(
   ) {
     var result: CharSequence? = null
     var dropped = false
+    var cancelTask: (() -> Unit)? = null
     val done: Boolean
       get() = result != null || dropped
 
@@ -104,23 +105,26 @@ internal constructor(
     val held =
       Held(text, queueMode and SpeechController.QUEUE_MODE_BIT_UNINTERRUPTIBLE_BY_NEW_SPEECH != 0, release)
     pending.addLast(held)
-    process(text, notification = false) { held.ready(it) }
+    held.cancelTask = process(text, notification = false) { held.ready(it) }
     return true
   }
 
-  private fun process(text: CharSequence, notification: Boolean, done: (CharSequence) -> Unit) {
+  private fun process(text: CharSequence, notification: Boolean, done: (CharSequence) -> Unit): () -> Unit {
     if (!canUseFeature("translation")) {
       done(text)
-      return
+      return {}
     }
     val plain = text.toString()
     var finished = false
+    var activeHandle: Translator.RequestHandle? = null
     val timeout =
       object : Runnable {
         override fun run() {
           inFlight.remove(this)
           if (!finished) {
             finished = true
+            activeHandle?.cancel()
+            activeHandle = null
             done(text)
           }
         }
@@ -130,10 +134,23 @@ internal constructor(
         finished = true
         handler.removeCallbacks(timeout)
         inFlight.remove(timeout)
+        activeHandle = null
         done(result)
       }
     }
-    if (letters(plain) < MIN_LETTERS) return finish(text)
+    val cancel = {
+      if (!finished) {
+        finished = true
+        handler.removeCallbacks(timeout)
+        inFlight.remove(timeout)
+        activeHandle?.cancel()
+        activeHandle = null
+      }
+    }
+    if (letters(plain) < MIN_LETTERS) {
+      finish(text)
+      return {}
+    }
     inFlight += timeout
     handler.postDelayed(timeout, MAX_WAIT_MS)
     val waitForDownload = {
@@ -142,23 +159,30 @@ internal constructor(
       Unit
     }
     val withLanguage = { detection: Detection? ->
-      if (detection != null && translates(detection.language)) {
-        translate(plain, detection, notification, waitForDownload) { finish(it ?: text) }
-      } else {
-        finish(text)
+      if (!finished) {
+        if (detection != null && translates(detection.language)) {
+          activeHandle = translate(plain, detection, notification, waitForDownload) { finish(it ?: text) }
+        } else {
+          finish(text)
+        }
       }
     }
     val known = languages.get(plain)
-    if (known != null) return withLanguage(known)
+    if (known != null) {
+      withLanguage(known)
+      return cancel
+    }
     engine.detect(plain) { detection ->
       if (detection != null) languages.put(plain, detection)
       if (!finished) withLanguage(detection)
     }
+    return cancel
   }
 
   @VisibleForTesting
-  internal fun translateNotification(text: CharSequence, done: (CharSequence) -> Unit) =
+  internal fun translateNotification(text: CharSequence, done: (CharSequence) -> Unit) {
     process(text, notification = true, done)
+  }
 
   private fun translates(language: String): Boolean {
     if (language == NO_LANGUAGE) return false
@@ -174,12 +198,15 @@ internal constructor(
     notification: Boolean,
     waitForDownload: () -> Unit,
     done: (CharSequence?) -> Unit,
-  ) {
+  ): Translator.RequestHandle {
     val from = detection.language
     val service = TranslationSettings.autoService(prefs, engine.onDeviceAvailable)
     val to = TranslationSettings.target(prefs)
     val key = translationKey(service, from, to, text)
-    translations.get(key)?.let { return done(translated(text, it, to)) }
+    translations.get(key)?.let {
+      done(translated(text, it, to))
+      return Translator.RequestHandle {}
+    }
     val downloads =
       when {
         !downloadsFor(text, detection) -> Translator.Downloads.NONE
@@ -187,7 +214,7 @@ internal constructor(
         else -> Translator.Downloads.START
       }
     val onDownloaded = { if (!closed && lastSeen == text) sayAgain(text, from) }
-    engine.translate(text, service, from, to, downloads, onDownloaded) { result ->
+    return engine.translateCancellable(text, service, from, to, downloads, onDownloaded) { result ->
       when (result) {
         is Translator.Result.Done -> {
           translations.put(key, result.translation.text)
@@ -253,6 +280,8 @@ internal constructor(
     pending.removeAll { !it.uninterruptible }
     for (held in dropped) {
       held.dropped = true
+      held.cancelTask?.invoke()
+      held.cancelTask = null
       held.release.accept(null)
     }
     releaseReady()
@@ -288,6 +317,8 @@ internal constructor(
     val held = pending.toList()
     pending.clear()
     for (item in held) {
+      item.cancelTask?.invoke()
+      item.cancelTask = null
       if (!item.dropped) item.release.accept(item.result ?: item.text)
       item.dropped = true
     }
@@ -312,6 +343,19 @@ internal constructor(
       onDownloaded: () -> Unit,
       done: (Translator.Result) -> Unit,
     )
+
+    fun translateCancellable(
+      text: String,
+      service: TranslationService,
+      from: String,
+      to: String,
+      downloads: Translator.Downloads,
+      onDownloaded: () -> Unit,
+      done: (Translator.Result) -> Unit,
+    ): Translator.RequestHandle {
+      translate(text, service, from, to, downloads, onDownloaded, done)
+      return Translator.RequestHandle {}
+    }
 
     fun speak(text: CharSequence, history: Boolean)
 
@@ -365,7 +409,20 @@ internal constructor(
       downloads: Translator.Downloads,
       onDownloaded: () -> Unit,
       done: (Translator.Result) -> Unit,
-    ) = translator.translateNow(text, service, from, to, downloads, onDownloaded, done)
+    ) {
+      translator.translateNow(text, service, from, to, downloads, onDownloaded, done)
+    }
+
+    override fun translateCancellable(
+      text: String,
+      service: TranslationService,
+      from: String,
+      to: String,
+      downloads: Translator.Downloads,
+      onDownloaded: () -> Unit,
+      done: (Translator.Result) -> Unit,
+    ): Translator.RequestHandle =
+      translator.translateNow(text, service, from, to, downloads, onDownloaded, done)
 
     override fun speak(text: CharSequence, history: Boolean) {
       val flags = if (history) 0 else FeedbackItem.FLAG_FORCE_FEEDBACK_ALL or FeedbackItem.FLAG_NO_HISTORY

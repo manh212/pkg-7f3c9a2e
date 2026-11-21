@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -60,11 +61,11 @@ class CountdownAlarmEngine(
     object : BroadcastReceiver() {
       override fun onReceive(receiverContext: Context, intent: Intent) {
         when (intent.action) {
-          alarmAction() -> {
+          alarmAction(), Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
             fireDue()
             schedule()
           }
-          Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> schedule()
+          AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> schedule()
         }
       }
     }
@@ -105,6 +106,9 @@ class CountdownAlarmEngine(
         addAction(alarmAction())
         addAction(Intent.ACTION_TIME_CHANGED)
         addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          addAction(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)
+        }
       },
       ContextCompat.RECEIVER_NOT_EXPORTED,
     )

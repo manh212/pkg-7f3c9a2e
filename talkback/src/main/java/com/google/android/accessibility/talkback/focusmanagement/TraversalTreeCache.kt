@@ -613,23 +613,19 @@ object TraversalTreeCache {
           scrolledAwayForward,
         )
       if (target >= 0) {
-        // The swipe searches on from the node next to the item in the order, so it lands on the
-        // item; past either end of the order, it searches from the window's root.
-        return nodes.getOrNull(if (scrolledAwayForward) target - 1 else target + 1)
+        if (forward) {
+          return nodes.getOrNull(target - 1)
+        }
+        return nodes.getOrNull(target + 1) ?: nodes.getOrNull(target)
       }
-      if (!scrolledAwayForward) {
-        // The item before the one scrolled away ends at the place; a swipe back from the first
-        // node below it lands there.
-        for (node in order.dumpTree()) {
-          if (node.windowId != lastPivotWindowId) {
-            continue
-          }
+      if (!forward) {
+        for (node in nodes) {
           node.getBoundsInScreen(bounds)
           if (bounds.top >= place) {
             return node
           }
         }
-        return null
+        return nodes.lastOrNull()
       }
       return lastNodeAbove(order, place, bounds)
     }

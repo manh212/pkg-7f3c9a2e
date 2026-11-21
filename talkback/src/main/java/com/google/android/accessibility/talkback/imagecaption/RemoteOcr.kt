@@ -195,6 +195,7 @@ object RemoteOcr {
         connected
       }
     if (!latch.await(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+      unbind()
       throw IllegalStateException("The OCR service did not start")
     }
     return synchronized(lock) {

@@ -73,8 +73,7 @@ class RemoteLocalLlm(
   // Counts the times this has bound, so that a request is failed only when its own process stops.
   private var binding = 0
   private var connected = CountDownLatch(1)
-  @Volatile private var currentId = 0
-  @Volatile private var cancelRequested = false
+  private val activeRequestId = AtomicInteger(0)
   private val unbindIdle = Runnable { unbind() }
 
   private val connection =
@@ -99,11 +98,10 @@ class RemoteLocalLlm(
     }
 
   override fun generate(prompt: String, jpeg: ByteArray?): String {
-    cancelRequested = false
     main.removeCallbacks(unbindIdle)
     val id = NEXT_ID.incrementAndGet()
     val future = pending.add(id)
-    currentId = id
+    activeRequestId.set(id)
     var imageFile: File? = null
     try {
       val (messenger, sentOn) = connect()
@@ -124,8 +122,8 @@ class RemoteLocalLlm(
       }
       // When that process already stopped, no answer will come.
       if (!pending.sent(id, sentOn)) throw stopped()
+      if (future.isDone) throw LocalLlmCancelledException()
       messenger.send(request)
-      if (cancelRequested) cancel()
       val reply = future.get()
       return when (reply.what) {
         LocalModelService.MSG_ANSWER -> reply.text.orEmpty()
@@ -142,17 +140,26 @@ class RemoteLocalLlm(
       throw LocalLlmException(e.cause?.message ?: "The on-device model failed", e)
     } finally {
       pending.remove(id)
-      currentId = 0
+      activeRequestId.compareAndSet(id, 0)
       imageFile?.delete()
       main.postDelayed(unbindIdle, IDLE_UNBIND_MS)
     }
   }
 
+  fun currentRequestId(): Int = activeRequestId.get()
+
+  fun cancelIfCurrent(expectedId: Int) {
+    if (expectedId == 0 || activeRequestId.get() != expectedId) return
+    cancelId(expectedId)
+  }
+
   override fun cancel() {
-    cancelRequested = true
-    val id = currentId
+    val id = activeRequestId.get()
     if (id == 0) return
-    // Let Backtalk go on at once. The service drops the answer when it comes.
+    cancelId(id)
+  }
+
+  private fun cancelId(id: Int) {
     pending.complete(id, Reply(LocalModelService.MSG_CANCELLED, null))
     val messenger = synchronized(lock) { service } ?: return
     try {
@@ -197,6 +204,7 @@ class RemoteLocalLlm(
         connected
       }
     if (!latch.await(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+      unbind()
       throw LocalLlmException("On-device AI did not start")
     }
     return synchronized(lock) { service?.let { it to binding } } ?: throw stopped()

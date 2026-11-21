@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
 import android.text.InputType
+import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -153,15 +154,15 @@ object CountdownAlarmDialogs {
   ): EditText {
     val edit =
       EditText(context).apply {
-        id = android.view.View.generateViewId()
+        id = View.generateViewId()
         this.inputType = inputType
         isSingleLine = true
-        hint = context.getString(labelResource)
       }
     layout.addView(
       TextView(context).apply {
         text = context.getString(labelResource)
         labelFor = edit.id
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
       }
     )
     layout.addView(edit)

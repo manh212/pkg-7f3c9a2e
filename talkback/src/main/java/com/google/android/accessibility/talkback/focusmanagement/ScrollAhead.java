@@ -58,6 +58,8 @@ public final class ScrollAhead {
   /** Least height of the focused item that must stay on screen after a page, in dp. */
   private static final int MIN_REMAIN_DP = 48;
 
+  private static final long TOUCH_CANCEL_GRACE_MS = 300;
+
   private static volatile boolean enabled = true;
 
   /** The scroll ahead of the service running now, for its events. */
@@ -93,6 +95,10 @@ public final class ScrollAhead {
 
   /** The scroll action count once the last page started; another scroll since spoils its distance. */
   private int actionCountAtPage;
+
+  private @Nullable AccessibilityNodeInfoCompat recentlyCancelledFocused;
+  private boolean recentlyCancelledForward = true;
+  private long recentlyCancelledUptime;
 
   ScrollAhead(FocusProcessorForLogicalNavigation navigation) {
     this.navigation = navigation;
@@ -144,9 +150,10 @@ public final class ScrollAhead {
             cleared == null ? null : AccessibilityNodeInfoCompat.wrap(cleared));
         scrollAhead.cancel(AccessibilityEvent.eventTypeToString(event.getEventType()));
       }
-      case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-          AccessibilityEvent.TYPE_TOUCH_INTERACTION_START ->
+      case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ->
           scrollAhead.cancel(AccessibilityEvent.eventTypeToString(event.getEventType()));
+      case AccessibilityEvent.TYPE_TOUCH_INTERACTION_START ->
+          scrollAhead.cancel(AccessibilityEvent.eventTypeToString(event.getEventType()), true);
       default -> {}
     }
   }
@@ -178,31 +185,35 @@ public final class ScrollAhead {
    * page has moved it off screen. Swipes and keys stop scrolling ahead before they move focus.
    */
   private void onFocusCleared(@Nullable AccessibilityNodeInfoCompat cleared) {
-    // Focus cleared from another node, such as one TalkBack moved focus from, says nothing of the
-    // focused item.
     if (focused != null && pages > 0 && (cleared == null || cleared.equals(focused))) {
-      noteScrolledAway(focused);
+      noteScrolledAway(focused, forward);
+      clearRecentlyCancelled();
+      return;
     }
+    if (recentlyCancelledFocused != null
+        && pages > 0
+        && SystemClock.uptimeMillis() - recentlyCancelledUptime <= TOUCH_CANCEL_GRACE_MS
+        && (cleared == null || cleared.equals(recentlyCancelledFocused))) {
+      noteScrolledAway(recentlyCancelledFocused, recentlyCancelledForward);
+    }
+    clearRecentlyCancelled();
   }
 
-  private void noteScrolledAway(AccessibilityNodeInfoCompat node) {
+  private void noteScrolledAway(AccessibilityNodeInfoCompat node, boolean scrollForward) {
     Rect bounds = pageItemBounds;
     AccessibilityNodeInfoCompat list = pageList;
     if (bounds == null || list == null) {
       return;
     }
-    // With deltas in pixels, an item that the page left on screen lost focus because the app drew
-    // it again, not because it left: ensure-focus finds it, and the page was right.
     int shift = FocusProcessorForLogicalNavigation.scrollDeltaSumY() - deltaSumAtScroll;
     if (stillOnScreenAfter(bounds, shift, pageListBounds)) {
       LogUtils.d(TAG, "The focused item at %s lost focus on screen after the page.", bounds);
       return;
     }
     LogUtils.i(TAG, "The page moved the focused item at %s off screen.", bounds);
-    // The page was planned to leave a part of the item on screen, so it was longer than learned.
     FocusProcessorForLogicalNavigation.distrustPage(list);
     TraversalTreeCache.rememberScrolledAway(
-        node.getWindowId(), bounds, pageListBounds, deltaSumAtScroll, forward);
+        node.getWindowId(), bounds, pageListBounds, deltaSumAtScroll, scrollForward);
   }
 
   /** The least shift, in pixels, taken as scroll deltas in pixels rather than Compose's 1 each. */
@@ -225,12 +236,30 @@ public final class ScrollAhead {
   }
 
   private void cancel(String reason) {
+    cancel(reason, false);
+  }
+
+  private void cancel(String reason, boolean preserveForTouch) {
     if (focused != null && pages > 0) {
       LogUtils.d(TAG, "Stopped scrolling ahead after %d pages: %s.", pages, reason);
+      if (preserveForTouch) {
+        recentlyCancelledFocused = focused;
+        recentlyCancelledForward = forward;
+        recentlyCancelledUptime = SystemClock.uptimeMillis();
+      } else {
+        clearRecentlyCancelled();
+      }
+    } else if (!preserveForTouch) {
+      clearRecentlyCancelled();
     }
     handler.removeCallbacksAndMessages(null);
     focused = null;
     scrolledList = null;
+  }
+
+  private void clearRecentlyCancelled() {
+    recentlyCancelledFocused = null;
+    recentlyCancelledUptime = 0;
   }
 
   /** Scrolls a page once the list has stopped, until the next item is on screen. */
@@ -273,7 +302,7 @@ public final class ScrollAhead {
     if (!node.refresh() || (pages > 0 && !node.isVisibleToUser())) {
       if (pages > 0) {
         LogUtils.d(TAG, "Stopped scrolling ahead after %d pages: the focused item left.", pages);
-        noteScrolledAway(node);
+        noteScrolledAway(node, forward);
       }
       focused = null;
       return;

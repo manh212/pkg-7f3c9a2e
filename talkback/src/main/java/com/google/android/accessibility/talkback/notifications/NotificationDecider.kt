@@ -206,7 +206,6 @@ class NotificationDecider(private val memory: RepeatMemory = RepeatMemory()) {
     val repeatKey =
       info.packageName + "\u0000" + if (settings.numbersAlike) NotificationText.withoutNumbers(text) else text
     val seen = memory.seenAt(repeatKey)
-    memory.noteSeen(repeatKey, nowMillis)
     if (seen != null && settings.repeatSeconds != 0) {
       val within = settings.repeatSeconds < 0 || nowMillis - seen < settings.repeatSeconds * 1000L
       if (within) return skip(Outcome.REPEAT)
@@ -218,6 +217,7 @@ class NotificationDecider(private val memory: RepeatMemory = RepeatMemory()) {
       return skip(Outcome.COOLDOWN)
     }
 
+    memory.noteSeen(repeatKey, nowMillis)
     var said = text
     if (settings.skipRepeatedPrefix && !private) {
       memory.spoken(info.packageName)?.let { (previous, at) ->

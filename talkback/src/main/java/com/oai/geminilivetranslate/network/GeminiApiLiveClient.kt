@@ -62,9 +62,11 @@ internal class GeminiApiLiveClient(
             .scheme("https")
             .host(HOST)
             .addPathSegments("ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent")
-            .addQueryParameter("key", apiKey)
             .build()
-        val request = Request.Builder().url(url).build()
+        val request = Request.Builder()
+            .url(url)
+            .header("x-goog-api-key", apiKey)
+            .build()
         socket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 val mode = if (resumeHandle.isNullOrBlank()) "phiên mới" else "khôi phục phiên"

@@ -291,6 +291,7 @@ import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
 import com.google.android.accessibility.utils.KeyboardUtils;
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.BuildVersionUtils;
+import com.google.android.accessibility.utils.ConcurrentNodeQueries;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FocusFinder;
 import com.google.android.accessibility.utils.FormFactorUtils;
@@ -1014,6 +1015,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     final long turningOffTime = System.currentTimeMillis();
     interruptAllFeedback(/* stopTtsSpeechCompletely= */ false);
     storeTalkBackUserUsage();
+    if (pauseController != null) {
+      pauseController.shutdown();
+    }
     if (pipeline != null) {
       pipeline.onUnbind(calculateFinalAnnouncementVolume(), disableTalkBackCompleteAction);
     }
@@ -1026,16 +1030,18 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     VolumeKeyManager.reset();
     CallLimitController.detach();
-    while (true) {
-      synchronized (disableTalkBackCompleteAction) {
-        try {
-          disableTalkBackCompleteAction.wait(TURN_OFF_WAIT_PERIOD_MS);
-        } catch (InterruptedException e) {
-          // Do nothing
-        }
-        if (System.currentTimeMillis() - turningOffTime > TURN_OFF_TIMEOUT_MS
-            || disableTalkBackCompleteAction.isDone) {
-          break;
+    if (pipeline != null) {
+      while (true) {
+        synchronized (disableTalkBackCompleteAction) {
+          try {
+            disableTalkBackCompleteAction.wait(TURN_OFF_WAIT_PERIOD_MS);
+          } catch (InterruptedException e) {
+            // Do nothing
+          }
+          if (System.currentTimeMillis() - turningOffTime > TURN_OFF_TIMEOUT_MS
+              || disableTalkBackCompleteAction.isDone) {
+            break;
+          }
         }
       }
     }
@@ -1171,8 +1177,15 @@ public class TalkBackService extends AccessibilityServiceCompat
     shutdownInfrastructure();
     setServiceState(ServiceStateListener.SERVICE_STATE_INACTIVE);
     serviceStateListeners.clear();
+    if (ringerModeAndScreenMonitor != null) {
+      ringerModeAndScreenMonitor.stopMonitoring(this);
+      ringerModeAndScreenMonitor.shutdown();
+    }
     if (televisionNavigationController != null) {
       televisionNavigationController.onDestroy();
+    }
+    if (Thread.getDefaultUncaughtExceptionHandler() == this) {
+      Thread.setDefaultUncaughtExceptionHandler(systemUeh);
     }
   }
 
@@ -1844,6 +1857,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     boolean passThroughThisKey = false;
     boolean triggerModifierPressed =
         FeatureFlagReader.enableSpeechVolumeKeyboard(this)
+            && keyComboManager != null
             && keyComboManager.isSandFlyKeyPressed(keyEvent);
     if (NotificationReader.onKeyEvent(keyEvent)) {
       VolumeKeyManager.reset();
@@ -1859,7 +1873,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       boolean handleVolumeKeyInTalkBack =
           isTouchInteracting()
               || triggerModifierPressed
-              || pipeline.getActorState().getContinuousRead().isActive();
+              || (pipeline != null && pipeline.getActorState().getContinuousRead().isActive());
       switch (keyCode) {
         case KeyEvent.KEYCODE_VOLUME_DOWN -> {
           if (keyEvent.getRepeatCount() == 0) {
@@ -1891,7 +1905,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (passThroughThisKey) {
       // When the key is passed to talkback, we are always adjusting the talkback volume and no
       // hints on how to adjust talkback volume is needed.
-      if (FeatureSupport.hasAccessibilityAudioStream(this)
+      if (volumeMonitor != null
+          && FeatureSupport.hasAccessibilityAudioStream(this)
           && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
         volumeMonitor.onVolumeKeyPressed();
       }
@@ -1899,9 +1914,11 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
 
     if (keyAction == KeyEvent.ACTION_DOWN) {
-      textEventInterpreter.setLastKeyEventTime(keyEvent.getEventTime());
+      if (textEventInterpreter != null) {
+        textEventInterpreter.setLastKeyEventTime(keyEvent.getEventTime());
+        textEventInterpreter.resetLastKeyDown();
+      }
       InputFocusInterpreter.setLastKeyDownTime(keyEvent.getEventTime());
-      textEventInterpreter.resetLastKeyDown();
       if (processorScreen != null) {
         processorScreen.onKeyPressed(keyEvent);
       }
@@ -1910,7 +1927,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     EventId eventId = perf.onEventReceived(keyEvent);
 
     if (isServiceActive()) {
-      if (!keyComboManager.isFixedKeyboardScheme()) handleCtrlTap(keyEvent, eventId);
+      if (keyComboManager == null || !keyComboManager.isFixedKeyboardScheme()) {
+        handleCtrlTap(keyEvent, eventId);
+      }
       if (keyAction == KeyEvent.ACTION_DOWN
           && shouldInterruptByAnyKeyEvent()
           && isFromPhysicalKeyboard(keyEvent)) {
@@ -1948,7 +1967,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       }
     }
 
-    if (keyAction == KeyEvent.ACTION_DOWN) {
+    if (keyAction == KeyEvent.ACTION_DOWN && textEventInterpreter != null) {
       textEventInterpreter.setLastKeyDown(keyCode, keyEvent.getModifiers());
     }
 
@@ -2959,6 +2978,7 @@ public class TalkBackService extends AccessibilityServiceCompat
    */
   @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
   protected void initializeInfrastructure() {
+    ConcurrentNodeQueries.start();
     // TODO: we still need it keep true for TV until TouchExplore and Accessibility focus is
     // not unpaired
     // supportsTouchScreen = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
@@ -3473,8 +3493,6 @@ public class TalkBackService extends AccessibilityServiceCompat
             });
 
     startScripts();
-
-    audioPlaybackMonitor = new AudioPlaybackMonitor(this);
 
     // Add event processors. These will process incoming AccessibilityEvents
     // in the order they are added.
@@ -4058,6 +4076,10 @@ public class TalkBackService extends AccessibilityServiceCompat
       callStateMonitor.stopMonitoring();
     }
 
+    if (ringerModeAndScreenMonitor != null) {
+      ringerModeAndScreenMonitor.stopMonitoring(this);
+    }
+
     if (voiceActionMonitor != null) {
       voiceActionMonitor.onSuspendInfrastructure();
     }
@@ -4146,6 +4168,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     // The saved reading order holds nodes, which would outlive the service and could be reused,
     // stale, when Backtalk is turned on again.
+    ConcurrentNodeQueries.shutdown();
     AsyncTraversalOrder.cancel();
     TraversalTreeCache.setOrderClearedListener(null);
     TraversalTreeCache.clear("shutdown");
@@ -4168,6 +4191,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     if (proximitySensorMonitor != null) {
       proximitySensorMonitor.shutdown();
+    }
+    if (ringerModeAndScreenMonitor != null) {
+      ringerModeAndScreenMonitor.shutdown();
     }
     if (backTapCommands != null) {
       backTapCommands.shutdown();
@@ -5196,7 +5222,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
 
     if (ipcClientCallback.hasTrainingPageSwitched) {
-      prefs.edit().putBoolean(getString(R.string.has_training_page_switched), true);
+      prefs.edit().putBoolean(getString(R.string.has_training_page_switched), true).apply();
     }
     prefs
         .edit()

@@ -27,6 +27,7 @@ class TaskPlanner(private val context: Context) {
   private val worker = Executors.newSingleThreadExecutor()
   private val main = Handler(Looper.getMainLooper())
   private val generation = AtomicLong()
+  private val runningToken = AtomicLong()
   private val tag = Any()
   private var timeout: Runnable? = null
   @Volatile private var localModel: LocalLlm? = null
@@ -66,7 +67,14 @@ class TaskPlanner(private val context: Context) {
           val model = checkNotNull(localClient)
           check(generation.get() == token)
           localModel = model
-          try { model.generate(prompt, null) } finally { if (localModel === model) localModel = null }
+          runningToken.set(token)
+          try {
+            check(generation.get() == token)
+            model.generate(prompt, null)
+          } finally {
+            runningToken.compareAndSet(token, 0L)
+            if (localModel === model) localModel = null
+          }
         }
         main.post { complete(result) }
       }
@@ -107,11 +115,21 @@ class TaskPlanner(private val context: Context) {
   }
 
   fun cancel() {
-    generation.incrementAndGet()
+    val previousToken = generation.getAndIncrement()
     timeout?.let(main::removeCallbacks)
     timeout = null
     queue.cancelAll(tag)
-    localModel?.let { model -> workerCancel.execute { model.cancel() } }
+    val model = localModel ?: return
+    val requestId = (model as? RemoteLocalLlm)?.currentRequestId() ?: 0
+    workerCancel.execute {
+      if (runningToken.get() == previousToken) {
+        if (model is RemoteLocalLlm && requestId != 0) {
+          model.cancelIfCurrent(requestId)
+        } else {
+          model.cancel()
+        }
+      }
+    }
   }
 
   fun close() {

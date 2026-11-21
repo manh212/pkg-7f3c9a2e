@@ -22,6 +22,7 @@ import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.notifications.NotificationVoice
 import com.google.android.accessibility.talkback.permission.PermissionRequestActivity
 import com.google.android.accessibility.talkback.speakerphone.SpeakerphoneInCallService
+import com.google.android.accessibility.talkback.timer.Stopwatch
 import com.google.android.accessibility.utils.SettingsUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.SpeechController
@@ -263,9 +264,10 @@ object CallAnnouncements {
       session.runnable = null
       if (sessions[session.key] !== session || !session.active) return@Runnable
       if (settings().intervalSeconds > 0) {
+        val context = context ?: return@Runnable
         val seconds = ((SystemClock.elapsedRealtime() - session.connectedAt) / 1000).coerceAtLeast(0)
         val generation = epoch
-        speak(context?.getString(R.string.call_duration_announcement, seconds).orEmpty(),
+        speak(context.getString(R.string.call_duration_announcement, Stopwatch.formatElapsed(context, seconds * 1000L)),
           { epoch == generation && sessions[session.key] === session && session.active &&
             settings().intervalSeconds > 0 }) {}
         scheduleDuration(session)
@@ -278,7 +280,7 @@ object CallAnnouncements {
   private fun sayDuration(seconds: Long) {
     val context = context ?: return
     val generation = epoch
-    speak(context.getString(R.string.call_duration_announcement, seconds),
+    speak(context.getString(R.string.call_duration_announcement, Stopwatch.formatElapsed(context, seconds * 1000L)),
       { epoch == generation && settings().duration }) {}
   }
 
@@ -432,12 +434,9 @@ object CallAnnouncements {
     if (context == null) return
     if (notification.category != Notification.CATEGORY_CALL) return
     val key = "notification:$packageName"
-    // An ongoing call is not a new incoming call: a CallStyle notification with
-    // callType ONGOING, or a notification carrying FLAG_ONGOING_EVENT — Zalo's
-    // outgoing-call notification has the flag but no CallStyle callType extra.
-    // Stop any ringing for this app and do not start one.
-    val isOngoing = notification.extras?.getInt("android.callType", 0) == 2 ||
-      notification.flags and Notification.FLAG_ONGOING_EVENT != 0
+    val callType = notification.extras?.getInt("android.callType", 0) ?: 0
+    val isOngoing = callType == 2 ||
+      (callType == 0 && (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 && notification.fullScreenIntent == null)
     if (isOngoing) {
       sessions.remove(key)?.let(::cancel)
       stopInvalidSpeech()

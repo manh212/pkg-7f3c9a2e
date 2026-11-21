@@ -20,6 +20,7 @@ FEATURES = {
     "individualfeedback": {"individualfeedback", "soundthemes"},
     "keyboardecho": {"keyboardecho"},
     "labeling": {"labeling"},
+    "licensing": {"licensing"},
     "migration": {"migration"},
     "notifications": {"notifications", "timer"},
     "quicksettings": {"quicksettings"},

@@ -162,14 +162,18 @@ public class EventFilter {
      */
     private final Set<FailedPrediction> failedPredictions = new HashSet<>();
 
-    /** Whether predicting from {@code pivot} in {@code direction} already failed in this pass. */
-    boolean failedBefore(AccessibilityNodeInfoCompat pivot, @SearchDirection int direction) {
-      return failedPredictions.contains(new FailedPrediction(pivot, direction));
+    boolean failedBefore(
+        AccessibilityNodeInfoCompat pivot,
+        @SearchDirection int direction,
+        @TargetType int targetType) {
+      return failedPredictions.contains(new FailedPrediction(pivot, direction, targetType));
     }
 
-    /** Records that predicting from {@code pivot} in {@code direction} failed in this pass. */
-    void noteFailed(AccessibilityNodeInfoCompat pivot, @SearchDirection int direction) {
-      failedPredictions.add(new FailedPrediction(pivot, direction));
+    void noteFailed(
+        AccessibilityNodeInfoCompat pivot,
+        @SearchDirection int direction,
+        @TargetType int targetType) {
+      failedPredictions.add(new FailedPrediction(pivot, direction, targetType));
     }
 
     PreparationPass(
@@ -226,10 +230,12 @@ public class EventFilter {
   private static final class FailedPrediction {
     final AccessibilityNodeInfoCompat pivot;
     final int direction;
+    final int targetType;
 
-    FailedPrediction(AccessibilityNodeInfoCompat pivot, int direction) {
+    FailedPrediction(AccessibilityNodeInfoCompat pivot, int direction, int targetType) {
       this.pivot = pivot;
       this.direction = direction;
+      this.targetType = targetType;
     }
 
     @Override
@@ -238,12 +244,17 @@ public class EventFilter {
         return false;
       }
       FailedPrediction that = (FailedPrediction) other;
-      return pivot.equals(that.pivot) && direction == that.direction;
+      return pivot.equals(that.pivot)
+          && direction == that.direction
+          && targetType == that.targetType;
     }
 
     @Override
     public int hashCode() {
-      return pivot.hashCode() * 31 + direction;
+      int result = pivot.hashCode();
+      result = result * 31 + direction;
+      result = result * 31 + targetType;
+      return result;
     }
   }
 
@@ -846,7 +857,7 @@ public class EventFilter {
         // when it is re-run — by the distance-2 step and the second target-type pass — so
         // the walk is skipped, and so is the NO_TARGET count: the first failure already
         // counted it (in predictTarget).
-        if (pass.failedBefore(currentPivot, direction)) {
+        if (pass.failedBefore(currentPivot, direction, targetType)) {
           Performance.getInstance()
               .onPreparedSpeechWork(PreparedSpeechWork.NULL_PREDICTION_CACHED);
         } else {
@@ -854,7 +865,7 @@ public class EventFilter {
                 ? predictor.predictTarget(currentPivot, direction)
                 : predictor.predictTarget(currentPivot, direction, targetType);
           if (target == null) {
-            pass.noteFailed(currentPivot, direction);
+            pass.noteFailed(currentPivot, direction, targetType);
           }
         }
       }
