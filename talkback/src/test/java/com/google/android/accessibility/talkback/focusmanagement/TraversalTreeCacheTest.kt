@@ -300,7 +300,7 @@ class TraversalTreeCacheTest {
       )
     )
 
-    ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+    ShadowSystemClock.advanceBy(Duration.ofMillis(3_001))
     assertNull(TraversalTreeCache.get(root, child))
 
     assertTrue(reported.isEmpty())
@@ -517,7 +517,7 @@ class TraversalTreeCacheTest {
     assertEquals(before, TraversalTreeCache.revision())
   }
 
-  // Q2: the 1.5 s text-change age expires the live order only — the last-good slot
+  // Q2: the 3 s text-change age expires the live order only — the last-good slot
   // still serves predictions past it.
   @Test
   fun prediction_lastGoodServesAfterTextChangeAge() {
@@ -525,12 +525,12 @@ class TraversalTreeCacheTest {
     val strategy = checkNotNull(TraversalTreeCache.orderForPrediction(child))
     assertFalse(TraversalTreeCache.onAccessibilityEvent(textChangeEvent(child.windowId)))
 
-    ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+    ShadowSystemClock.advanceBy(Duration.ofMillis(3_001))
 
     assertSame(strategy, TraversalTreeCache.orderForPrediction(child))
   }
 
-  // Q2: past the 1.5 s text-change age the live order is gone — navigation finds
+  // Q2: past the 3 s text-change age the live order is gone — navigation finds
   // nothing — yet prediction still serves the last-good order, which can only come
   // from the last-good slot once the live order has been cleared.
   @Test
@@ -539,24 +539,24 @@ class TraversalTreeCacheTest {
     val strategy = checkNotNull(TraversalTreeCache.orderForPrediction(child))
     TraversalTreeCache.onAccessibilityEvent(textChangeEvent(child.windowId))
 
-    ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+    ShadowSystemClock.advanceBy(Duration.ofMillis(3_001))
 
     assertNull(TraversalTreeCache.get(root, child))
     assertFalse(TraversalTreeCache.holds(child))
     assertSame(strategy, TraversalTreeCache.orderForPrediction(child))
   }
 
-  // Q2: navigation keeps the 1.5 s text-change expiry — only prediction may use the
+  // Q2: navigation keeps the 3 s text-change expiry — only prediction may use the
   // last-good order past it. Inside the age the order still serves navigation.
   @Test
   fun navigation_getStillExpiresAfterTextChangeAge() {
     val (root, child) = savedOrder()
     TraversalTreeCache.onAccessibilityEvent(textChangeEvent(child.windowId))
 
-    ShadowSystemClock.advanceBy(Duration.ofMillis(1_000))
+    ShadowSystemClock.advanceBy(Duration.ofMillis(3_000))
     assertNotNull(TraversalTreeCache.get(root, child))
 
-    ShadowSystemClock.advanceBy(Duration.ofMillis(1_000))
+    ShadowSystemClock.advanceBy(Duration.ofMillis(1))
     assertNull(TraversalTreeCache.get(root, child))
   }
 

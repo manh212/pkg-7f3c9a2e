@@ -37,10 +37,8 @@ public class LatencyExperimentsTest {
       LatencyExperiments.Feature.FAST_SCROLL,
       LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE,
       LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS,
-      LatencyExperiments.Feature.FRESH_PREPARED,
       LatencyExperiments.Feature.IMMEDIATE_SPEECH,
       LatencyExperiments.Feature.PCM_ADJACENT,
-      LatencyExperiments.Feature.PCM_SECOND,
       LatencyExperiments.Feature.RESET_SESSION,
       LatencyExperiments.Feature.FAST_DOUBLE_TAP,
       LatencyExperiments.Feature.EARLY_TOUCH_SPEECH,
@@ -75,6 +73,31 @@ public class LatencyExperimentsTest {
     LatencyExperiments.load(preferences);
     assertTrue(LatencyExperiments.Feature.ASYNC_ORDER.enabled());
     assertFalse(LatencyExperiments.Feature.TRACE.enabled());
+  }
+
+  @Test
+  public void overhaulMigrationRemovesLegacyKeysAndOnlyRunsOnce() {
+    SharedPreferences preferences = RuntimeEnvironment.getApplication()
+        .getSharedPreferences("latency-overhaul-test", Context.MODE_PRIVATE);
+    preferences.edit().clear()
+        .putBoolean("pref_fast_navigator_key", true)
+        .putBoolean("pref_prepare_second_ahead_speech", true)
+        .putBoolean(LatencyExperiments.Feature.PCM_SECOND.key, true)
+        .putBoolean(LatencyExperiments.Feature.FRESH_PREPARED.key, true).commit();
+
+    LatencyExperiments.load(preferences);
+    assertFalse(preferences.contains("pref_fast_navigator_key"));
+    assertFalse(preferences.getBoolean("pref_prepare_second_ahead_speech", true));
+    assertFalse(LatencyExperiments.Feature.PCM_SECOND.enabled());
+    assertFalse(LatencyExperiments.Feature.FRESH_PREPARED.enabled());
+    assertTrue(preferences.getBoolean("pref_latency_overhaul_v1_migrated", false));
+
+    preferences.edit()
+        .putBoolean(LatencyExperiments.Feature.PCM_SECOND.key, true)
+        .putBoolean(LatencyExperiments.Feature.FRESH_PREPARED.key, true).commit();
+    LatencyExperiments.load(preferences);
+    assertTrue(LatencyExperiments.Feature.PCM_SECOND.enabled());
+    assertTrue(LatencyExperiments.Feature.FRESH_PREPARED.enabled());
   }
 
   @Test

@@ -204,37 +204,37 @@ class PreparedFocusSpeechSuppressionTest {
   }
 
   @Test
-  fun threeWastedRounds_pausePreparationForThatWindowOnly() {
-    repeat(3) { waste(101) }
+  fun twoWastedRounds_pausePreparationForThatWindowOnly() {
+    repeat(2) { waste(101) }
 
     assertFalse(PreparedFocusSpeech.shouldPrepare(node(101)))
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(201)))
   }
 
   @Test
-  fun twoWastedRounds_stillPrepares() {
-    repeat(2) { waste(102) }
+  fun oneWastedRound_stillPrepares() {
+    waste(102)
 
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(102)))
   }
 
   @Test
   fun usedPreparation_forgivesTheStreak() {
-    repeat(2) { waste(103) }
+    waste(103)
     val node = node(103)
     PreparedFocusSpeech.put(node, feedback(), "")
     ShadowSystemClock.advanceBy(Duration.ofMillis(PreparedFocusSpeech.MIN_AGE_MS + 1))
     assertNotNull(PreparedFocusSpeech.take(node))
 
-    repeat(2) { waste(103) }
+    waste(103)
 
-    // Only two wastes since the hit: the streak the hit forgave does not count.
+    // Only one waste since the hit: the streak the hit forgave does not count.
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(103)))
   }
 
   @Test
   fun pauseExpires_onePreparationIsLetThrough_andOneMoreWastePausesAgain() {
-    repeat(3) { waste(104) }
+    repeat(2) { waste(104) }
     assertFalse(PreparedFocusSpeech.shouldPrepare(node(104)))
 
     ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
@@ -248,8 +248,8 @@ class PreparedFocusSpeechSuppressionTest {
 
   @Test
   fun wasteInAnotherWindow_doesNotCountTowardThisOne() {
-    repeat(2) { waste(105) }
-    repeat(2) { waste(106) }
+    waste(105)
+    waste(106)
 
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(105)))
     assertTrue(PreparedFocusSpeech.shouldPrepare(node(106)))

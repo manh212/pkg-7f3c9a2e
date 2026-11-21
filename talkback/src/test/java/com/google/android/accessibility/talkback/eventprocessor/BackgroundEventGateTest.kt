@@ -178,10 +178,9 @@ class BackgroundEventGateTest {
     assertFalse(gate.onAccessibilityEvent(event(AccessibilityEvent.TYPE_ANNOUNCEMENT)))
     assertEquals(0, invalidated)
   }
-  // 6A: the foreground window's updates are no longer held by the gate, so a text change
-  // while touching is admitted at once instead of waiting in the background slot.
+  // Non-structural foreground updates are deferred during input; focus remains immediate.
   @Test
-  fun foregroundWindowTextUpdateIsAdmittedImmediatelyDuringInput() {
+  fun foregroundWindowTextUpdateIsDeferredDuringInput() {
     var invalidated = 0
     gate.clear()
     gate = BackgroundEventGate(
@@ -195,11 +194,13 @@ class BackgroundEventGateTest {
     gate.onUserInput()
     val update = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "foreground", 1)
     update.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
-    assertTrue(gate.onAccessibilityEvent(update))
-    assertEquals(0, invalidated)
+    assertFalse(gate.onAccessibilityEvent(update))
+    assertEquals(1, invalidated)
     assertTrue(gate.onAccessibilityEvent(event(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED, "foreground", 1)))
-    advance(500)
+    advance(499)
     assertTrue(delivered.isEmpty())
+    advance(1)
+    assertEquals(listOf("foreground"), delivered)
   }
 
   private fun structural(window: Int = 1, pkg: String = "foreground"): AccessibilityEvent =

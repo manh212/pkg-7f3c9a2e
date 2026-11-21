@@ -8,38 +8,38 @@ import org.junit.Test
 class NavigationPcmCacheTest {
   @Test
   fun emptyTextUsesBaseTimeout() {
-    assertEquals(2_000L, NavigationPcmCache.synthesisTimeoutMs(0))
+    assertEquals(900L, NavigationPcmCache.synthesisTimeoutMs(0))
   }
 
   @Test
   fun shortTextScalesLinearlyFromBase() {
-    assertEquals(2_200L, NavigationPcmCache.synthesisTimeoutMs(100))
+    assertEquals(1_100L, NavigationPcmCache.synthesisTimeoutMs(100))
   }
 
   @Test
-  fun mediumTextTakesThreeSeconds() {
-    assertEquals(3_000L, NavigationPcmCache.synthesisTimeoutMs(500))
+  fun mediumTextScalesLinearlyBelowCap() {
+    assertEquals(1_700L, NavigationPcmCache.synthesisTimeoutMs(400))
   }
 
   @Test
-  fun timeoutReachesCapAtOneThousandChars() {
-    assertEquals(4_000L, NavigationPcmCache.synthesisTimeoutMs(1000))
+  fun timeoutReachesCapAtFourHundredFiftyChars() {
+    assertEquals(1_800L, NavigationPcmCache.synthesisTimeoutMs(450))
   }
 
   @Test
   fun justBelowCapIsNotRoundedUp() {
-    assertEquals(3_998L, NavigationPcmCache.synthesisTimeoutMs(999))
+    assertEquals(1_798L, NavigationPcmCache.synthesisTimeoutMs(449))
   }
 
   @Test
-  fun longTextIsCappedAtFourSeconds() {
-    assertEquals(4_000L, NavigationPcmCache.synthesisTimeoutMs(1200))
-    assertEquals(4_000L, NavigationPcmCache.synthesisTimeoutMs(5000))
+  fun longTextIsCappedAtEighteenHundredMillis() {
+    assertEquals(1_800L, NavigationPcmCache.synthesisTimeoutMs(1200))
+    assertEquals(1_800L, NavigationPcmCache.synthesisTimeoutMs(5000))
   }
 
   @Test
   fun negativeLengthFallsBackToBaseTimeout() {
-    assertEquals(2_000L, NavigationPcmCache.synthesisTimeoutMs(-5))
+    assertEquals(900L, NavigationPcmCache.synthesisTimeoutMs(-5))
   }
 
   /**
