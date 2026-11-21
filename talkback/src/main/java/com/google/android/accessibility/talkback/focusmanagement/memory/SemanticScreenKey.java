@@ -40,6 +40,14 @@ public final class SemanticScreenKey {
               + "lượt\\s+nhắc|hội\\s+thoại|thông\\s+báo|unread|new\\s+messages?|messages?)\\b|"
               + "\\s+\\d+\\+?$)");
 
+  // Loại bỏ giá tiền, phần trăm, đồng hồ đếm ngược / giờ phút để không biến nội dung động thành
+  // chữ ký màn hình trên các ứng dụng React Native (như Shopee).
+  private static final Pattern DYNAMIC_VALUE_ONLY_PATTERN =
+      Pattern.compile(
+          "(?iu)^([₫đ$€£¥]?\\s*[\\d.,]+\\s*[₫đ$€£¥%kKmM]?|"
+              + "\\d{1,2}:\\d{2}(:\\d{2})?|"
+              + "[\\d\\s.,:/+%-]+)$");
+
   @NonNull private final String packageName;
   @NonNull private final String windowTitle;
   @NonNull private final String paneTitle;
@@ -154,6 +162,7 @@ public final class SemanticScreenKey {
   private static String computeStructureSignature(@NonNull AccessibilityNodeInfoCompat root) {
     List<String> primaryTokens = new ArrayList<>(MAX_SIGNATURE_TOKENS);
     List<String> landmarkTokens = new ArrayList<>(2);
+    List<String> fallbackHeaderTokens = new ArrayList<>(2);
     boolean hasEditableComposer = false;
 
     List<AccessibilityNodeInfoCompat> queue = new ArrayList<>(MAX_SIGNATURE_SCAN_NODES);
@@ -185,6 +194,16 @@ public final class SemanticScreenKey {
         }
       }
 
+      if (fallbackHeaderTokens.size() < 2 && node.isVisibleToUser() && !node.isEditable()) {
+        String headerLabel = normalizeHeaderFallbackLabel(extractDirectLabel(node));
+        if (!headerLabel.isEmpty()) {
+          String topToken = "top:" + truncate(headerLabel, 28);
+          if (!fallbackHeaderTokens.contains(topToken)) {
+            fallbackHeaderTokens.add(topToken);
+          }
+        }
+      }
+
       int childCount = node.getChildCount();
       for (int c = 0; c < childCount && queue.size() < MAX_SIGNATURE_SCAN_NODES; c++) {
         AccessibilityNodeInfoCompat child = node.getChild(c);
@@ -196,6 +215,15 @@ public final class SemanticScreenKey {
 
     if (!primaryTokens.isEmpty()) {
       return joinWithPipe(primaryTokens);
+    }
+
+    // Fallback cho ứng dụng React Native / Flutter (như Shopee) không gắn heading/selected/viewId:
+    // dùng tối đa 2 nhãn tiêu đề ngắn ổn định ở đầu cây duyệt để phân biệt các màn hình con.
+    if (landmarkTokens.isEmpty() && !fallbackHeaderTokens.isEmpty()) {
+      if (hasEditableComposer) {
+        fallbackHeaderTokens.add("mode:input");
+      }
+      return joinWithPipe(fallbackHeaderTokens);
     }
 
     // Fallback khi màn hình không có heading hay selected tab (ví dụ Zalo danh sách chat vs phòng
@@ -257,6 +285,36 @@ public final class SemanticScreenKey {
       return text;
     }
     return node.getContentDescription();
+  }
+
+  /**
+   * Chuẩn hóa nhãn tiêu đề fallback cho các ứng dụng không có heading/viewId ổn định (như Shopee).
+   * Trả về chuỗi rỗng nếu nhãn là nút điều hướng chung, giá tiền, bộ đếm hoặc đoạn văn quá dài.
+   */
+  @NonNull
+  static String normalizeHeaderFallbackLabel(@Nullable CharSequence raw) {
+    String normalized = normalizeTitle(raw);
+    if (normalized.length() < 2 || normalized.length() > 40) {
+      return "";
+    }
+    if (DYNAMIC_VALUE_ONLY_PATTERN.matcher(normalized).matches()) {
+      return "";
+    }
+    if ("quay lại".equals(normalized)
+        || "trở lại".equals(normalized)
+        || "back".equals(normalized)
+        || "navigate up".equals(normalized)
+        || "đóng".equals(normalized)
+        || "close".equals(normalized)
+        || "tìm kiếm".equals(normalized)
+        || "search".equals(normalized)
+        || "chưa được gắn nhãn".equals(normalized)
+        || "unlabelled".equals(normalized)
+        || "tùy chọn khác".equals(normalized)
+        || "more options".equals(normalized)) {
+      return "";
+    }
+    return normalized;
   }
 
   @NonNull

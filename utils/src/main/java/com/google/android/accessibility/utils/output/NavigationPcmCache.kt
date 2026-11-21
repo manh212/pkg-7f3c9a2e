@@ -464,14 +464,16 @@ class NavigationPcmCache(context: Context) {
     // when it reaches this size, so a long session cannot grow it without limit.
     private const val MAX_EVER_QUEUED_KEYS = 8192
     private const val MAX_PENDING_AGE_MS = 1_200L
-    private const val INPUT_QUIET_MS = 120L
-    private const val RETRY_MS = 24L
+    // Khởi chạy tổng hợp PCM nền sớm hơn ngay sau khi dừng ngón tay để giảm WAITING_FOR_INPUT
+    // và tăng tỷ lệ trúng cache PCM (rút ngắn COMPOSED -> FIRST_PCM về ~2-5 ms khi trúng cache).
+    private const val INPUT_QUIET_MS = 35L
+    private const val RETRY_MS = 12L
 
-    // Shorter background synthesis timeout prevents stale pre-synthesis jobs from stalling the
-    // TTS engine during rapid navigation bursts.
-    private const val BASE_SYNTHESIS_TIMEOUT_MS = 900L
+    // Khôi phục ngưỡng timeout theo hợp đồng kiểm thử NavigationPcmCacheTest (2s + 2ms/ký tự, tối
+    // đa 4s) để giảm FAILURE_TIMEOUT trên các tin nhắn tiếng Việt dài.
+    private const val BASE_SYNTHESIS_TIMEOUT_MS = 2_000L
     private const val SYNTHESIS_TIMEOUT_PER_CHAR_MS = 2L
-    private const val MAX_SYNTHESIS_TIMEOUT_MS = 1_800L
+    private const val MAX_SYNTHESIS_TIMEOUT_MS = 4_000L
 
     fun synthesisTimeoutMs(textLength: Int): Long =
       minOf(

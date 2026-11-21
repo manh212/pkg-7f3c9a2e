@@ -484,12 +484,18 @@ public final class AccessibilityFocusActionHistory {
 
     FocusActionRecord result = null;
     int timeoutToleranceMs = getTimeoutToleranceMs(eventNode);
+    long rawEventTime = event.getEventTime();
+    long queueDelayMs =
+        (rawEventTime > 0 && eventTime > rawEventTime)
+            ? Math.min(700L, eventTime - rawEventTime)
+            : 0L;
+    long effectiveToleranceMs = timeoutToleranceMs + queueDelayMs;
     Iterator<FocusActionRecord> immediateIterator =
         pendingImmediateFocusRecords.descendingIterator();
     while (immediateIterator.hasNext()) {
       FocusActionRecord record = immediateIterator.next();
       long timeDiff = eventTime - record.getActionTime();
-      boolean timeMatches = timeDiff >= -150 && timeDiff < timeoutToleranceMs;
+      boolean timeMatches = timeDiff >= -150 && timeDiff < effectiveToleranceMs;
       if (timeMatches && eventNode.equals(record.getFocusedNode())) {
         result = FocusActionRecord.copy(record);
         break;
@@ -502,7 +508,7 @@ public final class AccessibilityFocusActionHistory {
         FocusActionRecord record = iterator.next();
         long timeDiff = eventTime - record.getActionTime();
         AccessibilityNodeInfoCompat recordNode = record.getFocusedNode();
-        boolean timeMatches = timeDiff >= -150 && timeDiff < timeoutToleranceMs;
+        boolean timeMatches = timeDiff >= -150 && timeDiff < effectiveToleranceMs;
         boolean nodeMatches = eventNode.equals(recordNode);
         if (nodeMatches) {
           if (timeMatches) {

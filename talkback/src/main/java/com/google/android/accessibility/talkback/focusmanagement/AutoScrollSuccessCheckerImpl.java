@@ -101,6 +101,9 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
    * <p>The auto scroll is considered successful if the scrollable node is scrolled to the edge or
    * the total scroll delta exceeds the threshold.
    */
+  private static final int MAX_CONSECUTIVE_ZERO_DELTA_EVENTS = 2;
+  private int consecutiveZeroDeltaEvents;
+
   @Override
   public boolean isAutoScrollSuccess(
       AccessibilityNodeInfoCompat scrolledNodeInRecord, AccessibilityEvent scrolledEvent) {
@@ -124,6 +127,22 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
       return true;
     }
 
+    if (scrollDeltaX == 0 && scrollDeltaY == 0) {
+      consecutiveZeroDeltaEvents++;
+      // RecyclerView không báo cáo maxScroll (ví dụ Nekogram gặp tin nhắn siêu dài > 5000px):
+      // khi danh sách đã phát sự kiện dừng (delta = 0) sau khi dịch chuyển hoặc lặp 2 khung hình
+      // liên tiếp không đổi, coi như cuộn đã ổn định để tránh kẹt vòng lặp 1.7 giây.
+      if (scrolledEvent.getMaxScrollX() == 0
+          && scrolledEvent.getMaxScrollY() == 0
+          && (totalScrollDeltaX != 0
+              || totalScrollDeltaY != 0
+              || consecutiveZeroDeltaEvents >= MAX_CONSECUTIVE_ZERO_DELTA_EVENTS)) {
+        return true;
+      }
+    } else {
+      consecutiveZeroDeltaEvents = 0;
+    }
+
     totalScrollDeltaX += scrollDeltaX;
     totalScrollDeltaY += scrollDeltaY;
 
@@ -142,7 +161,7 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
         return true;
       }
     } else if (scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD) {
-      if ((scrollDeltaX < 0 || scrollDeltaY < 0)) {
+      if ((totalScrollDeltaX < 0 || totalScrollDeltaY < 0)) {
         return true;
       }
     }

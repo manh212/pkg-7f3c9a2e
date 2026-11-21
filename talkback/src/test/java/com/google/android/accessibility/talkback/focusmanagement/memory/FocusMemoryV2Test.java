@@ -54,6 +54,18 @@ public final class FocusMemoryV2Test {
   }
 
   @Test
+  public void semanticScreenKey_normalizesHeaderFallbackLabelAndFiltersDynamicNoise() {
+    assertEquals("thanh toán", SemanticScreenKey.normalizeHeaderFallbackLabel("Thanh toán"));
+    assertEquals(
+        "chọn shopee voucher",
+        SemanticScreenKey.normalizeHeaderFallbackLabel("Chọn Shopee Voucher"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("Quay lại"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("Chưa được gắn nhãn"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("150.000đ"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("00:12:34"));
+  }
+
+  @Test
   public void semanticScreenKey_detectsBrowserTitleFlickerWithSameSignature() {
     SemanticScreenKey chatMuse =
         new SemanticScreenKey(
