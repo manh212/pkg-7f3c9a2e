@@ -445,11 +445,6 @@ public class FocusActorForScreenStateChange {
           }.and(nodeFilter);
     }
 
-    // The first content item is below the toolbar: a bar control (the navigation-Up
-    // button, a search button) is never the first content. (Q3)
-    Filter<AccessibilityNodeInfoCompat> contentFilter =
-        Filter.node((node) -> !AccessibilityNodeInfoUtils.isBarControl(node)).and(nodeFilter);
-
     // Finds focus from the requested node, then the first non-title node.
     AccessibilityNodeInfoCompat nodeToFocus = traversalStrategy.focusInitial(root);
 
@@ -461,22 +456,14 @@ public class FocusActorForScreenStateChange {
         FOCUS_ACTION_INFO_REQUEST_INITIAL_NODE_BUILDER
             .setForceMuteFeedback(forceMuteFeedback)
             .build();
-    if (nodeToFocus == null
-        || !AccessibilityNodeInfoUtils.shouldFocusNode(nodeToFocus)
-        || AccessibilityNodeInfoUtils.isBarControl(nodeToFocus)) {
+    if (nodeToFocus == null || !AccessibilityNodeInfoUtils.shouldFocusNode(nodeToFocus)) {
       nodeToFocus =
           TraversalStrategyUtils.findFirstFocusInNodeTree(
-              traversalStrategy, root, SEARCH_FOCUS_FORWARD, contentFilter);
+              traversalStrategy, root, SEARCH_FOCUS_FORWARD, nodeFilter);
       focusActionInfo =
           FOCUS_ACTION_INFO_FIRST_FOCUSABLE_NODE_BUILDER
               .setForceMuteFeedback(forceMuteFeedback)
               .build();
-      if (nodeToFocus == null) {
-        // A screen with only bar controls keeps today's behavior.
-        nodeToFocus =
-            TraversalStrategyUtils.findFirstFocusInNodeTree(
-                traversalStrategy, root, SEARCH_FOCUS_FORWARD, nodeFilter);
-      }
     }
 
     boolean success =
