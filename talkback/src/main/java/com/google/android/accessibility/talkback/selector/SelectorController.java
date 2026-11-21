@@ -1505,6 +1505,21 @@ public class SelectorController implements UserInputEventListener {
             AccessibilityNodeInfoCompat.wrap(nodeInfo));
   }
 
+  private static final String PREF_BROWSE_MODE_REMEMBER_MODE = "pref_browse_mode_remember_mode";
+  private static final String BROWSE_MODE_REMEMBER_ALWAYS = "always";
+  private static final String BROWSE_MODE_REMEMBER_PER_APP = "per_app";
+  private static final String BROWSE_MODE_REMEMBER_NONE = "none";
+  private static final int MAX_REMEMBERED_APPS = 64;
+
+  private final java.util.LinkedHashMap<String, Setting> perAppReadingControls =
+      new java.util.LinkedHashMap<String, Setting>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, Setting> eldest) {
+          return size() > MAX_REMEMBERED_APPS;
+        }
+      };
+  private @Nullable String lastReadingControlPackage;
+
   private void switchCurrentSetting(AccessibilityNodeInfo nodeInfo) {
     if (NavigationMode.isModeTwo(context)) {
       lastFocusedNode = null;
@@ -1522,9 +1537,10 @@ public class SelectorController implements UserInputEventListener {
       return;
     }
     AccessibilityNodeInfoCompat focusedNode = AccessibilityNodeInfoCompat.wrap(nodeInfo);
+    currentSetting = syncReadingControlForAppTransition(focusedNode, currentSetting);
     if (isTextReadingControl(currentSetting)
-        && (Role.getRole(focusedNode) == Role.ROLE_EDIT_TEXT
-            || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null)) {
+        && Role.getRole(focusedNode) != Role.ROLE_EDIT_TEXT
+        && accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null) {
       return;
     }
     if (actionsSettingActivatedForEditText
@@ -2033,6 +2049,100 @@ public class SelectorController implements UserInputEventListener {
   private boolean isEditingContext(AccessibilityNodeInfoCompat node) {
     return Role.getRole(node) == Role.ROLE_EDIT_TEXT
         || accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(node) != null;
+  }
+
+  private Setting syncReadingControlForAppTransition(
+      AccessibilityNodeInfoCompat focusedNode, Setting currentSetting) {
+    CharSequence pkgSeq = focusedNode.getPackageName();
+    if (pkgSeq == null || pkgSeq.length() == 0) {
+      return currentSetting;
+    }
+    String newPackage = pkgSeq.toString();
+    // Bỏ qua cửa sổ của chính Meridian hoặc bàn phím đang nhập liệu để không làm xáo trộn
+    // điều khiển đọc của ứng dụng nền.
+    if (newPackage.equals(context.getPackageName())
+        || (Role.getRole(focusedNode) != Role.ROLE_EDIT_TEXT
+            && accessibilityFocusMonitor.getEditingNodeFromFocusedKeyboard(focusedNode) != null)) {
+      return currentSetting;
+    }
+
+    String rememberMode =
+        prefs.getString(PREF_BROWSE_MODE_REMEMBER_MODE, BROWSE_MODE_REMEMBER_ALWAYS);
+    Setting stableSetting = resolveStableReadingControl(currentSetting);
+
+    if (newPackage.equals(lastReadingControlPackage)) {
+      if (BROWSE_MODE_REMEMBER_PER_APP.equals(rememberMode) && stableSetting != null) {
+        perAppReadingControls.put(newPackage, stableSetting);
+      }
+      return currentSetting;
+    }
+
+    String previousPackage = lastReadingControlPackage;
+    lastReadingControlPackage = newPackage;
+
+    if (BROWSE_MODE_REMEMBER_ALWAYS.equals(rememberMode)) {
+      return currentSetting;
+    }
+
+    if (BROWSE_MODE_REMEMBER_PER_APP.equals(rememberMode)) {
+      if (previousPackage != null && stableSetting != null) {
+        perAppReadingControls.put(previousPackage, stableSetting);
+      }
+      Setting remembered = perAppReadingControls.get(newPackage);
+      if (remembered != null && allowedSetting(remembered)) {
+        settingToRestore = null;
+        actionsSettingActivatedForEditText = false;
+        if (remembered != currentSetting) {
+          setCurrentSetting(
+              EVENT_ID_UNTRACKED,
+              remembered,
+              /* announceType= */ AnnounceType.SILENCE,
+              /* showOverlay= */ false);
+        }
+        return remembered;
+      }
+      return currentSetting;
+    }
+
+    if (BROWSE_MODE_REMEMBER_NONE.equals(rememberMode)) {
+      settingToRestore = null;
+      actionsSettingActivatedForEditText = false;
+      Setting fallback = resolveDefaultNoRememberSetting(focusedNode);
+      if (fallback != null && fallback != currentSetting) {
+        setCurrentSetting(
+            EVENT_ID_UNTRACKED,
+            fallback,
+            /* announceType= */ AnnounceType.SILENCE,
+            /* showOverlay= */ false);
+        return fallback;
+      }
+    }
+    return currentSetting;
+  }
+
+  private @Nullable Setting resolveStableReadingControl(Setting currentSetting) {
+    if (actionsSettingActivatedForEditText && currentSetting == ACTIONS) {
+      return settingToRestore;
+    }
+    if (isContextualSetting(currentSetting)) {
+      return settingToRestore;
+    }
+    return currentSetting;
+  }
+
+  private @Nullable Setting resolveDefaultNoRememberSetting(
+      AccessibilityNodeInfoCompat focusedNode) {
+    if (allowedSetting(ACTIONS) && !isContextualSettingNotSupported(ACTIONS, focusedNode)) {
+      return ACTIONS;
+    }
+    Setting defaultSetting = getDefaultSetting();
+    if (defaultSetting != null && allowedSetting(defaultSetting)) {
+      return defaultSetting;
+    }
+    if (allowedSetting(GRANULARITY_CHARACTERS)) {
+      return GRANULARITY_CHARACTERS;
+    }
+    return null;
   }
 
   private static boolean isTextReadingControl(Setting setting) {

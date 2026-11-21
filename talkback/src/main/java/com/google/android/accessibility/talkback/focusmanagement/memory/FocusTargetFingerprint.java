@@ -185,7 +185,11 @@ public final class FocusTargetFingerprint {
         continue;
       }
 
-      if (node.isVisibleToUser() && AccessibilityNodeInfoUtils.shouldFocusNode(node)) {
+      Rect nodeBounds = new Rect();
+      node.getBoundsInScreen(nodeBounds);
+      if (node.isVisibleToUser()
+          && !nodeBounds.isEmpty()
+          && AccessibilityNodeInfoUtils.shouldFocusNode(node)) {
         int score = scoreCandidate(node);
         if (score > bestScore) {
           bestScore = score;

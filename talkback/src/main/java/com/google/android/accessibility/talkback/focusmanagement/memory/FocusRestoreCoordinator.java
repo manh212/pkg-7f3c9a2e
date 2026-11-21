@@ -30,7 +30,7 @@ public final class FocusRestoreCoordinator {
 
   private static final String TAG = "FocusMemoryV2Coord";
   public static final long DEFAULT_RETRY_WINDOW_MS = 900L;
-  public static final long INPUT_SYNC_SUPPRESSION_MS = 1100L;
+  public static final long INPUT_SYNC_SUPPRESSION_MS = 750L;
   public static final long TITLE_FLICKER_GUARD_MS = 1200L;
   private static final int MAX_ATTEMPTS = 10;
   private static final int MAX_EXTERNAL_HIJACK_RECOVERIES = 2;
@@ -217,6 +217,16 @@ public final class FocusRestoreCoordinator {
         pendingRestore == null
             && !currentKey.equals(lastCompletedScreenKey)
             && store.lookup(currentKey) != null;
+    // Nếu người dùng đang trực tiếp nhập liệu / đọc chính tả (DICTATE) trong ô EditText đã có
+    // input focus, không tự ý kéo tiêu điểm ngược về tin nhắn cũ.
+    if (pendingRestore == null
+        && currentFocus != null
+        && currentFocus.isEditable()
+        && currentFocus.isFocused()
+        && !isGuardedEditTextHijack(currentKey, windowId, now)) {
+      markRestored(currentKey, windowId, now);
+      return null;
+    }
     boolean isEditTextHijack =
         pendingRestore == null
             && currentFocus != null
@@ -244,7 +254,7 @@ public final class FocusRestoreCoordinator {
     }
 
     AccessibilityNodeInfoCompat target = entry.fingerprint.findBestMatch(root);
-    if (target != null) {
+    if (target != null && target.refresh() && target.isVisibleToUser()) {
       LogUtils.d(TAG, "Resolved restore on %s -> %s", currentKey, entry.fingerprint);
       if (isEditTextHijack) {
         externalHijackRecoveries++;

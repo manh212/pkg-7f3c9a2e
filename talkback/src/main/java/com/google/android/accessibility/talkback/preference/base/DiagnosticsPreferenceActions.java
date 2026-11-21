@@ -87,22 +87,52 @@ final class DiagnosticsPreferenceActions {
         });
   }
 
+  // Giới hạn an toàn dưới trần 1 MB của Android Binder để tránh TransactionTooLargeException
+  // khi sao chép nhật ký dung lượng lớn vào bảng nhớ tạm.
+  private static final int MAX_CLIPBOARD_CHARS = 200_000;
+  private static final int CLIPBOARD_HEADER_CHARS = 40_000;
+
   private static void copyToClipboard(Context context) {
     EXECUTOR.execute(
         () -> {
-          String text = DiagnosticsExport.INSTANCE.build(context);
+          String rawText = DiagnosticsExport.INSTANCE.build(context);
+          String text = truncateForClipboard(rawText);
           MAIN_HANDLER.post(
               () -> {
                 ClipboardManager clipboard = context.getSystemService(ClipboardManager.class);
                 if (clipboard != null) {
-                  clipboard.setPrimaryClip(
-                      ClipData.newPlainText(
-                          context.getString(R.string.title_pref_export_diagnostics), text));
+                  try {
+                    clipboard.setPrimaryClip(
+                        ClipData.newPlainText(
+                            context.getString(R.string.title_pref_export_diagnostics), text));
+                  } catch (RuntimeException ignored) {
+                    String shorter = truncateForClipboard(rawText, 80_000, 20_000);
+                    clipboard.setPrimaryClip(
+                        ClipData.newPlainText(
+                            context.getString(R.string.title_pref_export_diagnostics), shorter));
+                  }
                 }
                 Toast.makeText(context, R.string.message_diagnostics_copied, Toast.LENGTH_LONG)
                     .show();
               });
         });
+  }
+
+  static String truncateForClipboard(String text) {
+    return truncateForClipboard(text, MAX_CLIPBOARD_CHARS, CLIPBOARD_HEADER_CHARS);
+  }
+
+  static String truncateForClipboard(String text, int maxChars, int headerChars) {
+    if (text == null || text.length() <= maxChars) {
+      return text;
+    }
+    int tailChars = Math.max(0, maxChars - headerChars);
+    int omitted = text.length() - headerChars - tailChars;
+    return text.substring(0, headerChars)
+        + "\n\n... [Đã cắt bớt "
+        + omitted
+        + " ký tự ở giữa để tránh lỗi TransactionTooLargeException; hãy dùng 'Xuất nhật ký' để lưu trọn tệp] ...\n\n"
+        + text.substring(text.length() - tailChars);
   }
 
   private static void deleteDebugLog(Context context) {

@@ -127,13 +127,14 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
       return true;
     }
 
+    boolean missingMaxScroll =
+        scrolledEvent.getMaxScrollX() <= 0 && scrolledEvent.getMaxScrollY() <= 0;
     if (scrollDeltaX == 0 && scrollDeltaY == 0) {
       consecutiveZeroDeltaEvents++;
-      // RecyclerView không báo cáo maxScroll (ví dụ Nekogram gặp tin nhắn siêu dài > 5000px):
+      // RecyclerView không báo cáo maxScroll (ví dụ Nekogram, Gemini, com.toan.game):
       // khi danh sách đã phát sự kiện dừng (delta = 0) sau khi dịch chuyển hoặc lặp 2 khung hình
-      // liên tiếp không đổi, coi như cuộn đã ổn định để tránh kẹt vòng lặp 1.7 giây.
-      if (scrolledEvent.getMaxScrollX() == 0
-          && scrolledEvent.getMaxScrollY() == 0
+      // liên tiếp không đổi, coi như cuộn đã ổn định để tránh kẹt vòng lặp và nuốt cú vuốt kế tiếp.
+      if (missingMaxScroll
           && (totalScrollDeltaX != 0
               || totalScrollDeltaY != 0
               || consecutiveZeroDeltaEvents >= MAX_CONSECUTIVE_ZERO_DELTA_EVENTS)) {
@@ -141,6 +142,13 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
       }
     } else {
       consecutiveZeroDeltaEvents = 0;
+      if (missingMaxScroll
+          && ((scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD
+                  && (scrollDeltaX > 0 || scrollDeltaY > 0))
+              || (scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD
+                  && (scrollDeltaX < 0 || scrollDeltaY < 0)))) {
+        return true;
+      }
     }
 
     totalScrollDeltaX += scrollDeltaX;

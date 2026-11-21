@@ -230,6 +230,20 @@ class DirectTouchControllerTest {
   }
 
   @Test
+  fun navBarDirectKeepsRegionWhileNotificationShadeIsOpen() {
+    val liftKey = app.getString(R.string.pref_lift_to_activate_key)
+    prefs.edit().putString(liftKey, "navigation_bar").commit()
+    val underShade = game(inactive = true)
+    windowsChange(SHADE, WINDOWS_CHANGE_ADDED, statusBar(), navigationBar(), underShade, shade())
+
+    assertTranscript(
+      "region [0,2220][1080,2340] complex=false",
+      "region [0,2220][1080,2340] complex=false",
+      "region [0,2220][1080,2340] complex=false",
+    )
+  }
+
+  @Test
   fun gameThatAsksForDirectTouchGetsItTheFirstTimeItIsSeen() {
     enableDirectTouch()
 

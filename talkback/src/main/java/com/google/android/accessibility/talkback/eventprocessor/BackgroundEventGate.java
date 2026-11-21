@@ -111,8 +111,12 @@ public final class BackgroundEventGate {
 
   private static final long FOREGROUND_STORM_WINDOW_MS = 250L;
   private static final int FOREGROUND_STORM_THRESHOLD = 4;
+  private static final long FOREGROUND_SCROLL_STORM_WINDOW_MS = 120L;
+  private static final int FOREGROUND_SCROLL_STORM_THRESHOLD = 3;
   private long fgContentBurstWindowStartMs;
   private int fgContentBurstCount;
+  private long fgScrollBurstWindowStartMs;
+  private int fgScrollBurstCount;
 
   public void onUserInput() {
     lastInput = SystemClock.uptimeMillis();
@@ -149,6 +153,8 @@ public final class BackgroundEventGate {
       if (interactionWindowId != event.getWindowId()) {
         fgContentBurstWindowStartMs = 0;
         fgContentBurstCount = 0;
+        fgScrollBurstWindowStartMs = 0;
+        fgScrollBurstCount = 0;
       }
       interactionWindowId = event.getWindowId();
       interactionPackage = event.getPackageName() == null ? null : event.getPackageName().toString();
@@ -191,6 +197,18 @@ public final class BackgroundEventGate {
       if (!isRecentInteraction(event) && !inputResponse.test(event)) {
         TraversalTreeCache.notePassiveScroll(event.getWindowId());
         return true;
+      }
+      if (!inputResponse.test(event)) {
+        // Gộp bão sự kiện cuộn liên tiếp (ví dụ Gemini bắn 15-20 Manual scrolling trong ~25 ms)
+        // để giữ hàng đợi thoáng cho cử chỉ vuốt mà không ảnh hưởng các cuộn có kỳ vọng.
+        if (receivedAt < fgScrollBurstWindowStartMs
+            || receivedAt - fgScrollBurstWindowStartMs > FOREGROUND_SCROLL_STORM_WINDOW_MS) {
+          fgScrollBurstWindowStartMs = receivedAt;
+          fgScrollBurstCount = 1;
+          return false;
+        }
+        fgScrollBurstCount++;
+        return fgScrollBurstCount >= FOREGROUND_SCROLL_STORM_THRESHOLD;
       }
       return false;
     }

@@ -1160,20 +1160,35 @@ public class FocusProcessorForLogicalNavigation {
     boolean recent = TraversalTreeCache.continuesAfterScrolledAway(windowId);
     if (!recent && actorState != null && actorState.getFocusHistory() != null) {
       FocusActionRecord record = actorState.getFocusHistory().getLastFocusActionRecord();
+      int sourceAction =
+          record != null ? record.getExtraInfo().sourceAction : FocusActionInfo.UNKNOWN;
       recent =
           record != null
-              && record.getExtraInfo().sourceAction == FocusActionInfo.LOGICAL_NAVIGATION
+              && (sourceAction == FocusActionInfo.LOGICAL_NAVIGATION
+                  || sourceAction == FocusActionInfo.TOUCH_EXPLORATION
+                  || sourceAction == FocusActionInfo.ENSURE_ON_SCREEN)
               && record.getFocusedNode().getWindowId() == windowId
               && SystemClock.uptimeMillis() - record.getActionTime() < LOST_PIVOT_MS;
     }
     if (!recent) {
       return null;
     }
+    AccessibilityNodeInfoCompat lastNode = lastFocusedNode();
     AccessibilityNodeInfoCompat nearest =
-        TraversalTreeCache.pivotAfterRemoval(
-            root, goesForward(navigationAction), lastFocusedNode());
+        TraversalTreeCache.pivotAfterRemoval(root, goesForward(navigationAction), lastNode);
     if (nearest == null || !nearest.refresh()) {
-      return null;
+      // Khi ứng dụng (ví dụ trình phát thoại Telegram) làm mới giao diện làm rớt cờ
+      // accessibilityFocused nhưng node tin nhắn hiện tại vẫn hiển thị, dùng trực tiếp lastNode
+      // làm điểm tựa để vuốt sang tin nhắn kế tiếp thay vì rơi về đầu màn hình và lặp 2 tin nhắn.
+      if (lastNode != null
+          && lastNode.refresh()
+          && lastNode.isVisibleToUser()
+          && lastNode.getWindowId() == windowId
+          && AccessibilityNodeInfoUtils.shouldFocusNode(lastNode)) {
+        nearest = lastNode;
+      } else {
+        return null;
+      }
     }
     LogUtils.i(TAG, "No focus to move from; going on from the place of the last navigation.");
     return nearest;

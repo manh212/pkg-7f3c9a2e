@@ -406,18 +406,12 @@ class DirectTouchController(
     keyboards: List<AccessibilityWindowInfo>,
     vietnameseRegion: Region?,
   ) {
-    val parts = (if (navBarDirect) navigationBarBounds(windows) else emptyList()) +
-      keyboards.map(::boundsOf)
-    if (parts.isNotEmpty() || vietnameseRegion?.isEmpty == false) {
-      val region = Region()
-      parts.forEach { region.union(it) }
-      val display = displayBounds()
-      windows.forEach { window ->
-        if (window.type == AccessibilityWindowInfo.TYPE_SYSTEM ||
-          window.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
-          val bounds = boundsOf(window)
-          val isNavBar =
-            window.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
+    val display = displayBounds()
+    val navBarWindows =
+      if (navBarDirect) {
+        windows.filter { window ->
+          window.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
+            boundsOf(window).let { bounds ->
               DirectTouchRegions.isNavigationBar(
                 bounds.left,
                 bounds.top,
@@ -426,10 +420,30 @@ class DirectTouchController(
                 display.width(),
                 display.height(),
               )
-          if (!(navBarDirect && isNavBar)) {
-            region.op(bounds, Region.Op.DIFFERENCE)
+            }
+        }
+      } else {
+        emptyList()
+      }
+    val keyboardBounds = keyboards.map(::boundsOf)
+    if (navBarWindows.isNotEmpty() || keyboardBounds.isNotEmpty() || vietnameseRegion?.isEmpty == false) {
+      val region = Region()
+      if (keyboardBounds.isNotEmpty()) {
+        keyboardBounds.forEach { region.union(it) }
+        windows.forEach { window ->
+          if (window.type == AccessibilityWindowInfo.TYPE_SYSTEM ||
+            window.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
+            if (navBarWindows.none { it.id == window.id }) {
+              region.op(boundsOf(window), Region.Op.DIFFERENCE)
+            }
           }
         }
+      }
+      // Giữ vùng chạm trực tiếp của thanh điều hướng kể cả khi kéo bảng thông báo xuống
+      // (NotificationShade là cửa sổ TYPE_SYSTEM phủ toàn màn hình). Chỉ trừ lớp phủ trợ năng
+      // hoặc hộp thoại hệ thống nhỏ nằm trên thanh điều hướng.
+      if (navBarWindows.isNotEmpty()) {
+        region.op(buildNavBarDirectRegion(windows, navBarWindows, display), Region.Op.UNION)
       }
       if (vietnameseRegion != null) region.op(vietnameseRegion, Region.Op.UNION)
       sendRegion(region)
@@ -650,30 +664,63 @@ class DirectTouchController(
   ) {
     val display = displayBounds()
     val excluded = mutableListOf<Rect>()
+    val navBarWindows = mutableListOf<AccessibilityWindowInfo>()
     windows.forEach { window ->
+      val bounds = Rect()
+      window.getBoundsInScreen(bounds)
+      val isNavBar =
+        window.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
+          DirectTouchRegions.isNavigationBar(
+            bounds.left,
+            bounds.top,
+            bounds.right,
+            bounds.bottom,
+            display.width(),
+            display.height(),
+          )
+      if (navBarDirect && isNavBar) {
+        navBarWindows += window
+      }
       if (
         DirectTouchRegions.shouldExcludeWindow(window.type, directTyping) && window !in keyboards
       ) {
-        val bounds = Rect()
-        window.getBoundsInScreen(bounds)
-        val isNavBar =
-          window.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
-            DirectTouchRegions.isNavigationBar(
-              bounds.left,
-              bounds.top,
-              bounds.right,
-              bounds.bottom,
-              display.width(),
-              display.height(),
-            )
         if (!(navBarDirect && isNavBar)) {
           excluded += bounds
         }
       }
     }
     val region = DirectTouchRegions.passthroughRegion(display, excluded)
+    if (navBarDirect && navBarWindows.isNotEmpty()) {
+      region.op(buildNavBarDirectRegion(windows, navBarWindows, display), Region.Op.UNION)
+    }
     if (vietnameseRegion != null) region.op(vietnameseRegion, Region.Op.UNION)
     sendRegion(region)
+  }
+
+  private fun buildNavBarDirectRegion(
+    windows: List<AccessibilityWindowInfo>,
+    navBarWindows: List<AccessibilityWindowInfo>,
+    display: Rect,
+  ): Region {
+    val navRegion = Region()
+    navBarWindows.forEach { navWindow ->
+      val singleNav = Region(boundsOf(navWindow))
+      windows.forEach { other ->
+        if (other.id == navWindow.id) return@forEach
+        val otherBounds = boundsOf(other)
+        val isAccessibilityOverlay =
+          other.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY
+        val isSmallSystemPopupAboveNavBar =
+          other.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
+            other.layer > navWindow.layer &&
+            otherBounds.height() * 2 < display.height()
+        if (isAccessibilityOverlay || isSmallSystemPopupAboveNavBar) {
+          singleNav.op(otherBounds, Region.Op.DIFFERENCE)
+        }
+      }
+      navRegion.op(singleNav, Region.Op.UNION)
+    }
+    return navRegion
   }
 
   private fun clearRegion() = sendRegion(Region())

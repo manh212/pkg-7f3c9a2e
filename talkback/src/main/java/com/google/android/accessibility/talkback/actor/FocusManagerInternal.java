@@ -615,6 +615,10 @@ public class FocusManagerInternal {
     if (nodeToFocus == null) {
       return false;
     }
+    if (initialFocusType == FocusActionInfo.RESTORED_LAST_FOCUS
+        && (!nodeToFocus.refresh() || !nodeToFocus.isVisibleToUser())) {
+      return false;
+    }
 
     boolean firstTime =
         stableScreenState != null && stableScreenState.isInterpretFirstTimeWhenWakeUp();
