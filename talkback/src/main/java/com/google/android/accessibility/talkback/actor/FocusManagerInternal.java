@@ -491,6 +491,9 @@ public class FocusManagerInternal {
    *
    * @return true if accessibility focus is successfully found and assigned
    */
+  private static final long SAME_ITEM_RESTORE_COOLDOWN_MS = 1500L;
+  private long lastSameItemRestoreTimeMs;
+
   private boolean requestA11yFocusFromLastFocusRecord(EventId eventId) {
     ensureRequestBlockedBySkipRefocus = false;
     @Nullable FocusActionRecord record = history.getLastFocusActionRecord();
@@ -504,6 +507,10 @@ public class FocusManagerInternal {
     }
 
     final String subTag = "EnsureOnScreen";
+    long nowMs = SystemClock.uptimeMillis();
+    if (sameItemRestores > 0 && (nowMs - lastSameItemRestoreTimeMs) >= SAME_ITEM_RESTORE_COOLDOWN_MS) {
+      sameItemRestores = 0;
+    }
     if (skipRefocus
         && record.getExtraInfo().isSourceEnsureOnScreen()
         && sameItemRestores < MAX_SAME_ITEM_RESTORES) {
@@ -511,6 +518,7 @@ public class FocusManagerInternal {
       AccessibilityNodeInfoCompat sameItem =
           (sameRoot != null && sameRoot.refresh()) ? findSameItemNearby(sameRoot, lastFocus) : null;
       if (sameItem != null) {
+        lastSameItemRestoreTimeMs = nowMs;
         sameItemRestores++;
         LogUtils.d(TAG, "%s: Focus returns again to the item drawn again as a new node.", subTag);
         return focusSameItem(sameItem, eventId);
@@ -938,6 +946,8 @@ public class FocusManagerInternal {
       AccessibilityNodeInfoCompat nodeForRecord = AccessibilityNodeInfoCompat.obtain(node);
       FocusActionInfo infoForRecord = focusActionInfo;
       ScreenState stableScreenState = screenState.getStableScreenState();
+      history.onImmediateAccessibilityFocusAction(
+          AccessibilityNodeInfoCompat.obtain(node), infoForRecord, currentTime, eventId);
       historyHandler.post(
           () ->
               history.onAccessibilityFocusAction(

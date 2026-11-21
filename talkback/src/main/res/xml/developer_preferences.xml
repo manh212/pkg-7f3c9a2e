@@ -18,7 +18,7 @@
       android:title="@string/title_pref_disable_latency_pinned"
       android:summary="@string/summary_pref_disable_latency_pinned_no_split" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="true"
+      android:defaultValue="false"
       android:key="pref_prepare_adjacent_speech"
       android:title="@string/title_pref_prepare_adjacent_speech"
       android:summary="@string/summary_pref_prepare_adjacent_speech" />

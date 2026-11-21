@@ -81,21 +81,28 @@ public class LatencyExperimentsTest {
         .getSharedPreferences("latency-overhaul-test", Context.MODE_PRIVATE);
     preferences.edit().clear()
         .putBoolean("pref_fast_navigator_key", true)
+        .putBoolean("pref_reduce_window_delay_key", true)
+        .putBoolean("pref_prepare_adjacent_speech", true)
         .putBoolean("pref_prepare_second_ahead_speech", true)
         .putBoolean(LatencyExperiments.Feature.PCM_SECOND.key, true)
         .putBoolean(LatencyExperiments.Feature.FRESH_PREPARED.key, true).commit();
 
     LatencyExperiments.load(preferences);
     assertFalse(preferences.contains("pref_fast_navigator_key"));
+    assertTrue(preferences.getBoolean("pref_reduce_window_delay_key", false));
+    assertFalse(preferences.getBoolean("pref_prepare_adjacent_speech", true));
     assertFalse(preferences.getBoolean("pref_prepare_second_ahead_speech", true));
     assertFalse(LatencyExperiments.Feature.PCM_SECOND.enabled());
     assertFalse(LatencyExperiments.Feature.FRESH_PREPARED.enabled());
     assertTrue(preferences.getBoolean("pref_latency_overhaul_v1_migrated", false));
+    assertTrue(preferences.getBoolean("pref_latency_overhaul_v2_migrated", false));
 
     preferences.edit()
+        .putBoolean("pref_prepare_adjacent_speech", true)
         .putBoolean(LatencyExperiments.Feature.PCM_SECOND.key, true)
         .putBoolean(LatencyExperiments.Feature.FRESH_PREPARED.key, true).commit();
     LatencyExperiments.load(preferences);
+    assertTrue(preferences.getBoolean("pref_prepare_adjacent_speech", false));
     assertTrue(LatencyExperiments.Feature.PCM_SECOND.enabled());
     assertTrue(LatencyExperiments.Feature.FRESH_PREPARED.enabled());
   }

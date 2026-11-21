@@ -8,6 +8,7 @@ import java.util.Map;
 public final class LatencyExperiments {
   public static final String STATIONARY_TOUCH_DELAY_KEY = "pref_latency_stationary_touch_delay_ms";
   private static final String OVERHAUL_MIGRATION_KEY = "pref_latency_overhaul_v1_migrated";
+  private static final String OVERHAUL_MIGRATION_V2_KEY = "pref_latency_overhaul_v2_migrated";
   private static final String[] LEGACY_LATENCY_PREF_KEYS = {
     "pref_fast_navigator_key",
     "pref_fast_nav_cheap_pivot_key",
@@ -29,7 +30,6 @@ public final class LatencyExperiments {
     "pref_prepare_wider_key",
     "pref_presynthesize_prepared_key",
     "pref_reduce_swipe_start_delay_key",
-    "pref_reduce_window_delay_key",
     "pref_serve_stale_order_key",
     "pref_settle_order_build_key",
     "pref_small_audio_buffer_key",
@@ -107,17 +107,25 @@ public final class LatencyExperiments {
   }
 
   private static void migrateLegacyPreferences(SharedPreferences preferences) {
-    if (preferences.getBoolean(OVERHAUL_MIGRATION_KEY, false)) {
+    boolean v1Done = preferences.getBoolean(OVERHAUL_MIGRATION_KEY, false);
+    boolean v2Done = preferences.getBoolean(OVERHAUL_MIGRATION_V2_KEY, false);
+    if (v1Done && v2Done) {
       return;
     }
     SharedPreferences.Editor editor = preferences.edit();
-    for (String legacyKey : LEGACY_LATENCY_PREF_KEYS) {
-      editor.remove(legacyKey);
+    if (!v1Done) {
+      for (String legacyKey : LEGACY_LATENCY_PREF_KEYS) {
+        editor.remove(legacyKey);
+      }
+      editor.putBoolean("pref_prepare_second_ahead_speech", false);
+      editor.putBoolean(Feature.PCM_SECOND.key, false);
+      editor.putBoolean(Feature.FRESH_PREPARED.key, false);
+      editor.putBoolean(OVERHAUL_MIGRATION_KEY, true);
     }
-    editor.putBoolean("pref_prepare_second_ahead_speech", false);
-    editor.putBoolean(Feature.PCM_SECOND.key, false);
-    editor.putBoolean(Feature.FRESH_PREPARED.key, false);
-    editor.putBoolean(OVERHAUL_MIGRATION_KEY, true);
+    if (!v2Done) {
+      editor.putBoolean("pref_prepare_adjacent_speech", false);
+      editor.putBoolean(OVERHAUL_MIGRATION_V2_KEY, true);
+    }
     editor.apply();
   }
 

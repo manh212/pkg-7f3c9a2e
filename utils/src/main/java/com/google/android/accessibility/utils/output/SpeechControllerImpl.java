@@ -1864,6 +1864,10 @@ public class SpeechControllerImpl implements SpeechController {
     return spannable;
   }
 
+  private static final long RECENT_DUPLICATE_GUARD_MS = 450L;
+  private @Nullable String lastDuplicateGuardText;
+  private long lastDuplicateGuardTimeMs;
+
   private void speak(
       FeedbackItem item,
       int queueMode,
@@ -1894,8 +1898,16 @@ public class SpeechControllerImpl implements SpeechController {
 
     int[] expectedUtteranceId = new int[1];
     expectedUtteranceId[0] = -1;
+    CharSequence aggregateText = item.getAggregateText();
+    String guardText = TextUtils.isEmpty(aggregateText) ? null : aggregateText.toString();
+    long nowMs = android.os.SystemClock.uptimeMillis();
+    boolean recentDuplicate =
+        guardText != null
+            && guardText.equals(lastDuplicateGuardText)
+            && (nowMs - lastDuplicateGuardTimeMs) > 0
+            && (nowMs - lastDuplicateGuardTimeMs) <= RECENT_DUPLICATE_GUARD_MS;
     if (item.hasFlag(FeedbackItem.FLAG_SKIP_DUPLICATE)
-        && hasItemOnQueueOrSpeaking(item, expectedUtteranceId)) {
+        && (hasItemOnQueueOrSpeaking(item, expectedUtteranceId) || recentDuplicate)) {
       Iterator<UtteranceCompleteAction> iterator = mUtteranceCompleteActions.iterator();
       while (iterator.hasNext()) {
         UtteranceCompleteAction utteranceCompleteAction = iterator.next();
@@ -1908,6 +1920,10 @@ public class SpeechControllerImpl implements SpeechController {
         }
       }
       return;
+    }
+    if (guardText != null) {
+      lastDuplicateGuardText = guardText;
+      lastDuplicateGuardTimeMs = nowMs;
     }
 
     item.setFlushGlobalTtsQueue(

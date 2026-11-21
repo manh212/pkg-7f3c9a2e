@@ -4355,8 +4355,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     WindowNodePrefetcher.setEnabled(latencyExtrasEnabled);
     if (speechController != null) speechController.getFailoverTts().refreshNavigationCache(key);
     EventFilter.setPreparedSpeechOptions(
-        prefs.getBoolean("pref_prepare_adjacent_speech", /* defValue= */ true),
-        prefs.getBoolean("pref_prepare_second_ahead_speech", /* defValue= */ true));
+        prefs.getBoolean("pref_prepare_adjacent_speech", /* defValue= */ false),
+        prefs.getBoolean("pref_prepare_second_ahead_speech", /* defValue= */ false));
     boolean pinnedLatencyEnabled =
         !getBooleanPref(
             R.string.pref_disable_latency_pinned_key,
@@ -4376,7 +4376,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       backgroundEventGate.setInteractionPriorityEnabled(pinnedLatencyEnabled);
       updateAccessibilityEventSubscriptions(backgroundEventGate.subscribedEventTypes());
     }
-    LowLatencyAudio.setSmallBufferEnabled(pinnedLatencyEnabled);
+    LowLatencyAudio.setSmallBufferEnabled(false);
     AccessibilityFocusMonitor.setFocusFetchReuseEnabled(pinnedLatencyEnabled);
     boolean orderCacheEnabled = prefs.getBoolean("pref_order_cache", true);
     TraversalTreeCache.setEnabled(orderCacheEnabled);

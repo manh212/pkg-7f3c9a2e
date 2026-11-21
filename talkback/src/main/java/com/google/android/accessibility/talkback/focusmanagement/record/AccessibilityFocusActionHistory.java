@@ -198,6 +198,8 @@ public final class AccessibilityFocusActionHistory {
    * The earliest record will be dropped when the queue grows up to its maximum size.
    */
   private final Deque<FocusActionRecord> focusActionRecordList;
+  private final Deque<FocusActionRecord> pendingImmediateFocusRecords =
+      new java.util.ArrayDeque<>();
 
   /**
    * Keeps the last focus action record in each window. Map from window ID and title pair to {@link
@@ -256,6 +258,24 @@ public final class AccessibilityFocusActionHistory {
     onAccessibilityFocusAction(node, extraData, actionTime, currentScreenState, null);
   }
 
+  /**
+   * Synchronously registers a zero-IPC focus record so incoming TYPE_VIEW_ACCESSIBILITY_FOCUSED
+   * events can match TalkBack-initiated actions even when they arrive ahead of the posted full
+   * history recording.
+   */
+  public void onImmediateAccessibilityFocusAction(
+      @NonNull AccessibilityNodeInfoCompat node,
+      @NonNull FocusActionInfo extraData,
+      long actionTime,
+      @Nullable EventId originEventId) {
+    FocusActionRecord record =
+        FocusActionRecord.createWithoutPath(node, extraData, actionTime, originEventId);
+    pendingImmediateFocusRecords.offer(record);
+    if (pendingImmediateFocusRecords.size() > MAXIMUM_RECORD_QUEUE_SIZE) {
+      pendingImmediateFocusRecords.pollFirst();
+    }
+  }
+
   public void onAccessibilityFocusAction(
       @NonNull AccessibilityNodeInfoCompat node,
       @NonNull FocusActionInfo extraData,
@@ -264,6 +284,15 @@ public final class AccessibilityFocusActionHistory {
       @Nullable EventId originEventId) {
     // FocusActionRecord handles making a copy of 'node'. We don't nee to call obtain() here.
     FocusActionRecord record = new FocusActionRecord(node, extraData, actionTime, originEventId);
+
+    Iterator<FocusActionRecord> pendingIter = pendingImmediateFocusRecords.iterator();
+    while (pendingIter.hasNext()) {
+      FocusActionRecord pending = pendingIter.next();
+      if (pending.getActionTime() == actionTime && node.equals(pending.getFocusedNode())) {
+        pendingIter.remove();
+        break;
+      }
+    }
 
     FocusActionRecord lastFocus = getLastFocusActionRecord();
     if (lastFocus != null) {
@@ -454,22 +483,34 @@ public final class AccessibilityFocusActionHistory {
     tryMatchingPendingFocusAction(eventNode, eventTime);
 
     FocusActionRecord result = null;
-    // Iterate from the newest(last) record to the eldest(first) record.
-    Iterator<FocusActionRecord> iterator = focusActionRecordList.descendingIterator();
     int timeoutToleranceMs = getTimeoutToleranceMs(eventNode);
-    while (iterator.hasNext()) {
-      FocusActionRecord record = iterator.next();
+    Iterator<FocusActionRecord> immediateIterator =
+        pendingImmediateFocusRecords.descendingIterator();
+    while (immediateIterator.hasNext()) {
+      FocusActionRecord record = immediateIterator.next();
       long timeDiff = eventTime - record.getActionTime();
-      AccessibilityNodeInfoCompat recordNode = record.getFocusedNode();
-
       boolean timeMatches = timeDiff >= -150 && timeDiff < timeoutToleranceMs;
-      boolean nodeMatches = eventNode.equals(recordNode);
-      if (nodeMatches) {
-        if (timeMatches) {
-          result = FocusActionRecord.copy(record);
-          break;
-        } else {
-          LogUtils.w(TAG, "node matches but timeDiff=%d not matches", timeDiff);
+      if (timeMatches && eventNode.equals(record.getFocusedNode())) {
+        result = FocusActionRecord.copy(record);
+        break;
+      }
+    }
+    if (result == null) {
+      // Iterate from the newest(last) record to the eldest(first) record.
+      Iterator<FocusActionRecord> iterator = focusActionRecordList.descendingIterator();
+      while (iterator.hasNext()) {
+        FocusActionRecord record = iterator.next();
+        long timeDiff = eventTime - record.getActionTime();
+        AccessibilityNodeInfoCompat recordNode = record.getFocusedNode();
+        boolean timeMatches = timeDiff >= -150 && timeDiff < timeoutToleranceMs;
+        boolean nodeMatches = eventNode.equals(recordNode);
+        if (nodeMatches) {
+          if (timeMatches) {
+            result = FocusActionRecord.copy(record);
+            break;
+          } else {
+            LogUtils.w(TAG, "node matches but timeDiff=%d not matches", timeDiff);
+          }
         }
       }
     }
@@ -512,6 +553,7 @@ public final class AccessibilityFocusActionHistory {
   public void clear() {
     // Clear the record list.
     focusActionRecordList.clear();
+    pendingImmediateFocusRecords.clear();
 
     // Clear the LruCache.
     windowIdentifierToFocusActionRecordMap.evictAll();

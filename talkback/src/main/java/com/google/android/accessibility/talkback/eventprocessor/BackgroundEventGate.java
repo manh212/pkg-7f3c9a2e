@@ -109,6 +109,11 @@ public final class BackgroundEventGate {
     interactionPriorityEnabled = enabled;
   }
 
+  private static final long FOREGROUND_STORM_WINDOW_MS = 250L;
+  private static final int FOREGROUND_STORM_THRESHOLD = 4;
+  private long fgContentBurstWindowStartMs;
+  private int fgContentBurstCount;
+
   public void onUserInput() {
     lastInput = SystemClock.uptimeMillis();
   }
@@ -151,7 +156,9 @@ public final class BackgroundEventGate {
     // gate at all — no 200 ms active-update deferral while touching. They are admitted
     // below, like focus and clicks, so list content changing during a swipe is read at
     // once. Background windows keep the 500 ms slot (see isBackgroundUpdate).
-    if (!LatencyExperiments.Feature.INPUT_PRIORITY.enabled() || !isBackgroundUpdate(event)) {
+    if (!LatencyExperiments.Feature.INPUT_PRIORITY.enabled()
+        || (!isBackgroundUpdate(event)
+            && !isForegroundStormOrPassiveScroll(event, receivedAt))) {
       EventProcessingStats.admitted(event, 0);
       return true;
     }
@@ -164,6 +171,35 @@ public final class BackgroundEventGate {
     pendingSince = receivedAt;
     EventProcessingStats.deferred(event);
     schedulePending();
+    return false;
+  }
+
+  /**
+   * Coalesces foreground live-refresh content storms (e.g. countdown timers or heavy voucher lists)
+   * and unsolicited passive auto-scrolls while still admitting normal foreground updates at once.
+   */
+  private boolean isForegroundStormOrPassiveScroll(AccessibilityEvent event, long receivedAt) {
+    if (interactionWindowId < 0 || event.getWindowId() != interactionWindowId) {
+      return false;
+    }
+    int type = event.getEventType();
+    if (type == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+      if (!isRecentInteraction(event) && !inputResponse.test(event)) {
+        TraversalTreeCache.notePassiveScroll(event.getWindowId());
+        return true;
+      }
+      return false;
+    }
+    if (type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+      if (receivedAt < fgContentBurstWindowStartMs
+          || receivedAt - fgContentBurstWindowStartMs > FOREGROUND_STORM_WINDOW_MS) {
+        fgContentBurstWindowStartMs = receivedAt;
+        fgContentBurstCount = 1;
+        return false;
+      }
+      fgContentBurstCount++;
+      return fgContentBurstCount >= FOREGROUND_STORM_THRESHOLD;
+    }
     return false;
   }
 

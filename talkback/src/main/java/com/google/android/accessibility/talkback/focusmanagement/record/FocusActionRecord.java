@@ -328,6 +328,27 @@ public class FocusActionRecord {
         record.collectionItem);
   }
 
+  /**
+   * Creates a lightweight record without walking ancestor nodes over IPC, used for synchronous
+   * event-to-action matching before the full posted history record completes.
+   */
+  public static FocusActionRecord createWithoutPath(
+      @NonNull AccessibilityNodeInfoCompat focusedNode,
+      @NonNull FocusActionInfo extraInfo,
+      long actionTime,
+      @Nullable EventId originEventId) {
+    return new FocusActionRecord(
+        focusedNode,
+        /* nodePathDescription= */ null,
+        /* siblingContext= */ null,
+        /* deferredWebPath= */ null,
+        extraInfo,
+        actionTime,
+        compoundPackageNameAndUniqueId(focusedNode),
+        originEventId,
+        /* collectionItem= */ false);
+  }
+
   public @Nullable AccessibilityNodeInfoCompat findMatchingCollectionItem(
       AccessibilityNodeInfoCompat root) {
     return collectionItem && nodePathDescription != null
