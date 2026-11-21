@@ -274,14 +274,16 @@ public class AccessibilityNodeInfoUtils {
 
   /**
    * Views that are a toolbar, an app bar or a tab bar by their ID, for the apps whose bars are
-   * plain view groups, such as YouTube's.
+   * plain view groups, such as YouTube's. The framework ActionBar's container is {@code
+   * android:id/action_bar_container}, which ends in "container", not "action_bar", so it is
+   * listed on its own.
    */
   private static final Pattern BAR_VIEW_ID =
       Pattern.compile(
           "(?:^|_)(?:toolbar|action_bar|app_bar|appbar|tab_bar|tab_layout|tabs|bottom_nav"
-              + "|bottom_navigation|navigation_bar|nav_bar)$"
+              + "|bottom_navigation|navigation_bar|nav_bar|action_bar_container)$"
               + "|(?<=[a-z])(?:Toolbar|ActionBar|AppBar|TabBar|TabLayout|Tabs|BottomNav"
-              + "|BottomNavigation|NavigationBar|NavBar)$");
+              + "|BottomNavigation|NavigationBar|NavBar|ActionBarContainer|ActionBarView)$");
 
   /** Filter for container. */
   public static final Filter<AccessibilityNodeInfoCompat> FILTER_CONTAINER =
@@ -312,12 +314,18 @@ public class AccessibilityNodeInfoUtils {
         }
       };
 
-  /** Whether the node is a toolbar, or a bar that its view ID names. */
+  /** Whether the node is a toolbar or an action bar, or a bar that its view ID names. */
   private static boolean isBar(AccessibilityNodeInfoCompat node) {
     CharSequence className = node.getClassName();
     if (className != null) {
       String name = className.toString();
-      if (name.endsWith("Toolbar") || name.endsWith("BottomAppBar") || name.endsWith("SearchBar")) {
+      if (name.endsWith("Toolbar")
+          || name.endsWith("BottomAppBar")
+          || name.endsWith("SearchBar")
+          // The framework ActionBar: Meridian's own Settings uses it, so its Up button
+          // must count as a bar control for the Q3 first-content exclusion.
+          || name.endsWith("ActionBarView")
+          || name.endsWith("ActionBarContainer")) {
         return true;
       }
     }
