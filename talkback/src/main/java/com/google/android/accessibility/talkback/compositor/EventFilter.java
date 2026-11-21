@@ -723,11 +723,19 @@ public class EventFilter {
     }
     int targetType = predictor.currentTargetType();
     boolean prepareAudio = LatencyExperiments.Feature.PCM_ADJACENT.enabled();
-    PreparedFocusSpeech.Prepared cached = PreparedFocusSpeech.peek(pivot, targetType);
+    boolean storePreparedSpeech =
+        (prepareAdjacentSpeechEnabled || prepareSecondAheadSpeechEnabled)
+            && PreparedFocusSpeech.shouldPrepare(pivot);
+    if (!prepareAudio && !storePreparedSpeech) {
+      return;
+    }
+    PreparedFocusSpeech.Prepared cached =
+        storePreparedSpeech ? PreparedFocusSpeech.peek(pivot, targetType) : null;
     if (cached == null) {
       // Q1 (round 3): the pivot just arrived in a live focus event, so it is current by
       // construction — it is never vetoed as stale, whatever the saved order says.
-      prepareFocusSpeech(pivot, targetType, prepareAudio, /* isFocusedItem= */ true);
+      prepareFocusSpeech(
+          pivot, targetType, prepareAudio, /* isFocusedItem= */ true, storePreparedSpeech);
     } else if (prepareAudio) {
       compositor.prepareNavigationFeedback(cached.getFeedback(), preparationGeneration);
     }
@@ -748,7 +756,7 @@ public class EventFilter {
       // A swipe may be starting, and must not wait for this.
       return;
     }
-    if (!PreparedFocusSpeech.shouldPrepare(pivot)) {
+    if (!LatencyExperiments.preparePcm() && !PreparedFocusSpeech.shouldPrepare(pivot)) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.SUPPRESSED_WINDOW);
       // This window keeps throwing preparations away unused, so preparation is paused for it.
       return;
@@ -812,7 +820,8 @@ public class EventFilter {
         || !preparationEnabled()
         || predictor == null
         || !Objects.equals(pass.focusedNode, lastFocusedNode)
-        || !PreparedFocusSpeech.shouldPrepare(pass.focusedNode)) {
+        || (!LatencyExperiments.preparePcm()
+            && !PreparedFocusSpeech.shouldPrepare(pass.focusedNode))) {
       preparationPass = null;
       return;
     }
@@ -820,7 +829,7 @@ public class EventFilter {
       return;
     }
     long waitMs = LatencyExperiments.Feature.INPUT_PRIORITY.enabled()
-        ? LatencyExperiments.inputQuietDelay(80) : 0;
+        ? LatencyExperiments.inputQuietDelay(35) : 0;
     if (waitMs > 0) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.WAITING_FOR_IDLE);
       waitingForIdle = true;
@@ -865,9 +874,14 @@ public class EventFilter {
         boolean prepareAudio = pass.distance == 1
             ? LatencyExperiments.Feature.PCM_ADJACENT.enabled()
             : LatencyExperiments.Feature.PCM_SECOND.enabled();
-        PreparedFocusSpeech.Prepared cached = PreparedFocusSpeech.peek(target, targetType);
+        boolean storePreparedSpeech =
+            (pass.distance == 1 ? prepareAdjacentSpeechEnabled : prepareSecondAheadSpeechEnabled)
+                && PreparedFocusSpeech.shouldPrepare(target);
+        PreparedFocusSpeech.Prepared cached =
+            storePreparedSpeech ? PreparedFocusSpeech.peek(target, targetType) : null;
         if (cached == null) {
-          prepareFocusSpeech(target, targetType, prepareAudio);
+          prepareFocusSpeech(
+              target, targetType, prepareAudio, /* isFocusedItem= */ false, storePreparedSpeech);
         } else if (prepareAudio) {
           compositor.prepareNavigationFeedback(cached.getFeedback(), preparationGeneration);
         }
@@ -889,19 +903,19 @@ public class EventFilter {
     schedulePreparation();
   }
 
-  private void prepareFocusSpeech(
-      AccessibilityNodeInfoCompat focusedNode, @TargetType int targetType, boolean prepareAudio) {
-    prepareFocusSpeech(focusedNode, targetType, prepareAudio, /* isFocusedItem= */ false);
-  }
-
   /**
    * Prepares the announcement of focusing {@code focusedNode}. When {@code isFocusedItem} the
    * node is the pivot itself, which just arrived in a live focus event and is current by
-   * construction, so it is never vetoed as stale.
+   * construction, so it is never vetoed as stale. When {@code storePreparedSpeech} is false
+   * (PCM-only mode or suppressed window), speech is synthesized to NavigationPcmCache without
+   * populating PreparedFocusSpeech so unused entries do not trigger window suppression.
    */
   private void prepareFocusSpeech(
-      AccessibilityNodeInfoCompat focusedNode, @TargetType int targetType, boolean prepareAudio,
-      boolean isFocusedItem) {
+      AccessibilityNodeInfoCompat focusedNode,
+      @TargetType int targetType,
+      boolean prepareAudio,
+      boolean isFocusedItem,
+      boolean storePreparedSpeech) {
     // Read the node again from the app, as a swipe to it would, rather than prepare from a copy
     // that the saved reading order may have kept since before its text or state changed.
     @SuppressWarnings("deprecation")
@@ -963,7 +977,9 @@ public class EventFilter {
       globalVariables.restoreFocusState(saved);
     }
     if (hasSpeech(feedback)) {
-      PreparedFocusSpeech.put(node, feedback, containerTitle, targetType);
+      if (storePreparedSpeech) {
+        PreparedFocusSpeech.put(node, feedback, containerTitle, targetType);
+      }
       if (prepareAudio) compositor.prepareNavigationFeedback(feedback, preparationGeneration);
     } else {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.EMPTY_SPEECH);

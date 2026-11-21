@@ -810,6 +810,13 @@ public class AccessibilityFocusInterpreter
             : ColumnWrap.NONE;
 
     if (info == null) {
+      if (event.getEventType() == TYPE_VIEW_ACCESSIBILITY_FOCUSED
+          && shouldMuteSpuriousPostAutoScrollFocus(event)) {
+        AccessibilityFocusEventInterpretation muted =
+            new AccessibilityFocusEventInterpretation(Compositor.toCompositorEvent(event));
+        muted.setShouldMuteFeedback(true);
+        return muted;
+      }
       if (webColumnWrap == ColumnWrap.NONE) {
         return null;
       }
@@ -883,4 +890,40 @@ public class AccessibilityFocusInterpreter
     return focusProcessorForTapAndTouchExploration.getTypingMethod();
   }
 
+
+  private static final long POST_AUTO_SCROLL_SPURIOUS_FOCUS_MS = 350L;
+
+  /**
+   * Mutes app-initiated (non-TalkBack) focus events that some RecyclerViews (such as Google Play
+   * Store) emit on a window/container right as an auto-scroll settles, preventing them from
+   * cutting off the item Meridian just focused and spoke.
+   */
+  private boolean shouldMuteSpuriousPostAutoScrollFocus(AccessibilityEvent event) {
+    if (actorState == null) {
+      return false;
+    }
+    com.google.android.accessibility.utils.output.ScrollActionRecord scrollRecord =
+        actorState.getScrollerState().get();
+    if (scrollRecord == null) {
+      return false;
+    }
+    long now = SystemClock.uptimeMillis();
+    if (now - scrollRecord.autoScrolledTime > POST_AUTO_SCROLL_SPURIOUS_FOCUS_MS) {
+      return false;
+    }
+    FocusActionRecord lastFocus = actorState.getFocusHistory().getLastFocusActionRecord();
+    if (lastFocus == null
+        || lastFocus.getExtraInfo().sourceAction != FocusActionInfo.LOGICAL_NAVIGATION) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat lastNode = lastFocus.getFocusedNode();
+    if (lastNode == null || lastNode.getWindowId() != event.getWindowId()) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat eventNode = AccessibilityNodeInfoUtils.toCompat(event.getSource());
+    if (eventNode == null || eventNode.equals(lastNode)) {
+      return false;
+    }
+    return lastNode.refresh() && lastNode.isVisibleToUser();
+  }
 }

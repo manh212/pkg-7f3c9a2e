@@ -366,8 +366,11 @@ public class ScreenFeedbackManager
         droppedWindowName = true;
         continue;
       }
+      boolean canInterrupt =
+          feedbackPart.isInterruptible()
+              || (firstItemInterruptsWindowName && feedbackPart.isWindowName());
       int queueMode =
-          !(firstItemInterruptsWindowName && feedbackPart.isWindowName())
+          !canInterrupt
               ? SpeechController.QUEUE_MODE_UNINTERRUPTIBLE_BY_NEW_SPEECH
               : firstPart
                   ? SpeechController.QUEUE_MODE_INTERRUPT
@@ -563,8 +566,10 @@ public class ScreenFeedbackManager
             inputMethodFeedback = service.getString(R.string.show_keyboard_window, title);
           }
         }
+        boolean isImeHidden = interpretation.getInputMethod().getId() == WINDOW_ID_NONE;
         feedback.addPart(
             new FeedbackPart(inputMethodFeedback)
+                .interruptible(isImeHidden)
                 .forceFeedbackEvenIfAudioPlaybackActive(true)
                 .forceFeedbackEvenIfMicrophoneActive(true));
       }
@@ -873,6 +878,7 @@ public class ScreenFeedbackManager
     private boolean forceFeedbackEvenIfMicrophoneActive = false;
     private boolean forceFeedbackEvenIfSsbActive = false;
     private boolean windowName = false;
+    private boolean interruptible = false;
 
     public FeedbackPart(CharSequence speech) {
       this.speech = speech;
@@ -887,6 +893,17 @@ public class ScreenFeedbackManager
 
     public boolean isWindowName() {
       return windowName;
+    }
+
+    /** Marks a short transition notice (e.g. keyboard hidden) that new focus speech may interrupt. */
+    @CanIgnoreReturnValue
+    public FeedbackPart interruptible(boolean interruptible) {
+      this.interruptible = interruptible;
+      return this;
+    }
+
+    public boolean isInterruptible() {
+      return interruptible;
     }
 
     @CanIgnoreReturnValue

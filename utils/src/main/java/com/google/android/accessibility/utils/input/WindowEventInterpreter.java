@@ -636,6 +636,10 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
         delayMs = 0;
         stableTransitionStartMs = screenTransitionStartTime;
         stableTransitionDelayMs = 0;
+      } else if (isFastImeHideReady(interpretation)) {
+        delayMs = 0;
+        stableTransitionStartMs = screenTransitionStartTime;
+        stableTransitionDelayMs = 0;
       }
     }
     interpretation.setWindowsStable(delayMs == 0);
@@ -781,9 +785,11 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
         && (interpretation.getAnnouncement() == null)) {
       return 0;
     }
-    return (interpretation.getOtherActiveWindow().getId() == WINDOW_ID_NONE)
-        ? getWindowTransitionDelayMs()
-        : NONE_APPLICATION_WINDOW_DELAY_MS;
+    long transitionDelayMs = getWindowTransitionDelayMs();
+    if (interpretation.getOtherActiveWindow().getId() == WINDOW_ID_NONE) {
+      return transitionDelayMs;
+    }
+    return Math.min(NONE_APPLICATION_WINDOW_DELAY_MS, transitionDelayMs);
   }
 
   private @Nullable AccessibilityWindowInfo findReadyApplicationWindow(
@@ -820,6 +826,43 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
       return root.isVisibleToUser() && (root.getChildCount() > 0 || root.isFocusable())
           ? window
           : null;
+    } finally {
+      root.recycle();
+    }
+  }
+
+  /**
+   * Returns true when the soft keyboard just disappeared and the underlying application window is
+   * already active and populated, so we can announce/focus immediately instead of polling 50 ms.
+   */
+  private boolean isFastImeHideReady(EventInterpretation interpretation) {
+    if (interpretation.getDisplayId() != Display.DEFAULT_DISPLAY
+        || !interpretation.getInputMethodChanged()
+        || interpretation.getInputMethod().getId() != WINDOW_ID_NONE
+        || interpretation.getMainWindowsChanged()
+        || interpretation.getOtherActiveWindow().getId() != WINDOW_ID_NONE
+        || interpretation.getPicInPicChanged()
+        || interpretation.getAnnouncement() != null
+        || interpretation.isInterpretFirstTimeWhenWakeUp()) {
+      return false;
+    }
+    int appWindowId = interpretation.getWindowA().getId();
+    if (appWindowId == WINDOW_ID_NONE) {
+      return false;
+    }
+    AccessibilityWindowInfo window = findWindow(appWindowId);
+    if (window == null
+        || window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION
+        || !window.isActive()
+        || !window.isFocused()) {
+      return false;
+    }
+    AccessibilityNodeInfo root = AccessibilityWindowInfoUtils.getRoot(window);
+    if (root == null) {
+      return false;
+    }
+    try {
+      return root.isVisibleToUser() && (root.getChildCount() > 0 || root.isFocusable());
     } finally {
       root.recycle();
     }

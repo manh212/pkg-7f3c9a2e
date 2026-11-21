@@ -293,8 +293,19 @@ public final class SemanticScreenKey {
    */
   @NonNull
   static String normalizeHeaderFallbackLabel(@Nullable CharSequence raw) {
+    if (raw != null && raw.toString().indexOf('\n') >= 0) {
+      return "";
+    }
     String normalized = normalizeTitle(raw);
     if (normalized.length() < 2 || normalized.length() > 40) {
+      return "";
+    }
+    if (normalized.contains("đã nhận lúc")
+        || normalized.contains("đã gửi lúc")
+        || normalized.contains("đã xem")
+        || normalized.contains("đang nhập")
+        || normalized.contains("received at")
+        || normalized.contains("sent at")) {
       return "";
     }
     if (DYNAMIC_VALUE_ONLY_PATTERN.matcher(normalized).matches()) {
