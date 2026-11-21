@@ -33,6 +33,8 @@ object PerformanceProfile {
   private const val PREPARE_SECOND_AHEAD_KEY = "pref_prepare_second_ahead_speech"
   private const val ORDER_CACHE_KEY = "pref_order_cache"
   private const val SPLIT_CONTROL_SPEECH_KEY = "pref_split_control_speech"
+  private const val SPEAK_ITEMS_BEFORE_SCROLL_KEY = "pref_speak_items_before_scroll_key"
+  private const val REDUCE_WINDOW_DELAY_KEY = "pref_reduce_window_delay_key"
   private const val EVENT_PROCESSING_LEVEL_KEY = "pref_event_processing_level"
   private const val EVENT_PROCESSING_LEVEL_LOW = "low"
 
@@ -47,10 +49,12 @@ object PerformanceProfile {
     preferences.edit().apply {
       putBoolean(DISABLE_LATENCY_EXTRAS_KEY, energy)
       putBoolean(DISABLE_LATENCY_PINNED_KEY, energy)
-      putBoolean(PREPARE_ADJACENT_KEY, !energy)
-      putBoolean(PREPARE_SECOND_AHEAD_KEY, !energy)
+      putBoolean(PREPARE_ADJACENT_KEY, false)
+      putBoolean(PREPARE_SECOND_AHEAD_KEY, false)
       putBoolean(ORDER_CACHE_KEY, !energy)
       putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
+      putBoolean(SPEAK_ITEMS_BEFORE_SCROLL_KEY, !energy)
+      putBoolean(REDUCE_WINDOW_DELAY_KEY, !energy)
       for (feature in LatencyExperiments.Feature.values()) {
         putBoolean(feature.key, if (energy) false else feature.defaultEnabled)
       }

@@ -52,6 +52,8 @@ class PerformanceProfileTest {
     assertFalse(prefs.getBoolean("pref_prepare_second_ahead_speech", true))
     assertFalse(prefs.getBoolean("pref_order_cache", true))
     assertFalse(prefs.getBoolean("pref_split_control_speech", true))
+    assertFalse(prefs.getBoolean("pref_speak_items_before_scroll_key", true))
+    assertFalse(prefs.getBoolean("pref_reduce_window_delay_key", true))
     for (feature in LatencyExperiments.Feature.values()) {
       assertFalse(feature.key, prefs.getBoolean(feature.key, true))
     }
@@ -69,10 +71,12 @@ class PerformanceProfileTest {
 
     assertFalse(prefs.getBoolean("pref_disable_latency_extras", true))
     assertFalse(prefs.getBoolean("pref_disable_latency_pinned", true))
-    assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
-    assertTrue(prefs.getBoolean("pref_prepare_second_ahead_speech", false))
+    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
+    assertFalse(prefs.getBoolean("pref_prepare_second_ahead_speech", true))
     assertTrue(prefs.getBoolean("pref_order_cache", false))
     assertFalse(prefs.getBoolean("pref_split_control_speech", true))
+    assertTrue(prefs.getBoolean("pref_speak_items_before_scroll_key", false))
+    assertTrue(prefs.getBoolean("pref_reduce_window_delay_key", false))
     for (feature in LatencyExperiments.Feature.values()) {
       assertEquals(
         feature.key,
@@ -93,7 +97,9 @@ class PerformanceProfileTest {
     PerformanceProfile.apply(prefs, PerformanceProfile.ENERGY)
     PerformanceProfile.apply(prefs, PerformanceProfile.SPEED)
 
-    assertTrue(prefs.getBoolean("pref_prepare_adjacent_speech", false))
+    assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
+    assertTrue(prefs.getBoolean("pref_speak_items_before_scroll_key", false))
+    assertTrue(prefs.getBoolean("pref_reduce_window_delay_key", false))
     for (feature in LatencyExperiments.Feature.values()) {
       assertEquals(
         feature.key,
@@ -106,6 +112,8 @@ class PerformanceProfileTest {
     PerformanceProfile.apply(prefs, PerformanceProfile.ENERGY)
 
     assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
+    assertFalse(prefs.getBoolean("pref_speak_items_before_scroll_key", true))
+    assertFalse(prefs.getBoolean("pref_reduce_window_delay_key", true))
     assertEquals(PerformanceProfile.ENERGY, PerformanceProfile.storedProfile(prefs))
   }
 
@@ -125,7 +133,10 @@ class PerformanceProfileTest {
 
       assertEquals(profile, PerformanceProfile.storedProfile(prefs))
       assertEquals(!speed, prefs.getBoolean("pref_disable_latency_extras", speed))
-      assertEquals(speed, prefs.getBoolean("pref_prepare_adjacent_speech", !speed))
+      assertFalse(prefs.getBoolean("pref_prepare_adjacent_speech", true))
+      assertFalse(prefs.getBoolean("pref_prepare_second_ahead_speech", true))
+      assertEquals(speed, prefs.getBoolean("pref_speak_items_before_scroll_key", !speed))
+      assertEquals(speed, prefs.getBoolean("pref_reduce_window_delay_key", !speed))
       assertFalse(prefs.getBoolean("pref_split_control_speech", true))
       assertEquals("low", prefs.getString("pref_event_processing_level", null))
     }

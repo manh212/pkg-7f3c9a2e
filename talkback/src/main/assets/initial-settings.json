@@ -906,7 +906,7 @@
         },
         "pref_prepare_adjacent_speech": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "new_key_combo_model|keycombo_shortcut_global_hide_or_show_screen|trigger_modifier_used": {
           "type": "boolean",
@@ -2645,7 +2645,7 @@
         },
         "pref_prepare_second_ahead_speech": {
           "type": "boolean",
-          "value": true
+          "value": false
         },
         "pref_h2_navigation_menu_setting_key": {
           "type": "boolean",

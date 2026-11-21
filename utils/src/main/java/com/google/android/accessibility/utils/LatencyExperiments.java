@@ -9,6 +9,7 @@ public final class LatencyExperiments {
   public static final String STATIONARY_TOUCH_DELAY_KEY = "pref_latency_stationary_touch_delay_ms";
   private static final String OVERHAUL_MIGRATION_KEY = "pref_latency_overhaul_v1_migrated";
   private static final String OVERHAUL_MIGRATION_V2_KEY = "pref_latency_overhaul_v2_migrated";
+  private static final String OVERHAUL_MIGRATION_V3_KEY = "pref_latency_overhaul_migrated_v3";
   private static final String[] LEGACY_LATENCY_PREF_KEYS = {
     "pref_fast_navigator_key",
     "pref_fast_nav_cheap_pivot_key",
@@ -109,7 +110,8 @@ public final class LatencyExperiments {
   private static void migrateLegacyPreferences(SharedPreferences preferences) {
     boolean v1Done = preferences.getBoolean(OVERHAUL_MIGRATION_KEY, false);
     boolean v2Done = preferences.getBoolean(OVERHAUL_MIGRATION_V2_KEY, false);
-    if (v1Done && v2Done) {
+    boolean v3Done = preferences.getBoolean(OVERHAUL_MIGRATION_V3_KEY, false);
+    if (v1Done && v2Done && v3Done) {
       return;
     }
     SharedPreferences.Editor editor = preferences.edit();
@@ -125,6 +127,11 @@ public final class LatencyExperiments {
     if (!v2Done) {
       editor.putBoolean("pref_prepare_adjacent_speech", false);
       editor.putBoolean(OVERHAUL_MIGRATION_V2_KEY, true);
+    }
+    if (!v3Done) {
+      editor.putBoolean("pref_speak_items_before_scroll_key", true);
+      editor.putBoolean("pref_reduce_window_delay_key", true);
+      editor.putBoolean(OVERHAUL_MIGRATION_V3_KEY, true);
     }
     editor.apply();
   }

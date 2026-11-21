@@ -184,14 +184,16 @@ class SettingsBackupTest {
   }
 
   @Test
-  fun existingSettingsWithoutLegacyMarkersAlsoReceiveTheReplacement() {
+  fun existingSettingsWithoutLegacyMarkersKeepStoredValuesAndReceiveMissingDefaults() {
     SharedPreferencesUtils.getSharedPreferences(context, MigrationFiles.STATE_PREFS)
       .edit().clear().commit()
     prefs.edit().clear().putBoolean("pref_speak_items_before_scroll_key", false).commit()
+    val before = bundledFilesBefore()
 
     SettingsBackup.applyInitialDefaultsIfNeeded(context)
 
-    assertBundledDefaults()
+    assertBundledDefaultsFillOnlyMissing(before)
+    assertFalse(prefs.getBoolean("pref_speak_items_before_scroll_key", true))
   }
 
   @Test

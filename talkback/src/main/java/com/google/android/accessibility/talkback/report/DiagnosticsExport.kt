@@ -144,8 +144,8 @@ object DiagnosticsExport {
       !prefs.getBoolean(
         context.getString(R.string.pref_disable_latency_pinned_key),
         context.resources.getBoolean(R.bool.pref_disable_latency_pinned_default))
-    val prepareAdjacent = prefs.getBoolean("pref_prepare_adjacent_speech", true)
-    val prepareSecondAhead = prefs.getBoolean("pref_prepare_second_ahead_speech", true)
+    val prepareAdjacent = prefs.getBoolean("pref_prepare_adjacent_speech", false)
+    val prepareSecondAhead = prefs.getBoolean("pref_prepare_second_ahead_speech", false)
     val selectedProcessingLevel = prefs.getString("pref_event_processing_level", "low")
     val prepareSpeechActive =
       !extrasDisabled && (prepareAdjacent || prepareSecondAhead)
