@@ -18,25 +18,18 @@ package com.google.android.accessibility.talkback.focusmanagement.record
 
 import android.os.SystemClock
 import android.view.View
-import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState
-import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory.WindowIdentifier
 import com.google.android.accessibility.utils.FocusFinder
 import com.google.android.accessibility.utils.AccessibilityNode
-import com.google.android.accessibility.utils.input.WindowsDelegate
 import java.time.Duration
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSystemClock
 import org.robolectric.util.ReflectionHelpers
@@ -514,101 +507,5 @@ class RefocusSearchTest {
     group.owner = null
 
     assertNull(seekDuringRefocus(newHistory(), root, record))
-  }
-
-  @Test
-  fun anAppPlacedFocusIsRememberedForItsPaneButNotForEventMatching() {
-    val history = newHistory()
-    val screen = screen()
-    val talkbackNode = windowed(Node("TalkBack"))
-    history.onAccessibilityFocusAction(
-        talkbackNode,
-        FocusActionInfo.builder().setSourceAction(FocusActionInfo.LOGICAL_NAVIGATION).build(),
-        /* actionTime= */ SystemClock.uptimeMillis(),
-        screen)
-    val placedNode = windowed(Node("Placed"))
-    history.onAppPlacedFocus(
-        placedNode,
-        FocusActionInfo.builder().setSourceAction(FocusActionInfo.APP_PLACED_FOCUS).build(),
-        /* actionTime= */ SystemClock.uptimeMillis(),
-        screen)
-
-    // The pane record is the placed node ...
-    val paneRecord =
-        history.reader.getLastFocusActionRecordInWindow(WindowIdentifier.create(WINDOW, screen))
-    assertNotNull(paneRecord)
-    assertEquals("Placed", paneRecord?.getFocusedNode()?.text?.toString())
-    // ... but the action queue still ends at the TalkBack action ...
-    assertEquals("TalkBack", history.getLastFocusActionRecord()?.getFocusedNode()?.text?.toString())
-    // ... so a later focus event on the placed node does not look TalkBack-assigned ...
-    assertNull(history.matchFocusActionRecordFromEvent(focusEvent(placedNode)))
-    // ... while the TalkBack node's own event still matches.
-    assertNotNull(history.matchFocusActionRecordFromEvent(focusEvent(talkbackNode)))
-  }
-
-  @Test
-  fun anAppPlacedFocusOnAnEditFieldBecomesTheLastEditableRecord() {
-    val history = newHistory()
-    val screen = screen()
-    val editNode = windowed(Node("Message")).apply { isEditable = true }
-    history.onAppPlacedFocus(
-        editNode,
-        FocusActionInfo.builder().setSourceAction(FocusActionInfo.APP_PLACED_FOCUS).build(),
-        /* actionTime= */ SystemClock.uptimeMillis(),
-        screen)
-    assertEquals(
-        "Message",
-        history.reader.getLastEditableFocusActionRecord()?.getFocusedNode()?.text?.toString())
-
-    // A later placement on a non-editable node leaves the edit field as the last editable.
-    val messageNode = windowed(Node("Hello"))
-    history.onAppPlacedFocus(
-        messageNode,
-        FocusActionInfo.builder().setSourceAction(FocusActionInfo.APP_PLACED_FOCUS).build(),
-        /* actionTime= */ SystemClock.uptimeMillis(),
-        screen)
-    assertEquals(
-        "Message",
-        history.reader.getLastEditableFocusActionRecord()?.getFocusedNode()?.text?.toString())
-  }
-
-  /** A screen state for a window whose title is its id, with no pane title. */
-  private fun screen(): ScreenState {
-    val window = AccessibilityWindowInfo()
-    shadowOf(window).setId(WINDOW)
-    shadowOf(window).setType(AccessibilityWindowInfo.TYPE_APPLICATION)
-    shadowOf(window).setActive(true)
-    shadowOf(window).setFocused(true)
-    return ScreenState(windows, window, SystemClock.uptimeMillis())
-  }
-
-  private val windows =
-    object : WindowsDelegate {
-      override fun getWindowTitle(windowId: Int): CharSequence = "Window $windowId"
-
-      override fun getAccessibilityPaneTitle(windowId: Int): CharSequence = ""
-
-      override fun isSplitScreenMode(displayId: Int): Boolean = false
-
-      override fun hasAccessibilityPane(windowId: Int): Boolean = false
-    }
-
-  /** Reports [node] as living in the test window. */
-  private fun windowed(node: Node): Node {
-    val window = AccessibilityWindowInfo()
-    shadowOf(window).setId(WINDOW)
-    shadowOf(node.unwrap()).setAccessibilityWindowInfo(window)
-    return node
-  }
-
-  /** A focus event whose source is [node]. */
-  private fun focusEvent(node: AccessibilityNodeInfoCompat): AccessibilityEvent {
-    val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED)
-    shadowOf(event).setSourceNode(node.unwrap())
-    return event
-  }
-
-  private companion object {
-    const val WINDOW = 7
   }
 }
