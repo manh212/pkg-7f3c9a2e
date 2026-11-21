@@ -1162,9 +1162,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private const val TAG = "LowLatencyAudio"
     private const val DEFAULT_RATE = 48_000
     private const val DEFAULT_BURST = 192
-    private const val QUEUED_BURSTS = 2
+    private const val QUEUED_BURSTS = 3
     @JvmStatic
-    var smallBufferEnabled: Boolean = true
+    var smallBufferEnabled: Boolean = false
       set(value) {
         if (field == value) return
         field = value

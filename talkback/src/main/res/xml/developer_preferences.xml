@@ -23,7 +23,7 @@
       android:title="@string/title_pref_prepare_adjacent_speech"
       android:summary="@string/summary_pref_prepare_adjacent_speech" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="true"
+      android:defaultValue="false"
       android:key="pref_prepare_second_ahead_speech"
       android:title="@string/title_pref_prepare_second_ahead_speech"
       android:summary="@string/summary_pref_prepare_second_ahead_speech" />
@@ -104,7 +104,7 @@
         android:key="pref_latency_cached_text"
         android:title="@string/title_latency_cached_text" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="true"
+        android:defaultValue="false"
         android:key="pref_latency_fresh_prepared"
         android:title="@string/title_latency_fresh_prepared" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
@@ -112,7 +112,7 @@
         android:key="pref_latency_pcm_adjacent"
         android:title="@string/title_latency_pcm_adjacent" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="true"
+        android:defaultValue="false"
         android:key="pref_latency_pcm_second"
         android:title="@string/title_latency_pcm_second" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference

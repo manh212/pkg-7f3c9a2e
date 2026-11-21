@@ -249,12 +249,14 @@ public final class BackgroundEventGate {
     // Without this carve-out, a foreground text/state/description change while touching
     // would still wait in the background slot below (non-structural content), even though
     // the 200 ms active deferral above is gone.
-    if (interactionWindowId >= 0 && event.getWindowId() == interactionWindowId) return false;
     if (WindowCachePolicy.isNonStructuralContent(event)
         && (touching || SystemClock.uptimeMillis() - lastInput < INPUT_GRACE_MS)) return true;
+    if (interactionWindowId >= 0 && event.getWindowId() == interactionWindowId) return false;
     CharSequence sourcePackage = event.getPackageName();
     boolean background;
-    if (sourcePackage != null && "com.android.systemui".contentEquals(sourcePackage)
+    if (sourcePackage != null
+        && ("com.android.systemui".contentEquals(sourcePackage)
+            || "miui.systemui.plugin".contentEquals(sourcePackage))
         && !"com.android.systemui".equals(interactionPackage)) {
       background = true;
     } else if (interactionWindowId >= 0 && event.getWindowId() >= 0) {

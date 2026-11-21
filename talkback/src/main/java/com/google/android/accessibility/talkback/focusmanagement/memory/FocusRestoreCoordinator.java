@@ -66,9 +66,14 @@ public final class FocusRestoreCoordinator {
    * Kích hoạt trạng thái chờ thử lại khi lần khôi phục đầu tiên trên {@code screenKey} chưa tìm
    * thấy node (do UI đang tải hoặc chưa ổn định).
    */
+  private static boolean isTransientPopupKey(@NonNull SemanticScreenKey key) {
+    String desc = key.toString();
+    return desc.contains("win='popup window'") && desc.contains("sig=''");
+  }
+
   public synchronized void armPendingRestore(
       @Nullable SemanticScreenKey screenKey, long nowUptimeMs) {
-    if (screenKey == null) {
+    if (screenKey == null || isTransientPopupKey(screenKey)) {
       return;
     }
     if (store.lookup(screenKey) == null) {
@@ -166,7 +171,7 @@ public final class FocusRestoreCoordinator {
     }
     long now = resolveNow(nowUptimeMs);
     SemanticScreenKey currentKey = SemanticScreenKey.create(root, screenState, windowId);
-    if (currentKey == null) {
+    if (currentKey == null || isTransientPopupKey(currentKey)) {
       return null;
     }
 

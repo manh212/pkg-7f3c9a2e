@@ -7,6 +7,44 @@ import java.util.Map;
 
 public final class LatencyExperiments {
   public static final String STATIONARY_TOUCH_DELAY_KEY = "pref_latency_stationary_touch_delay_ms";
+  private static final String OVERHAUL_MIGRATION_KEY = "pref_latency_overhaul_v1_migrated";
+  private static final String[] LEGACY_LATENCY_PREF_KEYS = {
+    "pref_fast_navigator_key",
+    "pref_fast_nav_cheap_pivot_key",
+    "pref_fast_nav_fire_first_key",
+    "pref_fast_nav_skip_target_refresh_key",
+    "pref_background_order_build_key",
+    "pref_coalesce_listener_builds_key",
+    "pref_complete_swipe_early_key",
+    "pref_defer_builds_during_burst_key",
+    "pref_event_driven_scroll_landing_key",
+    "pref_focus_order_build_key",
+    "pref_focus_priority_lane_key",
+    "pref_keep_preparation_on_focus_change",
+    "pref_keep_prepared_across_unrelated_key",
+    "pref_keep_unused_prepared_key",
+    "pref_lean_order_builder_key",
+    "pref_prepare_ahead_key",
+    "pref_prepare_on_settle_key",
+    "pref_prepare_wider_key",
+    "pref_presynthesize_prepared_key",
+    "pref_reduce_swipe_start_delay_key",
+    "pref_reduce_window_delay_key",
+    "pref_serve_stale_order_key",
+    "pref_settle_order_build_key",
+    "pref_small_audio_buffer_key",
+    "pref_speculative_speech_key",
+    "pref_speech_pipeline_chain_key",
+    "pref_speech_pipeline_key",
+    "pref_speech_wait_cap_key",
+    "pref_split_speech_key",
+    "pref_touch_order_build_key",
+    "pref_trust_untouched_nodes_key",
+    "pref_yielding_prepare_key",
+    "pref_latency_touch_explore",
+    "pref_latency_window_immediate",
+    "pref_latency_window_settle"
+  };
 
   public enum Feature {
     TRACE("trace"),
@@ -20,9 +58,9 @@ public final class LatencyExperiments {
     TOAST_FILTER("toast_filter", true),
     EARLY_CONTROLS("early_controls", true),
     CACHED_TEXT("cached_text", true),
-    FRESH_PREPARED("fresh_prepared", true),
+    FRESH_PREPARED("fresh_prepared"),
     PCM_ADJACENT("pcm_adjacent", true),
-    PCM_SECOND("pcm_second", true),
+    PCM_SECOND("pcm_second"),
     IMMEDIATE_SPEECH("immediate_speech", true),
     FAST_DOUBLE_TAP("simulated_double_tap", true),
     FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe", true),
@@ -61,10 +99,26 @@ public final class LatencyExperiments {
   private LatencyExperiments() {}
 
   public static void load(SharedPreferences preferences) {
+    migrateLegacyPreferences(preferences);
     for (Feature feature : Feature.values()) {
       feature.enabled = preferences.getBoolean(feature.key, feature.defaultEnabled);
     }
     loadStationaryTouchDelay(preferences);
+  }
+
+  private static void migrateLegacyPreferences(SharedPreferences preferences) {
+    if (preferences.getBoolean(OVERHAUL_MIGRATION_KEY, false)) {
+      return;
+    }
+    SharedPreferences.Editor editor = preferences.edit();
+    for (String legacyKey : LEGACY_LATENCY_PREF_KEYS) {
+      editor.remove(legacyKey);
+    }
+    editor.putBoolean("pref_prepare_second_ahead_speech", false);
+    editor.putBoolean(Feature.PCM_SECOND.key, false);
+    editor.putBoolean(Feature.FRESH_PREPARED.key, false);
+    editor.putBoolean(OVERHAUL_MIGRATION_KEY, true);
+    editor.apply();
   }
 
   public static void loadStationaryTouchDelay(SharedPreferences preferences) {

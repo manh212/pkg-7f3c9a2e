@@ -48,12 +48,12 @@ object PreparedFocusSpeech {
   const val MIN_AGE_MS = 100L
 
   private const val NO_WINDOW_ID = -1
-  private const val MAX_PREPARED_ANNOUNCEMENTS = 8
+  private const val MAX_PREPARED_ANNOUNCEMENTS = 4
   private const val WINDOW_ACTIVATION_CHANGES =
     AccessibilityEvent.WINDOWS_CHANGE_ACTIVE or AccessibilityEvent.WINDOWS_CHANGE_FOCUSED
 
   /** Wasted preparation rounds in a row after which a window's preparation pauses. */
-  private const val MAX_WASTED_STREAK = 3
+  private const val MAX_WASTED_STREAK = 2
 
   /** How long preparation stays paused for a window that keeps wasting it. */
   private const val SUPPRESSION_MS = 30_000L

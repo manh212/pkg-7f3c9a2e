@@ -4292,6 +4292,13 @@ public class TalkBackService extends AccessibilityServiceCompat
    * all the preferences.
    */
   protected void reloadPreferences(@Nullable String key) {
+    if (key != null
+        && ("pref_current_selector_setting_key".equals(key)
+            || "pref_selector_navigation_last_items".equals(key)
+            || "update_last_check_time".equals(key)
+            || key.startsWith("pref_selector_navigation_last_"))) {
+      return;
+    }
     LatencyExperiments.load(prefs);
     if (LatencyExperiments.Feature.TRACE.key.equals(key)) {
       com.google.android.accessibility.talkback.report.LatencyMeasurementSession.reset();

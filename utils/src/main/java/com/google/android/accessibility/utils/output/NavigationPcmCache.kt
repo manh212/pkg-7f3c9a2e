@@ -138,14 +138,12 @@ class NavigationPcmCache(context: Context) {
       }
       val key = Key(current, spoken, parameters.getInt("pitch", 100), parameters.getInt("rate", 100))
       if (generation != pendingGeneration) {
-        // 1B: a focus move only passes the items behind the new focus. Keep the previous
-        // generation's requests: its second-ahead item is the next item after one more swipe
-        // in either direction, and it is already queued (the dedup below keeps it). Drop
-        // only generations older than that.
+        // Drop all stale generations immediately on a new focus move so rapid swipes never build
+        // up a background TTS backlog that competes with the active utterance.
         val iterator = queue.iterator()
         var dropped = 0
         while (iterator.hasNext()) {
-          if (iterator.next().generation < generation - 1) {
+          if (iterator.next().generation < generation) {
             iterator.remove()
             dropped++
           }
@@ -158,15 +156,9 @@ class NavigationPcmCache(context: Context) {
         Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_DEDUP)
         return@post
       }
-      if (queue.size >= 4) {
-        // 1B: make room for the new generation by dropping the oldest request from an older
-        // generation (already passed) instead of rejecting the new one outright.
-        val oldest = queue.firstOrNull { it.generation < generation }
-        if (oldest == null) {
-          note(Work.QUEUE_FULL)
-          return@post
-        }
-        queue.remove(oldest)
+      while (queue.size >= 2) {
+        // Replace-oldest policy keeps the background TTS queue strictly bounded to 2 items.
+        queue.removeFirst()
         note(Work.SUPERSEDED)
       }
       queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch, generation))
@@ -471,17 +463,15 @@ class NavigationPcmCache(context: Context) {
     // Q11a: bound for everQueuedKeys (see the field). Cleared on identity change and
     // when it reaches this size, so a long session cannot grow it without limit.
     private const val MAX_EVER_QUEUED_KEYS = 8192
-    private const val MAX_PENDING_AGE_MS = 2_000L
-    private const val INPUT_QUIET_MS = 60L
+    private const val MAX_PENDING_AGE_MS = 1_200L
+    private const val INPUT_QUIET_MS = 120L
     private const val RETRY_MS = 24L
 
-    // Q8: the background synthesis timeout scales with the text length — 2 s base plus
-    // 2 ms per character, capped at 4 s — so a long utterance is not cut off by a flat
-    // limit while a short one still fails fast. (prepare() already rejects text over
-    // 1200 chars, so the cap is reached at 1000 chars.)
-    private const val BASE_SYNTHESIS_TIMEOUT_MS = 2_000L
+    // Shorter background synthesis timeout prevents stale pre-synthesis jobs from stalling the
+    // TTS engine during rapid navigation bursts.
+    private const val BASE_SYNTHESIS_TIMEOUT_MS = 900L
     private const val SYNTHESIS_TIMEOUT_PER_CHAR_MS = 2L
-    private const val MAX_SYNTHESIS_TIMEOUT_MS = 4_000L
+    private const val MAX_SYNTHESIS_TIMEOUT_MS = 1_800L
 
     fun synthesisTimeoutMs(textLength: Int): Long =
       minOf(

@@ -462,7 +462,7 @@ public final class AccessibilityFocusActionHistory {
       long timeDiff = eventTime - record.getActionTime();
       AccessibilityNodeInfoCompat recordNode = record.getFocusedNode();
 
-      boolean timeMatches = timeDiff >= 0 && timeDiff < timeoutToleranceMs;
+      boolean timeMatches = timeDiff >= -150 && timeDiff < timeoutToleranceMs;
       boolean nodeMatches = eventNode.equals(recordNode);
       if (nodeMatches) {
         if (timeMatches) {

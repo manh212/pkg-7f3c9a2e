@@ -77,7 +77,7 @@ object TraversalTreeCache {
    * How long the order is kept after one of those changes. A text change can, rarely, make a node
    * speak that did not before, so the order is not trusted for long after one.
    */
-  private const val MAX_AGE_AFTER_TEXT_CHANGE_MS = 1500L
+  private const val MAX_AGE_AFTER_TEXT_CHANGE_MS = 3000L
 
   /** Node actions that only move focus, and so do not change the nodes or their order. */
   internal val FOCUS_ACTIONS =
@@ -894,6 +894,6 @@ object TraversalTreeCache {
     val changes = event.contentChangeTypes
     return event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
       changes != 0 &&
-      changes and NON_STRUCTURAL_CHANGES.inv() == 0
+      changes and NON_STRUCTURAL_CHANGES_WITH_DESCRIPTION.inv() == 0
   }
 }
