@@ -155,10 +155,8 @@ public class EventFilter {
     @Nullable AccessibilityNodeInfoCompat firstAdjacent;
     @Nullable AccessibilityNodeInfoCompat secondAdjacent;
     /**
-     * Q10 (round 3): predictions that already failed in this pass. A failed prediction —
-     * a web pivot, say — fails identically when it is re-run by the distance-2 step and
-     * the second target-type pass, so the walk is not repeated for the same pivot and
-     * direction.
+     * Q10 (round 3): predictions that already failed in this pass. Cache failures for the
+     * same pivot, direction and target type, without suppressing other reading controls.
      */
     private final Set<FailedPrediction> failedPredictions = new HashSet<>();
 
@@ -223,9 +221,9 @@ public class EventFilter {
   }
 
   /**
-   * A prediction that already failed in a {@link PreparationPass}, keyed by the pivot and the
-   * direction. Equality is the node's own: two wrappers for the same node in the same window
-   * are the same pivot, so a re-obtained node still hits the cache.
+   * A prediction that already failed in a {@link PreparationPass}, keyed by pivot, direction
+   * and target type. Equality is the node's own: two wrappers for the same node in the same
+   * window are the same pivot, so a re-obtained node still hits the cache.
    */
   private static final class FailedPrediction {
     final AccessibilityNodeInfoCompat pivot;
@@ -853,10 +851,8 @@ public class EventFilter {
     @Nullable AccessibilityNodeInfoCompat target = null;
     try {
       if (currentPivot != null) {
-        // Q10 (round 3): a prediction that already failed in this pass fails identically
-        // when it is re-run — by the distance-2 step and the second target-type pass — so
-        // the walk is skipped, and so is the NO_TARGET count: the first failure already
-        // counted it (in predictTarget).
+        // Repeated failures for the same target type do not rerun the search or count NO_TARGET
+        // twice. A different reading control can still have a valid target.
         if (pass.failedBefore(currentPivot, direction, targetType)) {
           Performance.getInstance()
               .onPreparedSpeechWork(PreparedSpeechWork.NULL_PREDICTION_CACHED);

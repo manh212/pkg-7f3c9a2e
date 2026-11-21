@@ -120,8 +120,9 @@ class EventFilterPrepareTest {
   }
 
   /** Counts predictions and always returns null, modelling a pivot no search can resolve. */
-  private inner class CountingNullPredictor : EventFilter.TargetPredictor {
-    var invocations = 0
+  private inner class CountingNullPredictor(private val defaultForwardTarget: Boolean = false) :
+    EventFilter.TargetPredictor {
+    val invocations = mutableListOf<Pair<Int, Int>>()
 
     override fun predictTarget(
       pivot: AccessibilityNodeInfoCompat,
@@ -134,8 +135,11 @@ class EventFilterPrepareTest {
       searchDirection: Int,
       targetType: Int,
     ): AccessibilityNodeInfoCompat? {
-      invocations++
-      return null
+      invocations += targetType to searchDirection
+      return if (defaultForwardTarget &&
+        targetType == NavigationTarget.TARGET_DEFAULT &&
+        searchDirection == TraversalStrategy.SEARCH_FOCUS_FORWARD &&
+        pivot == focused) next else null
     }
 
     override fun currentTargetType(): Int = NavigationTarget.TARGET_HEADING
@@ -285,21 +289,33 @@ class EventFilterPrepareTest {
     assertNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
   }
 
-  /**
-   * Q10 (round 3): a prediction that fails in the first target-type pass is not repeated in
-   * the second one. The predictor fails for the focused pivot in both directions, so without
-   * the cache it would be called four times (heading forward/back, then default forward/back);
-   * with it, twice.
-   */
   @Test
-  fun failedPredictionIsNotRepeatedInTheSamePass() {
+  fun failedPredictionIsNotRepeatedForTheSameTargetTypeAndDirection() {
     TraversalTreeCache.put(root, OrderedTraversalStrategy(root))
+    EventFilter.setPreparedSpeechOptions(true, true)
     val predictor = CountingNullPredictor()
     eventFilter.setTargetPredictor(predictor)
     moveFocusTo(focused)
-    runMainQueueFor(100)
-    assertEquals(2, predictor.invocations)
+    runMainQueueFor(200)
+    val expected = listOf(NavigationTarget.TARGET_HEADING, NavigationTarget.TARGET_DEFAULT)
+      .flatMap { type ->
+        listOf(TraversalStrategy.SEARCH_FOCUS_FORWARD, TraversalStrategy.SEARCH_FOCUS_BACKWARD)
+          .map { direction -> type to direction }
+      }
+    assertEquals(expected.toSet(), predictor.invocations.toSet())
+    assertEquals(expected.size, predictor.invocations.size)
     assertNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
+  }
+
+  @Test
+  fun failedHeadingPredictionDoesNotSuppressDefaultTarget() {
+    TraversalTreeCache.put(root, OrderedTraversalStrategy(root))
+    val predictor = CountingNullPredictor(defaultForwardTarget = true)
+    eventFilter.setTargetPredictor(predictor)
+    moveFocusTo(focused)
+    runMainQueueFor(100)
+    assertNotNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_DEFAULT))
+    assertNull(PreparedFocusSpeech.peek(next, NavigationTarget.TARGET_HEADING))
   }
 
   /** Moves focus to [node], driving the private `onFocusMoved` by reflection. */

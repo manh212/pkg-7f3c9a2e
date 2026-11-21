@@ -160,7 +160,9 @@ public final class BackgroundEventGate {
         || (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             && event.getPackageName() != null
             && !"com.android.systemui".contentEquals(event.getPackageName())
-            && !isPurePaneContentChange(event))) {
+            && !isPurePaneContentChange(event)
+            && (!LatencyExperiments.Feature.SCOPED_CACHE.enabled()
+                || interactionWindowId < 0 || interactionWindowId == event.getWindowId()))) {
       if (interactionWindowId != event.getWindowId()) {
         fgContentBurstWindowStartMs = 0;
         fgContentBurstCount = 0;
@@ -256,6 +258,9 @@ public final class BackgroundEventGate {
           return fgSubtreeBurstCount >= CHURNING_SUBTREE_STORM_THRESHOLD;
         }
         return false;
+      }
+      if (touching || (lastInput > 0 && receivedAt - lastInput < INPUT_GRACE_MS)) {
+        return true;
       }
       if (receivedAt < fgContentBurstWindowStartMs
           || receivedAt - fgContentBurstWindowStartMs > FOREGROUND_STORM_WINDOW_MS) {

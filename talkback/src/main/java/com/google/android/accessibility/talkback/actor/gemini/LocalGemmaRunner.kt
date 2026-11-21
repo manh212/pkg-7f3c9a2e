@@ -90,14 +90,16 @@ internal class LocalGemmaRunner(
     pending.get()?.let { job ->
       job.cancelled.set(true)
       val targetGeneration = job.generation
-      val remoteRequestId = (activeLlm() as? RemoteLocalLlm)?.currentRequestId() ?: 0
       canceller.execute {
         if (runningGeneration.get() == targetGeneration) {
           val active = activeLlm()
-          if (active is RemoteLocalLlm && remoteRequestId != 0) {
-            active.cancelIfCurrent(remoteRequestId)
-          } else {
-            active?.cancel()
+          val remoteRequestId = (active as? RemoteLocalLlm)?.currentRequestId() ?: 0
+          if (runningGeneration.get() == targetGeneration) {
+            if (active is RemoteLocalLlm) {
+              active.cancelIfCurrent(remoteRequestId)
+            } else {
+              active?.cancel()
+            }
           }
         }
       }

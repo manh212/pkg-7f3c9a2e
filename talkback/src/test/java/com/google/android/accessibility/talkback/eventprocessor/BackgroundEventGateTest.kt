@@ -404,6 +404,36 @@ class BackgroundEventGateTest {
   }
 
   @Test
+  fun foregroundAndBackgroundUpdatesDoNotOverwriteEachOther() {
+    gate.setProcessingLevel("medium")
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.INPUT_PRIORITY, true)
+    gate.onAccessibilityEvent(
+      event(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED, "foreground", 1))
+    gate.onUserInput()
+    val update = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "foreground", 1)
+    update.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
+    assertFalse(gate.onAccessibilityEvent(update))
+    assertFalse(gate.onAccessibilityEvent(
+      event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "background", 2)))
+    advance(500)
+    assertEquals(listOf("foreground"), delivered)
+    advance(500)
+    assertEquals(listOf("foreground", "background"), delivered)
+  }
+
+  @Test
+  fun scopedModeLetsExplicitFocusMoveTheInteractionWindow() {
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.SCOPED_CACHE, true)
+    assertTrue(gate.onAccessibilityEvent(
+      event(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED, "newApp", 8)))
+    gate.onUserInput()
+    assertTrue(gate.onAccessibilityEvent(
+      event(AccessibilityEvent.TYPE_VIEW_SCROLLED, "newApp", 8)))
+    assertFalse(gate.onAccessibilityEvent(
+      event(AccessibilityEvent.TYPE_VIEW_SCROLLED, "foreground", 1)))
+  }
+
+  @Test
   fun scopedModeDoesNotLetHelperWindowStateReplaceTheInteractionWindow() {
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.SCOPED_CACHE, true)
     assertTrue(gate.onAccessibilityEvent(event(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, "miui.helper", 8)))

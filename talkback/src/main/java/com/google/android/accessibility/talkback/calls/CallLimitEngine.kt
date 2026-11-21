@@ -9,7 +9,7 @@ class CallLimitEngine(
 ) {
   private class Entry(
     val settings: CallLimitSettings,
-    val deadline: Long,
+    var deadline: Long,
     val valid: () -> Boolean,
     val end: () -> Boolean,
   ) {
@@ -50,13 +50,18 @@ class CallLimitEngine(
     entry.cancelWarning = schedule((warningAt - now()).coerceAtLeast(0)) {
       if (!valid(key, entry) || entry.warned) return@schedule
       if (now() < warningAt) armWarning(key, entry)
-      else warn(entry)
+      else warn(key, entry)
     }
   }
 
-  private fun warn(entry: Entry) {
+  private fun warn(key: Any, entry: Entry) {
     if (entry.warned) return
     entry.warned = true
+    if (entry.deadline < now() + 60_000L) {
+      entry.deadline = now() + 60_000L
+      entry.cancel?.invoke()
+      arm(key, entry)
+    }
     warning()
   }
 
@@ -65,6 +70,10 @@ class CallLimitEngine(
       if (!valid(key, entry)) return@schedule
       if (now() < entry.deadline) {
         arm(key, entry)
+        return@schedule
+      }
+      if (entry.settings.minutes > 1 && !entry.warned) {
+        warn(key, entry)
         return@schedule
       }
       cancel(key)
