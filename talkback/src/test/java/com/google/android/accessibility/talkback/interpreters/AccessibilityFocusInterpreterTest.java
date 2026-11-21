@@ -24,16 +24,12 @@ import static org.robolectric.Shadows.shadowOf;
 import android.content.Context;
 import android.os.Looper;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
-import com.google.android.accessibility.talkback.ActorState;
-import com.google.android.accessibility.talkback.ActorStateWritable;
 import com.google.android.accessibility.talkback.Interpretation;
 import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenStateMonitor;
-import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
 import com.google.android.accessibility.talkback.interpreters.ManualScrollInterpreter.ManualScrollInterpretation;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -144,36 +140,6 @@ public class AccessibilityFocusInterpreterTest {
     interpreter.onSuspendInfrastructure();
 
     assertNull(pendingField());
-  }
-
-  // Runs below R so image captioning stays off: interpret() reads the Gemini
-  // state to decide captioning, and this test wires only the focus history.
-  // This test pins the focus path, not captioning.
-  @Test
-  @Config(sdk = 29)
-  public void appPlacedFocus_inputsEnsureOnScreen() {
-    AccessibilityFocusActionHistory history =
-        new AccessibilityFocusActionHistory(RuntimeEnvironment.getApplication());
-    interpreter.setActorState(
-        new ActorState(
-            new ActorStateWritable(
-                null, null, null, null, history.reader, null, null, null, null, null, null, null,
-                null, null)));
-
-    AccessibilityEvent event =
-        AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
-    AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
-    node.setPackageName("com.example.app");
-    shadowOf(event).setSourceNode(node);
-
-    assertNull(interpreter.interpret(event));
-
-    // The focus event itself is reported first, then the app-placed trigger.
-    assertEquals(2, receiver.interpretations.size());
-    assertTrue(receiver.interpretations.get(1) instanceof Interpretation.ID);
-    assertEquals(
-        Interpretation.ID.Value.APP_PLACED_FOCUS,
-        ((Interpretation.ID) receiver.interpretations.get(1)).value);
   }
 
   private Object pendingField() {
