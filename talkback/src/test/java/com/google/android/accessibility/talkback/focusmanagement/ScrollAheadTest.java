@@ -212,4 +212,9 @@ public final class ScrollAheadTest {
     assertFalse(ScrollAhead.isQuiet(1149, 1000));
     assertTrue(ScrollAhead.isQuiet(1150, 1000));
   }
+
+  @Test
+  public void maxPagesIsBoundedForFocusStability() {
+    assertTrue(ScrollAhead.MAX_PAGES >= 1 && ScrollAhead.MAX_PAGES <= 3);
+  }
 }

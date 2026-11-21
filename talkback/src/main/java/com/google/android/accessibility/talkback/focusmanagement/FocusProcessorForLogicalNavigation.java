@@ -667,7 +667,8 @@ public class FocusProcessorForLogicalNavigation {
    * ahead.
    */
   void prepareWindowOrder(AccessibilityNodeInfoCompat focused) {
-    if (TraversalTreeCache.holdsCurrent(focused)) {
+    if (TraversalTreeCache.holdsCurrent(focused)
+        || TraversalTreeCache.shouldUseLiveTraversal(focused.getWindowId())) {
       return;
     }
     AccessibilityNodeInfoCompat root = AccessibilityNodeInfoUtils.getRoot(focused);
@@ -676,28 +677,45 @@ public class FocusProcessorForLogicalNavigation {
     }
     LogUtils.d(TAG, "Reading the window's order before the next swipe.");
     TraversalTreeCache.rememberPivot(focused);
+    if (LatencyExperiments.Feature.ASYNC_ORDER.enabled()) {
+      AsyncTraversalOrder.warm(
+          root.getWindowId(), () -> AccessibilityServiceCompatUtils.getRootInActiveWindow(service));
+      return;
+    }
     buildWindowOrder(root, TraversalStrategy.SEARCH_FOCUS_FORWARD);
   }
 
   /**
-   * Builds the reading order of the window of {@code rootNode}, reading its nodes from the app
-   * first, and saves it for later swipes.
+   * Builds the reading order of the window of {@code rootNode}, bounded by
+   * {@link #ORDER_BUILD_BUDGET_MS} so heavy apps never freeze the main thread, and saves it for
+   * later swipes.
    */
   private TraversalStrategy buildWindowOrder(
       AccessibilityNodeInfoCompat rootNode, @SearchDirection int searchDirection) {
     boolean trace = LogUtils.shouldLog(Log.DEBUG);
-    long buildStart = trace ? SystemClock.uptimeMillis() : 0;
+    long buildStart = SystemClock.uptimeMillis();
     if (trace) {
       Trace.beginSection("BuildTraversalStrategy");
     }
-    WindowNodePrefetcher.prefetch(rootNode, service.getPackageName());
-    TraversalStrategy traversalStrategy =
-        TraversalStrategyUtils.getTraversalStrategy(rootNode, focusFinder, searchDirection);
-    if (trace) {
-      Trace.endSection();
-      Log.d(
-          "BacktalkTreeCache",
-          "Built order in " + (SystemClock.uptimeMillis() - buildStart) + " ms");
+    boolean budgetExceeded = false;
+    TraversalStrategy traversalStrategy;
+    try {
+      traversalStrategy =
+          TraversalBudget.run(
+              buildStart + ORDER_BUILD_BUDGET_MS,
+              () ->
+                  TraversalStrategyUtils.getTraversalStrategy(
+                      rootNode, focusFinder, searchDirection));
+    } catch (CancellationException exhausted) {
+      budgetExceeded = true;
+      traversalStrategy = new SimpleTraversalStrategy();
+    } finally {
+      long buildDuration = SystemClock.uptimeMillis() - buildStart;
+      TraversalTreeCache.noteSlowBuild(rootNode.getWindowId(), buildDuration, budgetExceeded);
+      if (trace) {
+        Trace.endSection();
+        Log.d("BacktalkTreeCache", "Built order in " + buildDuration + " ms");
+      }
     }
     if (traversalStrategy instanceof OrderedTraversalStrategy orderedStrategy
         && orderedStrategy.missesChildren()) {
@@ -706,7 +724,8 @@ public class FocusProcessorForLogicalNavigation {
         traversalStrategy = reread;
       }
     }
-    if (traversalStrategy instanceof OrderedTraversalStrategy orderedStrategy) {
+    if (traversalStrategy instanceof OrderedTraversalStrategy orderedStrategy
+        && !orderedStrategy.missesChildren()) {
       TraversalTreeCache.put(rootNode, orderedStrategy);
     }
     return traversalStrategy;

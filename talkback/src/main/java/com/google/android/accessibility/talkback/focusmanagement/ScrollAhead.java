@@ -24,7 +24,9 @@ import android.view.accessibility.AccessibilityEvent;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForLogicalNavigation.ScrollAheadPlan;
+import com.google.android.accessibility.utils.output.LowLatencyAudio;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 /**
@@ -48,7 +50,7 @@ public final class ScrollAhead {
   private static final long MAX_WAIT_MS = 1000;
 
   /** Most pages scrolled ahead of one focused item. */
-  @VisibleForTesting static final int MAX_PAGES = 10;
+  @VisibleForTesting static final int MAX_PAGES = 3;
 
   /** Focus that a move to the previous item placed this recently is scrolled ahead backward. */
   private static final long BACKWARD_MOVE_MS = 5000;
@@ -159,7 +161,7 @@ public final class ScrollAhead {
 
   private void onFocused(@Nullable AccessibilityNodeInfoCompat node) {
     cancel("new focus");
-    if (!enabled || node == null) {
+    if (!enabled || node == null || node.isEditable()) {
       return;
     }
     focused = node;
@@ -248,7 +250,10 @@ public final class ScrollAhead {
       handler.postDelayed(this::step, CHECK_MS);
       return;
     }
-    if (navigation.isReadingContinuously()) {
+    if (navigation.isReadingContinuously()
+        || LowLatencyAudio.isMicrophoneInUse()
+        || TouchInteractionMonitor.isTouchPassedToApp()
+        || TraversalTreeCache.shouldUseLiveTraversal(node.getWindowId())) {
       focused = null;
       return;
     }
@@ -335,6 +340,11 @@ public final class ScrollAhead {
       return;
     }
     focused = null;
+    if (LowLatencyAudio.isMicrophoneInUse()
+        || TouchInteractionMonitor.isTouchPassedToApp()
+        || TraversalTreeCache.shouldUseLiveTraversal(node.getWindowId())) {
+      return;
+    }
     long start = SystemClock.uptimeMillis();
     navigation.prepareWindowOrder(node);
     LogUtils.d(TAG, "Window order read in %d ms.", SystemClock.uptimeMillis() - start);
