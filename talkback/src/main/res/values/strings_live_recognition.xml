@@ -52,4 +52,9 @@
     <string translatable="false" name="live_recognition_document_no_text">Không đọc thấy chữ rõ trên tờ giấy. Hãy thử giữ yên tay hơn hoặc bật đèn flash.</string>
     <string translatable="false" name="live_recognition_object_all_items">Tất cả đồ dùng</string>
     <string translatable="false" name="live_recognition_lottery_unverified">Chưa xác minh được kết quả vé số. Hãy đối chiếu với kết quả chính thức.</string>
+    <string translatable="false" name="live_recognition_model_download_started">Đang tải mô hình nhận dạng. Tính năng sẽ tự chạy khi tải xong.</string>
+    <string translatable="false" name="live_recognition_model_download_progress">Đang tải mô hình nhận dạng: %1$d%%</string>
+    <string translatable="false" name="live_recognition_model_download_failed">Không tải được mô hình. Kiểm tra mạng và bật lại chế độ để thử tiếp.</string>
+    <string translatable="false" name="live_recognition_text_confirming">Giữ yên điện thoại để đọc rõ chữ.</string>
+    <string translatable="false" name="live_recognition_ocr_unlicensed">Giấy phép hiện tại không có tính năng nhận dạng chữ OCR.</string>
 </resources>

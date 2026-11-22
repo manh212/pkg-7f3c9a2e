@@ -21,6 +21,7 @@ import android.graphics.Bitmap;
 import android.graphics.Rect;
 import androidx.annotation.Nullable;
 import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -77,13 +78,41 @@ public final class TesseractOcr {
   }
 
   @Nullable
+  public static String recognizeCameraText(Context context, Bitmap bitmap) {
+    if (!DeviceLicenseManager.allows(context, "ocr")) {
+      return null;
+    }
+    if (!OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR)) {
+      OfflineModels.request(context, OfflineModels.Group.CAMERA_OCR);
+      return null;
+    }
+    List<TextLine> lines = RemoteOcr.recognize(context, bitmap, false, true);
+    if (lines == null) {
+      return null;
+    }
+    List<String> text = new ArrayList<>(lines.size());
+    int confidence = 0;
+    for (TextLine line : lines) {
+      text.add(line.text);
+      confidence += line.confidence;
+    }
+    LogUtils.i("CameraOcr", "VietOCR lines=%d meanConfidence=%d width=%d height=%d",
+        lines.size(), lines.isEmpty() ? 0 : confidence / lines.size(), bitmap.getWidth(), bitmap.getHeight());
+    return String.join("\n", text);
+  }
+
+  @Nullable
   public static List<TextLine> recognizeSegments(Context context, Bitmap bitmap) {
     return recognize(context, bitmap, true);
   }
 
   @Nullable
   private static List<TextLine> recognize(Context context, Bitmap bitmap, boolean includeWords) {
-    if (!DeviceLicenseManager.allows(context, "ocr") || !isDataDownloaded(context)) {
+    if (!DeviceLicenseManager.allows(context, "ocr")) {
+      return null;
+    }
+    if (!isDataDownloaded(context)) {
+      OcrModelDownload.autoStart(context);
       return null;
     }
     return RemoteOcr.recognize(context, bitmap, includeWords);

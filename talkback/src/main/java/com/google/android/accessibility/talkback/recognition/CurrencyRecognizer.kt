@@ -1,6 +1,7 @@
 package com.google.android.accessibility.talkback.recognition
 
 import android.content.Context
+import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import android.graphics.Bitmap
 import android.graphics.Color
 import java.io.Closeable
@@ -151,7 +152,7 @@ internal class CurrencyRecognizer(private val context: Context) : Closeable {
   private val outputBuffer: ByteBuffer
 
   init {
-    val bytes = context.assets.open(MODEL_ASSET).use { it.readBytes() }
+    val bytes = OfflineModels.file(context, OfflineModels.currency).readBytes()
     val model = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder())
     model.put(bytes).rewind()
     interpreter = Interpreter(model, Interpreter.Options().setNumThreads(2))
@@ -244,6 +245,6 @@ internal class CurrencyRecognizer(private val context: Context) : Closeable {
   companion object {
     const val MODEL_ASSET = "vn_currency_yolo11n.tflite"
     fun isAvailable(context: Context): Boolean =
-      context.assets.list("")?.contains(MODEL_ASSET) == true
+      OfflineModels.isReady(context, OfflineModels.Group.CURRENCY)
   }
 }

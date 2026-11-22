@@ -81,12 +81,11 @@ class OcrService : Service() {
           Message.obtain(null, MSG_FAILED)
         } else {
           try {
-            val lines =
-              OcrEngine.recognize(
-                applicationContext,
-                bitmap,
-                data.getBoolean(KEY_INCLUDE_WORDS, false),
-              )
+            val lines = if (data.getBoolean(KEY_CAMERA, false)) {
+              VietOcrEngine.recognize(applicationContext, bitmap)
+            } else {
+              OcrEngine.recognize(applicationContext, bitmap, data.getBoolean(KEY_INCLUDE_WORDS, false))
+            }
             if (lines == null) {
               Message.obtain(null, MSG_FAILED)
             } else {
@@ -158,6 +157,7 @@ class OcrService : Service() {
 
     const val KEY_IMAGE_PATH = "image_path"
     const val KEY_INCLUDE_WORDS = "include_words"
+    const val KEY_CAMERA = "camera_vietocr"
     const val KEY_RESULT_JSON = "result_json"
     const val KEY_TEXT = "text"
     const val KEY_LEFT = "left"

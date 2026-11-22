@@ -23,6 +23,7 @@ import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
 import com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionActivity
 import com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.utils.Performance
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -192,6 +193,7 @@ class SubtitleController internal constructor(
       return
     }
     ocrEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && TesseractOcr.isDataDownloaded(service)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !ocrEnabled) OcrModelDownload.start(service)
     ocrUnavailableAnnounced = false
     val root = foregroundRoot()
     if (root == null) { announce(service.getString(R.string.subtitle_no_window)); return }
@@ -474,7 +476,7 @@ class SubtitleController internal constructor(
       if (!ocrEnabled && !ocrUnavailableAnnounced) {
         ocrUnavailableAnnounced = true
         val message = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
-          R.string.subtitle_requires_android else R.string.subtitle_model_missing
+          R.string.subtitle_requires_android else R.string.ocr_offline_downloading
         setStatus(service.getString(message))
       }
       if (!ocrEnabled) {

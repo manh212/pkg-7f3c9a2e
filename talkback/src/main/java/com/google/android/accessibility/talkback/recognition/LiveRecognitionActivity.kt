@@ -58,7 +58,8 @@ import androidx.lifecycle.LiveData
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
-import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload
+import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager
+import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
@@ -103,6 +104,11 @@ class LiveRecognitionActivity : ComponentActivity() {
   private var lastLookupKey: String? = null
   private val currencyTracker = CurrencyTracker()
   private var currencyRecognizer: CurrencyRecognizer? = null
+  private val textTracker = CameraTextTracker()
+  private val documentTextTracker = CameraTextTracker()
+  private val waitingModels = mutableSetOf<OfflineModels.Group>()
+  private var qrOcrRequested = false
+  private var qrOcrFailed = false
   private val qrRecognizer by lazy { QrBarcodeRecognizer() }
   private val qrTracker = QrBarcodeTracker()
   private val colorTracker = ColorTracker()
@@ -309,6 +315,22 @@ class LiveRecognitionActivity : ComponentActivity() {
       }
     }
     setContentView(ScrollView(this).apply { addView(column); fitsSystemWindows = true })
+    OfflineModels.status.observe(this) { states ->
+      if (resumed && waitingModels.isNotEmpty()) {
+        val finished = waitingModels.filter { group ->
+          states[group]?.progress == null &&
+            (OfflineModels.isReady(this, group) || states[group]?.failed == true)
+        }
+        if (finished.isNotEmpty()) {
+          val failed = finished.filter { states[it]?.failed == true }.toSet()
+          if (OfflineModels.Group.CAMERA_OCR in failed && qrOcrRequested) qrOcrFailed = true
+          enabled.removeAll { modelGroup(it) in failed }
+          waitingModels.removeAll(finished.toSet())
+          reconcile()
+          if (failed.isNotEmpty()) report(R.string.live_recognition_model_download_failed)
+        } else showModelProgress()
+      }
+    }
   }
 
   override fun onNewIntent(intent: Intent) {
@@ -415,6 +437,10 @@ class LiveRecognitionActivity : ComponentActivity() {
     if (!canUseRotor()) { updateSwitches(); return }
     if (mode in enabled) {
       enabled.remove(mode)
+      if (mode == RecognitionMode.QR_BARCODE) {
+        qrOcrRequested = false
+        qrOcrFailed = false
+      }
       reconcile()
       speakMode(mode)
       return
@@ -422,11 +448,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     if (mode == RecognitionMode.LIGHT && LiveRecognition.lightSensor(this) == null) {
       updateSwitches()
       report(R.string.live_recognition_light_unavailable)
-      return
-    }
-    if (mode == RecognitionMode.CURRENCY && !CurrencyRecognizer.isAvailable(this)) {
-      updateSwitches()
-      report(R.string.live_recognition_currency_model_missing)
       return
     }
     if (mode.usesCamera &&
@@ -438,6 +459,11 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     if (mode.usesAi && !canUseAi(mode)) {
       updateSwitches()
+      return
+    }
+    if (mode in OCR_MODES && !DeviceLicenseManager.allows(this, "ocr")) {
+      updateSwitches()
+      report(R.string.live_recognition_ocr_unlicensed)
       return
     }
     enabled.add(mode)
@@ -492,6 +518,8 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   private fun stopRecognition() {
     enabled.clear()
+    qrOcrRequested = false
+    qrOcrFailed = false
     reconcile()
   }
 
@@ -527,6 +555,8 @@ class LiveRecognitionActivity : ComponentActivity() {
       qrTracker.reset()
       colorTracker.reset()
       documentTracker.reset()
+      textTracker.reset()
+      documentTextTracker.reset()
       lotteryTracker.reset()
     }
     clearLotteryLookup()
@@ -536,6 +566,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     handler.removeCallbacks(runningCheck)
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     if (!resumed || (enabled.isEmpty() && !flashOn)) {
+      waitingModels.clear()
       loadingFeedback.stop()
       status.setText(if (lightFailed) R.string.live_recognition_light_unavailable
         else R.string.live_recognition_camera_off)
@@ -543,7 +574,22 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     if (enabled.isNotEmpty()) handler.post(runningCheck)
-    val cameraRecognition = enabled.any { it.usesCamera }
+    val required = enabled.mapNotNull(::modelGroup).toMutableSet()
+    if (RecognitionMode.QR_BARCODE in enabled && qrOcrRequested && !qrOcrFailed) {
+      required += OfflineModels.Group.CAMERA_OCR
+    }
+    val missing = required.filterNot { OfflineModels.isReady(this, it) }.toSet()
+    val added = missing - waitingModels
+    waitingModels.retainAll(missing)
+    waitingModels.addAll(missing)
+    added.forEach { OfflineModels.request(this, it) }
+    if (added.isNotEmpty()) speak(getString(R.string.live_recognition_model_download_started), false)
+    val cameraRecognition = enabled.any { it.usesCamera && modeReady(it) }
+    if (!cameraRecognition && waitingModels.isNotEmpty() && !flashOn) {
+      loadingFeedback.start()
+      showModelProgress()
+      return
+    }
     if (!cameraRecognition && !flashOn) {
       loadingFeedback.stop()
       status.setText(R.string.live_recognition_light)
@@ -558,6 +604,33 @@ class LiveRecognitionActivity : ComponentActivity() {
       status.setText(R.string.live_recognition_flash_only)
     }
     startCamera(token, cameraRecognition)
+    if (waitingModels.isNotEmpty()) showModelProgress()
+  }
+
+  private fun modelGroup(mode: RecognitionMode): OfflineModels.Group? = when (mode) {
+    RecognitionMode.TEXT, RecognitionMode.DOCUMENT_LABEL, RecognitionMode.LOTTERY_TICKET -> OfflineModels.Group.CAMERA_OCR
+    RecognitionMode.CURRENCY -> OfflineModels.Group.CURRENCY
+    RecognitionMode.FIND_OBJECT -> OfflineModels.Group.OBJECTS
+    else -> null
+  }
+
+  private fun modeReady(mode: RecognitionMode): Boolean =
+    modelGroup(mode)?.let { OfflineModels.isReady(this, it) } ?: true
+
+  private fun showModelProgress() {
+    if (waitingModels.isEmpty()) return
+    val groups = enabled.mapNotNull(::modelGroup).toMutableSet()
+    if (RecognitionMode.QR_BARCODE in enabled && qrOcrRequested && !qrOcrFailed) {
+      groups += OfflineModels.Group.CAMERA_OCR
+    }
+    val total = groups.sumOf { OfflineModels.models(it).sumOf { model -> model.size } }
+    val completed = groups.sumOf { group ->
+      val size = OfflineModels.models(group).sumOf { it.size }
+      if (OfflineModels.isReady(this, group)) size
+      else size * (OfflineModels.state(group).progress ?: 0) / 100
+    }
+    val progress = if (total == 0L) 0 else (completed * 100 / total).toInt()
+    status.text = getString(R.string.live_recognition_model_download_progress, progress)
   }
 
   /** Describes frames with what Describe image uses: see [AiBackend]. */
@@ -622,13 +695,13 @@ class LiveRecognitionActivity : ComponentActivity() {
           .setResolutionSelector(ResolutionSelector.Builder().setResolutionStrategy(
             ResolutionStrategy(frameSize, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-        val text = RecognitionMode.TEXT in enabled
-        val currency = RecognitionMode.CURRENCY in enabled
+        val text = RecognitionMode.TEXT in enabled && modeReady(RecognitionMode.TEXT)
+        val currency = RecognitionMode.CURRENCY in enabled && modeReady(RecognitionMode.CURRENCY)
         val qr = RecognitionMode.QR_BARCODE in enabled
         val color = RecognitionMode.COLOR in enabled
-        val lottery = RecognitionMode.LOTTERY_TICKET in enabled
-        val findObject = RecognitionMode.FIND_OBJECT in enabled
-        val document = RecognitionMode.DOCUMENT_LABEL in enabled
+        val lottery = RecognitionMode.LOTTERY_TICKET in enabled && modeReady(RecognitionMode.LOTTERY_TICKET)
+        val findObject = RecognitionMode.FIND_OBJECT in enabled && modeReady(RecognitionMode.FIND_OBJECT)
+        val document = RecognitionMode.DOCUMENT_LABEL in enabled && modeReady(RecognitionMode.DOCUMENT_LABEL)
         val fastLocalOnly = (currency || qr || color || findObject) &&
           !(text || lottery || document || enabled.any { it.usesAi })
         val captureInterval = if (fastLocalOnly) CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
@@ -698,14 +771,14 @@ class LiveRecognitionActivity : ComponentActivity() {
     fun release() { bitmap.recycle(); processing.set(false) }
     if (generation != token || !resumed) { release(); return }
     if (jpeg != null) describer?.describe(jpeg, enabled.toSet(), pointAbove)
-    val runCurrency = RecognitionMode.CURRENCY in enabled
-    val runObject = RecognitionMode.FIND_OBJECT in enabled
+    val runCurrency = RecognitionMode.CURRENCY in enabled && modeReady(RecognitionMode.CURRENCY)
+    val runObject = RecognitionMode.FIND_OBJECT in enabled && modeReady(RecognitionMode.FIND_OBJECT)
     val targetId = targetObjectClassId
     val runQr = RecognitionMode.QR_BARCODE in enabled
     val runColor = RecognitionMode.COLOR in enabled
-    val runDoc = RecognitionMode.DOCUMENT_LABEL in enabled
-    val runLottery = RecognitionMode.LOTTERY_TICKET in enabled
-    val runText = RecognitionMode.TEXT in enabled
+    val runDoc = RecognitionMode.DOCUMENT_LABEL in enabled && modeReady(RecognitionMode.DOCUMENT_LABEL)
+    val runLottery = RecognitionMode.LOTTERY_TICKET in enabled && modeReady(RecognitionMode.LOTTERY_TICKET)
+    val runText = RecognitionMode.TEXT in enabled && modeReady(RecognitionMode.TEXT)
 
     if (!(runCurrency || runObject || runQr || runColor || runDoc || runLottery || runText)) { release(); return }
     try {
@@ -720,17 +793,8 @@ class LiveRecognitionActivity : ComponentActivity() {
             detectObject(bitmap, token, targetId, nowMs)
           }
           val needsOcr = runDoc || runLottery || runText
-          val ocrReady = !needsOcr || OcrModelDownload.isReady(this) ||
-            OcrModelDownload.installBundled(this)
-          if (!ocrReady) {
-            handler.post {
-              if (generation == token && resumed) {
-                enabled.removeAll(OCR_MODES)
-                reconcile()
-                report(R.string.ocr_offline_model_missing)
-              }
-            }
-          }
+          val ocrReady = OfflineModels.isReady(this, OfflineModels.Group.CAMERA_OCR)
+          if (needsOcr && !ocrReady) handler.post { if (generation == token && resumed) reconcile() }
           if (runColor) {
             val sample = ColorRecognizer.detect(this, bitmap)
             val spoken = colorTracker.observe(sample, nowMs)
@@ -742,7 +806,7 @@ class LiveRecognitionActivity : ComponentActivity() {
               }
             }
           }
-          val alignment = if (ocrReady && (runDoc || runLottery)) {
+          val alignment = if (ocrReady && needsOcr) {
             try {
               DocumentAlignmentScanner.analyze(bitmap)
             } catch (error: RuntimeException) {
@@ -752,22 +816,22 @@ class LiveRecognitionActivity : ComponentActivity() {
           } else null
           var originalTextRead = false
           var originalText: String? = null
+          var framedTextRead = false
+          var framedText: String? = null
           fun readText(corners: Array<Point>? = null): String? {
             fun recognize(source: Bitmap): String? {
-              val enhanced = DocumentAlignmentScanner.enhanceForOcr(source)
-              return try {
-                TesseractOcr.recognizeText(this, enhanced)
-              } finally {
-                if (enhanced !== source) enhanced.recycle()
-              }
+              return TesseractOcr.recognizeCameraText(this, source)
             }
+            if (corners != null && framedTextRead) return framedText
             val dewarped = corners?.let { DocumentAlignmentScanner.dewarp(bitmap, it) }
             if (dewarped != null) {
-              return try {
+              framedTextRead = true
+              framedText = try {
                 recognize(dewarped)
               } finally {
                 dewarped.recycle()
               }
+              return framedText
             }
             if (!originalTextRead) {
               originalText = recognize(bitmap)
@@ -777,8 +841,17 @@ class LiveRecognitionActivity : ComponentActivity() {
           }
           if (runQr) {
             val scanned = qrRecognizer.decode(bitmap)
-            val decoded = if (scanned != null && QrContentFormatter.needsIdentityText(scanned) &&
-                (OcrModelDownload.isReady(this) || OcrModelDownload.installBundled(this))) {
+            if (scanned != null && QrContentFormatter.needsIdentityText(scanned) && !ocrReady &&
+                !qrOcrRequested && !qrOcrFailed && scanned.rawValue.length in listOf(9, 12) &&
+                DeviceLicenseManager.allows(this, "ocr")) {
+              handler.post {
+                if (generation == token && resumed && RecognitionMode.QR_BARCODE in enabled) {
+                  qrOcrRequested = true
+                  reconcile()
+                }
+              }
+            }
+            val decoded = if (scanned != null && QrContentFormatter.needsIdentityText(scanned) && ocrReady) {
               val cardText = readText()
               val identity = cardText?.let { QrContentFormatter.formatIdentityText(scanned, it) }
               if (identity != null) scanned.copy(spokenText = identity) else scanned
@@ -803,18 +876,20 @@ class LiveRecognitionActivity : ComponentActivity() {
               }
               is DocumentAlignmentTracker.Decision.Capture -> {
                 val rawDocText = readText(decision.corners)
+                val confirmedDoc = rawDocText?.let {
+                  documentTextTracker.observe(it.take(MAX_TEXT_LENGTH), SystemClock.elapsedRealtime())
+                }
                 handler.post {
                   if (generation != token || !resumed || RecognitionMode.DOCUMENT_LABEL !in enabled) return@post
                   if (rawDocText == null) {
                     enabled.remove(RecognitionMode.DOCUMENT_LABEL)
                     reconcile()
                     report(R.string.live_recognition_ocr_error)
+                  } else if (confirmedDoc != null) {
+                    announceResult(SOURCE_DOCUMENT, ExpiryDateExtractor.formatDocumentSpeech(confirmedDoc, MAX_TEXT_LENGTH))
                   } else {
-                    val formatted = ExpiryDateExtractor.formatDocumentSpeech(rawDocText, MAX_TEXT_LENGTH)
-                    announceResult(
-                      SOURCE_DOCUMENT,
-                      formatted.ifBlank { getString(R.string.live_recognition_document_no_text) },
-                    )
+                    pendingResults.remove(SOURCE_DOCUMENT)
+                    status.setText(R.string.live_recognition_text_confirming)
                   }
                 }
               }
@@ -856,15 +931,37 @@ class LiveRecognitionActivity : ComponentActivity() {
             }
           }
           if (runText && ocrReady) {
-            val text = readText()
-            handler.post {
-              if (generation != token || !resumed) return@post
-              if (text == null) {
-                enabled.remove(RecognitionMode.TEXT)
-                reconcile()
-                report(R.string.live_recognition_ocr_error)
-              } else if (SystemClock.elapsedRealtime() - capturedAt <= GeminiLiveSession.MAX_RESULT_AGE_MS) {
-                announceResult(SOURCE_TEXT, text.take(MAX_TEXT_LENGTH))
+            val guidance = when {
+              alignment?.state == DocumentAlignmentState.LOW_LIGHT -> alignment.guidance
+              alignment?.state == DocumentAlignmentState.BLURRY ||
+                (alignment != null && alignment.state != DocumentAlignmentState.READY &&
+                  alignment.sharpness < DocumentAlignmentScanner.MIN_SHARPNESS_LAPLACIAN) ->
+                DocumentAlignmentScanner.guidanceFor(DocumentAlignmentState.BLURRY)
+              else -> null
+            }
+            if (guidance != null) {
+              textTracker.reset()
+              handler.post {
+                if (generation == token && resumed && RecognitionMode.TEXT in enabled) announceResult(SOURCE_TEXT, guidance)
+              }
+            } else {
+              val text = readText()
+              val completedAt = SystemClock.elapsedRealtime()
+              val confirmed = text?.let { textTracker.observe(it.take(MAX_TEXT_LENGTH), completedAt) }
+              LogUtils.d(TAG, "Camera OCR elapsedMs=%d chars=%d stable=%s sharpness=%.1f",
+                completedAt - capturedAt, text?.length ?: 0, confirmed != null, alignment?.sharpness ?: 0.0)
+              handler.post {
+                if (generation != token || !resumed || RecognitionMode.TEXT !in enabled) return@post
+                if (text == null) {
+                  enabled.remove(RecognitionMode.TEXT)
+                  reconcile()
+                  report(R.string.live_recognition_ocr_error)
+                } else if (confirmed != null && completedAt - capturedAt <= LOCAL_OCR_MAX_AGE_MS) {
+                  announceResult(SOURCE_TEXT, confirmed)
+                } else {
+                  pendingResults.remove(SOURCE_TEXT)
+                  status.setText(R.string.live_recognition_text_confirming)
+                }
               }
             }
           }
@@ -1010,6 +1107,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     private const val CHECK_INTERVAL_MS = 500L
     private const val JPEG_QUALITY = 70
     private const val MAX_TEXT_LENGTH = 1_200
+    private const val LOCAL_OCR_MAX_AGE_MS = 60_000L
     private const val TAG = "LiveRecognition"
   }
 }

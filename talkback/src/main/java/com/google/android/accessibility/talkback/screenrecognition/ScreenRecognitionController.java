@@ -31,6 +31,7 @@ import androidx.annotation.Nullable;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr;
+import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload;
 import com.google.android.accessibility.talkback.screenelements.ScreenElement;
 import com.google.android.accessibility.talkback.screenelements.ScreenElements;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -199,9 +200,10 @@ public class ScreenRecognitionController {
       return;
     }
     if (!TesseractOcr.isDataDownloaded(service)) {
+      OcrModelDownload.start(service);
       bitmap.recycle();
       active = false;
-      announcer.announce(service.getString(R.string.ocr_offline_model_missing));
+      announcer.announce(service.getString(R.string.ocr_offline_downloading));
       return;
     }
     nodeTraversalExecutor.execute(

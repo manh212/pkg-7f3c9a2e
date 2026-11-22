@@ -17,6 +17,8 @@
 package com.google.android.accessibility.talkback.recognition
 
 import android.content.Context
+import com.google.android.accessibility.talkback.imagecaption.OfflineModels
+import java.io.File
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -186,31 +188,21 @@ internal interface ObjectFinderRecognizer : Closeable {
   fun detect(bitmap: Bitmap, targetClassId: Int?): DetectedObject?
 
   companion object {
-    private const val MODEL_ASSET = "efficientdet_lite0.tflite"
-    private const val YOLO_ASSET = "coco_yolo11n.tflite"
+    fun open(context: Context): ObjectFinderRecognizer =
+      EfficientDetObjectFinder(context, OfflineModels.file(context, OfflineModels.objects))
 
-    fun open(context: Context): ObjectFinderRecognizer {
-      if (context.assets.list("").orEmpty().contains(YOLO_ASSET)) {
-        return try {
-          YoloObjectFinder(context, YOLO_ASSET)
-        } catch (_: Exception) {
-          EfficientDetObjectFinder(context, MODEL_ASSET)
-        }
-      }
-      return EfficientDetObjectFinder(context, MODEL_ASSET)
-    }
   }
 }
 
-private class EfficientDetObjectFinder(context: Context, asset: String) : ObjectFinderRecognizer {
+private class EfficientDetObjectFinder(context: Context, modelFile: File) : ObjectFinderRecognizer {
   private var target: Int? = null
-  private var detector = open(context, asset, null)
+  private var detector = open(context, modelFile, null)
   private val context = context.applicationContext
-  private val asset = asset
+  private val modelFile = modelFile
 
   override fun detect(bitmap: Bitmap, targetClassId: Int?): DetectedObject? {
     if (target != targetClassId) {
-      val replacement = open(context, asset, targetClassId)
+      val replacement = open(context, modelFile, targetClassId)
       detector.close()
       detector = replacement
       target = targetClassId
@@ -241,10 +233,12 @@ private class EfficientDetObjectFinder(context: Context, asset: String) : Object
       name to CocoObjectCatalog.DAILY_LABELS_VI.entries.first { it.key == id }
     }
 
-    private fun open(context: Context, asset: String, target: Int?): ObjectDetector {
+    private fun open(context: Context, modelFile: File, target: Int?): ObjectDetector {
+      val bytes = modelFile.readBytes()
+      val model = ByteBuffer.allocateDirect(bytes.size).apply { put(bytes); rewind() }
       val labels = objectsByName.filterValues { target == null || it.key == target }.keys.toList()
       val options = ObjectDetector.ObjectDetectorOptions.builder()
-        .setBaseOptions(BaseOptions.builder().setModelAssetPath(asset).build())
+        .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).build())
         .setScoreThreshold(CocoObjectCatalog.MIN_CONFIDENCE)
         .setCategoryAllowlist(labels)
         .setMaxResults(5)
@@ -282,7 +276,7 @@ private class YoloObjectFinder(context: Context, asset: String) : ObjectFinderRe
   private val outputBuffer: ByteBuffer
 
   init {
-    val bytes = context.assets.open(asset).use { it.readBytes() }
+    val bytes = File(context.filesDir, asset).readBytes()
     val model = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder())
     model.put(bytes).rewind()
     interpreter = Interpreter(model, Interpreter.Options().setNumThreads(2))

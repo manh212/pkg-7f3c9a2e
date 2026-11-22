@@ -1,4 +1,6 @@
-Offline recognition model notices
+On-demand recognition model notices
+
+Model weights are downloaded when their feature is used. They are not included in the APK.
 
 EfficientDet-Lite0 INT8
 Model author: MediaPipe
@@ -20,6 +22,15 @@ ZXing-C++ Android barcode decoder 3.1.1
 Authors: ZXing-C++ contributors
 Source: https://github.com/zxing-cpp/zxing-cpp/tree/v3.1.1/wrappers/android
 License: Apache License, Version 2.0. The decoder is distributed as a Maven dependency.
+
+VietOCR vgg_seq2seq, ONNX encoder and decoder
+Original author: pbcquoc and VietOCR contributors
+Original source: https://github.com/pbcquoc/vietocr
+ONNX export: https://github.com/duchoa1297/vietocr-onnx/releases/tag/ocr-v1
+Encoder SHA-256: 7375c11ad23d52547a344ec5f53adf89db8302f035ceb3f1e67cff2c04069ae7
+Decoder SHA-256: 73b92cd370563952b345703ecdce84d8374a9f0a7018afee062170efe04f21f5
+Metadata SHA-256: 518345b7672fd36e534fb8ffcf6f6599c687793541259170834789fe2f7dd6e6
+License: Apache License, Version 2.0.
 
 The above model files are distributed unmodified under the Apache License, Version 2.0.
 See the separately bundled notice for the Vietnamese currency model.

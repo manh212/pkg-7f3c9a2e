@@ -116,10 +116,12 @@ object RemoteOcr {
    * failed or its process stopped.
    */
   @JvmStatic
+  @JvmOverloads
   fun recognize(
     context: Context,
     bitmap: Bitmap,
     includeWords: Boolean,
+    camera: Boolean = false,
   ): List<TesseractOcr.TextLine>? {
     val app = context.applicationContext
     synchronized(lock) { appContext = app }
@@ -136,6 +138,7 @@ object RemoteOcr {
       request.replyTo = replies
       request.data.putString(OcrService.KEY_IMAGE_PATH, imageFile.path)
       request.data.putBoolean(OcrService.KEY_INCLUDE_WORDS, includeWords)
+      request.data.putBoolean(OcrService.KEY_CAMERA, camera)
       messenger.send(request)
       val reply =
         try {

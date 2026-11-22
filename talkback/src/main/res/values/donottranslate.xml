@@ -2052,4 +2052,5 @@
     <string name="pref_delete_debug_log_key" translatable="false">pref_delete_debug_log</string>
     <string name="shortcut_value_next_engine_voice" translatable="false">NEXT_ENGINE_VOICE</string>
     <string name="shortcut_value_previous_engine_voice" translatable="false">PREVIOUS_ENGINE_VOICE</string>
+    <string name="ocr_offline_downloading" translatable="false">Đang tải mô hình nhận dạng chữ. Hãy thử lại khi tải xong.</string>
 </resources>
