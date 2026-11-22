@@ -25,9 +25,9 @@ internal object OcrModelDownload {
   )
   private val vietnamese = Model(
     "tessdata/vie.traineddata",
-    "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/vie.traineddata",
-    531_275,
-    "79df64caf7bcfb2a27df5042ecb6121e196eada34da774956995747636d5bfa1",
+    "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/4.1.0/vie.traineddata",
+    12_435_550,
+    "b6b49293d95d0b6dbd8780174627e82c75be957b6f4ed9862155540d6b00bb45",
   )
   private val models = listOf(detector, vietnamese)
   private val executor = Executors.newSingleThreadExecutor()

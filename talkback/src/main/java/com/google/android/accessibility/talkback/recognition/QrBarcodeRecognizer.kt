@@ -30,8 +30,14 @@ import com.google.zxing.client.result.ResultParser
 import com.google.zxing.client.result.WifiParsedResult
 import java.math.RoundingMode
 import java.text.NumberFormat
+import java.text.Normalizer
 import java.util.EnumMap
 import java.util.Locale
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.time.format.ResolverStyle
+import zxingcpp.BarcodeReader
 
 internal data class QrBarcodeResult(
   val rawValue: String,
@@ -40,6 +46,29 @@ internal data class QrBarcodeResult(
 )
 
 internal class QrBarcodeRecognizer {
+  private val nativeReader by lazy {
+    try {
+      BarcodeReader(BarcodeReader.Options(
+        formats = setOf(
+          BarcodeReader.Format.QR_CODE, BarcodeReader.Format.EAN_13,
+          BarcodeReader.Format.EAN_8, BarcodeReader.Format.UPC_A,
+          BarcodeReader.Format.UPC_E, BarcodeReader.Format.CODE_128,
+          BarcodeReader.Format.CODE_39, BarcodeReader.Format.DATA_MATRIX,
+          BarcodeReader.Format.PDF_417, BarcodeReader.Format.AZTEC,
+        ),
+        tryHarder = true,
+        tryRotate = true,
+        tryInvert = true,
+        tryDownscale = true,
+        maxNumberOfSymbols = 8,
+        minLineCount = 3,
+        textMode = BarcodeReader.TextMode.PLAIN,
+      ))
+    } catch (_: LinkageError) {
+      null
+    }
+  }
+
   private val reader = MultiFormatReader().apply {
     val hints = EnumMap<DecodeHintType, Any>(DecodeHintType::class.java)
     hints[DecodeHintType.POSSIBLE_FORMATS] = listOf(
@@ -61,15 +90,48 @@ internal class QrBarcodeRecognizer {
   }
 
   fun decode(bitmap: Bitmap): QrBarcodeResult? {
+    val nativeResults = try {
+      nativeReader?.read(bitmap)?.mapNotNull { result ->
+        if (result.error != null) return@mapNotNull null
+        val format = nativeFormat(result.format.name) ?: return@mapNotNull null
+        val raw = QrContentFormatter.normalizePayload(result.text.orEmpty())
+        if (raw.isBlank()) return@mapNotNull null
+        QrBarcodeResult(raw, format, QrContentFormatter.format(raw, format))
+      }.orEmpty()
+    } catch (_: RuntimeException) {
+      emptyList()
+    }
+    selectResult(nativeResults)?.let { return it }
     val centered = if (bitmap.width >= 480 && bitmap.height >= 480) decodeRegion(bitmap, true) else null
     val result = centered ?: decodeRegion(bitmap, false) ?: return null
-    val raw = result.text?.trim().orEmpty()
+    val raw = QrContentFormatter.normalizePayload(result.text.orEmpty())
     if (raw.isEmpty()) return null
     return QrBarcodeResult(
       rawValue = raw,
       format = result.barcodeFormat,
       spokenText = QrContentFormatter.format(raw, result.barcodeFormat),
     )
+  }
+
+  companion object {
+    internal fun selectResult(results: List<QrBarcodeResult>): QrBarcodeResult? =
+      results.minByOrNull { result ->
+        when {
+          QrContentFormatter.parseVietnameseCccd(result.rawValue) != null -> 0
+          QrContentFormatter.parseVietQr(result.rawValue) != null -> 1
+          result.format == BarcodeFormat.QR_CODE -> 2
+          else -> 3
+        }
+      }
+
+    private fun nativeFormat(name: String): BarcodeFormat? = when {
+      name.startsWith("QR_CODE") -> BarcodeFormat.QR_CODE
+      name.startsWith("CODE_39") -> BarcodeFormat.CODE_39
+      name.startsWith("AZTEC") -> BarcodeFormat.AZTEC
+      name == "COMPACT_PDF_417" -> BarcodeFormat.PDF_417
+      name == "EAN_13" || name == "ISBN" -> BarcodeFormat.EAN_13
+      else -> BarcodeFormat.values().firstOrNull { it.name == name }
+    }
   }
 
   private fun decodeRegion(bitmap: Bitmap, centerCrop: Boolean): Result? {
@@ -131,6 +193,33 @@ internal class QrBarcodeTracker {
 }
 
 internal object QrContentFormatter {
+  private val CARD_DATE = DateTimeFormatter.ofPattern("ddMMuuuu", Locale.ROOT)
+    .withResolverStyle(ResolverStyle.STRICT)
+
+  internal fun normalizePayload(raw: String): String =
+    raw.trim { it.isWhitespace() || it.isISOControl() || it == '\uFEFF' }
+
+  internal fun needsIdentityText(result: QrBarcodeResult): Boolean =
+    result.rawValue.matches(Regex("[0-9]{9,13}"))
+
+  internal fun formatIdentityText(result: QrBarcodeResult, text: String): String? {
+    if (!needsIdentityText(result)) return null
+    val normalized = Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+      .replace(Regex("\\p{M}+"), "").replace('đ', 'd')
+      .replace(Regex("\\s+"), " ")
+    val title = when {
+      Regex("\\bcan cuoc(?: cong dan)?\\b").containsMatchIn(normalized) -> "Căn cước công dân"
+      Regex("\\bchung minh nhan dan\\b").containsMatchIn(normalized) -> "Chứng minh nhân dân"
+      else -> return null
+    }
+    val numbers = Regex("(?<![0-9])[0-9](?:[ \\t]*[0-9]){8,12}(?![ \\t]*[0-9])")
+      .findAll(text).map { it.value.replace(Regex("[ \\t]"), "") }
+    if (numbers.none { number -> number.length in listOf(9, 12) &&
+        (result.rawValue == number ||
+          number.length == 12 && result.rawValue.length == 13 && result.rawValue.startsWith(number)) }) return null
+    return "$title. ${text.trim().take(1_000)}"
+  }
+
   private val VIETQR_BANKS = mapOf(
     "970436" to "Vietcombank",
     "970415" to "VietinBank",
@@ -154,9 +243,9 @@ internal object QrContentFormatter {
   )
 
   fun format(raw: String, format: BarcodeFormat): String {
+    parseVietnameseCccd(raw)?.let { return it }
     if (format == BarcodeFormat.QR_CODE) {
       parseVietQr(raw)?.let { return it }
-      parseVietnameseCccd(raw)?.let { return it }
       parseWifi(raw)?.let { return it }
       parseUrl(raw)?.let { return it }
       parsePhoneOrEmail(raw)?.let { return it }
@@ -200,23 +289,38 @@ internal object QrContentFormatter {
   }
 
   internal fun parseVietnameseCccd(raw: String): String? {
-    val parts = raw.split("|")
-    if (parts.size < 6) return null
+    val parts = normalizePayload(raw).split("|")
+    if (parts.size !in 6..9) return null
     val cccd = parts[0].trim()
     if (!cccd.matches(Regex("\\d{12}"))) return null
     val fullName = parts[2].trim()
     val dobRaw = parts[3].trim()
     val gender = parts[4].trim()
     val address = parts[5].trim()
-    val dob = if (dobRaw.matches(Regex("\\d{8}"))) {
-      "${dobRaw.substring(0, 2)}/${dobRaw.substring(2, 4)}/${dobRaw.substring(4, 8)}"
-    } else dobRaw
+    if (fullName.count(Char::isLetter) < 2) return null
+    val birthDate = parseCardDate(dobRaw) ?: return null
+    val dob = "%02d/%02d/%04d".format(Locale.ROOT,
+      birthDate.dayOfMonth, birthDate.monthValue, birthDate.year)
     val out = mutableListOf("Căn cước công dân: $fullName")
     if (dob.isNotEmpty()) out += "sinh ngày $dob"
     if (gender.isNotEmpty()) out += "giới tính $gender"
     out += "số ${spaceDigits(cccd)}"
     if (address.isNotEmpty()) out += "thường trú $address"
+    parts.getOrNull(6)?.let(::parseCardDate)?.let { issued ->
+      out += "cấp ngày %02d/%02d/%04d".format(Locale.ROOT,
+        issued.dayOfMonth, issued.monthValue, issued.year)
+    }
     return out.joinToString(", ")
+  }
+
+  private fun parseCardDate(value: String): LocalDate? {
+    val digits = value.trim().replace("/", "").replace("-", "")
+    if (!digits.matches(Regex("[0-9]{8}"))) return null
+    return try {
+      LocalDate.parse(digits, CARD_DATE)
+    } catch (_: DateTimeParseException) {
+      null
+    }
   }
 
   internal fun parseWifi(raw: String): String? {

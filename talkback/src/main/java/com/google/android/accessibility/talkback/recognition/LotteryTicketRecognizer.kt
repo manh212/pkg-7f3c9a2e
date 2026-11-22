@@ -130,10 +130,10 @@ internal object LotteryTicketParser {
   )
 
   private val DATE_REGEX = Regex("\\b(0?[1-9]|[12]\\d|3[01])[/.\\-](0?[1-9]|1[0-2])[/.\\-](20\\d{2}|\\d{2})\\b")
-  private val VIETLOTT_LINE_REGEX = Regex("(?mi)^[ \t]*([A-F])[ \t]+([0-9 \t-]+)$")
+  private val VIETLOTT_LINE_REGEX = Regex("(?mi)^[ \t]*([A-F])[.:]?[ \t]+([0-9 \t-]+)$")
   private val DRAW_DATE = DateTimeFormatter.ofPattern("dd/MM/uuuu", Locale.ROOT)
     .withResolverStyle(ResolverStyle.STRICT)
-  private val VIETLOTT_DRAW_REGEX = Regex("#\\s*(0\\d{4})")
+  private val VIETLOTT_DRAW_REGEX = Regex("#\\s*([0-9]{1,8})(?![0-9])")
 
   fun parse(ocrText: String): ParsedLotteryTicket? {
     if (ocrText.isBlank()) return null
@@ -158,30 +158,29 @@ internal object LotteryTicketParser {
         "Max 3D" -> nums.size == 2 && nums.all { it.length == 3 }
         "Mega 6/45", "Power 6/55" -> {
           val max = if (product == "Mega 6/45") 45 else 55
-          nums.size == 6 && nums.toSet().size == 6 &&
+          (nums.size == 6 || nums.size in 7..15 || nums.size == 18) && nums.toSet().size == nums.size &&
             nums.all { it.length == 2 && it.toInt() in 1..max }
         }
         else -> false
       }
       if (valid) label to nums else null
     }.toList()
-    if (lines.isEmpty()) return null
+    if (lines.isEmpty() || lines.map { it.first }.distinct().size != lines.size) return null
     val drawId = VIETLOTT_DRAW_REGEX.find(raw)?.groupValues?.getOrNull(1)
     val drawDate = extractDate(raw)
     return ParsedLotteryTicket.Vietlott(product, drawId, drawDate, lines)
   }
 
   private fun parseTraditional(raw: String, normalized: String): ParsedLotteryTicket.Traditional? {
-    val normalizedWords = " $normalized "
-    val station = STATIONS.flatMap { station -> station.aliases.map { it to station } }
-      .filter { (alias, _) -> " $alias " in normalizedWords }
-      .maxByOrNull { (alias, _) -> alias.length }?.second
+    fun stationsIn(text: String): List<LotteryStation> = STATIONS.filter { station ->
+      station.aliases.any { alias -> " $alias " in " $text " }
+    }
+    val headerStations = raw.lineSequence().map(::normalizeAscii)
+      .filter { hasLotteryKeyword(it) }.flatMap { stationsIn(it).asSequence() }.distinct().toList()
+    val station = if (headerStations.isNotEmpty()) headerStations.singleOrNull()
+      else stationsIn(normalized).singleOrNull()
     val drawDate = extractDate(raw)
-    val hasLotteryKeyword = normalized.contains("xo so") ||
-      normalized.contains("kien thiet") ||
-      normalized.contains("ve so") ||
-      normalized.contains("mo thuong")
-    if (!hasLotteryKeyword) return null
+    if (!hasLotteryKeyword(normalized)) return null
 
     val stripped = raw
       .replace(DATE_REGEX, " ")
@@ -191,7 +190,12 @@ internal object LotteryTicketParser {
     val lengths = if (station == null) listOf(6, 5) else listOf(expectedLen)
     val number = lengths.firstNotNullOfOrNull { length ->
       val digits = Regex("(?<!\\d)\\d{$length}(?!\\d)")
-      val isolated = stripped.lineSequence().map { it.trim() }.filter(digits::matches).distinct().toList()
+      val isolated = stripped.lineSequence().map {
+        normalizeAscii(it).removePrefix("so du thuong ").removePrefix("day so ").removePrefix("so ")
+      }
+        .filter { it.matches(Regex("[0-9 \\t]+")) }
+        .map { it.replace(Regex("[ \\t]+"), "") }
+        .filter(digits::matches).distinct().toList()
       if (isolated.isNotEmpty()) isolated.singleOrNull()
       else digits.findAll(stripped).map { it.value }.distinct().singleOrNull()
     }
@@ -200,8 +204,21 @@ internal object LotteryTicketParser {
     return ParsedLotteryTicket.Traditional(station, drawDate, number)
   }
 
+  private fun hasLotteryKeyword(text: String): Boolean =
+    listOf("xo so", "kien thiet", "ve so", "mo thuong", "xskt")
+      .any { " $it " in " $text " }
+
   private fun extractDate(raw: String): String? {
-    val m = DATE_REGEX.find(raw) ?: return null
+    val drawLines = raw.lineSequence().filter { line ->
+      val ascii = normalizeAscii(line)
+      listOf("mo thuong", "quay so", "qsmt", "ngay quay").any(ascii::contains)
+    }.toList()
+    val preferred = drawLines.flatMap { DATE_REGEX.findAll(it).mapNotNull(::validDate).toList() }.distinct()
+    if (drawLines.any { DATE_REGEX.containsMatchIn(it) }) return preferred.singleOrNull()
+    return DATE_REGEX.findAll(raw).mapNotNull(::validDate).distinct().toList().singleOrNull()
+  }
+
+  private fun validDate(m: MatchResult): String? {
     val day = m.groupValues[1].padStart(2, '0')
     val month = m.groupValues[2].padStart(2, '0')
     val yearRaw = m.groupValues[3]

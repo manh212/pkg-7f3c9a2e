@@ -11,10 +11,15 @@ Model author: PaddlePaddle
 Source: https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx
 SHA-256: d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e
 
-Vietnamese LSTM language data
+Vietnamese LSTM language data, accuracy-oriented (tessdata_best)
 Model author: Tesseract contributors
-Source: https://github.com/tesseract-ocr/tessdata_fast/blob/4.1.0/vie.traineddata
-SHA-256: 79df64caf7bcfb2a27df5042ecb6121e196eada34da774956995747636d5bfa1
+Source: https://github.com/tesseract-ocr/tessdata_best/blob/4.1.0/vie.traineddata
+SHA-256: b6b49293d95d0b6dbd8780174627e82c75be957b6f4ed9862155540d6b00bb45
+
+ZXing-C++ Android barcode decoder 3.1.1
+Authors: ZXing-C++ contributors
+Source: https://github.com/zxing-cpp/zxing-cpp/tree/v3.1.1/wrappers/android
+License: Apache License, Version 2.0. The decoder is distributed as a Maven dependency.
 
 The above model files are distributed unmodified under the Apache License, Version 2.0.
 See the separately bundled notice for the Vietnamese currency model.

@@ -48,6 +48,66 @@ class LiveRecognitionExtensionsTest {
     assertTrue(ean.contains("tiền tố GS1 Việt Nam"))
   }
 
+  @Test fun citizenIdentityContentTakesPriorityOverGenericBarcodes() {
+    val payload = "\uFEFF001099012345||Nguyễn Văn An|15/08/1999|Nam|Hà Nội|01012022\r\n"
+    val identity = QrContentFormatter.format(payload, BarcodeFormat.PDF_417)
+    assertTrue(identity.startsWith("Căn cước công dân: Nguyễn Văn An"))
+    assertTrue(identity.contains("cấp ngày 01/01/2022"))
+    val barcode = QrBarcodeResult("8934563138165", BarcodeFormat.EAN_13, "Mã vạch")
+    val card = QrBarcodeResult(payload, BarcodeFormat.QR_CODE, identity)
+    assertEquals(card, QrBarcodeRecognizer.selectResult(listOf(barcode, card)))
+    assertEquals(card, QrBarcodeRecognizer.selectResult(listOf(card, barcode)))
+    assertNull(QrContentFormatter.parseVietnameseCccd(payload.replace("15/08/1999", "31/02/1999")))
+    assertNull(QrContentFormatter.parseVietnameseCccd(payload.replace("Nguyễn Văn An", "")))
+    assertTrue(QrContentFormatter.format("001099012345", BarcodeFormat.QR_CODE).startsWith("Mã QR"))
+  }
+
+  @Test fun numericBarcodeNeedsMatchingPrintedIdentityBeforeBeingCalledACard() {
+    val code = QrBarcodeResult("001099012345", BarcodeFormat.CODE_128, "Mã CODE_128")
+    val printed = "CĂN CƯỚC CÔNG DÂN\nSố: 001 099 012 345\nNguyễn Văn An"
+    assertTrue(QrContentFormatter.formatIdentityText(code, printed)!!.startsWith("Căn cước công dân."))
+    assertNull(QrContentFormatter.formatIdentityText(code, printed.replace("012 345", "012 346")))
+    assertNull(QrContentFormatter.formatIdentityText(code, "Mã khách hàng 001099012345"))
+    val oldCard = QrBarcodeResult("123456789", BarcodeFormat.CODE_128, "")
+    assertTrue(QrContentFormatter.formatIdentityText(oldCard,
+      "CHỨNG MINH NHÂN DÂN\n123456789")!!.startsWith("Chứng minh nhân dân."))
+  }
+
+  @Test fun documentCornersRemainDistinctAtFortyFiveDegreesAndWarpKeepsAspectRatio() {
+    val diamond = arrayOf(Point(50.0, 0.0), Point(100.0, 50.0), Point(50.0, 100.0), Point(0.0, 50.0))
+    val corners = DocumentAlignmentScanner.orderCorners(arrayOf(diamond[2], diamond[0], diamond[3], diamond[1]))
+    assertEquals(diamond.toList(), corners.toList())
+    assertTrue(DocumentAlignmentScanner.isValidQuad(corners))
+    assertTrue(!DocumentAlignmentScanner.isValidQuad(arrayOf(corners[0], corners[1], corners[1], corners[3])))
+    assertTrue(!DocumentAlignmentScanner.isValidQuad(arrayOf(Point(0.0, 0.0), Point(100.0, 0.0),
+      Point(40.0, 20.0), Point(0.0, 100.0))))
+    assertEquals(100 to 1000, DocumentAlignmentScanner.warpDimensions(100.0, 1000.0))
+    assertEquals(1100 to 2200, DocumentAlignmentScanner.warpDimensions(2000.0, 4000.0))
+  }
+
+  @Test fun lotteryReadsSpacedDigitsAndDrawDateWithoutTakingTheSellersAddress() {
+    val text = "XỔ SỐ KIẾN THIẾT TIỀN GIANG\nĐại lý tại Thành phố Hồ Chí Minh\n" +
+      "Ngày in 20/11/2026\nMở thưởng ngày 22/11/2026\n4 8 2 9 1 0"
+    val ticket = LotteryTicketParser.parse(text) as ParsedLotteryTicket.Traditional
+    assertEquals("Tiền Giang", ticket.station?.displayName)
+    assertEquals("482910", ticket.number)
+    assertEquals("22/11/2026", ticket.drawDate)
+    val uncertainDate = LotteryTicketParser.parse(text.replace("Mở thưởng ngày", "Ngày"))
+      as ParsedLotteryTicket.Traditional
+    assertNull(uncertainDate.drawDate)
+    assertNull(LotteryTicketParser.parse(text + "\n4 8 2 9 1 1"))
+    assertNull(LotteryTicketParser.parse("Hóa đơn Tiền Giang\n4 8 2 9 1 0"))
+  }
+
+  @Test fun vietlottReadsBaoAndLongerDrawIdentifiersWithoutAcceptingDuplicateNumbers() {
+    val text = "VIETLOTT POWER 6/55 #123456\nA: 01 02 03 04 05 06 07"
+    val ticket = LotteryTicketParser.parse(text) as ParsedLotteryTicket.Vietlott
+    assertEquals("123456", ticket.drawId)
+    assertEquals(7, ticket.lines.single().second.size)
+    assertNull(LotteryTicketParser.parse(text.replace("06 07", "06 06")))
+    assertNull(LotteryTicketParser.parse(text + "\nA: 02 03 04 05 06 07 08"))
+  }
+
   @Test fun colorRecognizerAndTrackerRequireStabilityAndWarnLowLight() {
     assertEquals("Màu đen", ColorRecognizer.describeColor(null, 0, floatArrayOf(0f, 0f, 0.05f)))
     assertEquals("Màu trắng", ColorRecognizer.describeColor(null, 0, floatArrayOf(0f, 0.05f, 0.95f)))

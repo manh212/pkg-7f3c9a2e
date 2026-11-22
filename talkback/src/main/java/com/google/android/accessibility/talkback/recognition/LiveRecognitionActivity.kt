@@ -616,9 +616,11 @@ class LiveRecognitionActivity : ComponentActivity() {
         val provider = future.get()
         cameraProvider = provider
         val newPreview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+        val highDetail = enabled.any { it in OCR_MODES || it == RecognitionMode.QR_BARCODE }
+        val frameSize = if (highDetail) Size(1920, 1080) else Size(1280, 720)
         val newAnalysis = ImageAnalysis.Builder()
           .setResolutionSelector(ResolutionSelector.Builder().setResolutionStrategy(
-            ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
+            ResolutionStrategy(frameSize, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
         val text = RecognitionMode.TEXT in enabled
         val currency = RecognitionMode.CURRENCY in enabled
@@ -729,17 +731,6 @@ class LiveRecognitionActivity : ComponentActivity() {
               }
             }
           }
-          if (runQr) {
-            val decoded = qrRecognizer.decode(bitmap)
-            val spoken = qrTracker.observe(decoded, nowMs)
-            if (spoken != null) {
-              handler.post {
-                if (generation == token && resumed && RecognitionMode.QR_BARCODE in enabled) {
-                  announceResult(SOURCE_QR, spoken)
-                }
-              }
-            }
-          }
           if (runColor) {
             val sample = ColorRecognizer.detect(this, bitmap)
             val spoken = colorTracker.observe(sample, nowMs)
@@ -783,6 +774,23 @@ class LiveRecognitionActivity : ComponentActivity() {
               originalTextRead = true
             }
             return originalText
+          }
+          if (runQr) {
+            val scanned = qrRecognizer.decode(bitmap)
+            val decoded = if (scanned != null && QrContentFormatter.needsIdentityText(scanned) &&
+                (OcrModelDownload.isReady(this) || OcrModelDownload.installBundled(this))) {
+              val cardText = readText()
+              val identity = cardText?.let { QrContentFormatter.formatIdentityText(scanned, it) }
+              if (identity != null) scanned.copy(spokenText = identity) else scanned
+            } else scanned
+            val spoken = qrTracker.observe(decoded, nowMs)
+            if (spoken != null) {
+              handler.post {
+                if (generation == token && resumed && RecognitionMode.QR_BARCODE in enabled) {
+                  announceResult(SOURCE_QR, spoken)
+                }
+              }
+            }
           }
           if (runDoc && alignment != null) {
             when (val decision = documentTracker.observe(alignment, nowMs)) {

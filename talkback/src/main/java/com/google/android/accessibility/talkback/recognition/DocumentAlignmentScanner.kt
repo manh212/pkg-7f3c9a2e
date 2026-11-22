@@ -30,6 +30,7 @@ import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -125,14 +126,14 @@ internal object DocumentAlignmentScanner {
       }
 
       val contours = ArrayList<MatOfPoint>()
-      Imgproc.findContours(edges, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+      Imgproc.findContours(edges, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
       val frameArea = scaled.width().toDouble() * scaled.height().toDouble()
       var bestQuad: Array<Point>? = null
       var bestArea = 0.0
 
       for (contour in contours) {
         val area = Imgproc.contourArea(contour)
-        if (area < frameArea * MIN_PAPER_AREA_RATIO || area <= bestArea) {
+        if (area < frameArea * MIN_PAPER_AREA_RATIO || area >= frameArea * 0.98 || area <= bestArea) {
           contour.release()
           continue
         }
@@ -140,11 +141,14 @@ internal object DocumentAlignmentScanner {
         val approx = MatOfPoint2f()
         try {
           val peri = Imgproc.arcLength(pts2f, true)
-          Imgproc.approxPolyDP(pts2f, approx, 0.03 * peri, true)
-          val quad = approx.toArray()
-          if (quad.size == 4) {
-            bestQuad = quad
-            bestArea = area
+          for (epsilon in doubleArrayOf(0.02, 0.03, 0.04)) {
+            Imgproc.approxPolyDP(pts2f, approx, epsilon * peri, true)
+            val quad = approx.toArray()
+            if (quad.size == 4 && isValidQuad(orderCorners(quad))) {
+              bestQuad = quad
+              bestArea = area
+              break
+            }
           }
         } finally {
           pts2f.release()
@@ -197,6 +201,7 @@ internal object DocumentAlignmentScanner {
     areaRatio: Double,
     sharpness: Double,
   ): DocumentAlignmentState {
+    if (!isValidQuad(ordered)) return DocumentAlignmentState.HOLD_FLAT
     val marginX = frameW * EDGE_MARGIN_RATIO
     val marginY = frameH * EDGE_MARGIN_RATIO
 
@@ -236,7 +241,7 @@ internal object DocumentAlignmentScanner {
   }
 
   fun dewarp(bitmap: Bitmap, corners: Array<Point>): Bitmap? {
-    if (!ensureOpenCv() || corners.size != 4) return null
+    if (!ensureOpenCv() || !isValidQuad(corners)) return null
     val srcMat = Mat()
     val dstMat = Mat()
     val srcPts = MatOfPoint2f(*corners)
@@ -246,11 +251,9 @@ internal object DocumentAlignmentScanner {
       Utils.bitmapToMat(bitmap, srcMat)
       val widthTop = hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y)
       val widthBottom = hypot(corners[2].x - corners[3].x, corners[2].y - corners[3].y)
-      val targetW = max(widthTop, widthBottom).toInt().coerceIn(320, 1800)
-
       val heightLeft = hypot(corners[3].x - corners[0].x, corners[3].y - corners[0].y)
       val heightRight = hypot(corners[2].x - corners[1].x, corners[2].y - corners[1].y)
-      val targetH = max(heightLeft, heightRight).toInt().coerceIn(320, 2200)
+      val (targetW, targetH) = warpDimensions(max(widthTop, widthBottom), max(heightLeft, heightRight))
 
       dstPts = MatOfPoint2f(
         Point(0.0, 0.0),
@@ -276,11 +279,29 @@ internal object DocumentAlignmentScanner {
   }
 
   internal fun orderCorners(points: Array<Point>): Array<Point> {
-    val tl = points.minBy { it.x + it.y }
-    val br = points.maxBy { it.x + it.y }
-    val tr = points.minBy { it.y - it.x }
-    val bl = points.maxBy { it.y - it.x }
-    return arrayOf(tl, tr, br, bl)
+    require(points.size == 4)
+    val cx = points.sumOf { it.x } / 4
+    val cy = points.sumOf { it.y } / 4
+    val cyclic = points.sortedBy { atan2(it.y - cy, it.x - cx) }
+    val first = cyclic.indices.minWith(compareBy<Int> { cyclic[it].x + cyclic[it].y }
+      .thenBy { cyclic[it].y }.thenBy { cyclic[it].x })
+    return Array(4) { cyclic[(first + it) % 4] }
+  }
+
+  internal fun isValidQuad(points: Array<Point>): Boolean {
+    if (points.size != 4 || points.any { !it.x.isFinite() || !it.y.isFinite() }) return false
+    val crosses = points.indices.map { i ->
+      val a = points[i]
+      val b = points[(i + 1) % 4]
+      val c = points[(i + 2) % 4]
+      (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
+    }
+    return crosses.all { it > 1.0 } || crosses.all { it < -1.0 }
+  }
+
+  internal fun warpDimensions(width: Double, height: Double): Pair<Int, Int> {
+    val scale = min(1.0, min(1800.0 / width, 2200.0 / height))
+    return max(1, (width * scale).toInt()) to max(1, (height * scale).toInt())
   }
 
   fun enhanceForOcr(bitmap: Bitmap): Bitmap {

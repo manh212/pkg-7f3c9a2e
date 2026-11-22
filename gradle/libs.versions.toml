@@ -61,6 +61,7 @@ androidx-wear = "androidx.wear:wear:1.4.0"
 androidx-wear-remote-interactions = "androidx.wear:wear-remote-interactions:1.2.0"
 wearable-support = "com.google.android.support:wearable:2.9.0"
 zxing-core = "com.google.zxing:core:3.5.4"
+zxing-cpp = "io.github.zxing-cpp:android:3.1.1"
 
 # On-device AI
 litertlm = "com.google.ai.edge.litertlm:litertlm-android:0.18.0"
