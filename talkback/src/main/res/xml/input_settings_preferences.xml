@@ -55,6 +55,11 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:key="pref_input_back_tap_category"
       android:title="@string/title_pref_category_back_tap">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="true"
+        android:key="pref_back_tap_enabled"
+        android:summary="@string/pref_back_tap_enabled_summary"
+        android:title="@string/pref_back_tap_enabled_title" />
     <ListPreference
         android:defaultValue="@string/pref_back_tap_sensitivity_default"
         android:dialogTitle="@string/title_pref_back_tap_sensitivity"
@@ -158,3 +163,4 @@
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
 </PreferenceScreen>
+

@@ -19,11 +19,14 @@ package com.google.android.accessibility.talkback.commands
 import android.content.Context
 import androidx.annotation.StringRes
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.recognition.RecognitionMode
 import com.google.android.accessibility.talkback.actor.GestureReporter
 import com.google.android.accessibility.talkback.actor.ImageCaptioner
 import com.google.android.accessibility.talkback.actor.gemini.GeminiConfiguration
 import com.google.android.accessibility.talkback.preference.base.GestureListPreference
+import com.google.android.accessibility.talkback.gesture.CustomMenus
 import com.google.android.accessibility.talkback.gesture.GestureProfiles
+import com.google.android.accessibility.talkback.gesture.MenuGestureActions
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader
 import com.google.android.accessibility.talkback.gesture.NavigationGestureActions
 import com.google.android.accessibility.talkback.gesture.OpenAppActions
@@ -303,29 +306,46 @@ object Commands {
       web()
       reading()
       speech()
+      feedbackAndVerbosity()
       readingControls()
       settingValues()
       textEditing()
+      clipboardAndCopy()
       device()
+      quickDeviceControls()
       media()
       notifications()
+      clockAndTimers()
+      translation()
       descriptions()
+      liveRecognition()
+      smartContextAndMonitor()
       sandFly()
       developer()
-      missingGestureActions()
       if (withApps) {
+        customMenus()
         scripts()
         gestureProfiles()
         voiceProfiles()
         openApp()
       }
+      missingGestureActions()
       return categories
     }
 
     private fun missingGestureActions() {
       val alreadyListed = categories.flatMap { it.commands }.map { it.value }.toMutableSet()
+      // Exclude legacy MenuGestureActions duplicates already represented by full commands.
+      alreadyListed.add("MENU_ACTION:talkback_settings")
+      alreadyListed.add("MENU_ACTION:show_keyboard_shortcuts")
       category(R.string.shortcut_title_special_features) {
         for ((value, label) in GestureListPreference.getAssignableGestureActions(context)) {
+          if (!withApps
+              && (OpenAppActions.isAction(value)
+                  || GestureProfiles.isAction(value)
+                  || CustomMenus.label(context, value) != null)) {
+            continue
+          }
           if (value != context.getString(R.string.shortcut_value_unassigned)
               && alreadyListed.add(value)) {
             commands.add(Command(value, label, null))
@@ -340,6 +360,12 @@ object Commands {
       if (commands.isNotEmpty()) {
         categories.add(Category(titleRes, commands))
       }
+    }
+
+    /** Adds a menu-derived gesture action from MenuGestureActions by its entry name. */
+    private fun menuAction(entryName: String, keyboard: TalkBackPhysicalKeyboardShortcut? = null) {
+      val entry = MenuGestureActions.ENTRIES.firstOrNull { it.value(context) == "MENU_ACTION:$entryName" } ?: return
+      commands.add(Command(entry.value(context), context.getString(entry.label), keyboard))
     }
 
     /** Adds a gesture command whose value is [valueRes]. */
@@ -421,6 +447,8 @@ object Commands {
           Key.NAVIGATE_PREVIOUS_WINDOW,
         )
         keyboard(Key.REFOCUS_CURRENT_NODE)
+        menuAction("window_menu")
+        menuAction("viewpager_menu")
         gesture(
           R.string.shortcut_value_toggle_focus_text_inside_items,
           R.string.shortcut_toggle_focus_text_inside_items,
@@ -429,6 +457,10 @@ object Commands {
 
     private fun activation() =
       category(R.string.commands_category_activation) {
+        gesture(
+          R.string.shortcut_value_action_setting_activate_current_action,
+          R.string.command_activate_current_action,
+        )
         gesture(
           R.string.shortcut_value_perform_click_action,
           R.string.shortcut_perform_click_action,
@@ -461,6 +493,9 @@ object Commands {
           available = FeatureSupport.supportPassthrough(),
         )
         keyboard(Key.TOGGLE_KEY_COMBO_PASS_THROUGH_ONCE)
+        gesture(R.string.shortcut_value_direct_tap, R.string.shortcut_direct_tap)
+        gesture(R.string.shortcut_value_toggle_touch_exploration, R.string.shortcut_toggle_touch_exploration)
+        gesture(R.string.shortcut_value_tap_text_add, R.string.tap_text_add)
       }
 
     private fun scrolling() =
@@ -493,6 +528,7 @@ object Commands {
           Key.REFRESH,
           available = FeatureSupport.supportPassthrough(),
         )
+        gesture(R.string.shortcut_value_auto_scroll, R.string.shortcut_auto_scroll)
       }
 
     private fun textNavigation() =
@@ -583,6 +619,8 @@ object Commands {
 
     private fun reading() =
       category(R.string.shortcut_title_reading_control) {
+        gesture(R.string.shortcut_value_next_granularity, R.string.command_next_granularity)
+        gesture(R.string.shortcut_value_previous_granularity, R.string.command_previous_granularity)
         gesture(
           R.string.shortcut_value_read_from_top,
           R.string.shortcut_read_from_top,
@@ -602,10 +640,6 @@ object Commands {
           R.string.title_spell_last_spoken_phrase,
         )
         gesture(
-          R.string.shortcut_value_translate_last_spoken_phrase,
-          R.string.title_translate_last_spoken_phrase,
-        )
-        gesture(
           R.string.shortcut_value_announce_phonetic_pronunciation,
           R.string.shortcut_announce_phonetic_pronunciation,
           Key.ANNOUNCE_PHONETIC_PRONUNCIATION,
@@ -617,15 +651,8 @@ object Commands {
           Key.ANNOUNCE_RICH_TEXT_DESCRIPTION,
           available = FeatureFlagReader.enableTextFormattingSummary(context),
         )
-        gesture(R.string.shortcut_value_read_current_time, R.string.shortcut_read_current_time)
         gesture(R.string.shortcut_value_read_current_location, R.string.shortcut_read_current_location)
         gesture(R.string.shortcut_value_announce_status, R.string.shortcut_announce_status)
-        gesture(
-          R.string.shortcut_value_announce_current_time_and_date,
-          R.string.shortcut_announce_current_time_and_date,
-          Key.ANNOUNCE_CURRENT_TIME_AND_DATE,
-          available = FeatureFlagReader.enableAnnounceCurrentTimeAndDate(context),
-        )
         gesture(
           R.string.shortcut_value_announce_battery_state,
           R.string.shortcut_announce_battery_state,
@@ -638,15 +665,11 @@ object Commands {
           Key.ANNOUNCE_CURRENT_TITLE,
           available = FeatureFlagReader.enableAnnounceCurrentTitle(context),
         )
-        gesture(
-          R.string.shortcut_value_control_telling_time,
-          R.string.shortcut_control_speak_time,
-          available = wear,
-        )
       }
 
     private fun speech() =
       category(R.string.commands_category_speech) {
+        gesture(R.string.shortcut_value_switch_speech_stream, R.string.command_switch_speech_stream)
         gesture(
           R.string.shortcut_value_pause_or_resume_feedback,
           R.string.shortcut_pause_or_resume_feedback,
@@ -705,15 +728,7 @@ object Commands {
           R.string.shortcut_previous_voice_profile,
           Key.PREVIOUS_VOICE_PROFILE,
         )
-        keyboard(Key.CYCLE_PUNCTUATION_VERBOSITY)
-        keyboard(Key.CYCLE_TYPING_ECHO)
-        gesture(
-          R.string.shortcut_value_control_text_formatting,
-          R.string.title_switch_text_formatting,
-          available = FeatureFlagReader.enableTextFormattingInline(context),
-        )
-        keyboard(Key.TOGGLE_SOUND_FEEDBACK)
-        keyboard(Key.OPEN_TTS_SETTINGS)
+        menuAction("tts_settings", Key.OPEN_TTS_SETTINGS)
       }
 
     private fun readingControls() =
@@ -744,10 +759,11 @@ object Commands {
         )
         keyboard(Key.NEXT_NAVIGATION_SETTING)
         keyboard(Key.PREVIOUS_NAVIGATION_SETTING)
+        menuAction("granularity_menu")
       }
 
     private fun settingValues() =
-      category(R.string.commands_category_setting_values) {
+      category(R.string.commands_category_setting_values_vi) {
         if (wear) return@category
         for ((setting, titleRes) in READING_CONTROL_VALUE_SETTINGS) {
           val title = context.getString(titleRes)
@@ -770,6 +786,8 @@ object Commands {
 
     private fun textEditing() =
       category(R.string.shortcut_title_text_editing) {
+        gesture(R.string.shortcut_value_choose_keyboard, R.string.command_choose_keyboard)
+        gesture(R.string.shortcut_value_split_typing, R.string.command_split_typing)
         gesture(
           R.string.shortcut_value_start_selection_mode,
           R.string.title_edittext_breakout_start_selection_mode,
@@ -785,20 +803,15 @@ object Commands {
         )
         gesture(R.string.shortcut_value_select_all, android.R.string.selectAll)
         gesture(R.string.shortcut_value_clear_selection, R.string.title_clear_selection)
-        gesture(R.string.shortcut_value_copy, android.R.string.copy)
-        gesture(R.string.shortcut_value_add_to_clipboard, R.string.shortcut_add_to_clipboard)
-        gesture(R.string.shortcut_value_clipboard_history, R.string.title_clipboard_history)
         gesture(R.string.shortcut_value_cut, android.R.string.cut)
         gesture(R.string.shortcut_value_paste, android.R.string.paste)
         gesture(R.string.shortcut_value_submit_text, R.string.shortcut_submit_text)
-        gesture(
-          R.string.shortcut_value_copy_last_spoken_phrase,
-          R.string.title_copy_last_spoken_phrase,
-          Key.COPY_LAST_SPOKEN_PHRASE,
-        )
         gesture(R.string.shortcut_value_correct_text, R.string.correction_title)
         gesture(R.string.shortcut_value_granular_editing, R.string.granular_editing_title)
         gesture(R.string.shortcut_value_text_editor, R.string.text_editor_title)
+        gesture(R.string.shortcut_value_clear_all_text, R.string.shortcut_clear_all_text)
+        menuAction("typo_suggestions_menu")
+        menuAction("emoji_menu")
         gesture(R.string.shortcut_value_dictate, R.string.shortcut_dictate)
         gesture(
           R.string.shortcut_value_voice_input,
@@ -829,6 +842,8 @@ object Commands {
         )
         gesture(R.string.shortcut_value_lock_screen, R.string.shortcut_lock_screen)
         gesture(R.string.shortcut_value_power_menu, R.string.shortcut_power_menu)
+        gesture(R.string.shortcut_value_take_screenshot, R.string.shortcut_take_screenshot)
+        gesture(R.string.shortcut_value_take_focus_screenshot, R.string.shortcut_take_focus_screenshot)
         val systemActions = FeatureSupport.supportGetSystemActions(context)
         gesture(R.string.shortcut_value_all_apps, R.string.shortcut_all_apps, available = systemActions)
         gesture(
@@ -874,6 +889,10 @@ object Commands {
         gesture(R.string.shortcut_value_previous_track, R.string.shortcut_previous_track)
         gesture(R.string.shortcut_value_rewind, R.string.shortcut_rewind)
         gesture(R.string.shortcut_value_fast_forward, R.string.shortcut_fast_forward)
+        gesture(R.string.shortcut_value_media_previous, R.string.shortcut_media_previous)
+        gesture(R.string.shortcut_value_media_next, R.string.shortcut_media_next)
+        gesture(R.string.shortcut_value_increase_contextual_volume, R.string.shortcut_increase_contextual_volume)
+        gesture(R.string.shortcut_value_decrease_contextual_volume, R.string.shortcut_decrease_contextual_volume)
         gesture(R.string.shortcut_value_increase_volume, R.string.shortcut_increase_volume)
         gesture(R.string.shortcut_value_decrease_volume, R.string.shortcut_decrease_volume)
         gesture(
@@ -888,6 +907,20 @@ object Commands {
 
     private fun notifications() =
       category(R.string.notification_category_title) {
+        commands.add(
+          Command(
+            ExtendedCommandActions.ACTION_OPEN_NOTIFICATION_LIST,
+            context.getString(R.string.command_open_notification_list),
+            keyboardAction = null,
+          )
+        )
+        commands.add(
+          Command(
+            ExtendedCommandActions.ACTION_OPEN_NOTIFICATION_HISTORY,
+            context.getString(R.string.command_open_notification_history),
+            keyboardAction = null,
+          )
+        )
         gesture(R.string.shortcut_value_read_notifications, R.string.shortcut_read_notifications)
         gesture(
           R.string.shortcut_value_read_last_notification,
@@ -901,7 +934,7 @@ object Commands {
       }
 
     private fun descriptions() =
-      category(R.string.title_pref_image_and_screen_descriptions) {
+      category(R.string.commands_category_descriptions_extended) {
         val captions = ImageCaptioner.supportsImageCaption(context)
         gesture(
           R.string.shortcut_value_describe_image,
@@ -916,6 +949,11 @@ object Commands {
           available = captions && GeminiConfiguration.screenOverviewEnabled(context),
         )
         gesture(R.string.shortcut_value_read_captcha, R.string.shortcut_read_captcha)
+        gesture(R.string.shortcut_value_screen_recognition, R.string.shortcut_screen_recognition)
+        menuAction("recognize_screen_menu")
+        menuAction("screen_recognition_app_menu")
+        gesture(R.string.shortcut_value_subtitles, R.string.subtitle_toggle)
+        gesture(R.string.shortcut_value_subtitle_find_again, R.string.subtitle_find_again)
         // SandFly Pro's screen recognition commands, named by the module.
         SandflyAi.features?.let {
           for ((value, label) in it.commands(context)) {
@@ -967,8 +1005,32 @@ object Commands {
         )
         gesture(R.string.shortcut_value_toggle_arrow_key_nav, R.string.arrow_key_nav_toggle)
         gesture(R.string.shortcut_value_toggle_scripts, R.string.shortcut_toggle_scripts)
+        gesture(R.string.shortcut_value_task_assistant, R.string.task_title)
+        gesture(R.string.shortcut_value_favorites, R.string.menu_gesture_favorites)
+        gesture(R.string.shortcut_value_speech_history, R.string.menu_gesture_speech_history)
+        menuAction("labeling_breakout_add_label")
         gesture(R.string.shortcut_value_turn_off_sandfly, R.string.turn_off_talkback)
-        keyboard(Key.OPEN_TALKBACK_SETTINGS)
+        commands.add(
+          Command(
+            ExtendedCommandActions.ACTION_TOGGLE_DIRECT_TOUCH,
+            context.getString(R.string.command_toggle_direct_touch),
+            keyboardAction = null,
+          )
+        )
+        commands.add(
+          Command(
+            ExtendedCommandActions.ACTION_TOGGLE_BACK_TAP,
+            context.getString(R.string.command_toggle_back_tap),
+            keyboardAction = null,
+          )
+        )
+        commands.add(
+          Command(
+            ExtendedCommandActions.ACTION_OPEN_MERIDIAN_SETTINGS,
+            context.getString(R.string.command_open_meridian_settings),
+            Key.OPEN_TALKBACK_SETTINGS,
+          )
+        )
         gesture(R.string.shortcut_value_tutorial, R.string.shortcut_tutorial, Key.SHOW_TUTORIAL)
         gesture(
           R.string.shortcut_value_practice_gestures,
@@ -980,6 +1042,128 @@ object Commands {
           available = FeatureFlagReader.enableKeyboardLearnModePage(context),
         )
         keyboard(Key.SHOW_KEYBOARD_SHORTCUTS_DIALOG)
+      }
+
+    private fun feedbackAndVerbosity() =
+      category(R.string.commands_category_feedback_verbosity) {
+        gesture(R.string.shortcut_value_toggle_silent_mode, R.string.shortcut_toggle_silent_mode)
+        menuAction("audio_ducking")
+        menuAction("sound_feedback", Key.TOGGLE_SOUND_FEEDBACK)
+        menuAction("vibration_feedback")
+        menuAction("verbosity")
+        keyboard(Key.CYCLE_PUNCTUATION_VERBOSITY)
+        keyboard(Key.CYCLE_TYPING_ECHO)
+        menuAction("keyboard_echo_on_screen_menu")
+        menuAction("keyboard_echo_physical_menu")
+        gesture(
+          R.string.shortcut_value_control_text_formatting,
+          R.string.title_switch_text_formatting,
+        )
+        menuAction("text_formatting")
+      }
+
+    private fun clipboardAndCopy() =
+      category(R.string.commands_category_clipboard_copy) {
+        gesture(R.string.shortcut_value_copy, android.R.string.copy)
+        gesture(R.string.shortcut_value_add_to_clipboard, R.string.shortcut_add_to_clipboard)
+        gesture(R.string.shortcut_value_clipboard_history, R.string.title_clipboard_history)
+        gesture(
+          R.string.shortcut_value_copy_last_spoken_phrase,
+          R.string.title_copy_last_spoken_phrase,
+          Key.COPY_LAST_SPOKEN_PHRASE,
+        )
+        gesture(R.string.shortcut_value_copy_focused, R.string.shortcut_copy_focused)
+        gesture(R.string.shortcut_value_copy_more, R.string.shortcut_copy_more)
+        gesture(R.string.shortcut_value_copy_full_screen, R.string.shortcut_copy_full_screen)
+        gesture(R.string.shortcut_value_text_statistics, R.string.shortcut_text_statistics)
+      }
+
+    private fun clockAndTimers() =
+      category(R.string.commands_category_clock_timer) {
+        gesture(R.string.shortcut_value_read_current_time, R.string.shortcut_read_current_time)
+        gesture(
+          R.string.shortcut_value_announce_current_time_and_date,
+          R.string.shortcut_announce_current_time_and_date,
+        )
+        gesture(
+          R.string.shortcut_value_control_telling_time,
+          R.string.shortcut_control_speak_time,
+        )
+        gesture(R.string.shortcut_value_toggle_stopwatch, R.string.shortcut_toggle_stopwatch)
+        gesture(
+          R.string.shortcut_value_pause_resume_stopwatch,
+          R.string.shortcut_pause_resume_stopwatch,
+        )
+        gesture(
+          R.string.shortcut_value_speak_stopwatch_elapsed,
+          R.string.shortcut_speak_stopwatch_elapsed,
+        )
+        gesture(
+          R.string.shortcut_value_add_countdown_alarm,
+          R.string.shortcut_add_countdown_alarm,
+        )
+        gesture(
+          R.string.shortcut_value_show_countdown_alarms,
+          R.string.shortcut_show_countdown_alarms,
+        )
+      }
+
+    private fun translation() =
+      category(R.string.commands_category_translation) {
+        gesture(
+          R.string.shortcut_value_translate_last_spoken_phrase,
+          R.string.title_translate_last_spoken_phrase,
+        )
+        gesture(R.string.shortcut_value_auto_translate, R.string.shortcut_auto_translate)
+        gesture(R.string.shortcut_value_translate_dictation, R.string.shortcut_translate_dictation)
+      }
+
+    private fun smartContextAndMonitor() =
+      category(R.string.commands_category_smart_context_monitor) {
+        gesture(
+          R.string.shortcut_value_smart_context_gesture_1,
+          R.string.shortcut_smart_context_gesture_1,
+        )
+        gesture(
+          R.string.shortcut_value_smart_context_gesture_2,
+          R.string.shortcut_smart_context_gesture_2,
+        )
+        gesture(R.string.shortcut_value_smart_context_add, R.string.smart_context_add)
+        gesture(R.string.shortcut_value_smart_context_read, R.string.smart_context_read_app)
+        gesture(R.string.shortcut_value_full_screen_monitor, R.string.full_screen_monitor_title)
+        gesture(R.string.shortcut_value_monitor_focus, R.string.shortcut_monitor_focus)
+      }
+
+    private fun customMenus() =
+      category(R.string.commands_category_custom_menus) {
+        for (menu in CustomMenus.menus(context)) {
+          commands.add(Command(CustomMenus.actionFor(menu.id), menu.name, keyboardAction = null))
+        }
+      }
+
+    private fun liveRecognition() =
+      category(R.string.commands_category_live_recognition) {
+        commands.add(
+          Command(
+            ExtendedCommandActions.ACTION_LIVE_RECOGNITION_OPEN,
+            context.getString(R.string.command_live_recognition_open),
+            keyboardAction = null,
+          )
+        )
+        for (mode in RecognitionMode.entries) {
+          val value = ExtendedCommandActions.liveRecognitionModeAction(mode)
+          val label = ExtendedCommandActions.labelFor(context, value) ?: continue
+          commands.add(Command(value, label, keyboardAction = null))
+        }
+      }
+
+    private fun quickDeviceControls() =
+      category(R.string.commands_category_quick_device_controls) {
+        for (control in ExtendedCommandActions.QUICK_DEVICE_CONTROLS) {
+          val value = ExtendedCommandActions.quickControlAction(control)
+          val label = ExtendedCommandActions.labelFor(context, value) ?: continue
+          commands.add(Command(value, label, keyboardAction = null))
+        }
       }
 
     private fun developer() =
@@ -1008,6 +1192,7 @@ object Commands {
 
     private fun scripts() =
       category(R.string.title_pref_scripts) {
+        menuAction("script_command")
         for (entry in ScriptHostFactory.commands(context, all = false)) {
           commands.add(Command(entry.value, entry.label, keyboardAction = null))
         }
@@ -1089,3 +1274,4 @@ object Commands {
       pair("LANDMARK", "ARIA_LANDMARK")
     }
 }
+

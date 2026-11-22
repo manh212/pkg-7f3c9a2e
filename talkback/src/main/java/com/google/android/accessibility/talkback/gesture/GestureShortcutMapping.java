@@ -30,6 +30,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.commands.ExtendedCommandActions;
 import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture;
 import com.google.android.accessibility.talkback.compositor.GestureShortcutProvider;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
@@ -1248,6 +1249,10 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     if (tapTextLabel != null) {
       return tapTextLabel;
     }
+    @Nullable String extendedLabel = ExtendedCommandActions.labelFor(context, actionKeyString);
+    if (extendedLabel != null) {
+      return extendedLabel;
+    }
     return context.getString(R.string.shortcut_unassigned);
   }
 
@@ -1523,3 +1528,4 @@ public class GestureShortcutMapping implements GestureShortcutProvider {
     }
   }
 }
+

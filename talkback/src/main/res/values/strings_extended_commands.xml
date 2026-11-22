@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Category titles -->
+    <string translatable="false" name="commands_category_live_recognition">Nhận dạng trực tiếp</string>
+    <string translatable="false" name="commands_category_quick_device_controls">Điều khiển thiết bị nhanh</string>
+    <string translatable="false" name="commands_category_clipboard_copy">Sao chép và bộ nhớ tạm</string>
+    <string translatable="false" name="commands_category_feedback_verbosity">Phản hồi và mức độ chi tiết</string>
+    <string translatable="false" name="commands_category_clock_timer">Đồng hồ, bấm giờ và báo thức</string>
+    <string translatable="false" name="commands_category_translation">Dịch thuật</string>
+    <string translatable="false" name="commands_category_smart_context_monitor">Cử chỉ thông minh và giám sát</string>
+    <string translatable="false" name="commands_category_custom_menus">Menu tùy chỉnh</string>
+    <string translatable="false" name="commands_category_setting_values_vi">Giá trị điều khiển đọc</string>
+    <string translatable="false" name="commands_category_descriptions_extended">Mô tả hình ảnh, màn hình và phụ đề</string>
+
+    <!-- Grouped picker labels -->
+    <string translatable="false" name="commands_picker_back_to_groups">Quay lại chọn nhóm</string>
+    <string translatable="false" name="commands_picker_group_count_fmt">%1$s (%2$d mục)</string>
+    <string translatable="false" name="commands_touch_group_one_finger_basic">Cử chỉ 1 ngón tay — Vuốt đơn</string>
+    <string translatable="false" name="commands_touch_group_one_finger_back_forth">Cử chỉ 1 ngón tay — Qua lại và góc vuông</string>
+    <string translatable="false" name="commands_touch_group_two_finger">Cử chỉ 2 ngón tay</string>
+    <string translatable="false" name="commands_touch_group_three_finger">Cử chỉ 3 ngón tay</string>
+    <string translatable="false" name="commands_touch_group_four_finger">Cử chỉ 4 ngón tay</string>
+    <string translatable="false" name="commands_touch_group_other">Cử chỉ màn hình khác</string>
+    <string translatable="false" name="commands_edge_group_swipe_fmt">%1$s — Vuốt</string>
+    <string translatable="false" name="commands_edge_group_tap_1f_fmt">%1$s — Chạm 1 ngón</string>
+    <string translatable="false" name="commands_edge_group_tap_multi_fmt">%1$s — Chạm 2 và 3 ngón</string>
+    <string translatable="false" name="commands_volume_group_both">Cả hai phím âm lượng</string>
+
+    <!-- Group 1: Live Recognition commands -->
+    <string translatable="false" name="command_live_recognition_open">Mở Nhận dạng trực tiếp</string>
+    <string translatable="false" name="command_live_recognition_mode_fmt">Nhận dạng trực tiếp: %1$s</string>
+
+    <!-- Group 2: Previously omitted GestureController commands -->
+    <string translatable="false" name="command_choose_keyboard">Chọn bàn phím</string>
+    <string translatable="false" name="command_switch_speech_stream">Chuyển luồng âm thanh giọng nói</string>
+    <string translatable="false" name="command_split_typing">Bật/tắt gõ chia tách</string>
+    <string translatable="false" name="command_next_granularity">Độ chi tiết điều hướng tiếp theo</string>
+    <string translatable="false" name="command_previous_granularity">Độ chi tiết điều hướng trước đó</string>
+    <string translatable="false" name="command_activate_current_action">Kích hoạt hành động hiện tại</string>
+
+    <!-- Group 3: Additional Meridian commands -->
+    <string translatable="false" name="command_toggle_direct_touch">Bật/tắt Chạm trực tiếp</string>
+    <string translatable="false" name="command_open_notification_list">Mở Danh sách thông báo</string>
+    <string translatable="false" name="command_open_notification_history">Mở Lịch sử thông báo</string>
+    <string translatable="false" name="command_toggle_back_tap">Bật/tắt Gõ mặt lưng</string>
+    <string translatable="false" name="command_open_meridian_settings">Mở Cài đặt Meridian</string>
+    <string translatable="false" name="pref_back_tap_enabled_title">Bật Gõ mặt lưng</string>
+    <string translatable="false" name="pref_back_tap_enabled_summary">Cho phép gõ 2 hoặc 3 lần vào mặt lưng để chạy lệnh đã gán</string>
+
+    <!-- Group 4: Quick device control commands -->
+    <string translatable="false" name="command_quick_toggle_fmt">Bật/tắt %1$s</string>
+    <string translatable="false" name="command_quick_sound_mode">Chuyển chế độ âm thanh</string>
+
+    <!-- Spoken feedback -->
+    <string translatable="false" name="command_feedback_enabled_fmt">Đã bật %1$s</string>
+    <string translatable="false" name="command_feedback_disabled_fmt">Đã tắt %1$s</string>
+    <string translatable="false" name="command_feedback_opened_settings_fmt">Đang mở cài đặt %1$s</string>
+    <string translatable="false" name="command_feedback_unavailable_fmt">Không thể điều khiển %1$s trên thiết bị này</string>
+    <string translatable="false" name="command_feedback_sound_mode_fmt">Chế độ âm thanh: %1$s</string>
+</resources>

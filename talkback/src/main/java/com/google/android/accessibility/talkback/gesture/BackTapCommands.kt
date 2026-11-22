@@ -55,9 +55,10 @@ class BackTapCommands(
   private var sensorListener: SensorEventListener? = null
 
   fun reload(prefs: SharedPreferences) {
+    val enabled = prefs.getBoolean(PREF_BACK_TAP_ENABLED, true)
     val gestureSet = gestureSet(prefs)
-    tripleUsed = isUsed(prefs, tripleKey, gestureSet)
-    used = tripleUsed || isUsed(prefs, doubleKey, gestureSet)
+    tripleUsed = enabled && isUsed(prefs, tripleKey, gestureSet)
+    used = enabled && (tripleUsed || isUsed(prefs, doubleKey, gestureSet))
     val value =
       prefs.getString(
         context.getString(R.string.pref_back_tap_sensitivity_key),
@@ -200,7 +201,9 @@ class BackTapCommands(
       0
     }
 
-  private companion object {
+  companion object {
+    const val PREF_BACK_TAP_ENABLED = "pref_back_tap_enabled"
+
     const val TAG = "BackTapCommands"
 
     const val SAMPLING_PERIOD_US = 2_500
@@ -208,3 +211,4 @@ class BackTapCommands(
     const val MAX_REPORT_LATENCY_US = 100_000
   }
 }
+

@@ -107,6 +107,7 @@ import com.google.android.accessibility.talkback.Feedback.TalkBackUI.Item;
 import com.google.android.accessibility.talkback.Feedback.TriggerIntent.Action;
 import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.commands.ExtendedCommandActions;
 import com.google.android.accessibility.talkback.preference.base.SmartContextGestureSettingsFragment;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.backup.SettingsProfiles;
@@ -1350,6 +1351,9 @@ public class GestureController {
       selectorController.changeSpeechRate(eventId, true);
     } else if (action.equals(service.getString(R.string.shortcut_long_press_talkback_exit))) {
       service.requestDisableTalkBackByTalkBackExitBanner();
+    } else if (ExtendedCommandActions.perform(
+        service, action, text -> pipeline.returnFeedback(eventId, Feedback.speech(text)))) {
+      result = true;
     }
 
     if (!result) {
@@ -1859,3 +1863,4 @@ public class GestureController {
     }
   }
 }
+

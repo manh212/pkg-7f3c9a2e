@@ -615,44 +615,42 @@ internal object UnifiedCommandDialogs {
       }
       TargetKind.EDGE_GESTURE -> {
         val unassigned = context.getString(R.string.shortcut_value_unassigned)
-        val edges = EdgeGesture.values().toList()
-        val labels =
-          edges.map { edge ->
+        val groups = UnifiedCommandBindings.groupEdgeGestures(context)
+        showGroupedPickerDialog(
+          context = context,
+          title = context.getString(R.string.commands_target_edge_gesture),
+          groups = groups,
+          itemLabel = { edge ->
             val current = edge.action(prefs, unassigned)
             val name = UnifiedCommandBindings.edgeSlotLabel(context, edge)
             if (current.isNullOrEmpty() || current == unassigned) name
             else "$name: ${Commands.label(context, current) ?: current}"
-          }
-        AlertDialog.Builder(context)
-          .setTitle(R.string.commands_target_edge_gesture)
-          .setItems(labels.toTypedArray()) { _, which ->
-            val edge = edges[which]
+          },
+          onPicked = { edge ->
             UnifiedCommandBindings.assignEdgeGesture(prefs, edge, command.value)
             onChanged()
             announceAssigned(context, UnifiedCommandBindings.edgeSlotLabel(context, edge), command.label)
-          }
-          .setNegativeButton(android.R.string.cancel, null)
-          .show()
+          },
+        )
       }
       TargetKind.VOLUME_KEY -> {
         val unassigned = context.getString(R.string.shortcut_value_unassigned)
-        val slots = UnifiedCommandBindings.volumeSlots(context)
-        val labels =
-          slots.map { slot ->
+        val groups = UnifiedCommandBindings.groupVolumeSlots(context)
+        showGroupedPickerDialog(
+          context = context,
+          title = context.getString(R.string.commands_target_volume_key),
+          groups = groups,
+          itemLabel = { slot ->
             val current = prefs.getString(slot.key, unassigned) ?: unassigned
             if (current.isEmpty() || current == unassigned) slot.label
             else "${slot.label}: ${Commands.label(context, current) ?: current}"
-          }
-        AlertDialog.Builder(context)
-          .setTitle(R.string.commands_target_volume_key)
-          .setItems(labels.toTypedArray()) { _, which ->
-            val slot = slots[which]
+          },
+          onPicked = { slot ->
             UnifiedCommandBindings.assignVolumeSlot(prefs, slot.key, command.value)
             onChanged()
             announceAssigned(context, slot.label, command.label)
-          }
-          .setNegativeButton(android.R.string.cancel, null)
-          .show()
+          },
+        )
       }
       TargetKind.KEYBOARD_SHORTCUT -> openKeyboardShortcutScreen(fragment, command)
       TargetKind.MERIDIAN_MENU -> {
@@ -769,6 +767,45 @@ internal object UnifiedCommandDialogs {
     }
   }
 
+  private fun <T> showGroupedPickerDialog(
+    context: Context,
+    title: String,
+    groups: List<UnifiedCommandBindings.SlotGroup<T>>,
+    itemLabel: (T) -> String,
+    onPicked: (T) -> Unit,
+  ) {
+    if (groups.size <= 1) {
+      val items = groups.firstOrNull()?.items.orEmpty()
+      AlertDialog.Builder(context)
+        .setTitle(title)
+        .setItems(items.map(itemLabel).toTypedArray()) { _, which -> onPicked(items[which]) }
+        .setNegativeButton(android.R.string.cancel, null)
+        .show()
+      return
+    }
+    val groupLabels =
+      groups.map { group ->
+        context.getString(R.string.commands_picker_group_count_fmt, group.title, group.items.size)
+      }
+    AlertDialog.Builder(context)
+      .setTitle(title)
+      .setItems(groupLabels.toTypedArray()) { _, groupIndex ->
+        val chosenGroup = groups[groupIndex]
+        AlertDialog.Builder(context)
+          .setTitle(chosenGroup.title)
+          .setItems(chosenGroup.items.map(itemLabel).toTypedArray()) { _, itemIndex ->
+            onPicked(chosenGroup.items[itemIndex])
+          }
+          .setNeutralButton(R.string.commands_picker_back_to_groups) { _, _ ->
+            showGroupedPickerDialog(context, title, groups, itemLabel, onPicked)
+          }
+          .setNegativeButton(android.R.string.cancel, null)
+          .show()
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
   private fun pickGestureSlot(
     context: Context,
     prefs: SharedPreferences,
@@ -778,34 +815,44 @@ internal object UnifiedCommandDialogs {
     onPicked: (CommandBindings.GestureSlot) -> Unit,
   ) {
     val unassigned = context.getString(R.string.shortcut_value_unassigned)
-    val labels =
-      slots.map { slot ->
-        val current = slot.value(context, prefs)
-        if (current == unassigned) slot.name.toString()
-        else "${slot.name}: ${Commands.label(context, current) ?: current}"
+    val labelForSlot: (CommandBindings.GestureSlot) -> String = { slot ->
+      val current = slot.value(context, prefs)
+      if (current == unassigned) slot.name.toString()
+      else "${slot.name}: ${Commands.label(context, current) ?: current}"
+    }
+    val confirmAndPick: (CommandBindings.GestureSlot) -> Unit = { slot ->
+      val current = slot.value(context, prefs)
+      if (current == unassigned || current == command.value) {
+        onPicked(slot)
+      } else {
+        AlertDialog.Builder(context)
+          .setMessage(
+            context.getString(
+              R.string.command_replace_gesture,
+              slot.name,
+              Commands.label(context, current) ?: current,
+              command.label,
+            )
+          )
+          .setPositiveButton(R.string.command_replace) { _, _ -> onPicked(slot) }
+          .setNegativeButton(android.R.string.cancel, null)
+          .show()
       }
+    }
+    if (slots.size > 10) {
+      val groups = UnifiedCommandBindings.groupTouchGestureSlots(context, slots)
+      showGroupedPickerDialog(
+        context = context,
+        title = context.getString(titleRes),
+        groups = groups,
+        itemLabel = labelForSlot,
+        onPicked = confirmAndPick,
+      )
+      return
+    }
     AlertDialog.Builder(context)
       .setTitle(titleRes)
-      .setItems(labels.toTypedArray()) { _, which ->
-        val slot = slots[which]
-        val current = slot.value(context, prefs)
-        if (current == unassigned || current == command.value) {
-          onPicked(slot)
-        } else {
-          AlertDialog.Builder(context)
-            .setMessage(
-              context.getString(
-                R.string.command_replace_gesture,
-                slot.name,
-                Commands.label(context, current) ?: current,
-                command.label,
-              )
-            )
-            .setPositiveButton(R.string.command_replace) { _, _ -> onPicked(slot) }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-        }
-      }
+      .setItems(slots.map(labelForSlot).toTypedArray()) { _, which -> confirmAndPick(slots[which]) }
       .setNegativeButton(android.R.string.cancel, null)
       .show()
   }
@@ -884,3 +931,4 @@ internal fun readGestureCategories(fragment: TalkbackBaseFragment): List<Command
   fragment.addPreferencesFromResource(R.xml.gesture_preferences)
   return CommandBindings.gestureCategories(fragment.requireContext(), fragment.preferenceScreen)
 }
+

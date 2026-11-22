@@ -618,4 +618,106 @@ object UnifiedCommandBindings {
     }
     return slotKey
   }
+
+  data class SlotGroup<T>(val title: String, val items: List<T>)
+
+  /** Groups touch gestures into compact finger-count buckets so screen-reader users don't swipe 45+ flat items. */
+  fun groupTouchGestureSlots(
+    context: Context,
+    slots: List<CommandBindings.GestureSlot>,
+  ): List<SlotGroup<CommandBindings.GestureSlot>> {
+    val oneBasic = mutableListOf<CommandBindings.GestureSlot>()
+    val oneCompound = mutableListOf<CommandBindings.GestureSlot>()
+    val twoFinger = mutableListOf<CommandBindings.GestureSlot>()
+    val threeFinger = mutableListOf<CommandBindings.GestureSlot>()
+    val fourFinger = mutableListOf<CommandBindings.GestureSlot>()
+    val other = mutableListOf<CommandBindings.GestureSlot>()
+
+    val basicOneKeys =
+      setOf(
+        context.getString(R.string.pref_shortcut_up_key),
+        context.getString(R.string.pref_shortcut_down_key),
+        context.getString(R.string.pref_shortcut_left_key),
+        context.getString(R.string.pref_shortcut_right_key),
+      )
+
+    for (slot in slots) {
+      val base = stripGestureSetSuffix(slot.key)
+      when {
+        base in basicOneKeys -> oneBasic.add(slot)
+        base.contains("2finger") -> twoFinger.add(slot)
+        base.contains("3finger") -> threeFinger.add(slot)
+        base.contains("4finger") -> fourFinger.add(slot)
+        base.contains("_and_") -> oneCompound.add(slot)
+        else -> other.add(slot)
+      }
+    }
+
+    return buildList {
+      if (oneBasic.isNotEmpty()) {
+        add(SlotGroup(context.getString(R.string.commands_touch_group_one_finger_basic), oneBasic))
+      }
+      if (oneCompound.isNotEmpty()) {
+        add(SlotGroup(context.getString(R.string.commands_touch_group_one_finger_back_forth), oneCompound))
+      }
+      if (twoFinger.isNotEmpty()) {
+        add(SlotGroup(context.getString(R.string.commands_touch_group_two_finger), twoFinger))
+      }
+      if (threeFinger.isNotEmpty()) {
+        add(SlotGroup(context.getString(R.string.commands_touch_group_three_finger), threeFinger))
+      }
+      if (fourFinger.isNotEmpty()) {
+        add(SlotGroup(context.getString(R.string.commands_touch_group_four_finger), fourFinger))
+      }
+      if (other.isNotEmpty()) {
+        add(SlotGroup(context.getString(R.string.commands_touch_group_other), other))
+      }
+    }
+  }
+
+  /** Groups all EdgeGesture entries by edge side (Left/Right/Bottom) and gesture type (Swipe / 1-finger tap / 2-3-finger tap). */
+  fun groupEdgeGestures(context: Context): List<SlotGroup<EdgeGesture>> {
+    val all = EdgeGesture.values().toList()
+    return buildList {
+      for (edge in EdgeGesture.Edge.values()) {
+        val edgeName = context.getString(edge.title)
+        val swipes = all.filter { it.edge == edge && it.taps == 0 }
+        val taps1f = all.filter { it.edge == edge && it.taps > 0 && it.fingers <= 1 }
+        val tapsMulti = all.filter { it.edge == edge && it.taps > 0 && it.fingers >= 2 }
+        if (swipes.isNotEmpty()) {
+          add(SlotGroup(context.getString(R.string.commands_edge_group_swipe_fmt, edgeName), swipes))
+        }
+        if (taps1f.isNotEmpty()) {
+          add(SlotGroup(context.getString(R.string.commands_edge_group_tap_1f_fmt, edgeName), taps1f))
+        }
+        if (tapsMulti.isNotEmpty()) {
+          add(SlotGroup(context.getString(R.string.commands_edge_group_tap_multi_fmt, edgeName), tapsMulti))
+        }
+      }
+    }
+  }
+
+  /** Groups VolumeSlot entries by button (Volume Up/Down) and screen state (On/Locked/Off), plus Both Keys. */
+  fun groupVolumeSlots(context: Context): List<SlotGroup<VolumeSlot>> {
+    val all = volumeSlots(context)
+    val groups = linkedMapOf<String, MutableList<VolumeSlot>>()
+    val bothLabel = context.getString(R.string.commands_volume_group_both)
+    for (slot in all) {
+      val groupTitle =
+        when {
+          slot.key == VolumeKeyManager.KEY_BOTH_ACTION -> bothLabel
+          slot.key.startsWith("pref_volume_up_") && slot.key.contains("_locked_") -> "Tăng âm lượng — Màn hình khóa"
+          slot.key.startsWith("pref_volume_up_") && slot.key.contains("_screen_off_") -> "Tăng âm lượng — Màn hình tắt"
+          slot.key.startsWith("pref_volume_up_") -> "Tăng âm lượng — Màn hình bật"
+          slot.key.startsWith("pref_volume_down_") && slot.key.contains("_locked_") -> "Giảm âm lượng — Màn hình khóa"
+          slot.key.startsWith("pref_volume_down_") && slot.key.contains("_screen_off_") -> "Giảm âm lượng — Màn hình tắt"
+          slot.key.startsWith("pref_volume_down_") -> "Giảm âm lượng — Màn hình bật"
+          else -> bothLabel
+        }
+      groups.getOrPut(groupTitle) { mutableListOf() }.add(slot)
+    }
+    return groups.map { (title, items) -> SlotGroup(title, items) }
+  }
+
 }
+
