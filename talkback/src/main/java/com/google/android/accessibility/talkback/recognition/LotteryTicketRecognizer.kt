@@ -247,7 +247,7 @@ internal object LotteryResultChecker {
     val xml = try {
       client.newCall(Request.Builder().url(url).build()).execute().use { response ->
         if (!response.isSuccessful) return null
-        response.body?.let(::readFeed)
+        response.body()?.let(::readFeed)
       }
     } catch (_: Exception) {
       return null

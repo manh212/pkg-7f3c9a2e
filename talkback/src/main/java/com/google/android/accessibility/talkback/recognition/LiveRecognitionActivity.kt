@@ -225,7 +225,7 @@ class LiveRecognitionActivity : ComponentActivity() {
             id = View.generateViewId()
             setText(R.string.live_recognition_point_above)
             isChecked = true
-        }
+          }
           column.addView(RadioGroup(this).apply {
             addView(above)
             addView(RadioButton(this@LiveRecognitionActivity).apply {
@@ -270,7 +270,7 @@ class LiveRecognitionActivity : ComponentActivity() {
           val targetButton = Button(this).apply {
             text = getString(R.string.live_recognition_object_target_all)
             textSize = 18f
-        }
+          }
           targetButton.setOnClickListener {
             val entries = listOf<Pair<Int?, String>>(null to getString(R.string.live_recognition_object_all_items)) +
               CocoObjectCatalog.DAILY_LABELS_VI.entries.map { it.key to it.value }
@@ -291,7 +291,7 @@ class LiveRecognitionActivity : ComponentActivity() {
               }
               .setOnDismissListener { dialogOpen = false }
               .show()
-        }
+          }
           column.addView(targetButton)
         }
         RecognitionMode.LIGHT -> {
