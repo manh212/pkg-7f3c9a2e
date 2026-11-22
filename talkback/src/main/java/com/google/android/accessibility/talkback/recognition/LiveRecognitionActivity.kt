@@ -58,11 +58,12 @@ import androidx.lifecycle.LiveData
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
-import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager
-import com.google.android.accessibility.talkback.imagecaption.OfflineModels
-import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
+import com.google.android.accessibility.talkback.actor.gemini.AiProvider
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
+import com.google.android.accessibility.talkback.imagecaption.OfflineModels
+import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
+import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager
 import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.utils.Performance
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -73,7 +74,6 @@ import org.opencv.core.Point
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -99,12 +99,8 @@ class LiveRecognitionActivity : ComponentActivity() {
   )
   private val worker = Executors.newSingleThreadExecutor()
   private val processing = AtomicBoolean(false)
-  private val lotteryWorker = Executors.newSingleThreadExecutor()
-  private var lotteryLookup: Future<*>? = null
-  private var lastLookupKey: String? = null
   private val currencyTracker = CurrencyTracker()
   private var currencyRecognizer: CurrencyRecognizer? = null
-  private val textTracker = CameraTextTracker(requireConfirmation = false)
   private val documentTextTracker = CameraTextTracker()
   private val waitingModels = mutableSetOf<OfflineModels.Group>()
   private var modelProgressBucket = 0
@@ -114,15 +110,15 @@ class LiveRecognitionActivity : ComponentActivity() {
   private val qrTracker = QrBarcodeTracker()
   private val colorTracker = ColorTracker()
   private val documentTracker = DocumentAlignmentTracker()
-  private val lotteryTracker = LotteryTicketTracker()
   private val objectTracker = ObjectFinderTracker()
   private var objectRecognizer: ObjectFinderRecognizer? = null
   private val lightTone = LightToneGenerator()
   private var lightToneEnabled = false
   private var currencySumEnabled = false
-  private var lotteryOnlineCheck = false
   private var targetObjectClassId: Int? = null
   private val announcements = RecognitionAnnouncements()
+  private var activeTextDialog: LiveTextRecognitionDialog? = null
+  private var activeLotteryDialog: LiveLotteryDialog? = null
   private val lightListener = object : SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
       if (!resumed || RecognitionMode.LIGHT !in enabled) return
@@ -194,9 +190,10 @@ class LiveRecognitionActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     title = getString(R.string.live_recognition_title)
     initialMode = if (savedInstanceState == null) parseMode(intent) else null
+    val density = resources.displayMetrics.density
     val column = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
-      val pad = (16 * resources.displayMetrics.density).toInt()
+      val pad = (16 * density).toInt()
       setPadding(pad, pad, pad, pad)
     }
     column.addView(TextView(this).apply {
@@ -207,18 +204,34 @@ class LiveRecognitionActivity : ComponentActivity() {
       implementationMode = PreviewView.ImplementationMode.COMPATIBLE
       importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
-    column.addView(previewView, LinearLayout.LayoutParams(-1, (180 * resources.displayMetrics.density).toInt()))
-    status = TextView(this).apply { text = getString(R.string.live_recognition_camera_off); textSize = 20f }
-    column.addView(status)
+    column.addView(previewView, LinearLayout.LayoutParams(-1, (180 * density).toInt()))
+    status = TextView(this).apply {
+      text = getString(R.string.live_recognition_camera_off)
+      textSize = 18f
+    }
+    val statusContainer = ScrollView(this).apply {
+      addView(status)
+    }
+    column.addView(statusContainer, LinearLayout.LayoutParams(-1, (96 * density).toInt()))
     flashSwitch = CheckBox(this).apply {
       text = getString(R.string.live_recognition_flash)
       textSize = 20f
-      minHeight = (48 * resources.displayMetrics.density).toInt()
+      minHeight = (48 * density).toInt()
       setOnClickListener { toggleFlash() }
     }
     // Flash is a standalone control, not one of the recognition modes.
     column.addView(flashSwitch)
     RecognitionMode.entries.forEach { mode ->
+      if (mode == RecognitionMode.TEXT || mode == RecognitionMode.LOTTERY_TICKET) {
+        val actionButton = Button(this).apply {
+          text = getString(mode.label)
+          textSize = 20f
+          minHeight = (48 * density).toInt()
+          setOnClickListener { toggle(mode) }
+        }
+        column.addView(actionButton)
+        return@forEach
+      }
       val button = CheckBox(this).apply {
         text = getString(mode.label)
         textSize = 20f
@@ -247,7 +260,7 @@ class LiveRecognitionActivity : ComponentActivity() {
           column.addView(CheckBox(this).apply {
             text = getString(R.string.live_recognition_currency_sum)
             textSize = 18f
-            minHeight = (48 * resources.displayMetrics.density).toInt()
+            minHeight = (48 * density).toInt()
             setOnCheckedChangeListener { _, checked ->
               currencySumEnabled = checked
               if (!checked) currencyTracker.resetTotal()
@@ -259,17 +272,6 @@ class LiveRecognitionActivity : ComponentActivity() {
             setOnClickListener {
               currencyTracker.resetTotal()
               report(R.string.live_recognition_currency_total_reset)
-            }
-          })
-        }
-        RecognitionMode.LOTTERY_TICKET -> {
-          column.addView(CheckBox(this).apply {
-            text = getString(R.string.live_recognition_lottery_online)
-            textSize = 18f
-            minHeight = (48 * resources.displayMetrics.density).toInt()
-            setOnCheckedChangeListener { _, checked ->
-              lotteryOnlineCheck = checked
-              if (!checked) clearLotteryLookup()
             }
           })
         }
@@ -305,7 +307,7 @@ class LiveRecognitionActivity : ComponentActivity() {
           column.addView(CheckBox(this).apply {
             text = getString(R.string.live_recognition_light_tone)
             textSize = 18f
-            minHeight = (48 * resources.displayMetrics.density).toInt()
+            minHeight = (48 * density).toInt()
             setOnCheckedChangeListener { _, checked ->
               lightToneEnabled = checked
               if (!checked) lightTone.reset()
@@ -360,6 +362,10 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   override fun onPause() {
     resumed = false
+    activeTextDialog?.dismiss()
+    activeTextDialog = null
+    activeLotteryDialog?.dismiss()
+    activeLotteryDialog = null
     flashOn = false
     updateFlashSwitch()
     boundCamera?.cameraControl?.enableTorch(false)
@@ -379,7 +385,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     describer?.close()
     worker.shutdown()
-    lotteryWorker.shutdownNow()
     super.onDestroy()
   }
 
@@ -439,6 +444,14 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   internal fun toggle(mode: RecognitionMode) {
     if (!canUseRotor()) { updateSwitches(); return }
+    if (mode == RecognitionMode.TEXT) {
+      openTextDialog()
+      return
+    }
+    if (mode == RecognitionMode.LOTTERY_TICKET) {
+      openLotteryDialog()
+      return
+    }
     if (mode in enabled) {
       enabled.remove(mode)
       if (mode == RecognitionMode.QR_BARCODE) {
@@ -473,6 +486,67 @@ class LiveRecognitionActivity : ComponentActivity() {
     enabled.add(mode)
     reconcile()
     if (mode in enabled && modelGroup(mode) !in waitingModels) speakMode(mode)
+  }
+
+  private fun openTextDialog() {
+    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+      pendingPermission = RecognitionMode.TEXT
+      cameraPermission.launch(Manifest.permission.CAMERA)
+      return
+    }
+    if (!DeviceLicenseManager.allows(this, "ocr")) {
+      report(R.string.live_recognition_ocr_unlicensed)
+      return
+    }
+    stopRecognition()
+    flashOn = false
+    updateFlashSwitch()
+    dialogOpen = true
+    activeTextDialog = LiveTextRecognitionDialog(this, prefs, ::speak) {
+      dialogOpen = false
+      activeTextDialog = null
+    }.also { it.show() }
+  }
+
+  private fun openLotteryDialog() {
+    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+      pendingPermission = RecognitionMode.LOTTERY_TICKET
+      cameraPermission.launch(Manifest.permission.CAMERA)
+      return
+    }
+    if (!canUseOnlineLotteryAi()) return
+    stopRecognition()
+    flashOn = false
+    updateFlashSwitch()
+    dialogOpen = true
+    activeLotteryDialog = LiveLotteryDialog(this, ::speak) {
+      dialogOpen = false
+      activeLotteryDialog = null
+    }.also { it.show() }
+  }
+
+  private fun canUseOnlineLotteryAi(): Boolean {
+    val provider = AiProvider.active(prefs)
+    if (provider == AiProvider.NONE || !provider.isReady(prefs)) {
+      report(R.string.live_recognition_lottery_online_required)
+      return false
+    }
+    val host = if (provider == AiProvider.GEMINI) null else AiService.host(prefs)
+    val consent = if (host == null) CLOUD_CONSENT_PREF else SERVICE_CONSENT_PREF + host
+    if (prefs.getBoolean(consent, false)) return true
+    dialogOpen = true
+    AlertDialog.Builder(this)
+      .setTitle(if (host == null) getString(R.string.live_recognition_cloud_title)
+        else getString(R.string.live_recognition_service_title, host))
+      .setMessage(if (host == null) getString(R.string.live_recognition_cloud_message)
+        else getString(R.string.live_recognition_service_message, host))
+      .setNegativeButton(android.R.string.cancel, null)
+      .setPositiveButton(R.string.live_recognition_send) { _, _ ->
+        prefs.edit { putBoolean(consent, true) }
+        dialogOpen = false
+        if (resumed) openLotteryDialog()
+      }.setOnDismissListener { dialogOpen = false }.show()
+    return false
   }
 
   /**
@@ -559,11 +633,8 @@ class LiveRecognitionActivity : ComponentActivity() {
       qrTracker.reset()
       colorTracker.reset()
       documentTracker.reset()
-      textTracker.reset()
       documentTextTracker.reset()
-      lotteryTracker.reset()
     }
-    clearLotteryLookup()
     objectTracker.reset()
     lightTone.reset()
     updateSwitches()
@@ -617,7 +688,7 @@ class LiveRecognitionActivity : ComponentActivity() {
   }
 
   private fun modelGroup(mode: RecognitionMode): OfflineModels.Group? = when (mode) {
-    RecognitionMode.TEXT, RecognitionMode.DOCUMENT_LABEL, RecognitionMode.LOTTERY_TICKET -> OfflineModels.Group.CAMERA_OCR
+    RecognitionMode.DOCUMENT_LABEL -> OfflineModels.Group.CAMERA_OCR
     RecognitionMode.CURRENCY -> OfflineModels.Group.CURRENCY
     RecognitionMode.FIND_OBJECT -> OfflineModels.Group.OBJECTS
     else -> null
@@ -709,22 +780,20 @@ class LiveRecognitionActivity : ComponentActivity() {
           .setResolutionSelector(ResolutionSelector.Builder().setResolutionStrategy(
             ResolutionStrategy(frameSize, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-        val text = RecognitionMode.TEXT in enabled && modeReady(RecognitionMode.TEXT)
         val currency = RecognitionMode.CURRENCY in enabled && modeReady(RecognitionMode.CURRENCY)
         val qr = RecognitionMode.QR_BARCODE in enabled
         val color = RecognitionMode.COLOR in enabled
-        val lottery = RecognitionMode.LOTTERY_TICKET in enabled && modeReady(RecognitionMode.LOTTERY_TICKET)
         val findObject = RecognitionMode.FIND_OBJECT in enabled && modeReady(RecognitionMode.FIND_OBJECT)
         val document = RecognitionMode.DOCUMENT_LABEL in enabled && modeReady(RecognitionMode.DOCUMENT_LABEL)
         val fastLocalOnly = (currency || qr || color || findObject) &&
-          !(text || lottery || document || enabled.any { it.usesAi })
+          !(document || enabled.any { it.usesAi })
         val captureInterval = if (fastLocalOnly) CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
         var lastFrame = -FRAME_INTERVAL_MS
         newAnalysis.setAnalyzer(worker) { frame ->
           val now = SystemClock.elapsedRealtime()
           // Gemini takes a frame every few seconds at most, so most frames run local detectors.
           val ai = describer?.canRequest() == true
-          val localNeed = text || currency || qr || color || lottery || findObject || document
+          val localNeed = currency || qr || color || findObject || document
           if (generation != token || now - lastFrame < captureInterval ||
               !(localNeed || ai) || !processing.compareAndSet(false, true)) {
             frame.close()
@@ -791,10 +860,8 @@ class LiveRecognitionActivity : ComponentActivity() {
     val runQr = RecognitionMode.QR_BARCODE in enabled
     val runColor = RecognitionMode.COLOR in enabled
     val runDoc = RecognitionMode.DOCUMENT_LABEL in enabled && modeReady(RecognitionMode.DOCUMENT_LABEL)
-    val runLottery = RecognitionMode.LOTTERY_TICKET in enabled && modeReady(RecognitionMode.LOTTERY_TICKET)
-    val runText = RecognitionMode.TEXT in enabled && modeReady(RecognitionMode.TEXT)
 
-    if (!(runCurrency || runObject || runQr || runColor || runDoc || runLottery || runText)) { release(); return }
+    if (!(runCurrency || runObject || runQr || runColor || runDoc)) { release(); return }
     try {
       worker.execute {
         try {
@@ -806,9 +873,8 @@ class LiveRecognitionActivity : ComponentActivity() {
           if (runObject) {
             detectObject(bitmap, token, targetId, nowMs)
           }
-          val needsOcr = runDoc || runLottery || runText
           val ocrReady = OfflineModels.isReady(this, OfflineModels.Group.CAMERA_OCR)
-          if (needsOcr && !ocrReady) handler.post { if (generation == token && resumed) reconcile() }
+          if (runDoc && !ocrReady) handler.post { if (generation == token && resumed) reconcile() }
           if (runColor) {
             val sample = ColorRecognizer.detect(this, bitmap)
             val spoken = colorTracker.observe(sample, nowMs)
@@ -820,7 +886,7 @@ class LiveRecognitionActivity : ComponentActivity() {
               }
             }
           }
-          val alignment = if (ocrReady && needsOcr) {
+          val alignment = if (ocrReady && runDoc) {
             try {
               DocumentAlignmentScanner.analyze(bitmap)
             } catch (error: RuntimeException) {
@@ -834,7 +900,12 @@ class LiveRecognitionActivity : ComponentActivity() {
           var framedText: String? = null
           fun readText(corners: Array<Point>? = null): String? {
             fun recognize(source: Bitmap): String? {
-              return TesseractOcr.recognizeCameraText(this, source)
+              val prepared = DocumentAlignmentScanner.prepareForCameraOcr(source, upscaleSmallText = false)
+              return try {
+                TesseractOcr.recognizeCameraText(this, prepared)
+              } finally {
+                if (prepared !== source) prepared.recycle()
+              }
             }
             if (corners != null && framedTextRead) return framedText
             val dewarped = corners?.let { DocumentAlignmentScanner.dewarp(bitmap, it) }
@@ -910,74 +981,9 @@ class LiveRecognitionActivity : ComponentActivity() {
               DocumentAlignmentTracker.Decision.Wait -> Unit
             }
           }
-          if (runLottery && alignment != null) {
-            if (alignment.state == DocumentAlignmentState.BLURRY ||
-                alignment.state == DocumentAlignmentState.LOW_LIGHT) {
-              handler.post {
-                if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
-                  announceResult(SOURCE_LOTTERY, alignment.guidance)
-                }
-              }
-            } else {
-              val ocrText = readText(alignment.corners)
-              if (ocrText == null) {
-                handler.post {
-                  if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
-                    enabled.remove(RecognitionMode.LOTTERY_TICKET)
-                    reconcile()
-                    report(R.string.live_recognition_ocr_error)
-                  }
-                }
-              } else {
-                val parsed = LotteryTicketParser.parse(ocrText)
-                val confirmed = lotteryTracker.observe(parsed, nowMs)
-                if (confirmed != null) {
-                  handler.post {
-                    if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
-                      announceResult(SOURCE_LOTTERY, confirmed.speak())
-                      if (lotteryOnlineCheck && confirmed is ParsedLotteryTicket.Traditional) {
-                        startLotteryLookup(confirmed, token)
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          if (runText && ocrReady) {
-            val guidance = when {
-              alignment?.state == DocumentAlignmentState.LOW_LIGHT -> alignment.guidance
-              alignment?.state == DocumentAlignmentState.BLURRY ||
-                (alignment != null && alignment.state != DocumentAlignmentState.READY &&
-                  alignment.sharpness < DocumentAlignmentScanner.MIN_SHARPNESS_LAPLACIAN) ->
-                DocumentAlignmentScanner.guidanceFor(DocumentAlignmentState.BLURRY)
-              else -> null
-            }
-            val text = readText()
-            val completedAt = SystemClock.elapsedRealtime()
-            val confirmed = text?.let { textTracker.observe(it.take(MAX_TEXT_LENGTH), completedAt) }
-            LogUtils.d(TAG, "Camera OCR elapsedMs=%d chars=%d readable=%s sharpness=%.1f",
-              completedAt - capturedAt, text?.length ?: 0, confirmed != null, alignment?.sharpness ?: 0.0)
-            handler.post {
-              if (generation != token || !resumed || RecognitionMode.TEXT !in enabled) return@post
-              if (text == null) {
-                enabled.remove(RecognitionMode.TEXT)
-                reconcile()
-                report(R.string.live_recognition_ocr_error)
-              } else if (confirmed != null && completedAt - capturedAt <= LOCAL_OCR_MAX_AGE_MS) {
-                pendingResults.remove(SOURCE_TEXT_STATUS)
-                announceResult(SOURCE_TEXT, confirmed)
-              } else {
-                pendingResults.remove(SOURCE_TEXT)
-                announceResult(SOURCE_TEXT_STATUS, guidance ?: getString(
-                  if (text.isBlank()) R.string.live_recognition_text_not_found
-                  else R.string.live_recognition_text_retry))
-              }
-            }
-          }
         } catch (error: RuntimeException) {
           LogUtils.e(TAG, "Local recognition frame failed: %s", error.javaClass.simpleName)
-          if (runText || runDoc || runLottery) handler.post {
+          if (runDoc) handler.post {
             if (generation == token && resumed) {
               enabled.removeAll(OCR_MODES)
               reconcile()
@@ -1038,28 +1044,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     report(message)
   }
 
-  private fun startLotteryLookup(ticket: ParsedLotteryTicket.Traditional, token: Int) {
-    if (ticket.station == null || ticket.drawDate == null || lastLookupKey == ticket.dedupeKey) return
-    clearLotteryLookup()
-    lastLookupKey = ticket.dedupeKey
-    lotteryLookup = lotteryWorker.submit {
-      val result = LotteryResultChecker.checkOnline(ticket)
-      handler.post {
-        if (generation == token && resumed && lotteryOnlineCheck &&
-            lastLookupKey == ticket.dedupeKey && RecognitionMode.LOTTERY_TICKET in enabled) {
-          announceResult(SOURCE_LOTTERY_LOOKUP, result ?: getString(R.string.live_recognition_lottery_unverified))
-        }
-      }
-    }
-  }
-
-  private fun clearLotteryLookup() {
-    lotteryLookup?.cancel(true)
-    lotteryLookup = null
-    lastLookupKey = null
-    pendingResults.remove(SOURCE_LOTTERY_LOOKUP)
-  }
-
   private fun announceResult(source: String, text: String) {
     if (!resumed || enabled.isEmpty() || PauseController.isPaused()) return
     pendingResults[source] = text to SystemClock.elapsedRealtime()
@@ -1098,13 +1082,10 @@ class LiveRecognitionActivity : ComponentActivity() {
   private fun report(message: String) { status.text = message; speak(message, true) }
   private fun speak(text: String, interrupt: Boolean) = LiveRecognition.speak(text, interrupt)
 
-
   companion object {
     const val EXTRA_MODE = "recognition_mode"
     /** Whether the user agreed to camera images being sent to Gemini. */
     private const val CLOUD_CONSENT_PREF = "pref_live_recognition_cloud_consent"
-    private const val SOURCE_TEXT = "text"
-    private const val SOURCE_TEXT_STATUS = "textStatus"
     private const val SOURCE_MODELS = "models"
     private const val SOURCE_LIGHT = "light"
     private const val SOURCE_AI = "ai"
@@ -1112,9 +1093,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     private const val SOURCE_QR = "qr"
     private const val SOURCE_COLOR = "color"
     private const val SOURCE_DOCUMENT = "document"
-    private const val SOURCE_LOTTERY = "lottery"
-    private const val SOURCE_LOTTERY_LOOKUP = "lotteryLookup"
-    private val OCR_MODES = setOf(RecognitionMode.TEXT, RecognitionMode.DOCUMENT_LABEL, RecognitionMode.LOTTERY_TICKET)
+    private val OCR_MODES = setOf(RecognitionMode.DOCUMENT_LABEL)
     private const val SOURCE_OBJECT = "object"
     /** The first part of the key that says the user agreed to images going to an AI service. */
     private const val SERVICE_CONSENT_PREF = "pref_live_recognition_consent_"
@@ -1126,7 +1105,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     private const val CHECK_INTERVAL_MS = 500L
     private const val JPEG_QUALITY = 70
     private const val MAX_TEXT_LENGTH = 1_200
-    private const val LOCAL_OCR_MAX_AGE_MS = 60_000L
     private const val TAG = "LiveRecognition"
   }
 }

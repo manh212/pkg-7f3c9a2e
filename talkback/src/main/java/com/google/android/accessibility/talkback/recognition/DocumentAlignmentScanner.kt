@@ -65,7 +65,7 @@ internal object DocumentAlignmentScanner {
   private const val MIN_MEAN_LUMA = 45.0
   private const val EDGE_MARGIN_RATIO = 0.025
   private const val CENTER_TOLERANCE = 0.15
-  const val MIN_SHARPNESS_LAPLACIAN = 55.0
+  const val MIN_SHARPNESS_LAPLACIAN = 70.0
 
   private fun ensureOpenCv(): Boolean {
     if (openCvReady.get()) return true
@@ -344,6 +344,31 @@ internal object DocumentAlignmentScanner {
       blurred.release()
       sharpened.release()
     }
+  }
+
+
+  fun prepareForCameraOcr(bitmap: Bitmap, upscaleSmallText: Boolean): Bitmap {
+    var working = bitmap
+    if (upscaleSmallText) {
+      val maxDim = max(bitmap.width, bitmap.height)
+      if (maxDim in 1..1536) {
+        val factor = min(2.0, 2048.0 / maxDim)
+        val targetW = max(1, (bitmap.width * factor).toInt())
+        val targetH = max(1, (bitmap.height * factor).toInt())
+        if (targetW.toLong() * targetH * 4L <= 18_000_000L) {
+          try {
+            working = Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
+          } catch (_: OutOfMemoryError) {
+            working = bitmap
+          }
+        }
+      }
+    }
+    val enhanced = enhanceForOcr(working)
+    if (working !== bitmap && working !== enhanced) {
+      working.recycle()
+    }
+    return enhanced
   }
 
   fun guidanceFor(state: DocumentAlignmentState): String = when (state) {

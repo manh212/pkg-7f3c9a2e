@@ -22,6 +22,7 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.CheckBox
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.imagecaption.installOfflineOcrTestModels
@@ -43,8 +44,14 @@ class LiveRecognitionActivityTest {
     assertTrue(RecognitionMode.entries.none { activity.isEnabled(it) })
     assertNull(shadowOf(activity).lastRequestedPermission)
     val checkboxes = descendants(activity.window.decorView).filterIsInstance<CheckBox>().toList()
+    val buttons = descendants(activity.window.decorView).filterIsInstance<Button>().toList()
+    val dialogModes = setOf(RecognitionMode.TEXT, RecognitionMode.LOTTERY_TICKET)
     RecognitionMode.entries.forEach { mode ->
-      assertTrue(checkboxes.any { it.text == activity.getString(mode.label) && !it.isChecked })
+      if (mode in dialogModes) {
+        assertTrue(buttons.any { it.text == activity.getString(mode.label) })
+      } else {
+        assertTrue(checkboxes.any { it.text == activity.getString(mode.label) && !it.isChecked })
+      }
     }
     assertTrue(checkboxes.any {
       it.text == activity.getString(R.string.live_recognition_flash) && !it.isChecked

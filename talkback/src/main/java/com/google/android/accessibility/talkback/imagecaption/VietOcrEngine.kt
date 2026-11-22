@@ -77,6 +77,49 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
 
   private fun distance(first: Point, second: Point): Double = hypot(first.x - second.x, first.y - second.y)
 
+  private fun expandBoxForDiacritics(box: Array<Point>, maxW: Int, maxH: Int): Array<Point> {
+    val dxTop = box[1].x - box[0].x
+    val dyTop = box[1].y - box[0].y
+    val dxLeft = box[3].x - box[0].x
+    val dyLeft = box[3].y - box[0].y
+    fun clamp(x: Double, y: Double) = Point(
+      x.coerceIn(0.0, (maxW - 1).coerceAtLeast(0).toDouble()),
+      y.coerceIn(0.0, (maxH - 1).coerceAtLeast(0).toDouble()),
+    )
+    return arrayOf(
+      clamp(box[0].x - dxLeft * EXPAND_TOP_RATIO - dxTop * EXPAND_SIDE_RATIO,
+        box[0].y - dyLeft * EXPAND_TOP_RATIO - dyTop * EXPAND_SIDE_RATIO),
+      clamp(box[1].x - dxLeft * EXPAND_TOP_RATIO + dxTop * EXPAND_SIDE_RATIO,
+        box[1].y - dyLeft * EXPAND_TOP_RATIO + dyTop * EXPAND_SIDE_RATIO),
+      clamp(box[2].x + dxLeft * EXPAND_BOTTOM_RATIO + dxTop * EXPAND_SIDE_RATIO,
+        box[2].y + dyLeft * EXPAND_BOTTOM_RATIO + dyTop * EXPAND_SIDE_RATIO),
+      clamp(box[3].x + dxLeft * EXPAND_BOTTOM_RATIO - dxTop * EXPAND_SIDE_RATIO,
+        box[3].y + dyLeft * EXPAND_BOTTOM_RATIO - dyTop * EXPAND_SIDE_RATIO),
+    )
+  }
+
+  private fun darkBorder(crop: Mat): Boolean {
+    val width = crop.cols()
+    val height = crop.rows()
+    if (width <= 0 || height <= 0) return false
+    val top = ByteArray(3 * width)
+    val bottom = ByteArray(3 * width)
+    val row = ByteArray(3 * width)
+    crop.get(0, 0, top)
+    crop.get(height - 1, 0, bottom)
+    var total = 0L
+    for (i in top.indices) {
+      total += (top[i].toInt() and 255) + (bottom[i].toInt() and 255)
+    }
+    for (y in 0 until height) {
+      crop.get(y, 0, row)
+      for (channel in 0 until 3) {
+        total += (row[channel].toInt() and 255) + (row[3 * (width - 1) + channel].toInt() and 255)
+      }
+    }
+    return total < 127L * 6 * (width + height)
+  }
+
   private fun readLine(image: Mat, detected: Array<Point>): TesseractOcr.TextLine? {
     var box = detected
     var width = max(distance(box[0], box[1]), distance(box[3], box[2]))
@@ -88,6 +131,10 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
       height = swap
     }
     if (width < 4 || height < 10) return null
+    box = expandBoxForDiacritics(box, image.cols(), image.rows())
+    width = max(distance(box[0], box[1]), distance(box[3], box[2]))
+    height = max(distance(box[0], box[3]), distance(box[1], box[2]))
+    if (width < 4 || height < 10) return null
     val targetWidth = VietOcrTokens.inputWidth(ceil(width).toInt(), ceil(height).toInt())
     val sourcePoints = MatOfPoint2f(*box)
     val targetPoints = MatOfPoint2f(Point(0.0, 0.0), Point(targetWidth - 1.0, 0.0),
@@ -98,6 +145,9 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
       Imgproc.warpPerspective(image, crop, transform, Size(targetWidth.toDouble(), 32.0),
         Imgproc.INTER_LANCZOS4, Core.BORDER_REPLICATE)
       Imgproc.cvtColor(crop, crop, Imgproc.COLOR_BGR2RGB)
+      if (darkBorder(crop)) {
+        Core.bitwise_not(crop, crop)
+      }
       val pixels = ByteArray(targetWidth * 32 * 3)
       crop.get(0, 0, pixels)
       val area = targetWidth * 32
@@ -156,7 +206,10 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
 
   companion object {
     private const val TAG = "VietOcrEngine"
-    private const val MIN_CONFIDENCE = 0.75
+    private const val MIN_CONFIDENCE = 0.70
+    private const val EXPAND_TOP_RATIO = 0.22
+    private const val EXPAND_BOTTOM_RATIO = 0.12
+    private const val EXPAND_SIDE_RATIO = 0.06
     private val lock = Any()
     private var engine: VietOcrEngine? = null
     private val idle = Handler(Looper.getMainLooper())
@@ -179,7 +232,7 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
 
     @JvmStatic fun recognize(context: Context, bitmap: Bitmap): List<TesseractOcr.TextLine>? {
       if (!DeviceLicenseManager.allows(context, "ocr") ||
-          !OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR)) return null
+          !OfflineModels.isReady(context, OfflineModels.Group.CAMERA_VIETOCR)) return null
       synchronized(lock) {
         idle.removeCallbacks(release)
         return try {

@@ -16,6 +16,8 @@
 
 package com.google.android.accessibility.talkback.recognition
 
+import android.graphics.Rect
+import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.zxing.BarcodeFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -92,27 +94,66 @@ class LiveRecognitionExtensionsTest {
     assertEquals(1100 to 2200, DocumentAlignmentScanner.warpDimensions(2000.0, 4000.0))
   }
 
-  @Test fun lotteryReadsSpacedDigitsAndDrawDateWithoutTakingTheSellersAddress() {
-    val text = "XỔ SỐ KIẾN THIẾT TIỀN GIANG\nĐại lý tại Thành phố Hồ Chí Minh\n" +
-      "Ngày in 20/11/2026\nMở thưởng ngày 22/11/2026\n4 8 2 9 1 0"
-    val ticket = LotteryTicketParser.parse(text) as ParsedLotteryTicket.Traditional
-    assertEquals("Tiền Giang", ticket.station?.displayName)
-    assertEquals("482910", ticket.number)
-    assertEquals("22/11/2026", ticket.drawDate)
-    val uncertainDate = LotteryTicketParser.parse(text.replace("Mở thưởng ngày", "Ngày"))
-      as ParsedLotteryTicket.Traditional
-    assertNull(uncertainDate.drawDate)
-    assertNull(LotteryTicketParser.parse(text + "\n4 8 2 9 1 1"))
-    assertNull(LotteryTicketParser.parse("Hóa đơn Tiền Giang\n4 8 2 9 1 0"))
+  @Test fun onlineLotteryParserHandlesTicketsErrorsAndRejectsNonLotteryImages() {
+    val tradJson = """{"loai":"truyen_thong","dai":"Tiền Giang","ngay":"22/11/2026","so":"482910"}"""
+    val tradOutcome = LotteryOnlineResponseParser.parse(tradJson) as LotteryRecognitionOutcome.Ticket
+    val trad = tradOutcome.ticket as ParsedLotteryTicket.Traditional
+    assertEquals("Tiền Giang", trad.station?.displayName)
+    assertEquals("22/11/2026", trad.drawDate)
+    assertEquals("482910", trad.number)
+    assertTrue(trad.speak().contains("4, 8, 2, 9, 1, 0"))
+
+    val vietlottJson = """{"loai":"vietlott","san_pham":"Power 6/55","ky":"01125","ngay":"21/11/2026","bo_so":[{"ky_hieu":"A","so":["05","12","23","34","41","55"]}]}"""
+    val vOutcome = LotteryOnlineResponseParser.parse(vietlottJson) as LotteryRecognitionOutcome.Ticket
+    val v = vOutcome.ticket as ParsedLotteryTicket.Vietlott
+    assertEquals("Power 6/55", v.product)
+    assertEquals("01125", v.drawId)
+    assertEquals(1, v.lines.size)
+
+    assertEquals(LotteryRecognitionOutcome.NotLottery, LotteryOnlineResponseParser.parse("""{"khong_phai_ve_so":true}"""))
+    assertEquals(LotteryRecognitionOutcome.NotLottery, LotteryOnlineResponseParser.parse("Đây là một chiếc bàn gỗ có ly cà phê."))
+
+    val errOutcome = LotteryOnlineResponseParser.parse("""{"loi":"Ảnh mờ, không đọc được số vé."}""")
+    assertTrue(errOutcome is LotteryRecognitionOutcome.Error)
   }
 
-  @Test fun vietlottReadsBaoAndLongerDrawIdentifiersWithoutAcceptingDuplicateNumbers() {
-    val text = "VIETLOTT POWER 6/55 #123456\nA: 01 02 03 04 05 06 07"
-    val ticket = LotteryTicketParser.parse(text) as ParsedLotteryTicket.Vietlott
-    assertEquals("123456", ticket.drawId)
-    assertEquals(7, ticket.lines.single().second.size)
-    assertNull(LotteryTicketParser.parse(text.replace("06 07", "06 06")))
-    assertNull(LotteryTicketParser.parse(text + "\nA: 02 03 04 05 06 07 08"))
+  @Test fun lotteryResultCheckerDistinguishesWonNotWonSpecialSubPrizesAndNotDrawn() {
+    val rss = """
+      <rss><channel><item>
+        <title>KẾT QUẢ XỔ SỐ TIỀN GIANG NGÀY 22/11/2026</title>
+        <link>https://xskt.com.vn/xstg/ngay-22-11-2026</link>
+        <description>ĐB: 182910
+1: 12345
+8: 10</description>
+      </item></channel></rss>
+    """.trimIndent()
+    val station = LotteryOnlineResponseParser.matchStation("Tiền Giang")
+    val won = LotteryResultChecker.evaluateRssXml(rss, "22/11/2026", "482910", station)
+    assertTrue(won is LotteryCheckResult.Won)
+    assertTrue((won as LotteryCheckResult.Won).prizes.contains("Giải Tám"))
+    assertTrue(won.prizes.contains("Giải Phụ Đặc biệt"))
+
+    val consolation = LotteryResultChecker.evaluateRssXml(rss, "22/11/2026", "182919", station)
+    assertTrue(consolation is LotteryCheckResult.Won)
+    assertTrue((consolation as LotteryCheckResult.Won).prizes.contains("Giải Khuyến khích"))
+
+    val notWon = LotteryResultChecker.evaluateRssXml(rss, "22/11/2026", "555555", station)
+    assertTrue(notWon is LotteryCheckResult.NotWon)
+    assertTrue(notWon!!.message.contains("không trúng"))
+
+    assertNull(LotteryResultChecker.evaluateRssXml(rss, "22/11/2025", "482910", station))
+    assertEquals(listOf("Giải Tám"), LotteryResultChecker.checkPrizes("7: 9568: 91", "482991"))
+  }
+
+  @Test fun cameraOcrFilterDropsLowConfidenceAndSymbolNoise() {
+    val lines = listOf(
+      TesseractOcr.TextLine("XOA BÓP BẤM HUYỆT", Rect(0, 0, 100, 30), emptyList(), 88),
+      TesseractOcr.TextLine("l.-", Rect(0, 0, 20, 10), emptyList(), 75),
+      TesseractOcr.TextLine("1 cu phldi!gÌ)", Rect(0, 0, 80, 20), emptyList(), 32),
+      TesseractOcr.TextLine("200.000Đ", Rect(0, 0, 60, 20), emptyList(), 82),
+    )
+    val kept = TesseractOcr.filterCameraLines(lines, 55)
+    assertEquals(listOf("XOA BÓP BẤM HUYỆT", "200.000Đ"), kept)
   }
 
   @Test fun colorRecognizerAndTrackerRequireStabilityAndWarnLowLight() {
@@ -161,45 +202,6 @@ class LiveRecognitionExtensionsTest {
 
     val formattedDoc = ExpiryDateExtractor.formatDocumentSpeech("Sữa tươi NSX: 10/11/2026 HSD: 10/05/2027 Thể tích 180ml")
     assertTrue(formattedDoc.startsWith("Hạn sử dụng: 10/05/2027. Ngày sản xuất: 10/11/2026."))
-  }
-
-  @Test fun lotteryParserAndOnlineRssCheckerHandleTraditionalAndVietlott() {
-    val tradOcr = "XỔ SỐ KIẾN THIẾT TIỀN GIANG\nMở thưởng ngày 22/11/2026\nGiá 10.000 đồng\n482910"
-    val parsed = LotteryTicketParser.parse(tradOcr) as? ParsedLotteryTicket.Traditional
-    assertNotNull(parsed)
-    assertEquals("Tiền Giang", parsed!!.station?.displayName)
-    assertEquals("22/11/2026", parsed.drawDate)
-    assertEquals("482910", parsed.number)
-    assertTrue(parsed.speak().contains("4, 8, 2, 9, 1, 0"))
-
-    val rss = """
-      <rss><channel><item>
-        <title>KẾT QUẢ XỔ SỐ TIỀN GIANG NGÀY 22/11/2026</title>
-        <link>https://xskt.com.vn/xstg/ngay-22-11-2026</link>
-        <description>ĐB: 999999
-1: 12345
-8: 10</description>
-      </item></channel></rss>
-    """.trimIndent()
-    val check = LotteryResultChecker.evaluateRssXml(rss, "22/11/2026", "482910")
-    assertNotNull(check)
-    assertTrue(check!!.contains("Giải Tám"))
-    assertNull(LotteryResultChecker.evaluateRssXml(rss, "22/11/2025", "482910"))
-    assertNull(LotteryResultChecker.evaluateRssXml(rss, "22/11/2026", "482911"))
-    assertEquals(listOf("Giải Tám"), LotteryResultChecker.checkPrizes("7: 9568: 91", "482991"))
-
-    val tracker = LotteryTicketTracker()
-    assertNull(tracker.observe(parsed, 1000L))
-    assertEquals(parsed, tracker.observe(parsed, 2000L))
-    assertNull(LotteryTicketParser.parse("VIETLOTT MEGA 6/45\nA 01 02 03 04 05 46"))
-    assertNotNull(LotteryTicketParser.parse("VIETLOTT MAX 3D\nA 012 345"))
-
-    val vietlottOcr = "VIETLOTT POWER 6/55 #01125\nNgày 21/11/2026\nA 05 12 23 34 41 55\nB 01 09 18 27 36 44"
-    val parsedV = LotteryTicketParser.parse(vietlottOcr) as? ParsedLotteryTicket.Vietlott
-    assertNotNull(parsedV)
-    assertEquals("Power 6/55", parsedV!!.product)
-    assertEquals("01125", parsedV.drawId)
-    assertEquals(2, parsedV.lines.size)
   }
 
   @Test fun objectFinderParsesCocoYoloAndDescribesDirection() {

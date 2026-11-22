@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 internal object OfflineModels {
-  enum class Group { SCREEN_OCR, CAMERA_OCR, CURRENCY, OBJECTS }
+  enum class Group { SCREEN_OCR, CAMERA_OCR, CAMERA_VIETOCR, CURRENCY, OBJECTS }
   data class Status(val progress: Int? = null, val failed: Boolean = false)
   data class Model(val path: String, val url: String, val size: Long, val sha256: String)
 
@@ -45,6 +45,7 @@ internal object OfflineModels {
   fun models(group: Group): List<Model> = when (group) {
     Group.SCREEN_OCR -> listOf(detector, vietnamese)
     Group.CAMERA_OCR -> listOf(detector, vietnamese)
+    Group.CAMERA_VIETOCR -> listOf(detector, encoder, decoder, vocabulary)
     Group.CURRENCY -> listOf(currency)
     Group.OBJECTS -> listOf(objects)
   }

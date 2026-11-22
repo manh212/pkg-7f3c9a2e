@@ -36,6 +36,8 @@ import java.util.List;
  */
 public final class TesseractOcr {
 
+  public static final int MIN_CAMERA_LINE_CONFIDENCE = 55;
+
   private TesseractOcr() {}
 
   public static final class TextLine {
@@ -79,26 +81,82 @@ public final class TesseractOcr {
 
   @Nullable
   public static String recognizeCameraText(Context context, Bitmap bitmap) {
+    return recognizeCameraText(context, bitmap, false);
+  }
+
+  @Nullable
+  public static String recognizeCameraText(Context context, Bitmap bitmap, boolean useVietOcr) {
     if (!DeviceLicenseManager.allows(context, "ocr")) {
       return null;
     }
-    if (!OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR)) {
-      OfflineModels.request(context, OfflineModels.Group.CAMERA_OCR);
+    OfflineModels.Group group =
+        useVietOcr ? OfflineModels.Group.CAMERA_VIETOCR : OfflineModels.Group.CAMERA_OCR;
+    if (!OfflineModels.isReady(context, group)) {
+      OfflineModels.request(context, group);
       return null;
     }
-    List<TextLine> lines = RemoteOcr.recognize(context, bitmap, false);
+    List<TextLine> lines = RemoteOcr.recognize(context, bitmap, false, useVietOcr);
     if (lines == null) {
       return null;
     }
-    List<String> text = new ArrayList<>(lines.size());
+    List<String> text = filterCameraLines(lines, useVietOcr ? 65 : MIN_CAMERA_LINE_CONFIDENCE);
     int confidence = 0;
     for (TextLine line : lines) {
-      text.add(line.text);
       confidence += line.confidence;
     }
-    LogUtils.i("CameraOcr", "Tesseract lines=%d meanConfidence=%d width=%d height=%d",
-        lines.size(), lines.isEmpty() ? 0 : confidence / lines.size(), bitmap.getWidth(), bitmap.getHeight());
+    LogUtils.i(
+        "CameraOcr",
+        "%s lines=%d kept=%d meanConfidence=%d width=%d height=%d",
+        useVietOcr ? "VietOCR" : "Tesseract",
+        lines.size(),
+        text.size(),
+        lines.isEmpty() ? 0 : confidence / lines.size(),
+        bitmap.getWidth(),
+        bitmap.getHeight());
     return String.join("\n", text);
+  }
+
+  public static List<String> filterCameraLines(List<TextLine> lines, int minConfidence) {
+    List<String> kept = new ArrayList<>(lines.size());
+    for (TextLine line : lines) {
+      if (line == null || line.text == null) {
+        continue;
+      }
+      String trimmed = line.text.trim();
+      if (trimmed.isEmpty()) {
+        continue;
+      }
+      if (line.confidence >= 0 && line.confidence < minConfidence) {
+        continue;
+      }
+      if (!isReadableCameraLine(trimmed)) {
+        continue;
+      }
+      kept.add(trimmed);
+    }
+    return kept;
+  }
+
+  static boolean isReadableCameraLine(String line) {
+    int nonSpace = 0;
+    int alnum = 0;
+    for (int i = 0; i < line.length(); i++) {
+      char c = line.charAt(i);
+      if (Character.isWhitespace(c)) {
+        continue;
+      }
+      nonSpace++;
+      if (Character.isLetterOrDigit(c)) {
+        alnum++;
+      }
+    }
+    if (alnum == 0 || nonSpace == 0) {
+      return false;
+    }
+    if (nonSpace == 1 && !Character.isDigit(line.charAt(0))) {
+      return false;
+    }
+    return alnum * 100 >= nonSpace * 45;
   }
 
   @Nullable
