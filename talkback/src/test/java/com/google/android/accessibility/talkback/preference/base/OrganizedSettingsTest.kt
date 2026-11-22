@@ -297,7 +297,7 @@ class OrganizedSettingsTest {
     val fragment = NavigationGroupFragment()
     open(fragment)
     val screen = fragment.preferenceScreen
-    assertEquals(8, screen.preferenceCount)
+    assertEquals(4, screen.preferenceCount)
     for (index in 0 until screen.preferenceCount) {
       val row = screen.getPreference(index)
       val destination = row.fragment ?: continue

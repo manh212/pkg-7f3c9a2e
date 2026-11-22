@@ -152,7 +152,7 @@ class NotificationSettingsStructureTest {
     )
     val link = rows.first { it.first == "pref_notification_stop_volume_keys_screen" }
     assertEquals(
-      "VolumeKeySettingsFragment",
+      "InputSettingsFragment",
       link.second?.substringAfterLast('.'),
     )
     assertEquals(

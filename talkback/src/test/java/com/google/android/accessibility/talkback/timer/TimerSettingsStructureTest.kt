@@ -146,7 +146,9 @@ class TimerSettingsStructureTest {
         "SpeechGroupFragment",
         "CallSettingsFragment",
         "NavigationGroupFragment",
-        "MenuControlsGroupFragment",
+        "CommandsFragment",
+        "InputSettingsFragment",
+        "SelectorMenuFragment",
         "SoundAndVibrationFragment",
         "NotificationsFragment",
         "TypingGroupFragment",
@@ -159,7 +161,7 @@ class TimerSettingsStructureTest {
       topLevel.map { it.second?.substringAfterLast('.') },
     )
     assertTrue(topLevel.all { !it.second.isNullOrBlank() })
-    assertEquals(15, topLevel.size)
+    assertEquals(17, topLevel.size)
     assertEquals(
       "one initial setup entry point on the main screen",
       1,
@@ -254,4 +256,3 @@ class TimerSettingsStructureTest {
     const val APPS_KEY = "pref_settings_group_apps_key"
   }
 }
-

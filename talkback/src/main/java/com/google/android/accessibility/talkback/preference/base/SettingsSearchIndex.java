@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.actor.gemini.AiProvider;
+import com.google.android.accessibility.talkback.commands.Commands;
 import com.google.android.accessibility.talkback.directtouch.DirectTouchFragment;
 import com.google.android.accessibility.talkback.gesture.CustomMenus;
 import com.google.android.accessibility.talkback.individualfeedback.FeedbackItem;
@@ -213,18 +214,24 @@ public final class SettingsSearchIndex {
 
     private void addCommands() {
       String path = context.getString(R.string.title_pref_commands);
-      for (GestureListPreference.ActionItem item : new GestureListPreference(context, null).getActionItems()) {
-        if (item.viewType == GestureListPreference.TYPE_ACTION_ITEM && !item.text.isEmpty()) {
+      String fragment = "com.google.android.accessibility.talkback.commands.CommandsFragment";
+      for (Commands.Category category : Commands.categories(context)) {
+        String categoryPath = join(path, context.getString(category.getTitleRes()));
+        for (Commands.Command command : category.getCommands()) {
+          String label = command.getLabel();
+          if (TextUtils.isEmpty(label)) {
+            continue;
+          }
           add(
               new Entry(
-                  item.text,
+                  label,
                   "",
-                  path,
-                  "com.google.android.accessibility.talkback.commands.CommandsFragment",
+                  categoryPath,
+                  fragment,
                   "",
                   new Bundle(),
                   false,
-                  item.text));
+                  label));
         }
       }
     }

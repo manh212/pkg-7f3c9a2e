@@ -96,11 +96,7 @@ public class SettingsSearchNavigationTest {
             "NavigationPrefFragment",
             "TouchActivationFragment",
             "SmartContextGestureSettingsFragment",
-            "DirectTouchFragment",
-            "TalkBackGestureShortcutPreferenceFragment",
-            "EdgeGestureSettingsFragment",
-            "TalkBackKeyboardShortcutPreferenceFragment",
-            "VolumeKeySettingsFragment"),
+            "DirectTouchFragment"),
         fragments);
 
     try (XmlResourceParser parser = context.getResources().getXml(R.xml.preferences)) {

@@ -30,10 +30,6 @@ class NavigationSettingsStructureTest {
         "pref_touch_activation",
         "pref_smart_context_settings",
         "pref_direct_touch",
-        "pref_category_manage_gestures",
-        "pref_edge_gestures_screen",
-        "pref_category_manage_keyboard_shortcut_key",
-        "pref_volume_key_settings_screen",
       ),
       rows.map { it.first },
     )

@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.commands.Commands;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -50,11 +51,28 @@ public class SettingsSearchIndexTest {
     List<SettingsSearchIndex.Entry> entries = build(context);
     assertFalse(entries.isEmpty());
     assertTrue(entries.stream().anyMatch(entry -> entry.key.equals("pref_reverse_swipe_gestures")));
-    assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("TalkBackKeyboardShortcutPreferenceFragment") && !entry.key.isEmpty()));
-    assertTrue(entries.stream().anyMatch(entry -> entry.title.equals("Cử chỉ") && entry.path.equals("Điều hướng")));
-    assertTrue(entries.stream().anyMatch(entry -> entry.title.equals("Phím tắt") && entry.path.equals("Điều hướng")));
+    boolean keyboardOnlyCommandIsIndexed =
+        Commands.categories(context).stream()
+            .flatMap(category -> category.getCommands().stream())
+            .filter(command -> command.getValue().startsWith(Commands.KEYBOARD_PREFIX))
+            .anyMatch(
+                command ->
+                    entries.stream()
+                        .anyMatch(
+                            entry ->
+                                entry.fragment.endsWith("CommandsFragment")
+                                    && entry.title.equals(command.getLabel())
+                                    && entry.actionQuery.equals(command.getLabel())));
+    assertTrue(keyboardOnlyCommandIsIndexed);
+    assertTrue(
+        entries.stream()
+            .anyMatch(
+                entry ->
+                    entry.fragment.endsWith("CommandsFragment")
+                        && entry.path.startsWith(
+                            context.getString(R.string.title_pref_commands))));
     assertFalse(entries.stream().anyMatch(entry -> entry.fragment.endsWith("GesturesShortcutsGroupFragment")));
-    assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("TalkBackGestureShortcutPreferenceFragment") && !entry.actionQuery.isEmpty()));
+    assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("CommandsFragment") && !entry.actionQuery.isEmpty()));
     assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("OnDeviceAiFragment")));
     assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("StatusReadoutFragment") && entry.key.equals("BATTERY")));
     assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("AiProviderFragment") && entry.arguments.getString("provider", "").equals("openai")));
@@ -138,4 +156,3 @@ public class SettingsSearchIndexTest {
     return builder.entries();
   }
 }
-
