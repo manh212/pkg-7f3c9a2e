@@ -24,6 +24,22 @@
       android:key="pref_volume_both_screen"
       android:persistent="false"
       android:title="@string/volume_key_both_category" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:defaultValue="1500"
+      android:dependency="pref_volume_keys_managed"
+      android:entries="@array/volume_short_hold_delay_entries"
+      android:entryValues="@array/volume_short_hold_delay_values"
+      android:key="pref_volume_short_hold_ms"
+      android:summary="%s"
+      android:title="@string/volume_short_hold_delay_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:defaultValue="4000"
+      android:dependency="pref_volume_keys_managed"
+      android:entries="@array/volume_long_hold_delay_entries"
+      android:entryValues="@array/volume_long_hold_delay_values"
+      android:key="pref_volume_long_hold_ms"
+      android:summary="%s"
+      android:title="@string/volume_long_hold_delay_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:title="@string/volume_key_change_category">
     <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference

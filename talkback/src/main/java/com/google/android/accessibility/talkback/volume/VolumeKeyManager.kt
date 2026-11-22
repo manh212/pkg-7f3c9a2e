@@ -24,6 +24,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.telephony.TelephonyManager
 import android.view.KeyEvent
 import androidx.annotation.MainThread
@@ -52,6 +55,8 @@ object VolumeKeyManager {
   const val KEY_DOWN_HOLD_SCREEN_OFF_ACTION = "pref_volume_down_hold_screen_off_action"
   const val KEY_DOWN_HOLD_LONG_SCREEN_OFF_ACTION = "pref_volume_down_hold_long_screen_off_action"
   const val KEY_DOWN_PRESS_SCREEN_OFF_ACTION = "pref_volume_down_press_screen_off_action"
+  const val KEY_SHORT_HOLD_MS = "pref_volume_short_hold_ms"
+  const val KEY_LONG_HOLD_MS = "pref_volume_long_hold_ms"
 
   private const val KEY_MIGRATED = "pref_volume_keys_migrated"
   private const val OLD_KEY_VOLUME_ACTIVATION = "pref_stopwatch_volume_activation"
@@ -62,8 +67,9 @@ object VolumeKeyManager {
   // Must match R.string.shortcut_value_answer_call: the stored action value of the
   // Answer call command.
   private const val ACTION_ANSWER_CALL = "ANSWER_CALL"
-  private const val SHORT_HOLD_MS = 1500L
-  private const val LONG_HOLD_MS = 4000L
+  const val DEFAULT_SHORT_HOLD_MS = 1500L
+  const val DEFAULT_LONG_HOLD_MS = 4000L
+  private const val MIN_HOLD_GAP_MS = 500L
   private const val CHORD_MS = 150L
   private const val MULTI_PRESS_MS = 400L
   private const val SLIDER_JUMP_MS = 2000L
@@ -139,7 +145,10 @@ object VolumeKeyManager {
       reset()
       return false
     }
-    if (press.tapCount > 0 && contextChanged(service, press)) clearTaps(press)
+    if (press.tapCount > 0 && contextChanged(service, press)) {
+      clearTaps(press)
+      releaseHoldWakeLock(press)
+    }
     press.tapRunnable?.let(handler::removeCallbacks)
     press.tapRunnable = null
     val other = if (press === upPress) downPress else upPress
@@ -181,14 +190,14 @@ object VolumeKeyManager {
       prefs.getString(longHoldKey(press.isUp, state), ACTION_UNASSIGNED) ?: ACTION_UNASSIGNED
     } else ACTION_UNASSIGNED
     // With the screen off the device can sleep, and a plain Handler.postDelayed
-    // timer would not fire, so a hold assigned for the screen-off state would
-    // never run. Hold a partial wake lock (CPU awake, screen stays off) while
-    // a hold is armed so the hold timer can fire.
     if (press.screenOff
       && (press.shortHoldAction != ACTION_UNASSIGNED
-        || press.longHoldAction != ACTION_UNASSIGNED)) {
-      acquireHoldWakeLock(service)
-      press.wakeLockHeld = true
+        || press.longHoldAction != ACTION_UNASSIGNED
+        || press.multi)) {
+      if (!press.wakeLockHeld) {
+        acquireHoldWakeLock(service)
+        press.wakeLockHeld = true
+      }
     }
     press.pressAction = if (press.managed) {
       prefs.getString(pressKey(press.isUp, state), defaultPressAction(press.isUp))
@@ -217,14 +226,13 @@ object VolumeKeyManager {
     }
     press.pressRunnable = pressRunnable
     handler.postDelayed(pressRunnable, CHORD_MS)
-    // Short-hold timer: at 1.5 s, fire the short hold when no long hold is
-    // assigned; when a long hold is also assigned, arm the short hold instead
-    // and let the key-up (or the long hold) decide. When multi-press is on but
-    // no hold is assigned, holding runs the press action.
+    val shortHoldMs = readShortHoldMs(prefs)
+    val longHoldMs = readLongHoldMs(prefs, shortHoldMs)
     val shortHoldRunnable = Runnable {
       if (contextChanged(service, press)) abort(press)
       if (press.active && !press.aborted) {
         if (press.shortHoldAction != ACTION_UNASSIGNED) {
+          vibrateHoldCue(service, isLong = false)
           if (press.longHoldAction == ACTION_UNASSIGNED) {
             fireShortHold(press)
           } else {
@@ -238,16 +246,16 @@ object VolumeKeyManager {
       }
     }
     press.shortHoldRunnable = shortHoldRunnable
-    handler.postDelayed(shortHoldRunnable, SHORT_HOLD_MS)
-    // Long-hold timer: at 4 s, fire the long hold; the armed short hold never fires.
+    handler.postDelayed(shortHoldRunnable, shortHoldMs)
     val longHoldRunnable = Runnable {
       if (contextChanged(service, press)) abort(press)
       if (press.active && !press.aborted && press.longHoldAction != ACTION_UNASSIGNED) {
+        vibrateHoldCue(service, isLong = true)
         fireLongHold(press)
       }
     }
     press.longHoldRunnable = longHoldRunnable
-    handler.postDelayed(longHoldRunnable, LONG_HOLD_MS)
+    handler.postDelayed(longHoldRunnable, longHoldMs)
     // While the focus is on a slider and this press adjusts it, a two-second hold jumps
     // the slider to its maximum (volume up) or minimum (volume down) instead of stepping
     // it. Any hold action assigned to this key is skipped for a slider press (see above),
@@ -318,6 +326,7 @@ object VolumeKeyManager {
           val runnable = Runnable { finishTaps(press) }
           press.tapRunnable = runnable
           handler.postDelayed(runnable, MULTI_PRESS_MS)
+          return true
         }
       } else runPressAction(press)
     }
@@ -347,14 +356,18 @@ object VolumeKeyManager {
   private fun finishTaps(press: Press) {
     val count = press.tapCount
     clearTaps(press)
-    val service = press.service ?: return
-    if (count == 0 || contextChanged(service, press)) return
-    if (count == 1) runPressAction(press)
-    else {
-      val prefs = SharedPreferencesUtils.getSharedPreferences(service)
-      val action = prefs.getString(multiKey(press.isUp, count, stateOf(press)), ACTION_UNASSIGNED)
-        ?: ACTION_UNASSIGNED
-      runAction(service, action, press.touching, press.speechVolume)
+    val service = press.service
+    try {
+      if (service == null || count == 0 || contextChanged(service, press)) return
+      if (count == 1) runPressAction(press)
+      else {
+        val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+        val action = prefs.getString(multiKey(press.isUp, count, stateOf(press)), ACTION_UNASSIGNED)
+          ?: ACTION_UNASSIGNED
+        runAction(service, action, press.touching, press.speechVolume)
+      }
+    } finally {
+      if (!press.active) releaseHoldWakeLock(press)
     }
   }
 
@@ -434,11 +447,43 @@ object VolumeKeyManager {
     val prefs = SharedPreferencesUtils.getSharedPreferences(service)
     val locked = isKeyguardLocked(service)
     val screenOff = isScreenOff(service)
+    val screenTransitionedFromOff = press.screenOff && !screenOff
+    val stateMatches = screenTransitionedFromOff || (locked == press.locked && screenOff == press.screenOff)
     return prefs.getBoolean(KEY_MANAGED, false) != press.managed ||
-      anyMultiAssigned(prefs, press.isUp, stateOf(locked, screenOff)) != press.multi ||
+      (!screenTransitionedFromOff && anyMultiAssigned(prefs, press.isUp, stateOf(locked, screenOff)) != press.multi) ||
       (service.isPhoneCallActive() && !isRingingCallAnsweredBy(service, press.isUp)) ||
       isAlarmRinging(service) ||
-      locked != press.locked || screenOff != press.screenOff
+      !stateMatches
+  }
+
+  internal fun readShortHoldMs(prefs: SharedPreferences): Long {
+    val raw = prefs.getString(KEY_SHORT_HOLD_MS, DEFAULT_SHORT_HOLD_MS.toString())?.toLongOrNull()
+    return (raw ?: DEFAULT_SHORT_HOLD_MS).coerceIn(500L, 2000L)
+  }
+
+  internal fun readLongHoldMs(prefs: SharedPreferences, shortHoldMs: Long = readShortHoldMs(prefs)): Long {
+    val raw = prefs.getString(KEY_LONG_HOLD_MS, DEFAULT_LONG_HOLD_MS.toString())?.toLongOrNull()
+    val configured = (raw ?: DEFAULT_LONG_HOLD_MS).coerceIn(2000L, 4000L)
+    return maxOf(configured, shortHoldMs + MIN_HOLD_GAP_MS)
+  }
+
+  private fun vibrateHoldCue(context: Context, isLong: Boolean) {
+    try {
+      val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+      } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Vibrator::class.java)
+      } ?: return
+      if (!vibrator.hasVibrator()) return
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val effect = if (isLong) VibrationEffect.EFFECT_DOUBLE_CLICK else VibrationEffect.EFFECT_CLICK
+        vibrator.vibrate(VibrationEffect.createPredefined(effect))
+      } else {
+        vibrator.vibrate(VibrationEffect.createOneShot(if (isLong) 45L else 24L, VibrationEffect.DEFAULT_AMPLITUDE))
+      }
+    } catch (_: RuntimeException) {
+    }
   }
 
   private fun isKeyguardLocked(context: Context): Boolean =

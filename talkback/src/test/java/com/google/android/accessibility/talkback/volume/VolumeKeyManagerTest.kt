@@ -272,4 +272,53 @@ class VolumeKeyManagerTest {
     waitForSequence()
     assertEquals(emptyList<String>(), service.actions)
   }
+
+  @Test fun customShortAndLongHoldDelaysWorkAndNeverFireShortWhenHeldToLong() {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(VolumeKeyManager.KEY_MANAGED, true)
+      .putString(VolumeKeyManager.KEY_SHORT_HOLD_MS, "500")
+      .putString(VolumeKeyManager.KEY_LONG_HOLD_MS, "2000")
+      .putString(VolumeKeyManager.KEY_UP_HOLD_ACTION, "TOGGLE_STOPWATCH")
+      .putString(VolumeKeyManager.KEY_UP_HOLD_LONG_ACTION, "BACK").commit()
+    key(up, KeyEvent.ACTION_DOWN)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(600))
+    assertEquals(emptyList<String>(), service.actions)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1500))
+    assertEquals(listOf("BACK"), service.actions)
+    key(up, KeyEvent.ACTION_UP)
+    waitForSequence()
+    assertEquals(listOf("BACK"), service.actions)
+
+    service.actions.clear()
+    key(up, KeyEvent.ACTION_DOWN)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(600))
+    assertEquals(emptyList<String>(), service.actions)
+    key(up, KeyEvent.ACTION_UP)
+    waitForSequence()
+    assertEquals(listOf("TOGGLE_STOPWATCH"), service.actions)
+  }
+
+  @Test fun equalShortAndLongDelaysClampLongHoldAheadBy500ms() {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(service)
+    prefs.edit()
+      .putString(VolumeKeyManager.KEY_SHORT_HOLD_MS, "2000")
+      .putString(VolumeKeyManager.KEY_LONG_HOLD_MS, "2000").commit()
+    assertEquals(2000L, VolumeKeyManager.readShortHoldMs(prefs))
+    assertEquals(2500L, VolumeKeyManager.readLongHoldMs(prefs))
+  }
+
+  @Test fun screenWakingUpMidHoldDoesNotAbortScreenOffHold() {
+    setLocked(true)
+    setScreenOff(true)
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+      .putBoolean(VolumeKeyManager.KEY_MANAGED, true)
+      .putString(VolumeKeyManager.KEY_UP_HOLD_SCREEN_OFF_ACTION, "TOGGLE_STOPWATCH").commit()
+    key(up, KeyEvent.ACTION_DOWN)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
+    setScreenOff(false)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1200))
+    key(up, KeyEvent.ACTION_UP)
+    waitForSequence()
+    assertEquals(listOf("TOGGLE_STOPWATCH"), service.actions)
+  }
 }

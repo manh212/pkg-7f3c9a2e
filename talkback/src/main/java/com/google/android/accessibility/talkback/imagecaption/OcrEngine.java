@@ -51,8 +51,11 @@ public final class OcrEngine implements AutoCloseable {
   private static final Handler IDLE_HANDLER;
   private static final Runnable IDLE_RELEASE = OcrEngine::onIdleTimeout;
   private static final Pattern WHITESPACE = Pattern.compile("\\s+");
-  private static final int LINE_HEIGHT = 48;
-  private static final int PADDING = 6;
+  private static final int LINE_HEIGHT = 64;
+  private static final int PADDING = 10;
+  private static final double EXPAND_TOP_RATIO = 0.22;
+  private static final double EXPAND_BOTTOM_RATIO = 0.12;
+  private static final double EXPAND_SIDE_RATIO = 0.06;
   private static final int MAX_LINE_BYTES = 64 * 1024 * 1024;
   private static OcrEngine engine;
   private static long lastUsedMs;
@@ -184,6 +187,9 @@ public final class OcrEngine implements AutoCloseable {
     if (width < 1 || height < 1) {
       return null;
     }
+    box = expandBoxForDiacritics(box, image.cols(), image.rows());
+    width = Math.max(distance(box[0], box[1]), distance(box[3], box[2]));
+    height = Math.max(distance(box[0], box[3]), distance(box[1], box[2]));
     int cropWidth = (int) Math.ceil(width);
     int cropHeight = (int) Math.ceil(height);
     int lineWidth = Math.max(1, (int) Math.rint(cropWidth * (double) LINE_HEIGHT / cropHeight));
@@ -313,6 +319,32 @@ public final class OcrEngine implements AutoCloseable {
       }
     }
     return total < 127L * 6 * (width + height);
+  }
+
+  private static Point[] expandBoxForDiacritics(Point[] box, int maxW, int maxH) {
+    double dxTop = box[1].x - box[0].x;
+    double dyTop = box[1].y - box[0].y;
+    double dxLeft = box[3].x - box[0].x;
+    double dyLeft = box[3].y - box[0].y;
+    Point tl = clampPoint(
+        box[0].x - dxLeft * EXPAND_TOP_RATIO - dxTop * EXPAND_SIDE_RATIO,
+        box[0].y - dyLeft * EXPAND_TOP_RATIO - dyTop * EXPAND_SIDE_RATIO, maxW, maxH);
+    Point tr = clampPoint(
+        box[1].x - dxLeft * EXPAND_TOP_RATIO + dxTop * EXPAND_SIDE_RATIO,
+        box[1].y - dyLeft * EXPAND_TOP_RATIO + dyTop * EXPAND_SIDE_RATIO, maxW, maxH);
+    Point br = clampPoint(
+        box[2].x + dxLeft * EXPAND_BOTTOM_RATIO + dxTop * EXPAND_SIDE_RATIO,
+        box[2].y + dyLeft * EXPAND_BOTTOM_RATIO + dyTop * EXPAND_SIDE_RATIO, maxW, maxH);
+    Point bl = clampPoint(
+        box[3].x + dxLeft * EXPAND_BOTTOM_RATIO - dxTop * EXPAND_SIDE_RATIO,
+        box[3].y + dyLeft * EXPAND_BOTTOM_RATIO - dyTop * EXPAND_SIDE_RATIO, maxW, maxH);
+    return new Point[] {tl, tr, br, bl};
+  }
+
+  private static Point clampPoint(double x, double y, int maxW, int maxH) {
+    return new Point(
+        Math.max(0.0, Math.min(maxW - 1.0, x)),
+        Math.max(0.0, Math.min(maxH - 1.0, y)));
   }
 
   private static double distance(Point first, Point second) {

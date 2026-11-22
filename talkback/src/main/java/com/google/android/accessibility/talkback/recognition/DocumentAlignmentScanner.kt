@@ -35,6 +35,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 internal enum class DocumentAlignmentState {
+  LOW_LIGHT,
   NO_PAPER,
   MOVE_CLOSER,
   MOVE_AWAY,
@@ -59,6 +60,8 @@ internal object DocumentAlignmentScanner {
   private const val ANALYSIS_MAX_DIM = 480
   private const val MIN_PAPER_AREA_RATIO = 0.14
   private const val IDEAL_MIN_AREA_RATIO = 0.26
+  private const val MAX_AREA_RATIO = 0.90
+  private const val MIN_MEAN_LUMA = 45.0
   private const val EDGE_MARGIN_RATIO = 0.025
   private const val CENTER_TOLERANCE = 0.15
   const val MIN_SHARPNESS_LAPLACIAN = 55.0
@@ -100,6 +103,12 @@ internal object DocumentAlignmentScanner {
         srcMat.copyTo(scaled)
       }
       Imgproc.cvtColor(scaled, gray, Imgproc.COLOR_RGBA2GRAY)
+      if (Core.mean(gray).`val`[0] < MIN_MEAN_LUMA) {
+        return DocumentAlignmentResult(
+          DocumentAlignmentState.LOW_LIGHT,
+          guidanceFor(DocumentAlignmentState.LOW_LIGHT),
+        )
+      }
 
       Imgproc.Laplacian(gray, laplacian, CvType.CV_64F)
       Core.meanStdDev(laplacian, mean, stddev)
@@ -196,7 +205,9 @@ internal object DocumentAlignmentScanner {
     val clippedTop = ordered.any { it.y <= marginY }
     val clippedBottom = ordered.any { it.y >= frameH - marginY }
 
-    if ((clippedLeft && clippedRight) || (clippedTop && clippedBottom)) return DocumentAlignmentState.MOVE_AWAY
+    if ((clippedLeft && clippedRight) || (clippedTop && clippedBottom) || areaRatio > MAX_AREA_RATIO) {
+      return DocumentAlignmentState.MOVE_AWAY
+    }
     if (clippedLeft && !clippedRight) return DocumentAlignmentState.MOVE_LEFT
     if (clippedRight && !clippedLeft) return DocumentAlignmentState.MOVE_RIGHT
     if (clippedTop && !clippedBottom) return DocumentAlignmentState.MOVE_UP
@@ -272,17 +283,60 @@ internal object DocumentAlignmentScanner {
     return arrayOf(tl, tr, br, bl)
   }
 
+  fun enhanceForOcr(bitmap: Bitmap): Bitmap {
+    if (!ensureOpenCv()) return bitmap
+    val rgba = Mat()
+    val rgb = Mat()
+    val lab = Mat()
+    val channels = ArrayList<Mat>(3)
+    val blurred = Mat()
+    val sharpened = Mat()
+    var clahe: org.opencv.imgproc.CLAHE? = null
+    var output: Bitmap? = null
+    try {
+      Utils.bitmapToMat(bitmap, rgba)
+      Imgproc.cvtColor(rgba, rgb, Imgproc.COLOR_RGBA2RGB)
+      Imgproc.cvtColor(rgb, lab, Imgproc.COLOR_RGB2Lab)
+      Core.split(lab, channels)
+      clahe = Imgproc.createCLAHE(2.4, Size(8.0, 8.0))
+      clahe.apply(channels[0], channels[0])
+      Imgproc.GaussianBlur(channels[0], blurred, Size(0.0, 0.0), 1.2)
+      Core.addWeighted(channels[0], 1.45, blurred, -0.45, 0.0, sharpened)
+      sharpened.copyTo(channels[0])
+      Core.merge(channels, lab)
+      Imgproc.cvtColor(lab, rgb, Imgproc.COLOR_Lab2RGB)
+      Imgproc.cvtColor(rgb, rgba, Imgproc.COLOR_RGB2RGBA)
+      val out = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+      output = out
+      Utils.matToBitmap(rgba, out)
+      output = null
+      return out
+    } catch (_: Throwable) {
+      return bitmap
+    } finally {
+      output?.recycle()
+      clahe?.collectGarbage()
+      for (ch in channels) ch.release()
+      rgba.release()
+      rgb.release()
+      lab.release()
+      blurred.release()
+      sharpened.release()
+    }
+  }
+
   fun guidanceFor(state: DocumentAlignmentState): String = when (state) {
-    DocumentAlignmentState.NO_PAPER -> "Không thấy rõ mép tờ giấy. Đưa tờ giấy vào giữa khung hình."
-    DocumentAlignmentState.MOVE_AWAY -> "Đưa camera ra xa hơn để thấy đủ mép giấy."
-    DocumentAlignmentState.MOVE_CLOSER -> "Đưa camera lại gần tờ giấy hơn."
-    DocumentAlignmentState.MOVE_LEFT -> "Dịch camera sang trái để lấy đủ mép giấy."
-    DocumentAlignmentState.MOVE_RIGHT -> "Dịch camera sang phải để lấy đủ mép giấy."
-    DocumentAlignmentState.MOVE_UP -> "Dịch camera lên trên để lấy đủ mép giấy."
-    DocumentAlignmentState.MOVE_DOWN -> "Dịch camera xuống dưới để lấy đủ mép giấy."
-    DocumentAlignmentState.HOLD_FLAT -> "Giữ điện thoại song song với mặt giấy."
-    DocumentAlignmentState.BLURRY -> "Ảnh hơi mờ, giữ yên tay để lấy nét."
-    DocumentAlignmentState.READY -> "Đã căn thẳng tờ giấy. Giữ yên để đọc."
+    DocumentAlignmentState.LOW_LIGHT -> "Ánh sáng yếu, hãy bật đèn flash để đọc chữ rõ hơn."
+    DocumentAlignmentState.NO_PAPER -> "Không thấy rõ 4 mép tờ giấy. Hãy đặt giấy trên nền sẫm hơn và đưa vào giữa khung hình."
+    DocumentAlignmentState.MOVE_AWAY -> "Quá gần tờ giấy. Hãy nâng điện thoại cao lên để lấy đủ cả 4 góc."
+    DocumentAlignmentState.MOVE_CLOSER -> "Quá xa tờ giấy. Hãy hạ điện thoại lại gần hơn một chút."
+    DocumentAlignmentState.MOVE_LEFT -> "Mép trái bị lệch hoặc cắt. Hãy dịch điện thoại sang trái một chút."
+    DocumentAlignmentState.MOVE_RIGHT -> "Mép phải bị lệch hoặc cắt. Hãy dịch điện thoại sang phải một chút."
+    DocumentAlignmentState.MOVE_UP -> "Mép trên bị lệch hoặc cắt. Hãy dịch điện thoại lên trên một chút."
+    DocumentAlignmentState.MOVE_DOWN -> "Mép dưới bị lệch hoặc cắt. Hãy dịch điện thoại xuống dưới một chút."
+    DocumentAlignmentState.HOLD_FLAT -> "Điện thoại đang nghiêng. Hãy giữ điện thoại phẳng song song với mặt giấy."
+    DocumentAlignmentState.BLURRY -> "Ảnh đang mờ, giữ yên tay 1 giây để lấy nét."
+    DocumentAlignmentState.READY -> "Đã căn đủ 4 góc tờ giấy, giữ yên — đang đọc."
   }
 }
 

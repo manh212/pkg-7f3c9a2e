@@ -1637,6 +1637,21 @@
     <string name="title_pref_volume_keys_move_cursor">Phím âm lượng di chuyển con trỏ</string>
     <string name="summary_pref_volume_keys_move_cursor">Khi một trường văn bản được làm nổi bật, phím tăng âm lượng di chuyển con trỏ lùi một ký tự và phím giảm âm lượng di chuyển con trỏ tiến một ký tự</string>
     <string name="volume_key_settings_title">Phím âm lượng</string>
+    <string name="volume_short_hold_delay_title">Độ trễ nhấn giữ ngắn</string>
+    <string name="volume_long_hold_delay_title">Độ trễ nhấn giữ dài</string>
+    <string-array name="volume_short_hold_delay_entries">
+      <item>500 mili giây</item>
+      <item>1 giây</item>
+      <item>1,5 giây</item>
+      <item>2 giây</item>
+    </string-array>
+    <string-array name="volume_long_hold_delay_entries">
+      <item>2 giây</item>
+      <item>2,5 giây</item>
+      <item>3 giây</item>
+      <item>3,5 giây</item>
+      <item>4 giây</item>
+    </string-array>
     <string name="volume_keys_managed_title">Meridian quản lý phím âm lượng</string>
     <string name="volume_keys_managed_summary">Meridian tự xử lý phím âm lượng, không hiển thị bảng âm lượng của hệ thống.</string>
     <string name="volume_key_up_category">Tăng âm lượng</string>

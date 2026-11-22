@@ -762,16 +762,24 @@ class LiveRecognitionActivity : ComponentActivity() {
           var originalTextRead = false
           var originalText: String? = null
           fun readText(corners: Array<Point>? = null): String? {
+            fun recognize(source: Bitmap): String? {
+              val enhanced = DocumentAlignmentScanner.enhanceForOcr(source)
+              return try {
+                TesseractOcr.recognizeText(this, enhanced)
+              } finally {
+                if (enhanced !== source) enhanced.recycle()
+              }
+            }
             val dewarped = corners?.let { DocumentAlignmentScanner.dewarp(bitmap, it) }
             if (dewarped != null) {
               return try {
-                TesseractOcr.recognizeText(this, dewarped)
+                recognize(dewarped)
               } finally {
                 dewarped.recycle()
               }
             }
             if (!originalTextRead) {
-              originalText = TesseractOcr.recognizeText(this, bitmap)
+              originalText = recognize(bitmap)
               originalTextRead = true
             }
             return originalText
@@ -806,7 +814,8 @@ class LiveRecognitionActivity : ComponentActivity() {
             }
           }
           if (runLottery && alignment != null) {
-            if (alignment.state == DocumentAlignmentState.BLURRY) {
+            if (alignment.state == DocumentAlignmentState.BLURRY ||
+                alignment.state == DocumentAlignmentState.LOW_LIGHT) {
               handler.post {
                 if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
                   announceResult(SOURCE_LOTTERY, alignment.guidance)
