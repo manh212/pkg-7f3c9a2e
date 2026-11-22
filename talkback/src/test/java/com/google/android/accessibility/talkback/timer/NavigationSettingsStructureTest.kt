@@ -39,10 +39,6 @@ class NavigationSettingsStructureTest {
         "TouchActivationFragment",
         "SmartContextGestureSettingsFragment",
         "DirectTouchFragment",
-        "TalkBackGestureShortcutPreferenceFragment",
-        "EdgeGestureSettingsFragment",
-        "TalkBackKeyboardShortcutPreferenceFragment",
-        "VolumeKeySettingsFragment",
       ),
       rows.map { it.second?.substringAfterLast('.') },
     )
