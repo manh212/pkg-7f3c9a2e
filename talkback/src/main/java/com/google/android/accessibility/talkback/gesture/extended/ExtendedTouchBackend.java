@@ -357,7 +357,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
             && !heldTwoFingerGesture
             && state == TouchInteractionController.STATE_TOUCH_INTERACTING
             && event.getPointerCount() == 2) {
-          requestDrag(event.getPointerId(0));
+          if (action != MotionEvent.ACTION_MOVE || !trackTwoFingerScroll(event)) {
+            requestDrag(event.getPointerId(0));
+          }
           return;
         }
       }
