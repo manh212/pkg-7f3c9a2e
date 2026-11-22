@@ -55,12 +55,12 @@
     <string translatable="false" name="live_recognition_model_download_failed">Không tải được mô hình. Kiểm tra mạng và bật lại chế độ để thử tiếp.</string>
     <string translatable="false" name="live_recognition_model_download_ready">Đã tải xong mô hình. Đang bắt đầu nhận dạng.</string>
     <string translatable="false" name="live_recognition_text_retry">Nhận dạng mất quá lâu. Đang thử lại với hình ảnh mới.</string>
-    <string translatable="false" name="live_recognition_text_not_found">Chưa thấy chữ rõ. Hãy hướng camera vào văn bản hoặc bật đèn flash.</string>
+    <string translatable="false" name="live_recognition_text_not_found">Chưa thấy chữ rõ. Hãy đưa camera lại gần hơn, hướng thẳng vào chữ hoặc bật đèn flash.</string>
     <string translatable="false" name="live_recognition_text_confirming">Giữ yên điện thoại để đọc rõ chữ.</string>
     <string translatable="false" name="live_recognition_ocr_unlicensed">Giấy phép hiện tại không có tính năng nhận dạng chữ OCR.</string>
 
     <string translatable="false" name="live_recognition_text_dialog_title">Nhận dạng văn bản</string>
-    <string translatable="false" name="live_recognition_text_dialog_hint">Đặt trang giấy phẳng trước camera sau, giữ yên tay để ứng dụng hướng dẫn căn chỉnh rồi đọc.</string>
+    <string translatable="false" name="live_recognition_text_dialog_hint">Hướng camera sau vào bất kỳ văn bản nào cần đọc. Giữ yên tay để ứng dụng hướng dẫn nếu ảnh tối, chói hoặc mờ rồi bắt đầu đọc.</string>
     <string translatable="false" name="live_recognition_text_engine_tesseract">Tesseract tiếng Việt (nhanh, nhẹ)</string>
     <string translatable="false" name="live_recognition_text_engine_vietocr">VietOCR tiếng Việt (rõ dấu hơn)</string>
     <string translatable="false" name="live_recognition_text_upscale">Phóng to và làm nét chữ nhỏ (như phụ đề)</string>
@@ -70,11 +70,20 @@
     <string translatable="false" name="live_recognition_please_wait">Vui lòng đợi…</string>
 
     <string translatable="false" name="live_recognition_lottery_dialog_title">Nhận dạng vé số</string>
-    <string translatable="false" name="live_recognition_lottery_dialog_hint">Đặt phẳng tờ vé số trước camera sau rồi nhấn Chụp ảnh. Ứng dụng sẽ dùng dịch vụ AI trực tuyến bạn đang chọn ở phần Mô tả hình ảnh.</string>
+    <string translatable="false" name="live_recognition_lottery_dialog_hint">Đặt phẳng tờ vé số trước camera sau rồi nhấn Chụp ảnh. Ứng dụng dùng dịch vụ AI trực tuyến bạn đang chọn ở phần Mô tả hình ảnh.</string>
     <string translatable="false" name="live_recognition_lottery_capture">Chụp ảnh</string>
     <string translatable="false" name="live_recognition_lottery_check_result">Đối chiếu kết quả xổ số</string>
     <string translatable="false" name="live_recognition_lottery_checking">Đang lấy kết quả xổ số để đối chiếu…</string>
     <string translatable="false" name="live_recognition_lottery_not_ticket">Đây không phải là vé số.</string>
     <string translatable="false" name="live_recognition_lottery_online_required">Chưa thiết lập dịch vụ AI trực tuyến. Hãy chọn dịch vụ trực tuyến trong cài đặt Mô tả hình ảnh.</string>
+
+    <string translatable="false" name="live_recognition_currency_start">Bắt đầu đọc tiền</string>
+    <string translatable="false" name="live_recognition_currency_stop">Dừng đọc tiền</string>
+    <string translatable="false" name="live_recognition_point_start">Bắt đầu Chỉ và đọc</string>
+    <string translatable="false" name="live_recognition_point_stop">Dừng Chỉ và đọc</string>
+    <string translatable="false" name="live_recognition_light_start">Bắt đầu nhận biết ánh sáng</string>
+    <string translatable="false" name="live_recognition_light_stop">Dừng nhận biết ánh sáng</string>
+    <string translatable="false" name="live_recognition_object_start">Bắt đầu tìm đồ vật</string>
+    <string translatable="false" name="live_recognition_object_stop">Dừng tìm đồ vật</string>
     <string translatable="false" name="live_recognition_close">Đóng</string>
 </resources>

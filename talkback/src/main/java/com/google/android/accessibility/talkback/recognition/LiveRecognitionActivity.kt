@@ -22,10 +22,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -37,8 +33,6 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -99,8 +93,6 @@ class LiveRecognitionActivity : ComponentActivity() {
   )
   private val worker = Executors.newSingleThreadExecutor()
   private val processing = AtomicBoolean(false)
-  private val currencyTracker = CurrencyTracker()
-  private var currencyRecognizer: CurrencyRecognizer? = null
   private val documentTextTracker = CameraTextTracker()
   private val waitingModels = mutableSetOf<OfflineModels.Group>()
   private var modelProgressBucket = 0
@@ -110,34 +102,13 @@ class LiveRecognitionActivity : ComponentActivity() {
   private val qrTracker = QrBarcodeTracker()
   private val colorTracker = ColorTracker()
   private val documentTracker = DocumentAlignmentTracker()
-  private val objectTracker = ObjectFinderTracker()
-  private var objectRecognizer: ObjectFinderRecognizer? = null
-  private val lightTone = LightToneGenerator()
-  private var lightToneEnabled = false
-  private var currencySumEnabled = false
-  private var targetObjectClassId: Int? = null
   private val announcements = RecognitionAnnouncements()
   private var activeTextDialog: LiveTextRecognitionDialog? = null
   private var activeLotteryDialog: LiveLotteryDialog? = null
-  private val lightListener = object : SensorEventListener {
-    override fun onSensorChanged(event: SensorEvent) {
-      if (!resumed || RecognitionMode.LIGHT !in enabled) return
-      val lux = event.values.firstOrNull() ?: return
-      if (!lux.isFinite() || lux < 0) return
-      if (lightToneEnabled && TalkBackService.getInstance()?.speechController?.isSpeaking == false &&
-          !RecentUserInput.isRecent()) {
-        lightTone.playForLux(lux, SystemClock.elapsedRealtime())
-      }
-      val label = when {
-        lux < 10f -> R.string.live_recognition_light_dark
-        lux < 100f -> R.string.live_recognition_light_dim
-        else -> R.string.live_recognition_light_bright
-      }
-      announceResult(SOURCE_LIGHT, getString(label))
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
-  }
+  private var activeCurrencyDialog: LiveCurrencyDialog? = null
+  private var activePointDialog: LivePointAndSpeakDialog? = null
+  private var activeLightDialog: LiveLightDialog? = null
+  private var activeObjectDialog: LiveFindObjectDialog? = null
   private val pendingResults = linkedMapOf<String, Pair<String, Long>>()
   private val prefs by lazy { SharedPreferencesUtils.getSharedPreferences(this) }
   // Read by the camera thread, to encode a frame only when it can be described.
@@ -157,7 +128,6 @@ class LiveRecognitionActivity : ComponentActivity() {
   private var dialogOpen = false
   private var pendingPermission: RecognitionMode? = null
   private var initialMode: RecognitionMode? = null
-  private var pointAbove = true
   @Volatile private var generation = 0
   private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     val mode = pendingPermission
@@ -209,9 +179,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       text = getString(R.string.live_recognition_camera_off)
       textSize = 18f
     }
-    val statusContainer = ScrollView(this).apply {
-      addView(status)
-    }
+    val statusContainer = ScrollView(this).apply { addView(status) }
     column.addView(statusContainer, LinearLayout.LayoutParams(-1, (96 * density).toInt()))
     flashSwitch = CheckBox(this).apply {
       text = getString(R.string.live_recognition_flash)
@@ -219,10 +187,9 @@ class LiveRecognitionActivity : ComponentActivity() {
       minHeight = (48 * density).toInt()
       setOnClickListener { toggleFlash() }
     }
-    // Flash is a standalone control, not one of the recognition modes.
     column.addView(flashSwitch)
     RecognitionMode.entries.forEach { mode ->
-      if (mode == RecognitionMode.TEXT || mode == RecognitionMode.LOTTERY_TICKET) {
+      if (mode in DIALOG_MODES) {
         val actionButton = Button(this).apply {
           text = getString(mode.label)
           textSize = 20f
@@ -239,83 +206,6 @@ class LiveRecognitionActivity : ComponentActivity() {
       }
       switches[mode] = button
       column.addView(button)
-      when (mode) {
-        RecognitionMode.POINT_AND_SPEAK -> {
-          val above = RadioButton(this).apply {
-            id = View.generateViewId()
-            setText(R.string.live_recognition_point_above)
-            isChecked = true
-          }
-          column.addView(RadioGroup(this).apply {
-            addView(above)
-            addView(RadioButton(this@LiveRecognitionActivity).apply {
-              id = View.generateViewId()
-              setText(R.string.live_recognition_point_below)
-            })
-            // Sent with each request, so recognition keeps running.
-            setOnCheckedChangeListener { _, checked -> pointAbove = checked == above.id }
-          })
-        }
-        RecognitionMode.CURRENCY -> {
-          column.addView(CheckBox(this).apply {
-            text = getString(R.string.live_recognition_currency_sum)
-            textSize = 18f
-            minHeight = (48 * density).toInt()
-            setOnCheckedChangeListener { _, checked ->
-              currencySumEnabled = checked
-              if (!checked) currencyTracker.resetTotal()
-            }
-          })
-          column.addView(Button(this).apply {
-            text = getString(R.string.live_recognition_currency_reset)
-            textSize = 18f
-            setOnClickListener {
-              currencyTracker.resetTotal()
-              report(R.string.live_recognition_currency_total_reset)
-            }
-          })
-        }
-        RecognitionMode.FIND_OBJECT -> {
-          val targetButton = Button(this).apply {
-            text = getString(R.string.live_recognition_object_target_all)
-            textSize = 18f
-          }
-          targetButton.setOnClickListener {
-            val entries = listOf<Pair<Int?, String>>(null to getString(R.string.live_recognition_object_all_items)) +
-              CocoObjectCatalog.DAILY_LABELS_VI.entries.map { it.key to it.value }
-            val names = entries.map { it.second }.toTypedArray()
-            dialogOpen = true
-            AlertDialog.Builder(this)
-              .setTitle(R.string.live_recognition_find_object)
-              .setItems(names) { _, which ->
-                val chosen = entries[which]
-                targetObjectClassId = chosen.first
-                objectTracker.reset()
-                pendingResults.remove(SOURCE_OBJECT)
-                targetButton.text = if (chosen.first == null) {
-                  getString(R.string.live_recognition_object_target_all)
-                } else {
-                  getString(R.string.live_recognition_object_target_selected, chosen.second)
-                }
-              }
-              .setOnDismissListener { dialogOpen = false }
-              .show()
-          }
-          column.addView(targetButton)
-        }
-        RecognitionMode.LIGHT -> {
-          column.addView(CheckBox(this).apply {
-            text = getString(R.string.live_recognition_light_tone)
-            textSize = 18f
-            minHeight = (48 * density).toInt()
-            setOnCheckedChangeListener { _, checked ->
-              lightToneEnabled = checked
-              if (!checked) lightTone.reset()
-            }
-          })
-        }
-        else -> Unit
-      }
     }
     setContentView(ScrollView(this).apply { addView(column); fitsSystemWindows = true })
     OfflineModels.status.observe(this) { states ->
@@ -362,10 +252,7 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   override fun onPause() {
     resumed = false
-    activeTextDialog?.dismiss()
-    activeTextDialog = null
-    activeLotteryDialog?.dismiss()
-    activeLotteryDialog = null
+    dismissAllDialogs()
     flashOn = false
     updateFlashSwitch()
     boundCamera?.cameraControl?.enableTorch(false)
@@ -376,21 +263,47 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   override fun onDestroy() {
     loadingFeedback.stop()
-    lightTone.reset()
-    worker.execute {
-      currencyRecognizer?.close()
-      currencyRecognizer = null
-      objectRecognizer?.close()
-      objectRecognizer = null
-    }
     describer?.close()
     worker.shutdown()
     super.onDestroy()
   }
 
   internal fun canUseRotor(): Boolean = resumed && !dialogOpen && pendingPermission == null && !pendingFlashPermission
-  internal fun isEnabled(mode: RecognitionMode): Boolean = mode in enabled
+
+  internal fun isEnabled(mode: RecognitionMode): Boolean = when (mode) {
+    RecognitionMode.TEXT -> activeTextDialog != null
+    RecognitionMode.LOTTERY_TICKET -> activeLotteryDialog != null
+    RecognitionMode.CURRENCY -> activeCurrencyDialog != null
+    RecognitionMode.POINT_AND_SPEAK -> activePointDialog != null
+    RecognitionMode.LIGHT -> activeLightDialog != null
+    RecognitionMode.FIND_OBJECT -> activeObjectDialog != null
+    else -> mode in enabled
+  }
+
   internal fun isFlashEnabled(): Boolean = flashOn
+
+  private fun dismissAllDialogs() {
+    activeTextDialog?.dismiss()
+    activeTextDialog = null
+    activeLotteryDialog?.dismiss()
+    activeLotteryDialog = null
+    activeCurrencyDialog?.dismiss()
+    activeCurrencyDialog = null
+    activePointDialog?.dismiss()
+    activePointDialog = null
+    activeLightDialog?.dismiss()
+    activeLightDialog = null
+    activeObjectDialog?.dismiss()
+    activeObjectDialog = null
+    dialogOpen = false
+  }
+
+  private fun prepareForDialog() {
+    stopRecognition()
+    flashOn = false
+    updateFlashSwitch()
+    dialogOpen = true
+  }
 
   /** A flashlight toggle independent of recognition modes and their AI settings. */
   internal fun toggleFlash() {
@@ -444,13 +357,14 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   internal fun toggle(mode: RecognitionMode) {
     if (!canUseRotor()) { updateSwitches(); return }
-    if (mode == RecognitionMode.TEXT) {
-      openTextDialog()
-      return
-    }
-    if (mode == RecognitionMode.LOTTERY_TICKET) {
-      openLotteryDialog()
-      return
+    when (mode) {
+      RecognitionMode.TEXT -> { openTextDialog(); return }
+      RecognitionMode.LOTTERY_TICKET -> { openLotteryDialog(); return }
+      RecognitionMode.CURRENCY -> { openCurrencyDialog(); return }
+      RecognitionMode.POINT_AND_SPEAK -> { openPointDialog(); return }
+      RecognitionMode.LIGHT -> { openLightDialog(); return }
+      RecognitionMode.FIND_OBJECT -> { openObjectDialog(); return }
+      else -> Unit
     }
     if (mode in enabled) {
       enabled.remove(mode)
@@ -460,11 +374,6 @@ class LiveRecognitionActivity : ComponentActivity() {
       }
       reconcile()
       speakMode(mode)
-      return
-    }
-    if (mode == RecognitionMode.LIGHT && LiveRecognition.lightSensor(this) == null) {
-      updateSwitches()
-      report(R.string.live_recognition_light_unavailable)
       return
     }
     if (mode.usesCamera &&
@@ -488,20 +397,20 @@ class LiveRecognitionActivity : ComponentActivity() {
     if (mode in enabled && modelGroup(mode) !in waitingModels) speakMode(mode)
   }
 
+  private fun requireCameraPermission(mode: RecognitionMode): Boolean {
+    if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) return true
+    pendingPermission = mode
+    cameraPermission.launch(Manifest.permission.CAMERA)
+    return false
+  }
+
   private fun openTextDialog() {
-    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-      pendingPermission = RecognitionMode.TEXT
-      cameraPermission.launch(Manifest.permission.CAMERA)
-      return
-    }
+    if (!requireCameraPermission(RecognitionMode.TEXT)) return
     if (!DeviceLicenseManager.allows(this, "ocr")) {
       report(R.string.live_recognition_ocr_unlicensed)
       return
     }
-    stopRecognition()
-    flashOn = false
-    updateFlashSwitch()
-    dialogOpen = true
+    prepareForDialog()
     activeTextDialog = LiveTextRecognitionDialog(this, prefs, ::speak) {
       dialogOpen = false
       activeTextDialog = null
@@ -509,44 +418,57 @@ class LiveRecognitionActivity : ComponentActivity() {
   }
 
   private fun openLotteryDialog() {
-    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-      pendingPermission = RecognitionMode.LOTTERY_TICKET
-      cameraPermission.launch(Manifest.permission.CAMERA)
+    if (!requireCameraPermission(RecognitionMode.LOTTERY_TICKET)) return
+    val provider = AiProvider.active(prefs)
+    if (provider == AiProvider.NONE || !provider.isReady(prefs)) {
+      report(R.string.live_recognition_lottery_online_required)
       return
     }
-    if (!canUseOnlineLotteryAi()) return
-    stopRecognition()
-    flashOn = false
-    updateFlashSwitch()
-    dialogOpen = true
+    prepareForDialog()
     activeLotteryDialog = LiveLotteryDialog(this, ::speak) {
       dialogOpen = false
       activeLotteryDialog = null
     }.also { it.show() }
   }
 
-  private fun canUseOnlineLotteryAi(): Boolean {
-    val provider = AiProvider.active(prefs)
-    if (provider == AiProvider.NONE || !provider.isReady(prefs)) {
-      report(R.string.live_recognition_lottery_online_required)
-      return false
+  private fun openCurrencyDialog() {
+    if (!requireCameraPermission(RecognitionMode.CURRENCY)) return
+    prepareForDialog()
+    activeCurrencyDialog = LiveCurrencyDialog(this, ::speak) {
+      dialogOpen = false
+      activeCurrencyDialog = null
+    }.also { it.show() }
+  }
+
+  private fun openPointDialog() {
+    if (!requireCameraPermission(RecognitionMode.POINT_AND_SPEAK)) return
+    if (!canUseAi(RecognitionMode.POINT_AND_SPEAK)) return
+    prepareForDialog()
+    activePointDialog = LivePointAndSpeakDialog(this, prefs, ::speak) {
+      dialogOpen = false
+      activePointDialog = null
+    }.also { it.show() }
+  }
+
+  private fun openLightDialog() {
+    if (LiveRecognition.lightSensor(this) == null) {
+      report(R.string.live_recognition_light_unavailable)
+      return
     }
-    val host = if (provider == AiProvider.GEMINI) null else AiService.host(prefs)
-    val consent = if (host == null) CLOUD_CONSENT_PREF else SERVICE_CONSENT_PREF + host
-    if (prefs.getBoolean(consent, false)) return true
-    dialogOpen = true
-    AlertDialog.Builder(this)
-      .setTitle(if (host == null) getString(R.string.live_recognition_cloud_title)
-        else getString(R.string.live_recognition_service_title, host))
-      .setMessage(if (host == null) getString(R.string.live_recognition_cloud_message)
-        else getString(R.string.live_recognition_service_message, host))
-      .setNegativeButton(android.R.string.cancel, null)
-      .setPositiveButton(R.string.live_recognition_send) { _, _ ->
-        prefs.edit { putBoolean(consent, true) }
-        dialogOpen = false
-        if (resumed) openLotteryDialog()
-      }.setOnDismissListener { dialogOpen = false }.show()
-    return false
+    prepareForDialog()
+    activeLightDialog = LiveLightDialog(this, ::speak) {
+      dialogOpen = false
+      activeLightDialog = null
+    }.also { it.show() }
+  }
+
+  private fun openObjectDialog() {
+    if (!requireCameraPermission(RecognitionMode.FIND_OBJECT)) return
+    prepareForDialog()
+    activeObjectDialog = LiveFindObjectDialog(this, ::speak) {
+      dialogOpen = false
+      activeObjectDialog = null
+    }.also { it.show() }
   }
 
   /**
@@ -604,16 +526,6 @@ class LiveRecognitionActivity : ComponentActivity() {
   /** Invalidates old OCR/network callbacks before replacing the enabled modes or camera. */
   private fun reconcile() {
     val token = ++generation
-    val sensors = getSystemService(SensorManager::class.java)
-    sensors?.unregisterListener(lightListener)
-    val lightFailed = resumed && RecognitionMode.LIGHT in enabled && (
-      LiveRecognition.lightSensor(this)?.let {
-        sensors?.registerListener(lightListener, it, SensorManager.SENSOR_DELAY_NORMAL)
-      } != true)
-    if (lightFailed) {
-      enabled.remove(RecognitionMode.LIGHT)
-      speak(getString(R.string.live_recognition_light_unavailable), true)
-    }
     LogUtils.i(TAG, "Modes: %s", enabled)
     TalkBackService.getInstance()?.speechController?.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_LIVE_RECOGNITION)
     describer?.close()
@@ -628,15 +540,12 @@ class LiveRecognitionActivity : ComponentActivity() {
     preview = null
     announcements.clear()
     pendingResults.clear()
-    currencyTracker.reset()
     worker.execute {
       qrTracker.reset()
       colorTracker.reset()
       documentTracker.reset()
       documentTextTracker.reset()
     }
-    objectTracker.reset()
-    lightTone.reset()
     updateSwitches()
     handler.removeCallbacks(runningCheck)
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -644,8 +553,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       waitingModels.clear()
       modelProgressBucket = 0
       loadingFeedback.stop()
-      status.setText(if (lightFailed) R.string.live_recognition_light_unavailable
-        else R.string.live_recognition_camera_off)
+      status.setText(R.string.live_recognition_camera_off)
       return
     }
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -670,11 +578,6 @@ class LiveRecognitionActivity : ComponentActivity() {
       showModelProgress()
       return
     }
-    if (!cameraRecognition && !flashOn) {
-      loadingFeedback.stop()
-      status.setText(R.string.live_recognition_light)
-      return
-    }
     if (cameraRecognition) {
       loadingFeedback.start()
       status.setText(R.string.live_recognition_camera_on)
@@ -689,8 +592,6 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   private fun modelGroup(mode: RecognitionMode): OfflineModels.Group? = when (mode) {
     RecognitionMode.DOCUMENT_LABEL -> OfflineModels.Group.CAMERA_OCR
-    RecognitionMode.CURRENCY -> OfflineModels.Group.CURRENCY
-    RecognitionMode.FIND_OBJECT -> OfflineModels.Group.OBJECTS
     else -> null
   }
 
@@ -749,11 +650,9 @@ class LiveRecognitionActivity : ComponentActivity() {
           },
           ask = questions::ask,
           cancel = questions::cancel,
-          // The on-device model takes the next frame as soon as it is free; a service is paid for.
           minIntervalMs = if (backend == AiBackend.ON_DEVICE) 0 else GeminiLiveSession.REQUEST_INTERVAL_MS,
           maxResultAgeMs = REQUEST_MAX_RESULT_AGE_MS,
           onResult = onResult,
-          // A cancelled request said why itself, such as the phone being low on memory.
           onFailure = { stopAi(it?.userMessage(this)) },
         )
       }
@@ -780,20 +679,16 @@ class LiveRecognitionActivity : ComponentActivity() {
           .setResolutionSelector(ResolutionSelector.Builder().setResolutionStrategy(
             ResolutionStrategy(frameSize, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-        val currency = RecognitionMode.CURRENCY in enabled && modeReady(RecognitionMode.CURRENCY)
         val qr = RecognitionMode.QR_BARCODE in enabled
         val color = RecognitionMode.COLOR in enabled
-        val findObject = RecognitionMode.FIND_OBJECT in enabled && modeReady(RecognitionMode.FIND_OBJECT)
         val document = RecognitionMode.DOCUMENT_LABEL in enabled && modeReady(RecognitionMode.DOCUMENT_LABEL)
-        val fastLocalOnly = (currency || qr || color || findObject) &&
-          !(document || enabled.any { it.usesAi })
-        val captureInterval = if (fastLocalOnly) CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
+        val fastLocalOnly = (qr || color) && !(document || enabled.any { it.usesAi })
+        val captureInterval = if (fastLocalOnly) FAST_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
         var lastFrame = -FRAME_INTERVAL_MS
         newAnalysis.setAnalyzer(worker) { frame ->
           val now = SystemClock.elapsedRealtime()
-          // Gemini takes a frame every few seconds at most, so most frames run local detectors.
           val ai = describer?.canRequest() == true
-          val localNeed = currency || qr || color || findObject || document
+          val localNeed = qr || color || document
           if (generation != token || now - lastFrame < captureInterval ||
               !(localNeed || ai) || !processing.compareAndSet(false, true)) {
             frame.close()
@@ -809,10 +704,9 @@ class LiveRecognitionActivity : ComponentActivity() {
               bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it)
               Base64.encodeToString(it.toByteArray(), Base64.NO_WRAP)
             }
-            handler.post { processFrame(bitmap, jpeg, token, now) }
+            handler.post { processFrame(bitmap, jpeg, token) }
           } catch (e: Throwable) {
             LogUtils.e(TAG, "Frame failed: %s", e.javaClass.simpleName)
-            // Includes OutOfMemoryError, which would otherwise stop the screen reader.
             processing.set(false)
             handler.post { if (generation == token) cameraFailed() }
           } finally { frame.close() }
@@ -826,7 +720,6 @@ class LiveRecognitionActivity : ComponentActivity() {
         }
         boundCamera = camera
         if (flashOn) applyTorch()
-        // An unsupported torch can cause reconcile() to invalidate this binding.
         if (generation != token) return@addListener
         cameraState = camera.cameraInfo.cameraState
         cameraState?.observe(this) { state ->
@@ -850,29 +743,20 @@ class LiveRecognitionActivity : ComponentActivity() {
     report(R.string.live_recognition_camera_error)
   }
 
-  private fun processFrame(bitmap: Bitmap, jpeg: String?, token: Int, capturedAt: Long) {
+  private fun processFrame(bitmap: Bitmap, jpeg: String?, token: Int) {
     fun release() { bitmap.recycle(); processing.set(false) }
     if (generation != token || !resumed) { release(); return }
-    if (jpeg != null) describer?.describe(jpeg, enabled.toSet(), pointAbove)
-    val runCurrency = RecognitionMode.CURRENCY in enabled && modeReady(RecognitionMode.CURRENCY)
-    val runObject = RecognitionMode.FIND_OBJECT in enabled && modeReady(RecognitionMode.FIND_OBJECT)
-    val targetId = targetObjectClassId
+    if (jpeg != null) describer?.describe(jpeg, enabled.toSet(), true)
     val runQr = RecognitionMode.QR_BARCODE in enabled
     val runColor = RecognitionMode.COLOR in enabled
     val runDoc = RecognitionMode.DOCUMENT_LABEL in enabled && modeReady(RecognitionMode.DOCUMENT_LABEL)
 
-    if (!(runCurrency || runObject || runQr || runColor || runDoc)) { release(); return }
+    if (!(runQr || runColor || runDoc)) { release(); return }
     try {
       worker.execute {
         try {
           if (generation != token) return@execute
           val nowMs = SystemClock.elapsedRealtime()
-          if (runCurrency) {
-            detectCurrency(bitmap, token, nowMs)
-          }
-          if (runObject) {
-            detectObject(bitmap, token, targetId, nowMs)
-          }
           val ocrReady = OfflineModels.isReady(this, OfflineModels.Group.CAMERA_OCR)
           if (runDoc && !ocrReady) handler.post { if (generation == token && resumed) reconcile() }
           if (runColor) {
@@ -1002,48 +886,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
   }
 
-  private fun detectCurrency(bitmap: Bitmap, token: Int, nowMs: Long) {
-    val prediction = try {
-      val model = currencyRecognizer ?: CurrencyRecognizer(this).also { currencyRecognizer = it }
-      model.detect(bitmap)
-    } catch (error: Exception) {
-      LogUtils.e(TAG, "Currency recognition failed: %s", error.javaClass.simpleName)
-      handler.post { stopFailedMode(RecognitionMode.CURRENCY, token, R.string.live_recognition_currency_error) }
-      return
-    }
-    handler.post {
-      if (generation != token || !resumed || RecognitionMode.CURRENCY !in enabled) return@post
-      currencyTracker.observe(prediction, nowMs, currencySumEnabled)
-        ?.let { announceResult(SOURCE_CURRENCY, it) }
-    }
-  }
-
-  private fun detectObject(bitmap: Bitmap, token: Int, target: Int?, nowMs: Long) {
-    val detected = try {
-      val model = objectRecognizer ?: ObjectFinderRecognizer.open(this).also { objectRecognizer = it }
-      model.detect(bitmap, target)
-    } catch (error: Exception) {
-      LogUtils.e(TAG, "Object recognition failed: %s", error.javaClass.simpleName)
-      handler.post { stopFailedMode(RecognitionMode.FIND_OBJECT, token, R.string.live_recognition_object_error) }
-      return
-    } catch (error: LinkageError) {
-      LogUtils.e(TAG, "Object recognition runtime failed: %s", error.javaClass.simpleName)
-      handler.post { stopFailedMode(RecognitionMode.FIND_OBJECT, token, R.string.live_recognition_object_error) }
-      return
-    }
-    handler.post {
-      if (generation != token || !resumed || target != targetObjectClassId ||
-          RecognitionMode.FIND_OBJECT !in enabled) return@post
-      objectTracker.observe(detected, nowMs)?.let { announceResult(SOURCE_OBJECT, it) }
-    }
-  }
-
-  private fun stopFailedMode(mode: RecognitionMode, token: Int, message: Int) {
-    if (generation != token || !resumed || !enabled.remove(mode)) return
-    reconcile()
-    report(message)
-  }
-
   private fun announceResult(source: String, text: String) {
     if (!resumed || enabled.isEmpty() || PauseController.isPaused()) return
     pendingResults[source] = text to SystemClock.elapsedRealtime()
@@ -1053,7 +895,6 @@ class LiveRecognitionActivity : ComponentActivity() {
   private fun speakPendingResult(ignoreRecentInput: Boolean = false) {
     if (!resumed || enabled.isEmpty() || PauseController.isPaused() || pendingResults.isEmpty()) return
     val speech = TalkBackService.getInstance()?.speechController ?: return
-    // Keep at most the latest result per source while the user navigates. Never build a speech backlog.
     if (speech.isSpeaking || (!ignoreRecentInput && RecentUserInput.isRecent())) {
       LogUtils.v(TAG, "Result waits: speaking=%s", speech.isSpeaking)
       return
@@ -1065,10 +906,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       iterator.remove()
       val age = now - result.second
       if (age <= GeminiLiveSession.MAX_RESULT_AGE_MS &&
-          announcements.shouldSpeak(
-            source, result.first, now,
-            repeatIntervalMs = if (source == SOURCE_CURRENCY) CURRENCY_REPEAT_INTERVAL_MS
-              else RecognitionAnnouncements.REPEAT_INTERVAL_MS)) {
+          announcements.shouldSpeak(source, result.first, now, RecognitionAnnouncements.REPEAT_INTERVAL_MS)) {
         LogUtils.d(TAG, "Speaking %s result, %d ms after it came", source, age)
         status.text = result.first
         speak(result.first, false)
@@ -1087,21 +925,25 @@ class LiveRecognitionActivity : ComponentActivity() {
     /** Whether the user agreed to camera images being sent to Gemini. */
     private const val CLOUD_CONSENT_PREF = "pref_live_recognition_cloud_consent"
     private const val SOURCE_MODELS = "models"
-    private const val SOURCE_LIGHT = "light"
     private const val SOURCE_AI = "ai"
-    private const val SOURCE_CURRENCY = "currency"
     private const val SOURCE_QR = "qr"
     private const val SOURCE_COLOR = "color"
     private const val SOURCE_DOCUMENT = "document"
     private val OCR_MODES = setOf(RecognitionMode.DOCUMENT_LABEL)
-    private const val SOURCE_OBJECT = "object"
+    private val DIALOG_MODES = setOf(
+      RecognitionMode.TEXT,
+      RecognitionMode.POINT_AND_SPEAK,
+      RecognitionMode.CURRENCY,
+      RecognitionMode.LOTTERY_TICKET,
+      RecognitionMode.FIND_OBJECT,
+      RecognitionMode.LIGHT,
+    )
     /** The first part of the key that says the user agreed to images going to an AI service. */
     private const val SERVICE_CONSENT_PREF = "pref_live_recognition_consent_"
     /** How old an answer from the on-device model or an AI service can be when it comes. */
     private const val REQUEST_MAX_RESULT_AGE_MS = 30_000L
     private const val FRAME_INTERVAL_MS = 1_000L
-    private const val CURRENCY_FRAME_INTERVAL_MS = 450L
-    private const val CURRENCY_REPEAT_INTERVAL_MS = CurrencyTracker.REPEAT_INTERVAL_MS
+    private const val FAST_FRAME_INTERVAL_MS = 450L
     private const val CHECK_INTERVAL_MS = 500L
     private const val JPEG_QUALITY = 70
     private const val MAX_TEXT_LENGTH = 1_200

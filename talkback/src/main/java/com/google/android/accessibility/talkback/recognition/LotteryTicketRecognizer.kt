@@ -324,7 +324,7 @@ internal object LotteryResultChecker {
       if (rssResult != null) return rssResult
     }
 
-      val parts = drawDate.split("/")
+    val parts = drawDate.split("/")
     if (parts.size == 3) {
       val day = parts[0].toIntOrNull()
       val month = parts[1].toIntOrNull()

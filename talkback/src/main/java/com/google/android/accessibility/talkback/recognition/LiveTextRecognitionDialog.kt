@@ -51,8 +51,153 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.libraries.accessibility.utils.log.LogUtils
+import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
+import org.opencv.core.Core
+import org.opencv.core.CvType
+import org.opencv.core.Mat
+import org.opencv.core.MatOfDouble
+import org.opencv.imgproc.Imgproc
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.max
+import kotlin.math.min
+
+internal enum class TextFrameQualityState {
+  LOW_LIGHT,
+  OVEREXPOSED,
+  MOVING,
+  BLURRY,
+  READY,
+}
+
+internal data class TextFrameQuality(
+  val state: TextFrameQualityState,
+  val guidance: String,
+  val sharpness: Double = 0.0,
+)
+
+internal class TextFrameQualityAnalyzer {
+  private val openCvReady = AtomicBoolean(false)
+  private var previousThumb: Mat? = null
+
+  private fun ensureOpenCv(): Boolean {
+    if (openCvReady.get()) return true
+    return try {
+      val ok = OpenCVLoader.initLocal()
+      if (ok) openCvReady.set(true)
+      ok
+    } catch (_: Throwable) {
+      false
+    }
+  }
+
+  fun analyze(bitmap: Bitmap): TextFrameQuality {
+    if (!ensureOpenCv()) {
+      return TextFrameQuality(TextFrameQualityState.READY, "")
+    }
+    val src = Mat()
+    val scaled = Mat()
+    val gray = Mat()
+    val thumb = Mat()
+    val diff = Mat()
+    val laplacian = Mat()
+    val mean = MatOfDouble()
+    val stddev = MatOfDouble()
+    try {
+      Utils.bitmapToMat(bitmap, src)
+      val scale = min(1.0, ANALYSIS_MAX_DIM.toDouble() / max(bitmap.width, bitmap.height))
+      if (scale < 1.0) {
+        Imgproc.resize(src, scaled, org.opencv.core.Size(bitmap.width * scale, bitmap.height * scale))
+      } else {
+        src.copyTo(scaled)
+      }
+      Imgproc.cvtColor(scaled, gray, Imgproc.COLOR_RGBA2GRAY)
+
+      val meanLuma = Core.mean(gray).`val`[0]
+      if (meanLuma < MIN_MEAN_LUMA) {
+        updateThumb(gray, thumb)
+        return TextFrameQuality(
+          TextFrameQualityState.LOW_LIGHT,
+          "Ánh sáng yếu, hãy bật đèn flash hoặc đưa ra chỗ sáng hơn.",
+        )
+      }
+
+      val brightMask = Mat()
+      val overexposedRatio = try {
+        Imgproc.threshold(gray, brightMask, 245.0, 255.0, Imgproc.THRESH_BINARY)
+        Core.countNonZero(brightMask).toDouble() / max(1, gray.rows() * gray.cols())
+      } finally {
+        brightMask.release()
+      }
+      if (overexposedRatio > MAX_OVEREXPOSED_RATIO) {
+        updateThumb(gray, thumb)
+        return TextFrameQuality(
+          TextFrameQualityState.OVEREXPOSED,
+          "Ảnh đang bị chói sáng, hãy nghiêng nhẹ điện thoại hoặc tắt đèn flash.",
+        )
+      }
+
+      Imgproc.resize(gray, thumb, org.opencv.core.Size(64.0, 64.0))
+      val prev = previousThumb
+      val motionMad = if (prev != null && prev.size() == thumb.size()) {
+        Core.absdiff(prev, thumb, diff)
+        Core.mean(diff).`val`[0]
+      } else {
+        0.0
+      }
+      prev?.release()
+      previousThumb = thumb.clone()
+      if (motionMad > MAX_MOTION_MAD) {
+        return TextFrameQuality(
+          TextFrameQualityState.MOVING,
+          "Điện thoại đang di chuyển, hãy giữ yên tay một giây.",
+        )
+      }
+
+      Imgproc.Laplacian(gray, laplacian, CvType.CV_64F)
+      Core.meanStdDev(laplacian, mean, stddev)
+      val sd = stddev.toArray().firstOrNull() ?: 0.0
+      val sharpness = sd * sd
+      if (sharpness < MIN_TEXT_SHARPNESS) {
+        return TextFrameQuality(
+          TextFrameQualityState.BLURRY,
+          "Ảnh đang mờ, giữ yên tay hoặc đưa máy ra xa một chút để lấy nét.",
+          sharpness = sharpness,
+        )
+      }
+      return TextFrameQuality(TextFrameQualityState.READY, "", sharpness = sharpness)
+    } finally {
+      src.release()
+      scaled.release()
+      gray.release()
+      thumb.release()
+      diff.release()
+      laplacian.release()
+      mean.release()
+      stddev.release()
+    }
+  }
+
+  private fun updateThumb(gray: Mat, thumb: Mat) {
+    Imgproc.resize(gray, thumb, org.opencv.core.Size(64.0, 64.0))
+    previousThumb?.release()
+    previousThumb = thumb.clone()
+  }
+
+  fun reset() {
+    previousThumb?.release()
+    previousThumb = null
+  }
+
+  companion object {
+    private const val ANALYSIS_MAX_DIM = 480
+    private const val MIN_MEAN_LUMA = 45.0
+    private const val MAX_OVEREXPOSED_RATIO = 0.35
+    private const val MAX_MOTION_MAD = 14.0
+    private const val MIN_TEXT_SHARPNESS = 70.0
+  }
+}
 
 internal class LiveTextRecognitionDialog(
   private val activity: ComponentActivity,
@@ -63,7 +208,7 @@ internal class LiveTextRecognitionDialog(
   private val handler = Handler(Looper.getMainLooper())
   private val worker = Executors.newSingleThreadExecutor()
   private val processing = AtomicBoolean(false)
-  private val alignmentTracker = DocumentAlignmentTracker()
+  private val qualityAnalyzer = TextFrameQualityAnalyzer()
   private val textTracker = CameraTextTracker(requireConfirmation = true)
 
   private var dialog: AlertDialog? = null
@@ -86,6 +231,9 @@ internal class LiveTextRecognitionDialog(
   private var captureInFlight = false
   private var waitingGroup: OfflineModels.Group? = null
   private var downloadBucket = 0
+  private var lastGuidance = ""
+  private var lastGuidanceAtMs = Long.MIN_VALUE
+  private var emptyReadableStreak = 0
   private var dismissed = false
   @Volatile private var sessionToken = 0
 
@@ -155,8 +303,7 @@ internal class LiveTextRecognitionDialog(
           prefs.edit {
             putString(PREF_TEXT_ENGINE, if (useVietOcr) ENGINE_VIETOCR else ENGINE_TESSERACT)
           }
-          textTracker.reset()
-          alignmentTracker.reset()
+          resetTrackers()
           if (liveRunning) ensureModelReady(startAfter = true)
         }
       }
@@ -226,6 +373,14 @@ internal class LiveTextRecognitionDialog(
     dialog?.dismiss()
   }
 
+  private fun resetTrackers() {
+    qualityAnalyzer.reset()
+    textTracker.reset()
+    lastGuidance = ""
+    lastGuidanceAtMs = Long.MIN_VALUE
+    emptyReadableStreak = 0
+  }
+
   private fun selectedGroup(): OfflineModels.Group =
     if (useVietOcr) OfflineModels.Group.CAMERA_VIETOCR else OfflineModels.Group.CAMERA_OCR
 
@@ -248,8 +403,7 @@ internal class LiveTextRecognitionDialog(
     if (liveRunning) {
       liveRunning = false
       sessionToken++
-      alignmentTracker.reset()
-      textTracker.reset()
+      resetTrackers()
       updateButtons()
       bindCamera()
       speak(activity.getString(R.string.live_recognition_text_stop_live), true)
@@ -261,8 +415,7 @@ internal class LiveTextRecognitionDialog(
       return
     }
     liveRunning = true
-    alignmentTracker.reset()
-    textTracker.reset()
+    resetTrackers()
     updateButtons()
     bindCamera()
     speak(activity.getString(R.string.live_recognition_text_confirming), true)
@@ -307,6 +460,7 @@ internal class LiveTextRecognitionDialog(
             return
           }
           try {
+            val quality = qualityAnalyzer.analyze(bitmap)
             val text = runOcrPipeline(bitmap)
             handler.post {
               if (!dismissed && sessionToken == token) {
@@ -315,7 +469,12 @@ internal class LiveTextRecognitionDialog(
                 if (text == null) {
                   updateResult(activity.getString(R.string.live_recognition_ocr_error), speakInterrupt = true)
                 } else if (text.isBlank()) {
-                  updateResult(activity.getString(R.string.live_recognition_text_not_found), speakInterrupt = true)
+                  val hint = if (quality.state != TextFrameQualityState.READY && quality.guidance.isNotEmpty()) {
+                    quality.guidance
+                  } else {
+                    activity.getString(R.string.live_recognition_text_not_found)
+                  }
+                  updateResult(hint, speakInterrupt = true)
                 } else {
                   updateResult(text.take(MAX_TEXT_LENGTH), speakInterrupt = true)
                 }
@@ -341,19 +500,11 @@ internal class LiveTextRecognitionDialog(
   }
 
   private fun runOcrPipeline(bitmap: Bitmap): String? {
-    val alignment = try {
-      DocumentAlignmentScanner.analyze(bitmap)
-    } catch (_: RuntimeException) {
-      null
-    }
-    val dewarped = alignment?.corners?.let { DocumentAlignmentScanner.dewarp(bitmap, it) }
-    val source = dewarped ?: bitmap
-    val prepared = DocumentAlignmentScanner.prepareForCameraOcr(source, upscaleSmallText)
+    val prepared = DocumentAlignmentScanner.prepareForCameraOcr(bitmap, upscaleSmallText)
     return try {
       TesseractOcr.recognizeCameraText(activity, prepared, useVietOcr)
     } finally {
-      if (prepared !== source) prepared.recycle()
-      dewarped?.recycle()
+      if (prepared !== bitmap) prepared.recycle()
     }
   }
 
@@ -442,46 +593,67 @@ internal class LiveTextRecognitionDialog(
   }
 
   private fun handleLiveFrame(bitmap: Bitmap, token: Int, nowMs: Long) {
-    val alignment = try {
-      DocumentAlignmentScanner.analyze(bitmap)
+    val quality = try {
+      qualityAnalyzer.analyze(bitmap)
     } catch (_: RuntimeException) {
-      DocumentAlignmentResult(DocumentAlignmentState.READY, "")
+      TextFrameQuality(TextFrameQualityState.READY, "")
     }
-    when (val decision = alignmentTracker.observe(alignment, nowMs)) {
-      is DocumentAlignmentTracker.Decision.Guide -> {
-        handler.post {
-          if (!dismissed && sessionToken == token && liveRunning) {
-            updateResult(decision.message, speakInterrupt = false)
-          }
+    if (quality.state != TextFrameQualityState.READY) {
+      emptyReadableStreak = 0
+      maybeSpeakGuidance(quality.guidance, nowMs, token)
+      return
+    }
+    val raw = runOcrPipeline(bitmap)
+    if (raw == null) {
+      handler.post {
+        if (!dismissed && sessionToken == token && liveRunning) {
+          liveRunning = false
+          updateButtons()
+          updateResult(activity.getString(R.string.live_recognition_ocr_error), speakInterrupt = true)
         }
       }
-      is DocumentAlignmentTracker.Decision.Capture -> {
-        val dewarped = decision.corners?.let { DocumentAlignmentScanner.dewarp(bitmap, it) }
-        val source = dewarped ?: bitmap
-        val prepared = DocumentAlignmentScanner.prepareForCameraOcr(source, upscaleSmallText)
-        val raw = try {
-          TesseractOcr.recognizeCameraText(activity, prepared, useVietOcr)
-        } finally {
-          if (prepared !== source) prepared.recycle()
-          dewarped?.recycle()
-        }
-        val confirmed = raw?.let { textTracker.observe(it.take(MAX_TEXT_LENGTH), SystemClock.elapsedRealtime()) }
-        handler.post {
-          if (dismissed || sessionToken != token || !liveRunning) return@post
-          if (raw == null) {
-            liveRunning = false
-            updateButtons()
-            updateResult(activity.getString(R.string.live_recognition_ocr_error), speakInterrupt = true)
-          } else if (confirmed != null) {
-            updateResult(confirmed, speakInterrupt = false)
-          } else if (raw.isBlank()) {
-            updateResult(activity.getString(R.string.live_recognition_text_not_found), speakInterrupt = false)
-          } else {
-            updateResult(activity.getString(R.string.live_recognition_text_confirming), speakInterrupt = false)
-          }
-        }
+      return
+    }
+    if (raw.isBlank()) {
+      emptyReadableStreak++
+      if (emptyReadableStreak >= 2) {
+        maybeSpeakGuidance(
+          activity.getString(R.string.live_recognition_text_not_found),
+          nowMs,
+          token,
+        )
       }
-      DocumentAlignmentTracker.Decision.Wait -> Unit
+      return
+    }
+    emptyReadableStreak = 0
+    val confirmed = textTracker.observe(raw.take(MAX_TEXT_LENGTH), SystemClock.elapsedRealtime())
+    handler.post {
+      if (dismissed || sessionToken != token || !liveRunning) return@post
+      if (confirmed != null) {
+        lastGuidance = ""
+        updateResult(confirmed, speakInterrupt = false)
+      } else {
+        maybeSpeakGuidance(
+          activity.getString(R.string.live_recognition_text_confirming),
+          SystemClock.elapsedRealtime(),
+          token,
+        )
+      }
+    }
+  }
+
+  private fun maybeSpeakGuidance(message: String, nowMs: Long, token: Int) {
+    if (message.isBlank()) return
+    val shouldSpeak = message != lastGuidance ||
+      lastGuidanceAtMs == Long.MIN_VALUE ||
+      nowMs - lastGuidanceAtMs >= GUIDANCE_REPEAT_MS
+    if (!shouldSpeak) return
+    lastGuidance = message
+    lastGuidanceAtMs = nowMs
+    handler.post {
+      if (!dismissed && sessionToken == token && liveRunning) {
+        updateResult(message, speakInterrupt = false)
+      }
     }
   }
 
@@ -526,6 +698,7 @@ internal class LiveTextRecognitionDialog(
     liveRunning = false
     captureInFlight = false
     waitingGroup = null
+    qualityAnalyzer.reset()
     OfflineModels.status.removeObserver(modelObserver)
     unbindCamera()
     worker.shutdownNow()
@@ -538,7 +711,8 @@ internal class LiveTextRecognitionDialog(
     private const val PREF_TEXT_UPSCALE = "pref_live_recognition_text_upscale"
     private const val ENGINE_TESSERACT = "tesseract"
     private const val ENGINE_VIETOCR = "vietocr"
-    private const val LIVE_FRAME_INTERVAL_MS = 900L
+    private const val LIVE_FRAME_INTERVAL_MS = 850L
+    private const val GUIDANCE_REPEAT_MS = 2_800L
     private const val MAX_TEXT_LENGTH = 1_200
 
     internal fun imageToRotatedBitmap(image: ImageProxy): Bitmap {

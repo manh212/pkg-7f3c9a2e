@@ -45,7 +45,14 @@ class LiveRecognitionActivityTest {
     assertNull(shadowOf(activity).lastRequestedPermission)
     val checkboxes = descendants(activity.window.decorView).filterIsInstance<CheckBox>().toList()
     val buttons = descendants(activity.window.decorView).filterIsInstance<Button>().toList()
-    val dialogModes = setOf(RecognitionMode.TEXT, RecognitionMode.LOTTERY_TICKET)
+    val dialogModes = setOf(
+      RecognitionMode.TEXT,
+      RecognitionMode.POINT_AND_SPEAK,
+      RecognitionMode.CURRENCY,
+      RecognitionMode.LOTTERY_TICKET,
+      RecognitionMode.FIND_OBJECT,
+      RecognitionMode.LIGHT,
+    )
     RecognitionMode.entries.forEach { mode ->
       if (mode in dialogModes) {
         assertTrue(buttons.any { it.text == activity.getString(mode.label) })
