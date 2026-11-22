@@ -186,6 +186,26 @@
             android:theme="@style/TalkBackSettings" />
 
         <activity
+            android:name="com.google.android.accessibility.talkback.recognition.ShareImageActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/share_image_title"
+            android:theme="@style/BlankActivityTheme">
+            <intent-filter android:label="@string/share_image_title">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter android:label="@string/share_image_title">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name="com.google.android.accessibility.talkback.update.UpdateProgressActivity"
             android:excludeFromRecents="true"
             android:exported="false"

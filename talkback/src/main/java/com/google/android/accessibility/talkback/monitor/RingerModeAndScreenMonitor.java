@@ -111,6 +111,8 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
   private boolean isInteractive;
   // Records the default display state.
   private boolean defaultDisplayOn;
+  // Tracks whether display-on time/status has already been announced for the current wake.
+  private boolean announcedForCurrentWake;
   private final DisplayMonitor displayMonitor;
   private boolean enabledTellingTime = true;
 
@@ -129,11 +131,33 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
   public void onDisplayStateChanged(boolean displayOn) {
     final boolean preDisplayOn = defaultDisplayOn;
     defaultDisplayOn = displayOn;
-    if (defaultDisplayOn && !preDisplayOn) {
-      // When the display turns on, we announce the current time and the current ringer
-      // state when phone is idle.
+    if (!displayOn) {
+      if (!isDeviceInteractive()) {
+        announcedForCurrentWake = false;
+      }
+      return;
+    }
+    if (shouldAnnounceForDisplayOn(
+        defaultDisplayOn, preDisplayOn, isDeviceInteractive(), announcedForCurrentWake)) {
+      announcedForCurrentWake = true;
+      // When the display turns on while interactive (e.g., lockscreen or unlock, not AOD
+      // fingerprint touch), announce the current time and status when phone is idle.
       speakForDisplayOn(EVENT_ID_UNTRACKED);
     }
+  }
+
+  private boolean isDeviceInteractive() {
+    PowerManager powerManager = (PowerManager) service.getSystemService(Context.POWER_SERVICE);
+    return powerManager != null ? powerManager.isInteractive() : isInteractive;
+  }
+
+  static boolean shouldAnnounceForDisplayOn(
+      boolean displayOn, boolean preDisplayOn, boolean interactive, boolean alreadyAnnounced) {
+    return displayOn && !preDisplayOn && interactive && !alreadyAnnounced;
+  }
+
+  static boolean shouldAnnounceForScreenOn(boolean displayOn, boolean alreadyAnnounced) {
+    return displayOn && !alreadyAnnounced;
   }
 
   /** Creates a new instance. */
@@ -165,6 +189,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
     // noinspection deprecation
     isInteractive =
         ((PowerManager) service.getSystemService(Context.POWER_SERVICE)).isInteractive();
+    announcedForCurrentWake = isInteractive;
     isWatch = FormFactorUtils.isAndroidWear();
     executor = Executors.newSingleThreadExecutor();
   }
@@ -226,6 +251,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
       }
       case Intent.ACTION_SCREEN_OFF -> {
         isInteractive = false;
+        announcedForCurrentWake = false;
         service.onTouchExplorationScreenChanged(false);
         VolumeKeyManager.reset();
         AudioDeviceRouter router = AudioDeviceRouter.getInstance();
@@ -250,6 +276,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
     // noinspection deprecation
     isInteractive =
         ((PowerManager) service.getSystemService(Context.POWER_SERVICE)).isInteractive();
+    announcedForCurrentWake = isInteractive;
   }
 
   public boolean isInteractive() {
@@ -395,6 +422,10 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
 
   /** Handles when the screen is interactive. */
   private void handleScreenOn(EventId eventId) {
+    if (shouldAnnounceForScreenOn(defaultDisplayOn, announcedForCurrentWake)) {
+      announcedForCurrentWake = true;
+      speakForDisplayOn(eventId);
+    }
     if (!isWatch && ringerMode == AudioManager.RINGER_MODE_NORMAL) {
       final float volume;
       final float talkbackVolume =

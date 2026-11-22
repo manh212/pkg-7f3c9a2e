@@ -250,4 +250,10 @@ class LiveRecognitionExtensionsTest {
     tracker.resetTotal()
     assertEquals(0L, tracker.runningTotalVnd)
   }
+
+  @Test fun shareImageSampleSizeScalesLargeImagesCleanly() {
+    assertEquals(1, ShareImageActivity.computeInSampleSize(1200, 900, 2048))
+    assertEquals(2, ShareImageActivity.computeInSampleSize(4096, 3072, 2048))
+    assertEquals(4, ShareImageActivity.computeInSampleSize(8192, 4096, 2048))
+  }
 }

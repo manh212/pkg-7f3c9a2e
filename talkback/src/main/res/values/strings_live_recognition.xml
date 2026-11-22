@@ -88,4 +88,16 @@
     <string translatable="false" name="live_recognition_object_start">Bắt đầu tìm đồ vật</string>
     <string translatable="false" name="live_recognition_object_stop">Dừng tìm đồ vật</string>
     <string translatable="false" name="live_recognition_close">Đóng</string>
+
+    <string translatable="false" name="share_image_title">Phân tích hình ảnh (Meridian)</string>
+    <string translatable="false" name="share_image_hint">Chọn cách phân tích cho hình ảnh bạn vừa chia sẻ.</string>
+    <string translatable="false" name="share_image_read_text_offline">Đọc văn bản trong ảnh (ngoại tuyến)</string>
+    <string translatable="false" name="share_image_read_text_online">Đọc văn bản trong ảnh (AI trực tuyến)</string>
+    <string translatable="false" name="share_image_describe_detailed">Mô tả chi tiết hình ảnh</string>
+    <string translatable="false" name="share_image_copy_result">Sao chép kết quả</string>
+    <string translatable="false" name="share_image_copied">Đã sao chép kết quả.</string>
+    <string translatable="false" name="share_image_loading">Đang mở hình ảnh…</string>
+    <string translatable="false" name="share_image_ready">Đã tải ảnh xong. Hãy chọn cách phân tích.</string>
+    <string translatable="false" name="share_image_load_error">Không mở được hình ảnh đã chia sẻ.</string>
+    <string translatable="false" name="share_image_no_text">Không nhận diện thấy văn bản trong ảnh. Bạn có thể thử Đọc văn bản bằng AI trực tuyến.</string>
 </resources>
