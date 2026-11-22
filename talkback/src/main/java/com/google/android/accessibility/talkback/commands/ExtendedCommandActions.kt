@@ -24,7 +24,7 @@ import com.google.android.accessibility.talkback.gesture.BackTapCommands
 import com.google.android.accessibility.talkback.notificationlist.NotificationListActivity
 import com.google.android.accessibility.talkback.notifications.NotificationHistoryFragment
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity
-import com.google.android.accessibility.talkback.preference.TalkBackSubSettings
+import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity.TalkBackSubSettings
 import com.google.android.accessibility.talkback.quicksettings.QuickControl
 import com.google.android.accessibility.talkback.quicksettings.QuickControls
 import com.google.android.accessibility.talkback.recognition.LiveRecognitionActivity
