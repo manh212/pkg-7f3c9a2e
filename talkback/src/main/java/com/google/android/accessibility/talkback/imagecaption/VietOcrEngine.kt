@@ -75,6 +75,8 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
     }
   }
 
+  private fun distance(first: Point, second: Point): Double = hypot(first.x - second.x, first.y - second.y)
+
   private fun readLine(image: Mat, detected: Array<Point>): TesseractOcr.TextLine? {
     var box = detected
     var width = max(distance(box[0], box[1]), distance(box[3], box[2]))
