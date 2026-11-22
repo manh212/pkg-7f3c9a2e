@@ -28,6 +28,7 @@ dependencies {
     implementation libs.camera.lifecycle
     implementation libs.camera.view
     implementation libs.tensorflow.lite
+    implementation libs.mediapipe.vision
     // Grants the permissions that settings need through Shizuku, when it is installed and running.
     implementation libs.shizuku.api
     implementation libs.shizuku.provider

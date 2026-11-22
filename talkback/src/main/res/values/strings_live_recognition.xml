@@ -33,7 +33,23 @@
     <string translatable="false" name="live_recognition_connection_error">Không kết nối được với Gemini. Đã tắt các chế độ dùng Gemini.</string>
     <string translatable="false" name="live_recognition_timeout">Gemini không trả lời kịp thời. Đã tắt các chế độ dùng Gemini.</string>
     <string translatable="false" name="live_recognition_session_ended">Phiên Gemini đã kết thúc. Đã tắt các chế độ dùng Gemini.</string>
-    <string translatable="false" name="live_recognition_ocr_error">Không dùng được tính năng nhận dạng văn bản. Đã tắt Văn bản.</string>
+    <string translatable="false" name="live_recognition_ocr_error">Không dùng được tính năng nhận dạng văn bản. Đã tắt chế độ gặp lỗi.</string>
     <string translatable="false" name="live_recognition_point_above">Đọc phía trên đầu ngón tay</string>
     <string translatable="false" name="live_recognition_point_below">Đọc phía dưới đầu ngón tay</string>
+    <string translatable="false" name="live_recognition_qr_barcode">Mã QR và mã vạch</string>
+    <string translatable="false" name="live_recognition_color">Màu sắc</string>
+    <string translatable="false" name="live_recognition_lottery">Vé số</string>
+    <string translatable="false" name="live_recognition_find_object">Tìm đồ vật</string>
+    <string translatable="false" name="live_recognition_document_label">Tài liệu và hạn sử dụng</string>
+    <string translatable="false" name="live_recognition_object_error">Không tải hoặc chạy được mô hình tìm đồ vật ngoại tuyến. Đã tắt Tìm đồ vật.</string>
+    <string translatable="false" name="live_recognition_light_tone">Âm điệu báo độ sáng</string>
+    <string translatable="false" name="live_recognition_currency_sum">Cộng dồn tiền</string>
+    <string translatable="false" name="live_recognition_currency_reset">Đặt lại tổng tiền</string>
+    <string translatable="false" name="live_recognition_currency_total_reset">Đã đặt lại tổng tiền về 0 đồng.</string>
+    <string translatable="false" name="live_recognition_lottery_online">Đối chiếu vé số với kết quả trên xskt.com.vn</string>
+    <string translatable="false" name="live_recognition_object_target_all">Mục tiêu tìm đồ vật: Tất cả đồ dùng</string>
+    <string translatable="false" name="live_recognition_object_target_selected">Mục tiêu tìm đồ vật: <xliff:g id="target" example="Cái ghế">%1$s</xliff:g></string>
+    <string translatable="false" name="live_recognition_document_no_text">Không đọc thấy chữ rõ trên tờ giấy. Hãy thử giữ yên tay hơn hoặc bật đèn flash.</string>
+    <string translatable="false" name="live_recognition_object_all_items">Tất cả đồ dùng</string>
+    <string translatable="false" name="live_recognition_lottery_unverified">Chưa xác minh được kết quả vé số. Hãy đối chiếu với kết quả chính thức.</string>
 </resources>

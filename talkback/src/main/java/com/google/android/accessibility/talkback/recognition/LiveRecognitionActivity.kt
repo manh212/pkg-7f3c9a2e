@@ -34,6 +34,7 @@ import android.util.Base64
 import android.util.Size
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -57,6 +58,7 @@ import androidx.lifecycle.LiveData
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.imagecaption.OcrModelDownload
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.accessibility.talkback.actor.gemini.AiService
 import com.google.android.accessibility.talkback.actor.gemini.GeminiApiKey
@@ -66,9 +68,12 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.monitor.RecentUserInput
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.libraries.accessibility.utils.log.LogUtils
+import org.opencv.core.Point
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** The Live recognition screen. The camera runs only while this screen is in the foreground. */
@@ -93,15 +98,33 @@ class LiveRecognitionActivity : ComponentActivity() {
   )
   private val worker = Executors.newSingleThreadExecutor()
   private val processing = AtomicBoolean(false)
-  private val currencyProcessing = AtomicBoolean(false)
+  private val lotteryWorker = Executors.newSingleThreadExecutor()
+  private var lotteryLookup: Future<*>? = null
+  private var lastLookupKey: String? = null
   private val currencyTracker = CurrencyTracker()
   private var currencyRecognizer: CurrencyRecognizer? = null
+  private val qrRecognizer by lazy { QrBarcodeRecognizer() }
+  private val qrTracker = QrBarcodeTracker()
+  private val colorTracker = ColorTracker()
+  private val documentTracker = DocumentAlignmentTracker()
+  private val lotteryTracker = LotteryTicketTracker()
+  private val objectTracker = ObjectFinderTracker()
+  private var objectRecognizer: ObjectFinderRecognizer? = null
+  private val lightTone = LightToneGenerator()
+  private var lightToneEnabled = false
+  private var currencySumEnabled = false
+  private var lotteryOnlineCheck = false
+  private var targetObjectClassId: Int? = null
   private val announcements = RecognitionAnnouncements()
   private val lightListener = object : SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
       if (!resumed || RecognitionMode.LIGHT !in enabled) return
       val lux = event.values.firstOrNull() ?: return
       if (!lux.isFinite() || lux < 0) return
+      if (lightToneEnabled && TalkBackService.getInstance()?.speechController?.isSpeaking == false &&
+          !RecentUserInput.isRecent()) {
+        lightTone.playForLux(lux, SystemClock.elapsedRealtime())
+      }
       val label = when {
         lux < 10f -> R.string.live_recognition_light_dark
         lux < 100f -> R.string.live_recognition_light_dim
@@ -196,21 +219,95 @@ class LiveRecognitionActivity : ComponentActivity() {
       }
       switches[mode] = button
       column.addView(button)
+      when (mode) {
+        RecognitionMode.POINT_AND_SPEAK -> {
+          val above = RadioButton(this).apply {
+            id = View.generateViewId()
+            setText(R.string.live_recognition_point_above)
+            isChecked = true
+        }
+          column.addView(RadioGroup(this).apply {
+            addView(above)
+            addView(RadioButton(this@LiveRecognitionActivity).apply {
+              id = View.generateViewId()
+              setText(R.string.live_recognition_point_below)
+            })
+            // Sent with each request, so recognition keeps running.
+            setOnCheckedChangeListener { _, checked -> pointAbove = checked == above.id }
+          })
+        }
+        RecognitionMode.CURRENCY -> {
+          column.addView(CheckBox(this).apply {
+            text = getString(R.string.live_recognition_currency_sum)
+            textSize = 18f
+            minHeight = (48 * resources.displayMetrics.density).toInt()
+            setOnCheckedChangeListener { _, checked ->
+              currencySumEnabled = checked
+              if (!checked) currencyTracker.resetTotal()
+            }
+          })
+          column.addView(Button(this).apply {
+            text = getString(R.string.live_recognition_currency_reset)
+            textSize = 18f
+            setOnClickListener {
+              currencyTracker.resetTotal()
+              report(R.string.live_recognition_currency_total_reset)
+            }
+          })
+        }
+        RecognitionMode.LOTTERY_TICKET -> {
+          column.addView(CheckBox(this).apply {
+            text = getString(R.string.live_recognition_lottery_online)
+            textSize = 18f
+            minHeight = (48 * resources.displayMetrics.density).toInt()
+            setOnCheckedChangeListener { _, checked ->
+              lotteryOnlineCheck = checked
+              if (!checked) clearLotteryLookup()
+            }
+          })
+        }
+        RecognitionMode.FIND_OBJECT -> {
+          val targetButton = Button(this).apply {
+            text = getString(R.string.live_recognition_object_target_all)
+            textSize = 18f
+        }
+          targetButton.setOnClickListener {
+            val entries = listOf<Pair<Int?, String>>(null to getString(R.string.live_recognition_object_all_items)) +
+              CocoObjectCatalog.DAILY_LABELS_VI.entries.map { it.key to it.value }
+            val names = entries.map { it.second }.toTypedArray()
+            dialogOpen = true
+            AlertDialog.Builder(this)
+              .setTitle(R.string.live_recognition_find_object)
+              .setItems(names) { _, which ->
+                val chosen = entries[which]
+                targetObjectClassId = chosen.first
+                objectTracker.reset()
+                pendingResults.remove(SOURCE_OBJECT)
+                targetButton.text = if (chosen.first == null) {
+                  getString(R.string.live_recognition_object_target_all)
+                } else {
+                  getString(R.string.live_recognition_object_target_selected, chosen.second)
+                }
+              }
+              .setOnDismissListener { dialogOpen = false }
+              .show()
+        }
+          column.addView(targetButton)
+        }
+        RecognitionMode.LIGHT -> {
+          column.addView(CheckBox(this).apply {
+            text = getString(R.string.live_recognition_light_tone)
+            textSize = 18f
+            minHeight = (48 * resources.displayMetrics.density).toInt()
+            setOnCheckedChangeListener { _, checked ->
+              lightToneEnabled = checked
+              if (!checked) lightTone.reset()
+            }
+          })
+        }
+        else -> Unit
+      }
     }
-    val above = RadioButton(this).apply {
-      id = View.generateViewId()
-      setText(R.string.live_recognition_point_above)
-      isChecked = true
-    }
-    column.addView(RadioGroup(this).apply {
-      addView(above)
-      addView(RadioButton(this@LiveRecognitionActivity).apply {
-        id = View.generateViewId()
-        setText(R.string.live_recognition_point_below)
-      })
-      // Sent with each request, so recognition keeps running.
-      setOnCheckedChangeListener { _, checked -> pointAbove = checked == above.id }
-    })
     setContentView(ScrollView(this).apply { addView(column); fitsSystemWindows = true })
   }
 
@@ -247,9 +344,16 @@ class LiveRecognitionActivity : ComponentActivity() {
 
   override fun onDestroy() {
     loadingFeedback.stop()
-    worker.execute { currencyRecognizer?.close(); currencyRecognizer = null }
+    lightTone.reset()
+    worker.execute {
+      currencyRecognizer?.close()
+      currencyRecognizer = null
+      objectRecognizer?.close()
+      objectRecognizer = null
+    }
     describer?.close()
     worker.shutdown()
+    lotteryWorker.shutdownNow()
     super.onDestroy()
   }
 
@@ -323,11 +427,6 @@ class LiveRecognitionActivity : ComponentActivity() {
     if (mode == RecognitionMode.CURRENCY && !CurrencyRecognizer.isAvailable(this)) {
       updateSwitches()
       report(R.string.live_recognition_currency_model_missing)
-      return
-    }
-    if (mode == RecognitionMode.TEXT && !TesseractOcr.isDataDownloaded(this)) {
-      updateSwitches()
-      report(R.string.ocr_offline_model_missing)
       return
     }
     if (mode.usesCamera &&
@@ -424,6 +523,15 @@ class LiveRecognitionActivity : ComponentActivity() {
     announcements.clear()
     pendingResults.clear()
     currencyTracker.reset()
+    worker.execute {
+      qrTracker.reset()
+      colorTracker.reset()
+      documentTracker.reset()
+      lotteryTracker.reset()
+    }
+    clearLotteryLookup()
+    objectTracker.reset()
+    lightTone.reset()
     updateSwitches()
     handler.removeCallbacks(runningCheck)
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -514,15 +622,22 @@ class LiveRecognitionActivity : ComponentActivity() {
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
         val text = RecognitionMode.TEXT in enabled
         val currency = RecognitionMode.CURRENCY in enabled
-        val captureInterval = if (currency && enabled.count { it.usesCamera } == 1)
-          CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
+        val qr = RecognitionMode.QR_BARCODE in enabled
+        val color = RecognitionMode.COLOR in enabled
+        val lottery = RecognitionMode.LOTTERY_TICKET in enabled
+        val findObject = RecognitionMode.FIND_OBJECT in enabled
+        val document = RecognitionMode.DOCUMENT_LABEL in enabled
+        val fastLocalOnly = (currency || qr || color || findObject) &&
+          !(text || lottery || document || enabled.any { it.usesAi })
+        val captureInterval = if (fastLocalOnly) CURRENCY_FRAME_INTERVAL_MS else FRAME_INTERVAL_MS
         var lastFrame = -FRAME_INTERVAL_MS
         newAnalysis.setAnalyzer(worker) { frame ->
           val now = SystemClock.elapsedRealtime()
-          // Gemini takes a frame every few seconds at most, so most frames are only read for text.
+          // Gemini takes a frame every few seconds at most, so most frames run local detectors.
           val ai = describer?.canRequest() == true
+          val localNeed = text || currency || qr || color || lottery || findObject || document
           if (generation != token || now - lastFrame < captureInterval ||
-              !(text || ai || currency) || !processing.compareAndSet(false, true)) {
+              !(localNeed || ai) || !processing.compareAndSet(false, true)) {
             frame.close()
             return@setAnalyzer
           }
@@ -581,60 +696,237 @@ class LiveRecognitionActivity : ComponentActivity() {
     fun release() { bitmap.recycle(); processing.set(false) }
     if (generation != token || !resumed) { release(); return }
     if (jpeg != null) describer?.describe(jpeg, enabled.toSet(), pointAbove)
-    if (RecognitionMode.CURRENCY in enabled && currencyProcessing.compareAndSet(false, true)) {
-      val currencyFrame = try { bitmap.copy(Bitmap.Config.ARGB_8888, false) } catch (_: Exception) { null }
-      if (currencyFrame == null) {
-        currencyProcessing.set(false)
-      } else {
-        worker.execute {
-          var failed = false
-          val prediction = try {
-            val model = currencyRecognizer ?: CurrencyRecognizer(this).also { currencyRecognizer = it }
-            model.detect(currencyFrame)
-          } catch (error: Exception) {
-            LogUtils.e(TAG, "Currency recognition failed: %s", error.javaClass.simpleName)
-            failed = true
-            null
-          } finally {
-            currencyFrame.recycle()
-          }
-          handler.post {
-            currencyProcessing.set(false)
-            if (generation != token || !resumed || RecognitionMode.CURRENCY !in enabled) return@post
-            if (failed) {
-              enabled.remove(RecognitionMode.CURRENCY)
-              reconcile()
-              report(R.string.live_recognition_currency_error)
-            } else {
-              currencyTracker.observe(prediction, SystemClock.elapsedRealtime())
-                ?.let { announceResult(SOURCE_CURRENCY, it) }
-            }
-          }
-        }
-      }
-    }
-    if (RecognitionMode.TEXT !in enabled) { release(); return }
+    val runCurrency = RecognitionMode.CURRENCY in enabled
+    val runObject = RecognitionMode.FIND_OBJECT in enabled
+    val targetId = targetObjectClassId
+    val runQr = RecognitionMode.QR_BARCODE in enabled
+    val runColor = RecognitionMode.COLOR in enabled
+    val runDoc = RecognitionMode.DOCUMENT_LABEL in enabled
+    val runLottery = RecognitionMode.LOTTERY_TICKET in enabled
+    val runText = RecognitionMode.TEXT in enabled
+
+    if (!(runCurrency || runObject || runQr || runColor || runDoc || runLottery || runText)) { release(); return }
     try {
       worker.execute {
-        val text = try {
-          TesseractOcr.recognizeText(this, bitmap)
+        try {
+          if (generation != token) return@execute
+          val nowMs = SystemClock.elapsedRealtime()
+          if (runCurrency) {
+            detectCurrency(bitmap, token, nowMs)
+          }
+          if (runObject) {
+            detectObject(bitmap, token, targetId, nowMs)
+          }
+          val needsOcr = runDoc || runLottery || runText
+          val ocrReady = !needsOcr || OcrModelDownload.isReady(this) ||
+            OcrModelDownload.installBundled(this)
+          if (!ocrReady) {
+            handler.post {
+              if (generation == token && resumed) {
+                enabled.removeAll(OCR_MODES)
+                reconcile()
+                report(R.string.ocr_offline_model_missing)
+              }
+            }
+          }
+          if (runQr) {
+            val decoded = qrRecognizer.decode(bitmap)
+            val spoken = qrTracker.observe(decoded, nowMs)
+            if (spoken != null) {
+              handler.post {
+                if (generation == token && resumed && RecognitionMode.QR_BARCODE in enabled) {
+                  announceResult(SOURCE_QR, spoken)
+                }
+              }
+            }
+          }
+          if (runColor) {
+            val sample = ColorRecognizer.detect(this, bitmap)
+            val spoken = colorTracker.observe(sample, nowMs)
+            if (spoken != null) {
+              handler.post {
+                if (generation == token && resumed && RecognitionMode.COLOR in enabled) {
+                  announceResult(SOURCE_COLOR, spoken)
+                }
+              }
+            }
+          }
+          val alignment = if (ocrReady && (runDoc || runLottery)) {
+            try {
+              DocumentAlignmentScanner.analyze(bitmap)
+            } catch (error: RuntimeException) {
+              LogUtils.e(TAG, "Document alignment failed: %s", error.javaClass.simpleName)
+              DocumentAlignmentResult(DocumentAlignmentState.READY, "")
+            }
+          } else null
+          var originalTextRead = false
+          var originalText: String? = null
+          fun readText(corners: Array<Point>? = null): String? {
+            val dewarped = corners?.let { DocumentAlignmentScanner.dewarp(bitmap, it) }
+            if (dewarped != null) {
+              return try {
+                TesseractOcr.recognizeText(this, dewarped)
+              } finally {
+                dewarped.recycle()
+              }
+            }
+            if (!originalTextRead) {
+              originalText = TesseractOcr.recognizeText(this, bitmap)
+              originalTextRead = true
+            }
+            return originalText
+          }
+          if (runDoc && alignment != null) {
+            when (val decision = documentTracker.observe(alignment, nowMs)) {
+              is DocumentAlignmentTracker.Decision.Guide -> {
+                handler.post {
+                  if (generation == token && resumed && RecognitionMode.DOCUMENT_LABEL in enabled) {
+                    announceResult(SOURCE_DOCUMENT, decision.message)
+                  }
+                }
+              }
+              is DocumentAlignmentTracker.Decision.Capture -> {
+                val rawDocText = readText(decision.corners)
+                handler.post {
+                  if (generation != token || !resumed || RecognitionMode.DOCUMENT_LABEL !in enabled) return@post
+                  if (rawDocText == null) {
+                    enabled.remove(RecognitionMode.DOCUMENT_LABEL)
+                    reconcile()
+                    report(R.string.live_recognition_ocr_error)
+                  } else {
+                    val formatted = ExpiryDateExtractor.formatDocumentSpeech(rawDocText, MAX_TEXT_LENGTH)
+                    announceResult(
+                      SOURCE_DOCUMENT,
+                      formatted.ifBlank { getString(R.string.live_recognition_document_no_text) },
+                    )
+                  }
+                }
+              }
+              DocumentAlignmentTracker.Decision.Wait -> Unit
+            }
+          }
+          if (runLottery && alignment != null) {
+            if (alignment.state == DocumentAlignmentState.BLURRY) {
+              handler.post {
+                if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
+                  announceResult(SOURCE_LOTTERY, alignment.guidance)
+                }
+              }
+            } else {
+              val ocrText = readText(alignment.corners)
+              if (ocrText == null) {
+                handler.post {
+                  if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
+                    enabled.remove(RecognitionMode.LOTTERY_TICKET)
+                    reconcile()
+                    report(R.string.live_recognition_ocr_error)
+                  }
+                }
+              } else {
+                val parsed = LotteryTicketParser.parse(ocrText)
+                val confirmed = lotteryTracker.observe(parsed, nowMs)
+                if (confirmed != null) {
+                  handler.post {
+                    if (generation == token && resumed && RecognitionMode.LOTTERY_TICKET in enabled) {
+                      announceResult(SOURCE_LOTTERY, confirmed.speak())
+                      if (lotteryOnlineCheck && confirmed is ParsedLotteryTicket.Traditional) {
+                        startLotteryLookup(confirmed, token)
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          if (runText && ocrReady) {
+            val text = readText()
+            handler.post {
+              if (generation != token || !resumed) return@post
+              if (text == null) {
+                enabled.remove(RecognitionMode.TEXT)
+                reconcile()
+                report(R.string.live_recognition_ocr_error)
+              } else if (SystemClock.elapsedRealtime() - capturedAt <= GeminiLiveSession.MAX_RESULT_AGE_MS) {
+                announceResult(SOURCE_TEXT, text.take(MAX_TEXT_LENGTH))
+              }
+            }
+          }
+        } catch (error: RuntimeException) {
+          LogUtils.e(TAG, "Local recognition frame failed: %s", error.javaClass.simpleName)
+        } catch (error: OutOfMemoryError) {
+          LogUtils.e(TAG, "Local recognition ran out of memory")
+          handler.post { if (generation == token && resumed) cameraFailed() }
         } finally {
           release()
         }
-        handler.post {
-          if (generation != token || !resumed) return@post
-          if (text == null) {
-            enabled.remove(RecognitionMode.TEXT)
-            reconcile()
-            report(R.string.live_recognition_ocr_error)
-          } else if (SystemClock.elapsedRealtime() - capturedAt <= GeminiLiveSession.MAX_RESULT_AGE_MS) {
-            announceResult(SOURCE_TEXT, text.take(MAX_TEXT_LENGTH))
-          }
-        }
       }
-    } catch (_: java.util.concurrent.RejectedExecutionException) {
+    } catch (_: RejectedExecutionException) {
       release()
     }
+  }
+
+  private fun detectCurrency(bitmap: Bitmap, token: Int, nowMs: Long) {
+    val prediction = try {
+      val model = currencyRecognizer ?: CurrencyRecognizer(this).also { currencyRecognizer = it }
+      model.detect(bitmap)
+    } catch (error: Exception) {
+      LogUtils.e(TAG, "Currency recognition failed: %s", error.javaClass.simpleName)
+      handler.post { stopFailedMode(RecognitionMode.CURRENCY, token, R.string.live_recognition_currency_error) }
+      return
+    }
+    handler.post {
+      if (generation != token || !resumed || RecognitionMode.CURRENCY !in enabled) return@post
+      currencyTracker.observe(prediction, nowMs, currencySumEnabled)
+        ?.let { announceResult(SOURCE_CURRENCY, it) }
+    }
+  }
+
+  private fun detectObject(bitmap: Bitmap, token: Int, target: Int?, nowMs: Long) {
+    val detected = try {
+      val model = objectRecognizer ?: ObjectFinderRecognizer.open(this).also { objectRecognizer = it }
+      model.detect(bitmap, target)
+    } catch (error: Exception) {
+      LogUtils.e(TAG, "Object recognition failed: %s", error.javaClass.simpleName)
+      handler.post { stopFailedMode(RecognitionMode.FIND_OBJECT, token, R.string.live_recognition_object_error) }
+      return
+    } catch (error: LinkageError) {
+      LogUtils.e(TAG, "Object recognition runtime failed: %s", error.javaClass.simpleName)
+      handler.post { stopFailedMode(RecognitionMode.FIND_OBJECT, token, R.string.live_recognition_object_error) }
+      return
+    }
+    handler.post {
+      if (generation != token || !resumed || target != targetObjectClassId ||
+          RecognitionMode.FIND_OBJECT !in enabled) return@post
+      objectTracker.observe(detected, nowMs)?.let { announceResult(SOURCE_OBJECT, it) }
+    }
+  }
+
+  private fun stopFailedMode(mode: RecognitionMode, token: Int, message: Int) {
+    if (generation != token || !resumed || !enabled.remove(mode)) return
+    reconcile()
+    report(message)
+  }
+
+  private fun startLotteryLookup(ticket: ParsedLotteryTicket.Traditional, token: Int) {
+    if (ticket.station == null || ticket.drawDate == null || lastLookupKey == ticket.dedupeKey) return
+    clearLotteryLookup()
+    lastLookupKey = ticket.dedupeKey
+    lotteryLookup = lotteryWorker.submit {
+      val result = LotteryResultChecker.checkOnline(ticket)
+      handler.post {
+        if (generation == token && resumed && lotteryOnlineCheck &&
+            lastLookupKey == ticket.dedupeKey && RecognitionMode.LOTTERY_TICKET in enabled) {
+          announceResult(SOURCE_LOTTERY_LOOKUP, result ?: getString(R.string.live_recognition_lottery_unverified))
+        }
+      }
+    }
+  }
+
+  private fun clearLotteryLookup() {
+    lotteryLookup?.cancel(true)
+    lotteryLookup = null
+    lastLookupKey = null
+    pendingResults.remove(SOURCE_LOTTERY_LOOKUP)
   }
 
   private fun announceResult(source: String, text: String) {
@@ -684,6 +976,13 @@ class LiveRecognitionActivity : ComponentActivity() {
     private const val SOURCE_LIGHT = "light"
     private const val SOURCE_AI = "ai"
     private const val SOURCE_CURRENCY = "currency"
+    private const val SOURCE_QR = "qr"
+    private const val SOURCE_COLOR = "color"
+    private const val SOURCE_DOCUMENT = "document"
+    private const val SOURCE_LOTTERY = "lottery"
+    private const val SOURCE_LOTTERY_LOOKUP = "lotteryLookup"
+    private val OCR_MODES = setOf(RecognitionMode.TEXT, RecognitionMode.DOCUMENT_LABEL, RecognitionMode.LOTTERY_TICKET)
+    private const val SOURCE_OBJECT = "object"
     /** The first part of the key that says the user agreed to images going to an AI service. */
     private const val SERVICE_CONSENT_PREF = "pref_live_recognition_consent_"
     /** How old an answer from the on-device model or an AI service can be when it comes. */

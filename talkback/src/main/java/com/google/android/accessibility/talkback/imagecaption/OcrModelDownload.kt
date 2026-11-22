@@ -3,7 +3,12 @@ package com.google.android.accessibility.talkback.imagecaption
 import android.content.Context
 import androidx.lifecycle.MutableLiveData
 import com.google.android.accessibility.talkback.actor.gemini.local.ModelDownloader
+import android.util.AtomicFile
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.security.DigestOutputStream
+import java.security.MessageDigest
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -34,7 +39,42 @@ internal object OcrModelDownload {
   @JvmStatic fun detectorFile(context: Context) = File(directory(context), detector.path)
 
   @JvmStatic fun isReady(context: Context): Boolean =
-    models.all { File(directory(context), it.path).let { file -> file.isFile && file.length() == it.size } }
+    models.all { isInstalled(File(directory(context), it.path), it) }
+
+  @Synchronized
+  fun installBundled(context: Context): Boolean {
+    return models.all { model ->
+      val target = File(directory(context), model.path)
+      try {
+        isInstalled(target, model) || installAsset(context, target, model)
+      } catch (_: IOException) {
+        false
+      }
+    }
+  }
+
+  private fun isInstalled(target: File, model: Model): Boolean =
+    target.isFile && target.length() == model.size
+
+  private fun installAsset(context: Context, target: File, model: Model): Boolean {
+    val file = AtomicFile(target)
+    var output: FileOutputStream? = null
+    try {
+      context.assets.open("offline-ocr-v1/${model.path}").use { input ->
+        val stream = file.startWrite()
+        output = stream
+        val digest = MessageDigest.getInstance("SHA-256")
+        val copied = input.copyTo(DigestOutputStream(stream, digest))
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (copied != model.size || actual != model.sha256) return false
+        file.finishWrite(stream)
+        output = null
+        return isInstalled(target, model)
+      }
+    } finally {
+      output?.let(file::failWrite)
+    }
+  }
 
   fun start(context: Context) {
     if (!downloading.compareAndSet(false, true)) return
@@ -42,26 +82,28 @@ internal object OcrModelDownload {
     val directory = directory(context.applicationContext)
     executor.execute {
       val ok = try {
-        var completed = 0L
-        var shown = 0
-        val total = models.sumOf { it.size }
-        val downloader = ModelDownloader()
-        models.all { model ->
-          val target = File(directory, model.path)
-          val installed = target.isFile && target.length() == model.size ||
-            downloader.download(
-              model.url, target, model.size, model.sha256,
-              onProgress = { bytes ->
-                val progress = ((completed + bytes) * 100 / total).toInt().coerceIn(0, 99)
-                if (progress != shown) {
-                  shown = progress
-                  status.postValue(Status(progress = progress))
-                }
-              },
-              isCancelled = { false },
-            ) == ModelDownloader.Result.Done
-          if (installed) completed += model.size
-          installed
+        installBundled(context.applicationContext) || synchronized(this) {
+          var completed = 0L
+          var shown = 0
+          val total = models.sumOf { it.size }
+          val downloader = ModelDownloader()
+          models.all { model ->
+            val target = File(directory, model.path)
+            val installed = isInstalled(target, model) ||
+              downloader.download(
+                model.url, target, model.size, model.sha256,
+                onProgress = { bytes ->
+                  val progress = ((completed + bytes) * 100 / total).toInt().coerceIn(0, 99)
+                  if (progress != shown) {
+                    shown = progress
+                    status.postValue(Status(progress = progress))
+                  }
+                },
+                isCancelled = { false },
+              ) == ModelDownloader.Result.Done
+            if (installed) completed += model.size
+            installed
+          }
         }
       } catch (_: Exception) {
         false

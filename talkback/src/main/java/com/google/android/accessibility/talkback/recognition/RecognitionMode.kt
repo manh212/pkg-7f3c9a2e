@@ -26,6 +26,11 @@ enum class RecognitionMode(val label: Int, val usesAi: Boolean) {
   PEOPLE(R.string.live_recognition_people, true),
   DOORS(R.string.live_recognition_doors, true),
   CURRENCY(R.string.live_recognition_currency, false),
+  QR_BARCODE(R.string.live_recognition_qr_barcode, false),
+  COLOR(R.string.live_recognition_color, false),
+  LOTTERY_TICKET(R.string.live_recognition_lottery, false),
+  FIND_OBJECT(R.string.live_recognition_find_object, false),
+  DOCUMENT_LABEL(R.string.live_recognition_document_label, false),
   LIGHT(R.string.live_recognition_light, false);
 
   val usesCamera: Boolean

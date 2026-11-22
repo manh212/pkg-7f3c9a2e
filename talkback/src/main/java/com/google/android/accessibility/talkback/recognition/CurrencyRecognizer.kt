@@ -76,9 +76,12 @@ internal class CurrencyTracker {
   private var missing = 0
   private var spoken: Int? = null
   private var lastSpokenAtMs = Long.MIN_VALUE
+  private var countedCurrentNote = false
+  var runningTotalVnd: Long = 0L
+    private set
 
-  /** Repeat a stable denomination while it remains in the camera view. */
-  fun observe(prediction: CurrencyPrediction?, nowMs: Long): String? {
+  /** Repeat a stable denomination while it remains in the camera view, optionally summing new notes. */
+  fun observe(prediction: CurrencyPrediction?, nowMs: Long, accumulateTotal: Boolean = false): String? {
     if (prediction == null || prediction.confidence < 0.78f) {
       missing++
       candidate = null
@@ -86,6 +89,7 @@ internal class CurrencyTracker {
       if (missing >= 3) {
         spoken = null
         lastSpokenAtMs = Long.MIN_VALUE
+        countedCurrentNote = false
       }
       return null
     }
@@ -97,11 +101,24 @@ internal class CurrencyTracker {
       consecutive++
     }
     if (consecutive < 2) return null
+    val isNewNote = !countedCurrentNote
     if (spoken == candidate && lastSpokenAtMs != Long.MIN_VALUE &&
         nowMs - lastSpokenAtMs < REPEAT_INTERVAL_MS) return null
     spoken = candidate
     lastSpokenAtMs = nowMs
-    return CurrencyModelOutput.speak(prediction.denomination)
+    val base = CurrencyModelOutput.speak(prediction.denomination)
+    if (accumulateTotal && isNewNote) {
+      countedCurrentNote = true
+      runningTotalVnd += prediction.denomination.toLong()
+      val formattedTotal = java.text.NumberFormat.getIntegerInstance(java.util.Locale("vi", "VN")).format(runningTotalVnd)
+      return "$base. Tổng: $formattedTotal đồng"
+    }
+    return base
+  }
+
+  fun resetTotal() {
+    runningTotalVnd = 0L
+    countedCurrentNote = false
   }
 
   fun reset() {
