@@ -44,7 +44,7 @@ internal object OfflineModels {
 
   fun models(group: Group): List<Model> = when (group) {
     Group.SCREEN_OCR -> listOf(detector, vietnamese)
-    Group.CAMERA_OCR -> listOf(detector, encoder, decoder, vocabulary)
+    Group.CAMERA_OCR -> listOf(detector, vietnamese)
     Group.CURRENCY -> listOf(currency)
     Group.OBJECTS -> listOf(objects)
   }

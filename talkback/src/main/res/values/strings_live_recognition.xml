@@ -55,6 +55,9 @@
     <string translatable="false" name="live_recognition_model_download_started">Đang tải mô hình nhận dạng. Tính năng sẽ tự chạy khi tải xong.</string>
     <string translatable="false" name="live_recognition_model_download_progress">Đang tải mô hình nhận dạng: %1$d%%</string>
     <string translatable="false" name="live_recognition_model_download_failed">Không tải được mô hình. Kiểm tra mạng và bật lại chế độ để thử tiếp.</string>
+    <string translatable="false" name="live_recognition_model_download_ready">Đã tải xong mô hình. Đang bắt đầu nhận dạng.</string>
+    <string translatable="false" name="live_recognition_text_retry">Nhận dạng mất quá lâu. Đang thử lại với hình ảnh mới.</string>
+    <string translatable="false" name="live_recognition_text_not_found">Chưa thấy chữ rõ. Hãy hướng camera vào văn bản hoặc bật đèn flash.</string>
     <string translatable="false" name="live_recognition_text_confirming">Giữ yên điện thoại để đọc rõ chữ.</string>
     <string translatable="false" name="live_recognition_ocr_unlicensed">Giấy phép hiện tại không có tính năng nhận dạng chữ OCR.</string>
 </resources>

@@ -104,9 +104,10 @@ class LiveRecognitionActivity : ComponentActivity() {
   private var lastLookupKey: String? = null
   private val currencyTracker = CurrencyTracker()
   private var currencyRecognizer: CurrencyRecognizer? = null
-  private val textTracker = CameraTextTracker()
+  private val textTracker = CameraTextTracker(requireConfirmation = false)
   private val documentTextTracker = CameraTextTracker()
   private val waitingModels = mutableSetOf<OfflineModels.Group>()
+  private var modelProgressBucket = 0
   private var qrOcrRequested = false
   private var qrOcrFailed = false
   private val qrRecognizer by lazy { QrBarcodeRecognizer() }
@@ -328,6 +329,9 @@ class LiveRecognitionActivity : ComponentActivity() {
           waitingModels.removeAll(finished.toSet())
           reconcile()
           if (failed.isNotEmpty()) report(R.string.live_recognition_model_download_failed)
+          else if (waitingModels.isEmpty()) {
+            speak(getString(R.string.live_recognition_model_download_ready), false)
+          }
         } else showModelProgress()
       }
     }
@@ -567,6 +571,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     if (!resumed || (enabled.isEmpty() && !flashOn)) {
       waitingModels.clear()
+      modelProgressBucket = 0
       loadingFeedback.stop()
       status.setText(if (lightFailed) R.string.live_recognition_light_unavailable
         else R.string.live_recognition_camera_off)
@@ -583,7 +588,11 @@ class LiveRecognitionActivity : ComponentActivity() {
     waitingModels.retainAll(missing)
     waitingModels.addAll(missing)
     added.forEach { OfflineModels.request(this, it) }
-    if (added.isNotEmpty()) speak(getString(R.string.live_recognition_model_download_started), false)
+    if (added.isNotEmpty()) {
+      modelProgressBucket = 0
+      status.setText(R.string.live_recognition_model_download_started)
+      speak(getString(R.string.live_recognition_model_download_started), false)
+    }
     val cameraRecognition = enabled.any { it.usesCamera && modeReady(it) }
     if (!cameraRecognition && waitingModels.isNotEmpty() && !flashOn) {
       loadingFeedback.start()
@@ -631,6 +640,11 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     val progress = if (total == 0L) 0 else (completed * 100 / total).toInt()
     status.text = getString(R.string.live_recognition_model_download_progress, progress)
+    val bucket = progress / 25
+    if (bucket > modelProgressBucket) {
+      modelProgressBucket = bucket
+      announceResult(SOURCE_MODELS, getString(R.string.live_recognition_model_download_progress, bucket * 25))
+    }
   }
 
   /** Describes frames with what Describe image uses: see [AiBackend]. */
@@ -939,34 +953,37 @@ class LiveRecognitionActivity : ComponentActivity() {
                 DocumentAlignmentScanner.guidanceFor(DocumentAlignmentState.BLURRY)
               else -> null
             }
-            if (guidance != null) {
-              textTracker.reset()
-              handler.post {
-                if (generation == token && resumed && RecognitionMode.TEXT in enabled) announceResult(SOURCE_TEXT, guidance)
-              }
-            } else {
-              val text = readText()
-              val completedAt = SystemClock.elapsedRealtime()
-              val confirmed = text?.let { textTracker.observe(it.take(MAX_TEXT_LENGTH), completedAt) }
-              LogUtils.d(TAG, "Camera OCR elapsedMs=%d chars=%d stable=%s sharpness=%.1f",
-                completedAt - capturedAt, text?.length ?: 0, confirmed != null, alignment?.sharpness ?: 0.0)
-              handler.post {
-                if (generation != token || !resumed || RecognitionMode.TEXT !in enabled) return@post
-                if (text == null) {
-                  enabled.remove(RecognitionMode.TEXT)
-                  reconcile()
-                  report(R.string.live_recognition_ocr_error)
-                } else if (confirmed != null && completedAt - capturedAt <= LOCAL_OCR_MAX_AGE_MS) {
-                  announceResult(SOURCE_TEXT, confirmed)
-                } else {
-                  pendingResults.remove(SOURCE_TEXT)
-                  status.setText(R.string.live_recognition_text_confirming)
-                }
+            val text = readText()
+            val completedAt = SystemClock.elapsedRealtime()
+            val confirmed = text?.let { textTracker.observe(it.take(MAX_TEXT_LENGTH), completedAt) }
+            LogUtils.d(TAG, "Camera OCR elapsedMs=%d chars=%d readable=%s sharpness=%.1f",
+              completedAt - capturedAt, text?.length ?: 0, confirmed != null, alignment?.sharpness ?: 0.0)
+            handler.post {
+              if (generation != token || !resumed || RecognitionMode.TEXT !in enabled) return@post
+              if (text == null) {
+                enabled.remove(RecognitionMode.TEXT)
+                reconcile()
+                report(R.string.live_recognition_ocr_error)
+              } else if (confirmed != null && completedAt - capturedAt <= LOCAL_OCR_MAX_AGE_MS) {
+                pendingResults.remove(SOURCE_TEXT_STATUS)
+                announceResult(SOURCE_TEXT, confirmed)
+              } else {
+                pendingResults.remove(SOURCE_TEXT)
+                announceResult(SOURCE_TEXT_STATUS, guidance ?: getString(
+                  if (text.isBlank()) R.string.live_recognition_text_not_found
+                  else R.string.live_recognition_text_retry))
               }
             }
           }
         } catch (error: RuntimeException) {
           LogUtils.e(TAG, "Local recognition frame failed: %s", error.javaClass.simpleName)
+          if (runText || runDoc || runLottery) handler.post {
+            if (generation == token && resumed) {
+              enabled.removeAll(OCR_MODES)
+              reconcile()
+              report(R.string.live_recognition_ocr_error)
+            }
+          }
         } catch (error: OutOfMemoryError) {
           LogUtils.e(TAG, "Local recognition ran out of memory")
           handler.post { if (generation == token && resumed) cameraFailed() }
@@ -1087,6 +1104,8 @@ class LiveRecognitionActivity : ComponentActivity() {
     /** Whether the user agreed to camera images being sent to Gemini. */
     private const val CLOUD_CONSENT_PREF = "pref_live_recognition_cloud_consent"
     private const val SOURCE_TEXT = "text"
+    private const val SOURCE_TEXT_STATUS = "textStatus"
+    private const val SOURCE_MODELS = "models"
     private const val SOURCE_LIGHT = "light"
     private const val SOURCE_AI = "ai"
     private const val SOURCE_CURRENCY = "currency"

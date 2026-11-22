@@ -4,7 +4,7 @@ import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.max
 
-internal class CameraTextTracker {
+internal class CameraTextTracker(private val requireConfirmation: Boolean = true) {
   private var previous = ""
   private var previousAt = Long.MIN_VALUE
 
@@ -18,7 +18,7 @@ internal class CameraTextTracker {
       nowMs - previousAt in 0L..60_000L && similar(previous, normalized)
     previous = normalized
     previousAt = nowMs
-    return if (consistent) text else null
+    return if (!requireConfirmation || consistent) text else null
   }
 
   fun reset() {

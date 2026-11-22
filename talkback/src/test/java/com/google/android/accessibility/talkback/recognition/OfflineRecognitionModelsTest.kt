@@ -26,8 +26,9 @@ class OfflineRecognitionModelsTest {
 
   @Test fun featureGroupsDownloadOnlyTheirRequiredModels() {
     val camera = OfflineModels.models(OfflineModels.Group.CAMERA_OCR)
-    assertTrue(camera.containsAll(listOf(OfflineModels.encoder, OfflineModels.decoder, OfflineModels.vocabulary)))
-    assertFalse(camera.contains(OfflineModels.vietnamese))
+    assertEquals(listOf(OfflineModels.detector, OfflineModels.vietnamese), camera)
+    assertEquals(OfflineModels.models(OfflineModels.Group.SCREEN_OCR), camera)
+    assertFalse(camera.any { it in listOf(OfflineModels.encoder, OfflineModels.decoder, OfflineModels.vocabulary) })
     assertEquals(listOf(OfflineModels.currency), OfflineModels.models(OfflineModels.Group.CURRENCY))
     assertEquals(listOf(OfflineModels.objects), OfflineModels.models(OfflineModels.Group.OBJECTS))
     OfflineModels.Group.entries.flatMap(OfflineModels::models).forEach { model ->
@@ -49,5 +50,33 @@ class OfflineRecognitionModelsTest {
     RandomAccessFile(target, "rw").use { it.setLength(OfflineModels.currency.size) }
     assertTrue(OfflineModels.isReady(context, OfflineModels.Group.CURRENCY))
     assertFalse(OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR))
+  }
+
+  @Test fun cameraRequiresLegacyVietnameseDataEvenIfVietOcrWasPreviouslyDownloaded() {
+    val context = RuntimeEnvironment.getApplication()
+    val oldData = OfflineModels.file(context, OfflineModels.vietnamese)
+    val installed = listOf(OfflineModels.detector, OfflineModels.encoder,
+      OfflineModels.decoder, OfflineModels.vocabulary)
+    oldData.delete()
+    try {
+      installed.forEach { model ->
+        OfflineModels.file(context, model).let { file ->
+          file.parentFile!!.mkdirs()
+          RandomAccessFile(file, "rw").use { it.setLength(model.size) }
+        }
+      }
+      assertFalse(OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR))
+      oldData.parentFile!!.mkdirs()
+      RandomAccessFile(oldData, "rw").use { it.setLength(OfflineModels.vietnamese.size) }
+      assertTrue(OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR))
+      assertTrue(OfflineModels.isReady(context, OfflineModels.Group.SCREEN_OCR))
+      listOf(OfflineModels.encoder, OfflineModels.decoder, OfflineModels.vocabulary).forEach {
+        OfflineModels.file(context, it).delete()
+      }
+      assertTrue(OfflineModels.isReady(context, OfflineModels.Group.CAMERA_OCR))
+    } finally {
+      oldData.delete()
+      installed.forEach { OfflineModels.file(context, it).delete() }
+    }
   }
 }

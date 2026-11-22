@@ -86,7 +86,7 @@ public final class TesseractOcr {
       OfflineModels.request(context, OfflineModels.Group.CAMERA_OCR);
       return null;
     }
-    List<TextLine> lines = RemoteOcr.recognize(context, bitmap, false, true);
+    List<TextLine> lines = RemoteOcr.recognize(context, bitmap, false);
     if (lines == null) {
       return null;
     }
@@ -96,7 +96,7 @@ public final class TesseractOcr {
       text.add(line.text);
       confidence += line.confidence;
     }
-    LogUtils.i("CameraOcr", "VietOCR lines=%d meanConfidence=%d width=%d height=%d",
+    LogUtils.i("CameraOcr", "Tesseract lines=%d meanConfidence=%d width=%d height=%d",
         lines.size(), lines.isEmpty() ? 0 : confidence / lines.size(), bitmap.getWidth(), bitmap.getHeight());
     return String.join("\n", text);
   }

@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CameraTextTrackerTest {
+  @Test fun liveTextReadsTheFirstNonEmptyFrameWithoutWaitingForAMatch() {
+    val tracker = CameraTextTracker(requireConfirmation = false)
+    assertEquals("Văn bản tiếng Việt", tracker.observe("Văn bản tiếng Việt", 1000))
+    assertEquals("Nội dung tiếp theo", tracker.observe("Nội dung tiếp theo", 2000))
+    assertNull(tracker.observe("", 3000))
+    assertEquals("Một dòng khác", tracker.observe("Một dòng khác", 4000))
+  }
+
   @Test fun oneFrameAndChangingFragmentsAreNeverSpoken() {
     val tracker = CameraTextTracker()
     assertNull(tracker.observe("Em", 1000))
