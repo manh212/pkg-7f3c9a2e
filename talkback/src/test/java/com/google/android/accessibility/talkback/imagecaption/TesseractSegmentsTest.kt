@@ -22,16 +22,16 @@ class TesseractSegmentsTest {
   }
 
   @Test fun projectsWordBoundsFromPaddedLineToScreen() {
-    val corners = floatArrayOf(100f, 200f, 300f, 200f, 300f, 248f, 100f, 248f)
-    val word = intArrayOf(26, 10, 66, 30)
+    val corners = floatArrayOf(100f, 200f, 300f, 200f, 300f, 264f, 100f, 264f)
+    val word = intArrayOf(30, 14, 70, 34)
     assertEquals(Rect(120, 204, 160, 224),
       OcrEngine.projectWord(word, corners, 200, 400, 500))
   }
 
   @Test fun clipsProjectedWordBoundsToTheInputImage() {
-    val corners = floatArrayOf(0f, 0f, 200f, 0f, 200f, 48f, 0f, 48f)
-    val word = intArrayOf(0, 0, 26, 30)
+    val corners = floatArrayOf(0f, 0f, 200f, 0f, 200f, 64f, 0f, 64f)
+    val word = intArrayOf(0, 0, 30, 34)
     assertEquals(Rect(0, 0, 20, 24),
-      OcrEngine.projectWord(word, corners, 200, 200, 48))
+      OcrEngine.projectWord(word, corners, 200, 200, 64))
   }
 }
