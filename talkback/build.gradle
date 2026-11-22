@@ -54,6 +54,7 @@ if (distributionProfile.format != 2 || (recoveryPublicKey && !(recoveryPublicKey
 android {
     namespace = "com.google.android.accessibility.talkback"
     defaultConfig {
+        consumerProguardFiles 'mediapipe-r8.pro'
         buildConfigField("String", "APPLICATION_ID", '"' + talkbackApplicationId + '"')
         buildConfigField("String", "GEMINI_API_KEY", '"' + geminiApiKey + '"')
         buildConfigField("String", "GEMINI_MODEL", '"' + geminiModel + '"')
