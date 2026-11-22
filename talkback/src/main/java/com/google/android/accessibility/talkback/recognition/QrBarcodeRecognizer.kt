@@ -208,7 +208,8 @@ internal object QrContentFormatter {
       .replace(Regex("\\p{M}+"), "").replace('đ', 'd')
       .replace(Regex("\\s+"), " ")
     val title = when {
-      Regex("\\bcan cuoc(?: cong dan)?\\b").containsMatchIn(normalized) -> "Căn cước công dân"
+      Regex("\\bcan cuoc cong dan\\b").containsMatchIn(normalized) -> "Căn cước công dân"
+      Regex("\\bcan cuoc\\b").containsMatchIn(normalized) -> "Căn cước"
       Regex("\\bchung minh nhan dan\\b").containsMatchIn(normalized) -> "Chứng minh nhân dân"
       else -> return null
     }
@@ -290,23 +291,25 @@ internal object QrContentFormatter {
 
   internal fun parseVietnameseCccd(raw: String): String? {
     val parts = normalizePayload(raw).split("|")
-    if (parts.size !in 6..9) return null
+    if (parts.size < 6) return null
     val cccd = parts[0].trim()
     if (!cccd.matches(Regex("\\d{12}"))) return null
-    val fullName = parts[2].trim()
-    val dobRaw = parts[3].trim()
-    val gender = parts[4].trim()
-    val address = parts[5].trim()
-    if (fullName.count(Char::isLetter) < 2) return null
-    val birthDate = parseCardDate(dobRaw) ?: return null
+    val nameIndex = listOf(2, 1).firstOrNull { index ->
+      parts[index].count(Char::isLetter) >= 2 && parseCardDate(parts[index + 1]) != null
+    } ?: return null
+    val fullName = parts[nameIndex].trim()
+    val gender = parts[nameIndex + 2].trim()
+    val address = parts[nameIndex + 3].trim()
+    val birthDate = parseCardDate(parts[nameIndex + 1]) ?: return null
     val dob = "%02d/%02d/%04d".format(Locale.ROOT,
       birthDate.dayOfMonth, birthDate.monthValue, birthDate.year)
-    val out = mutableListOf("Căn cước công dân: $fullName")
+    val title = if (nameIndex == 2) "Căn cước công dân" else "Căn cước"
+    val out = mutableListOf("$title: $fullName")
     if (dob.isNotEmpty()) out += "sinh ngày $dob"
     if (gender.isNotEmpty()) out += "giới tính $gender"
     out += "số ${spaceDigits(cccd)}"
     if (address.isNotEmpty()) out += "thường trú $address"
-    parts.getOrNull(6)?.let(::parseCardDate)?.let { issued ->
+    parts.getOrNull(nameIndex + 4)?.let(::parseCardDate)?.let { issued ->
       out += "cấp ngày %02d/%02d/%04d".format(Locale.ROOT,
         issued.dayOfMonth, issued.monthValue, issued.year)
     }

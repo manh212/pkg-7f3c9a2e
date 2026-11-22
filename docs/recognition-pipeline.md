@@ -5,7 +5,7 @@ Reviewed on 2026-11-22.
 | Task | Implementation | Reason |
 | --- | --- | --- |
 | QR and barcode decoding | ZXing-C++ Android 3.1.1, Java ZXing fallback | Read multiple symbols, rotated and inverted codes locally. Prefer a structured citizen ID payload over generic symbols in the same image. |
-| Citizen ID classification | Validated pipe-separated identity fields, or matching printed identity heading and number for a numeric barcode | A barcode symbology or an arbitrary twelve-digit value alone cannot identify a citizen ID card. |
+| Citizen ID classification | Validated pipe-separated identity fields with or without the old-ID slot, or matching printed identity heading and number for a numeric barcode | A barcode symbology or an arbitrary twelve-digit value alone cannot identify a citizen ID card. |
 | Document framing | OpenCV contours, convex quadrilateral validation and perspective correction | Suitable for flat pages and labels. Preserve aspect ratio and distinct corners on rotated pages. This does not flatten curved book pages. |
 | Text and lottery OCR | PP-OCRv6 small ONNX detector and Vietnamese Tesseract LSTM `tessdata_best` 4.1.0 | Replace the smaller `fast` recognizer with the accuracy-oriented official model. Bundle the verified model and update existing installations by model size. Recognition can take longer. |
 | Lottery interpretation | Conservative parsing after OCR, repeated-frame confirmation | Parse ticket numbers, draw dates and stations without inventing missing digits or choosing an ambiguous date. Online checking remains optional and limited to traditional tickets and the existing RSS feed. |
@@ -22,9 +22,10 @@ Camera text, document, ticket and QR modes request higher-detail frames when the
 ## Sources and limitations
 
 - [ZXing-C++ Android integration](https://github.com/zxing-cpp/zxing-cpp/tree/v3.1.1/wrappers/android)
+- [Official identity-card fields from July 2024](https://mps.gov.vn/chinh-sach-phap-luat/bai-viet/ban-hanh-mau-the-can-cuoc-mau-giay-chung-nhan-can-cuoc-su-dung-tu-0172024-d1-t1415)
 - [Citizen ID QR field example](https://github.com/Llein-Dev/vn-cccd-parser#2-parse-chip-cccd-qr-code)
 - [Official Tesseract model comparison](https://tesseract-ocr.github.io/tessdoc/Data-Files.html)
 - [Pinned Vietnamese model](https://github.com/tesseract-ocr/tessdata_best/blob/4.1.0/vie.traineddata)
 - [Power 6/55 play options](https://vietlott.vn/vi/choi/power-6-55/cach-choi)
 
-There is no supplied photograph or decoded payload from the reported card. Source review establishes weaknesses in first-result selection and classification, but cannot establish which code was decoded on that card. The changes cover those weaknesses. Device photographs remain necessary to measure decoding rate, Vietnamese character accuracy and camera latency. The model author's comparative accuracy claim is not an application-specific benchmark.
+There is no supplied photograph or decoded payload from the reported card. Source review establishes weaknesses in first-result selection and classification, but cannot establish which code was decoded on that card. The parser tolerates additional fields and validates the name/date positions in both supported layouts. The official field list does not specify the serialized ordering; representative payloads from physical cards are still needed. The changes cover those weaknesses. Device photographs remain necessary to measure decoding rate, Vietnamese character accuracy and camera latency. The model author's comparative accuracy claim is not an application-specific benchmark.

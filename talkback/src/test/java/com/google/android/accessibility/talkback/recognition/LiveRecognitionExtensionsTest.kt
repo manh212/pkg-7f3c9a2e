@@ -60,6 +60,13 @@ class LiveRecognitionExtensionsTest {
     assertNull(QrContentFormatter.parseVietnameseCccd(payload.replace("15/08/1999", "31/02/1999")))
     assertNull(QrContentFormatter.parseVietnameseCccd(payload.replace("Nguyễn Văn An", "")))
     assertTrue(QrContentFormatter.format("001099012345", BarcodeFormat.QR_CODE).startsWith("Mã QR"))
+    val extended = payload.trim() + "|001098123456|Nguyễn Văn Bình|Trần Thị An"
+    assertTrue(QrContentFormatter.format(extended, BarcodeFormat.QR_CODE)
+      .startsWith("Căn cước công dân: Nguyễn Văn An"))
+    val direct = "001099012345|Nguyễn Văn An|15081999|Nam|Hà Nội|01012024||"
+    val directSpeech = QrContentFormatter.format(direct, BarcodeFormat.QR_CODE)
+    assertTrue(directSpeech.startsWith("Căn cước: Nguyễn Văn An"))
+    assertTrue(directSpeech.contains("cấp ngày 01/01/2024"))
   }
 
   @Test fun numericBarcodeNeedsMatchingPrintedIdentityBeforeBeingCalledACard() {
