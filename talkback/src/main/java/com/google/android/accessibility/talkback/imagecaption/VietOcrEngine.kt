@@ -160,7 +160,22 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
     private val lock = Any()
     private var engine: VietOcrEngine? = null
     private val idle = Handler(Looper.getMainLooper())
-    private val release = Runnable { synchronized(lock) { engine?.close(); engine = null } }
+    private var lastUsedAt = 0L
+    private val release = object : Runnable {
+      override fun run() {
+        synchronized(lock) {
+          if (engine == null) return
+          val remaining = 180_000L - (SystemClock.elapsedRealtime() - lastUsedAt)
+          if (remaining > 0) {
+            idle.postDelayed(this, remaining)
+          } else {
+            val current = engine
+            engine = null
+            try { current?.close() } catch (_: Exception) { LogUtils.w(TAG, "Could not release idle camera OCR") }
+          }
+        }
+      }
+    }
 
     @JvmStatic fun recognize(context: Context, bitmap: Bitmap): List<TesseractOcr.TextLine>? {
       if (!DeviceLicenseManager.allows(context, "ocr") ||
@@ -181,6 +196,7 @@ internal class VietOcrEngine private constructor(context: Context) : AutoCloseab
         } catch (_: OutOfMemoryError) {
           null
         } finally {
+          lastUsedAt = SystemClock.elapsedRealtime()
           idle.postDelayed(release, 180_000L)
         }
       }

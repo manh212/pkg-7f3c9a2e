@@ -468,7 +468,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     }
     enabled.add(mode)
     reconcile()
-    if (mode in enabled) speakMode(mode)
+    if (mode in enabled && modelGroup(mode) !in waitingModels) speakMode(mode)
   }
 
   /**
