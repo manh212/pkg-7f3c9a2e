@@ -63,6 +63,9 @@ import com.google.android.accessibility.talkback.preference.base.DeveloperPrefFr
 import com.google.android.accessibility.talkback.preference.base.ItemDetailsOrderFragment;
 import com.google.android.accessibility.talkback.preference.base.MenuControlsGroupFragment;
 import com.google.android.accessibility.talkback.preference.base.NavigationFeedbackFragment;
+import com.google.android.accessibility.talkback.commands.CommandCategoryFragment;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
+import com.google.android.accessibility.talkback.commands.InputSettingsFragment;
 import com.google.android.accessibility.talkback.preference.base.NavigationGroupFragment;
 import com.google.android.accessibility.talkback.preference.base.NavigationPrefFragment;
 import com.google.android.accessibility.talkback.preference.base.OcrSettingsFragment;
@@ -185,6 +188,9 @@ public final class QuickActionSections {
         TouchActivationFragment.class,
         SmartContextGestureSettingsFragment.class,
         DirectTouchFragment.class,
+        CommandsFragment.class,
+        CommandCategoryFragment.class,
+        InputSettingsFragment.class,
         TalkBackGestureShortcutPreferenceFragment.class,
         TalkBackKeyboardShortcutPreferenceFragment.class,
         VolumeKeySettingsFragment.class,

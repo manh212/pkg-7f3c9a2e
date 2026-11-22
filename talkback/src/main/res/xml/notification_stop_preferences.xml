@@ -27,7 +27,7 @@
       android:summary="@string/notification_pocket_summary"
       android:title="@string/notification_pocket_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.volume.VolumeKeySettingsFragment"
+      android:fragment="com.google.android.accessibility.talkback.commands.InputSettingsFragment"
       android:key="pref_notification_stop_volume_keys_screen"
       android:title="@string/notification_stop_volume_keys_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference

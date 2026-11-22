@@ -38,7 +38,7 @@ import androidx.annotation.StringRes;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
 import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.preference.base.AdvancedSettingFragment;
-import com.google.android.accessibility.talkback.preference.base.TalkBackKeyboardShortcutPreferenceFragment;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.talkback.preference.base.TextFormattingDetailFragment;
 import com.google.android.accessibility.talkback.training.TutorialInitiator;
 import com.google.android.accessibility.talkback.trainingcommon.TrainingIpcClient.ServiceData;
@@ -172,7 +172,7 @@ public abstract class PageConfig {
   public enum LinkInfo {
     TEXT_FORMATTING_OPTIONS(TextFormattingDetailFragment.class.getName(), TYPE_TALKBACK_SETTINGS),
     KEYBOARD_SHORTCUT(
-        TalkBackKeyboardShortcutPreferenceFragment.class.getName(), TYPE_TALKBACK_SETTINGS),
+        CommandsFragment.class.getName(), TYPE_TALKBACK_SETTINGS),
     ADVANCED_SETTING(AdvancedSettingFragment.class.getName(), TYPE_TALKBACK_SETTINGS),
     TUTORIAL();
 

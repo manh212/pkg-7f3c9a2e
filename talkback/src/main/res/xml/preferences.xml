@@ -25,9 +25,17 @@
       android:key="@string/pref_settings_group_navigation_key"
       android:title="@string/title_pref_group_navigation" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.MenuControlsGroupFragment"
-      android:key="@string/pref_settings_group_menu_controls_key"
-      android:title="@string/title_pref_menu_panels" />
+      android:fragment="com.google.android.accessibility.talkback.commands.CommandsFragment"
+      android:key="pref_unified_commands_screen"
+      android:title="@string/title_pref_commands" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.commands.InputSettingsFragment"
+      android:key="pref_input_settings_screen"
+      android:title="@string/title_pref_input_settings" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.preference.base.SelectorMenuFragment"
+      android:key="@string/pref_category_manage_selector_menu_key"
+      android:title="@string/title_pref_category_selector_menu" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.SoundAndVibrationFragment"
       android:key="@string/pref_sound_and_vibration_key"

@@ -212,7 +212,7 @@ public final class SettingsSearchIndex {
     }
 
     private void addCommands() {
-      String path = context.getString(R.string.title_pref_category_manage_gestures);
+      String path = context.getString(R.string.title_pref_commands);
       for (GestureListPreference.ActionItem item : new GestureListPreference(context, null).getActionItems()) {
         if (item.viewType == GestureListPreference.TYPE_ACTION_ITEM && !item.text.isEmpty()) {
           add(
@@ -220,7 +220,7 @@ public final class SettingsSearchIndex {
                   item.text,
                   "",
                   path,
-                  BASE + "TalkBackGestureShortcutPreferenceFragment",
+                  "com.google.android.accessibility.talkback.commands.CommandsFragment",
                   "",
                   new Bundle(),
                   false,

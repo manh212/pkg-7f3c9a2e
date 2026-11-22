@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_input_gestures_category"
+      android:title="@string/input_settings_category_gestures">
+    <ListPreference
+        android:defaultValue="@string/pref_gesture_set_value_default"
+        android:entries="@array/pref_gesture_set_entries"
+        android:entryValues="@array/pref_gesture_set_values"
+        android:key="@string/pref_gesture_set_key"
+        android:summary="%s"
+        android:title="@string/pref_gesture_set_key_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="true"
+        android:key="pref_extended_two_finger_gestures"
+        android:summary="@string/extended_gestures_summary"
+        android:title="@string/extended_gestures_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="true"
+        android:key="@string/pref_two_finger_rotation_key"
+        android:summary="@string/two_finger_rotation_summary"
+        android:title="@string/two_finger_rotation_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="@string/pref_practice_gestures_entry_point_key"
+        android:title="@string/practice_gestures_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_input_edge_category"
+      android:title="@string/edge_gestures_title">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="false"
+        android:key="pref_edge_gestures_enabled"
+        android:title="@string/edge_gestures_enabled" />
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:defaultValue="24"
+        android:key="pref_edge_gestures_width"
+        android:max="48"
+        android:title="@string/edge_gestures_width"
+        app:min="12"
+        app:seekBarIncrement="2"
+        app:showSeekBarValue="true" />
+    <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
+        android:defaultValue="32"
+        android:key="pref_edge_gestures_distance"
+        android:max="72"
+        android:title="@string/edge_gestures_distance"
+        app:min="16"
+        app:seekBarIncrement="2"
+        app:showSeekBarValue="true" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_input_back_tap_category"
+      android:title="@string/title_pref_category_back_tap">
+    <ListPreference
+        android:defaultValue="@string/pref_back_tap_sensitivity_default"
+        android:dialogTitle="@string/title_pref_back_tap_sensitivity"
+        android:entries="@array/pref_back_tap_sensitivity_entries"
+        android:entryValues="@array/pref_back_tap_sensitivity_values"
+        android:key="@string/pref_back_tap_sensitivity_key"
+        android:summary="%s"
+        android:title="@string/title_pref_back_tap_sensitivity" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_input_volume_category"
+      android:title="@string/title_pref_volume_keys">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="false"
+        android:key="pref_volume_keys_managed"
+        android:summary="@string/volume_keys_managed_summary"
+        android:title="@string/volume_keys_managed_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:defaultValue="1500"
+        android:dependency="pref_volume_keys_managed"
+        android:entries="@array/volume_short_hold_delay_entries"
+        android:entryValues="@array/volume_short_hold_delay_values"
+        android:key="pref_volume_short_hold_ms"
+        android:summary="%s"
+        android:title="@string/volume_short_hold_delay_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:defaultValue="4000"
+        android:dependency="pref_volume_keys_managed"
+        android:entries="@array/volume_long_hold_delay_entries"
+        android:entryValues="@array/volume_long_hold_delay_values"
+        android:key="pref_volume_long_hold_ms"
+        android:summary="%s"
+        android:title="@string/volume_long_hold_delay_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
+        android:defaultValue="@bool/pref_volume_keys_adjust_speech_while_speaking_default"
+        android:key="@string/pref_volume_keys_adjust_speech_while_speaking_key"
+        android:title="@string/title_pref_volume_keys_adjust_speech_while_speaking" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_volume_keys_adjust_sliders_default"
+        android:key="@string/pref_volume_keys_adjust_sliders_key"
+        android:summary="@string/summary_pref_volume_keys_adjust_sliders"
+        android:title="@string/title_pref_volume_keys_adjust_sliders" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_volume_keys_move_cursor_default"
+        android:key="@string/pref_volume_keys_move_cursor_key"
+        android:summary="@string/summary_pref_volume_keys_move_cursor"
+        android:title="@string/title_pref_volume_keys_move_cursor" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="false"
+        android:key="pref_notification_volume_keys_stop"
+        android:summary="@string/input_settings_volume_stop_notifications_summary"
+        android:title="@string/input_settings_volume_stop_notifications_title" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_input_keyboard_category"
+      android:title="@string/input_settings_category_keyboard">
+    <ListPreference
+        android:defaultValue="@string/new_keymap_entry_value"
+        android:entries="@array/pref_select_keymap_entries"
+        android:entryValues="@array/pref_select_keymap_values"
+        android:key="@string/pref_select_keymap_key"
+        android:summary="%s"
+        android:title="@string/keycombo_menu_select_keymap" />
+    <ListPreference
+        android:defaultValue="@string/trigger_modifier_alt_entry_value"
+        android:entries="@array/pref_choose_trigger_modifier_entries"
+        android:entryValues="@array/pref_choose_trigger_modifier_values"
+        android:key="@string/pref_default_keymap_trigger_modifier_key"
+        android:summary="%s"
+        android:title="@string/keycombo_menu_choose_trigger_modifier" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_input_containers_category"
+      android:title="@string/input_settings_category_profiles_and_menus">
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.commands.GestureProfilesFragment"
+        android:key="pref_gesture_profiles_screen"
+        android:summary="@string/input_settings_profiles_summary"
+        android:title="@string/title_pref_gesture_profiles" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.commands.AppGesturesFragment"
+        android:key="pref_app_gestures_screen"
+        android:summary="@string/input_settings_app_gestures_summary"
+        android:title="@string/title_pref_app_gestures" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.preference.base.CustomMenusFragment"
+        android:key="pref_custom_menus_screen"
+        android:summary="@string/input_settings_custom_menus_summary"
+        android:title="@string/custom_menus_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.quicksettings.QuickSettingsItemsFragment"
+        android:key="pref_quick_settings_items_screen"
+        android:title="@string/title_pref_quick_settings_items" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+</PreferenceScreen>

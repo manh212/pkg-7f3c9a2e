@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string translatable="false" name="title_pref_input_settings">Cài đặt đầu vào</string>
+    <string translatable="false" name="input_settings_category_gestures">Cử chỉ cảm ứng</string>
+    <string translatable="false" name="input_settings_category_keyboard">Bàn phím cứng</string>
+    <string translatable="false" name="input_settings_category_profiles_and_menus">Hồ sơ, ứng dụng, menu và bảng nhanh</string>
+    <string translatable="false" name="input_settings_profiles_summary">Tạo, đổi tên, xóa hoặc kích hoạt hồ sơ cử chỉ. Gán lệnh trong Danh sách lệnh.</string>
+    <string translatable="false" name="input_settings_app_gestures_summary">Quản lý danh sách ứng dụng có cử chỉ riêng. Gán lệnh trong Danh sách lệnh.</string>
+    <string translatable="false" name="input_settings_custom_menus_summary">Tạo, đổi tên, xóa hoặc sắp xếp thứ tự menu tùy chỉnh. Thêm lệnh trong Danh sách lệnh.</string>
+    <string translatable="false" name="input_settings_volume_stop_notifications_title">Dừng đọc thông báo bằng phím âm lượng</string>
+    <string translatable="false" name="input_settings_volume_stop_notifications_summary">Nhấn phím âm lượng để dừng ngay khi đang đọc thông báo.</string>
+
+    <string translatable="false" name="commands_controls_header">Thao tác nhanh</string>
+    <string translatable="false" name="commands_categories_header">Nhóm lệnh</string>
+    <string translatable="false" name="commands_results_header">Kết quả (%1$d lệnh)</string>
+    <string translatable="false" name="commands_no_results">Không tìm thấy lệnh phù hợp.</string>
+    <string translatable="false" name="commands_search_title">Tìm kiếm lệnh</string>
+    <string translatable="false" name="commands_search_hint">Nhập tên lệnh hoặc tên cử chỉ đã gán</string>
+    <string translatable="false" name="commands_search_active_summary">Đang lọc: %1$s</string>
+    <string translatable="false" name="commands_search_clear">Xóa tìm kiếm</string>
+    <string translatable="false" name="commands_filter_assigned_only">Chỉ hiển thị lệnh đã gán</string>
+    <string translatable="false" name="commands_category_summary">Đã gán %1$d/%2$d lệnh</string>
+    <string translatable="false" name="commands_unassigned_summary">Chưa gán</string>
+
+    <string translatable="false" name="commands_add_binding">Thêm gán mới…</string>
+    <string translatable="false" name="commands_edit_binding">Sửa (đổi sang thao tác khác)</string>
+    <string translatable="false" name="commands_remove_binding">Xóa gán này</string>
+    <string translatable="false" name="commands_binding_removed">Đã xóa %1$s.</string>
+    <string translatable="false" name="commands_choose_target_title">Gán cho: %1$s</string>
+
+    <string translatable="false" name="commands_target_touch_gesture">Cử chỉ màn hình</string>
+    <string translatable="false" name="commands_target_fingerprint_gesture">Cử chỉ cảm biến vân tay</string>
+    <string translatable="false" name="commands_target_edge_gesture">Cử chỉ cạnh màn hình</string>
+    <string translatable="false" name="commands_target_back_tap">Gõ mặt lưng</string>
+    <string translatable="false" name="commands_target_keyboard_shortcut">Phím tắt bàn phím</string>
+    <string translatable="false" name="commands_target_volume_key">Phím âm lượng</string>
+    <string translatable="false" name="commands_target_meridian_menu">Hiện trong Menu Meridian</string>
+    <string translatable="false" name="commands_target_custom_menu">Thêm vào Menu tùy chỉnh</string>
+    <string translatable="false" name="commands_target_gesture_profile">Gán vào Hồ sơ cử chỉ</string>
+    <string translatable="false" name="commands_target_app_gesture">Gán cho Cử chỉ theo ứng dụng</string>
+
+    <string translatable="false" name="commands_added_to_meridian_menu">Đã thêm %1$s vào Menu Meridian.</string>
+    <string translatable="false" name="commands_removed_from_meridian_menu">Đã bỏ %1$s khỏi Menu Meridian.</string>
+    <string translatable="false" name="commands_no_custom_menus_hint">Chưa có Menu tùy chỉnh nào. Hãy tạo menu mới trong Cài đặt đầu vào trước rồi quay lại đây để thêm lệnh.</string>
+    <string translatable="false" name="commands_no_gesture_profiles_hint">Chưa có Hồ sơ cử chỉ nào. Hãy tạo hồ sơ mới trong Cài đặt đầu vào trước rồi quay lại đây để gán lệnh.</string>
+    <string translatable="false" name="commands_no_app_gestures_hint">Chưa thêm ứng dụng nào. Hãy thêm ứng dụng trong Cài đặt đầu vào > Cử chỉ trong ứng dụng trước rồi quay lại đây để gán lệnh.</string>
+
+    <string translatable="false" name="commands_reset_defaults">Khôi phục mặc định</string>
+    <string translatable="false" name="commands_reset_gestures">Đặt lại cử chỉ màn hình và vân tay</string>
+    <string translatable="false" name="commands_reset_edge">Đặt lại cử chỉ cạnh</string>
+    <string translatable="false" name="commands_reset_back_tap">Đặt lại gõ mặt lưng</string>
+    <string translatable="false" name="commands_reset_keyboard">Đặt lại phím tắt bàn phím</string>
+    <string translatable="false" name="commands_reset_volume">Đặt lại phím âm lượng</string>
+    <string translatable="false" name="commands_reset_meridian_menu">Đặt lại Menu Meridian</string>
+    <string translatable="false" name="commands_reset_all">Đặt lại tất cả</string>
+    <string translatable="false" name="commands_reset_confirm">Bạn có chắc muốn %1$s về mặc định không?</string>
+    <string translatable="false" name="commands_reset_done">Đã hoàn tất: %1$s.</string>
+</resources>

@@ -11,7 +11,7 @@ import android.widget.TextView;
 import androidx.core.text.HtmlCompat;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
 import com.google.android.accessibility.talkback.R;
-import com.google.android.accessibility.talkback.preference.base.TalkBackKeyboardShortcutPreferenceFragment;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.utils.preference.BasePreferencesActivity;
 
 /** Activity shows notifications for user how to switch to Default keymap. */
@@ -38,7 +38,7 @@ public class TalkBackKeymapChangesActivity extends BasePreferencesActivity {
               new Intent(TalkBackKeymapChangesActivity.this, TalkBackPreferencesActivity.class);
           intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
           intent.putExtra(
-              FRAGMENT_NAME, TalkBackKeyboardShortcutPreferenceFragment.class.getName());
+              FRAGMENT_NAME, CommandsFragment.class.getName());
           TalkBackKeymapChangesActivity.this.startActivity(intent);
         });
   }

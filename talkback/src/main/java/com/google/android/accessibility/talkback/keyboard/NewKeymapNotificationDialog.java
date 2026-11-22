@@ -28,7 +28,7 @@ import androidx.annotation.StringRes;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.dialog.BaseDialog;
-import com.google.android.accessibility.talkback.preference.base.TalkBackKeyboardShortcutPreferenceFragment;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.preference.PreferencesActivity;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -57,7 +57,7 @@ public class NewKeymapNotificationDialog extends BaseDialog {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(
             PreferencesActivity.FRAGMENT_NAME,
-            TalkBackKeyboardShortcutPreferenceFragment.class.getName());
+            CommandsFragment.class.getName());
         context.startActivity(intent);
       }
       default -> {

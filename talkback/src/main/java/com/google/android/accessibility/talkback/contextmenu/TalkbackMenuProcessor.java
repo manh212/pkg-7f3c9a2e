@@ -361,6 +361,7 @@ public class TalkbackMenuProcessor {
     if (!showMenuItem(R.string.pref_show_context_menu_subtitle_find_again_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.subtitle_find_again_menu);
     }
+    appendPinnedCommandItems(menu);
     menu.sortItemsByOrder();
     applySavedOrder(menu);
 
@@ -1234,6 +1235,36 @@ public class TalkbackMenuProcessor {
     if (item != null) {
       item.setSkipRefocusEvents(skip);
       item.setSkipWindowEvents(skip);
+    }
+  }
+
+  /** Appends any extra commands pinned to the Meridian menu from the unified Commands list. */
+  private void appendPinnedCommandItems(ContextMenu menu) {
+    java.util.Set<String> pinned =
+        com.google.android.accessibility.talkback.commands.UnifiedCommandBindings
+            .pinnedMeridianMenuCommands(prefs);
+    if (pinned.isEmpty()) {
+      return;
+    }
+    int order = 9000;
+    for (String commandValue : pinned) {
+      if (commandValue == null || commandValue.isEmpty()) {
+        continue;
+      }
+      String label =
+          com.google.android.accessibility.talkback.commands.Commands.label(service, commandValue);
+      if (label == null || label.isEmpty()) {
+        continue;
+      }
+      ContextMenuItem item = menu.add(0, Menu.NONE, order++, label);
+      item.setOnMenuItemClickListener(
+          clicked -> {
+            if (service.getGestureController() != null) {
+              service.getGestureController().performAction(commandValue, EVENT_ID_UNTRACKED);
+            }
+            return true;
+          });
+      item.setDeferredType(DeferredType.WINDOWS_STABLE);
     }
   }
 }

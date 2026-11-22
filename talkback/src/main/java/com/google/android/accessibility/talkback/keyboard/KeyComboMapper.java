@@ -91,7 +91,7 @@ import com.google.android.accessibility.talkback.review.ObjectNavigation;
 import com.google.android.accessibility.talkback.review.ScreenReview;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
 import com.google.android.accessibility.talkback.monitor.BatteryMonitor;
-import com.google.android.accessibility.talkback.preference.base.TalkBackKeyboardShortcutPreferenceFragment;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.talkback.selector.SelectorController;
 import com.google.android.accessibility.talkback.selector.SelectorController.AnnounceType;
 import com.google.android.accessibility.talkback.tutorial.TutorialActivity;
@@ -957,7 +957,7 @@ public class KeyComboMapper {
   private void openManageKeyboardShortcuts() {
     Intent intent = new Intent(accessibilityService, TalkBackPreferencesActivity.class);
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-    intent.putExtra(FRAGMENT_NAME, TalkBackKeyboardShortcutPreferenceFragment.class.getName());
+    intent.putExtra(FRAGMENT_NAME, CommandsFragment.class.getName());
     accessibilityService.startActivity(intent);
   }
 
