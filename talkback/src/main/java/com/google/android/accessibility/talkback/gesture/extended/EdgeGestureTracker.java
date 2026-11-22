@@ -10,6 +10,7 @@ final class EdgeGestureTracker {
 
   private static final float DIRECTION_RATIO = 1.5f;
   private static final long STEP_INTERVAL_MS = 65;
+  private static final float CONTINUOUS_STEP_FACTOR = 0.65f;
 
   private final Area area;
   final Edge edge;
@@ -33,21 +34,34 @@ final class EdgeGestureTracker {
     if (x < area.left || x >= area.right || y < area.top || y >= area.bottom) {
       return null;
     }
-    if (y >= area.sideBottom - area.width) {
+    boolean inBottom = y >= area.sideBottom - area.width;
+    boolean inLeft = x - area.left <= area.width;
+    boolean inRight = area.right() - x <= area.width;
+    if (!inBottom && !inLeft && !inRight) {
+      return null;
+    }
+    if (inBottom && (inLeft || inRight)) {
+      float distBottom = Math.max(0f, area.bottom - y);
+      float distSide = inLeft ? Math.max(0f, x - area.left) : Math.max(0f, area.right - x);
+      if (distSide < distBottom) {
+        int sideZone = zone(y, area.top, area.sideBottom);
+        return new EdgeGestureTracker(area, inLeft ? Edge.LEFT : Edge.RIGHT, sideZone, x, y);
+      }
       return new EdgeGestureTracker(area, Edge.BOTTOM, zone(x, area.left, area.right), x, y);
     }
-    int zone = zone(y, area.top, area.sideBottom);
-    if (x - area.left <= area.width) {
-      return new EdgeGestureTracker(area, Edge.LEFT, zone, x, y);
+    if (inBottom) {
+      return new EdgeGestureTracker(area, Edge.BOTTOM, zone(x, area.left, area.right), x, y);
     }
-    if (area.right - x <= area.width) {
-      return new EdgeGestureTracker(area, Edge.RIGHT, zone, x, y);
-    }
-    return null;
+    int sideZone = zone(y, area.top, area.sideBottom);
+    return new EdgeGestureTracker(area, inLeft ? Edge.LEFT : Edge.RIGHT, sideZone, x, y);
   }
 
-  private static int zone(float position, float start, float end) {
-    return Math.min(2, (int) ((position - start) * 3 / (end - start)));
+  static int zone(float position, float start, float end) {
+    if (end <= start) {
+      return 1;
+    }
+    int computed = (int) ((position - start) * 3 / (end - start));
+    return Math.max(0, Math.min(2, computed));
   }
 
   void observe(float x, float y) {
@@ -78,9 +92,43 @@ final class EdgeGestureTracker {
   }
 
   boolean takeStep(EdgeGesture gesture, float x, float y, long eventTime, boolean ending) {
-    float distance = gesture.direction == Direction.RIGHT ? x - startX : startX - x;
-    if (Math.abs(y - startY) > area.distance / 2
-        || distance < area.distance * (2 + steps)
+    if (gesture.isTap()) {
+      return false;
+    }
+    if (gesture.isLongSwipe()) {
+      float distance = gesture.direction == Direction.RIGHT ? x - startX : startX - x;
+      if (Math.abs(y - startY) > area.distance / 2
+          || distance < area.distance * (2 + steps)
+          || (steps > 0 && !ending && eventTime - lastStepAt < STEP_INTERVAL_MS)) {
+        return false;
+      }
+      steps++;
+      lastStepAt = eventTime;
+      return true;
+    }
+    float axisDistance;
+    float offAxis;
+    switch (gesture.direction) {
+      case UP -> {
+        axisDistance = startY - y;
+        offAxis = Math.abs(x - startX);
+      }
+      case DOWN -> {
+        axisDistance = y - startY;
+        offAxis = Math.abs(x - startX);
+      }
+      case IN -> {
+        axisDistance = gesture.edge == Edge.LEFT ? x - startX : startX - x;
+        offAxis = Math.abs(y - startY);
+      }
+      default -> {
+        return false;
+      }
+    }
+    float stepSize = Math.max(12f, area.distance * CONTINUOUS_STEP_FACTOR);
+    float needed = area.distance + steps * stepSize;
+    if (offAxis > area.distance * 1.5f
+        || axisDistance < needed
         || (steps > 0 && !ending && eventTime - lastStepAt < STEP_INTERVAL_MS)) {
       return false;
     }

@@ -56,8 +56,16 @@ class EdgeGestureActions(private val service: TalkBackService) {
 
     @JvmStatic
     fun repeats(context: Context, action: String): Boolean =
-      action == context.getString(R.string.shortcut_value_increase_contextual_volume) ||
+      action == context.getString(R.string.shortcut_value_increase_volume) ||
+        action == context.getString(R.string.shortcut_value_decrease_volume) ||
+        action == context.getString(R.string.shortcut_value_increase_media_volume) ||
+        action == context.getString(R.string.shortcut_value_decrease_media_volume) ||
+        action == context.getString(R.string.shortcut_value_increase_contextual_volume) ||
         action == context.getString(R.string.shortcut_value_decrease_contextual_volume) ||
+        action == context.getString(R.string.shortcut_value_speech_rate_increase) ||
+        action == context.getString(R.string.shortcut_value_speech_rate_decrease) ||
+        action == context.getString(R.string.shortcut_value_speech_pitch_increase) ||
+        action == context.getString(R.string.shortcut_value_speech_pitch_decrease) ||
         find(context, action) != null
 
     @JvmStatic

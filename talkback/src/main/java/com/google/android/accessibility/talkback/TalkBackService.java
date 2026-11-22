@@ -5199,7 +5199,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     return isServiceActive()
         && !PauseController.isPaused()
         && !yieldingToOtherScreenReader
-        && performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS);
+        && performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS);
   }
 
   public boolean performTouchClick(int displayId) {

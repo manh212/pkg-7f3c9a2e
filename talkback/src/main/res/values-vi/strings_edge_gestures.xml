@@ -19,6 +19,17 @@
   <string name="edge_gesture_down">vuốt xuống</string>
   <string name="edge_gesture_swipe_right">Vuốt dài từ trái sang phải</string>
   <string name="edge_gesture_swipe_left">Vuốt dài từ phải sang trái</string>
+  <string name="edge_gesture_tap_1">chạm 1 lần</string>
+  <string name="edge_gesture_tap_2">chạm 2 lần</string>
+  <string name="edge_gesture_tap_3">chạm 3 lần</string>
+  <string name="edge_gesture_2_fingers">2 ngón</string>
+  <string name="edge_gesture_3_fingers">3 ngón</string>
+  <string name="edge_gesture_category_format">%1$s — %2$s</string>
+  <string name="edge_gesture_group_swipe">Vuốt</string>
+  <string name="edge_gesture_group_tap_1f">Chạm 1 ngón</string>
+  <string name="edge_gesture_group_tap_2f">Chạm 2 ngón</string>
+  <string name="edge_gesture_group_tap_3f">Chạm 3 ngón</string>
+  <string name="edge_gestures_failed">Không khởi động được bộ nhận cử chỉ cạnh. Đã tạm tắt cử chỉ cạnh.</string>
   <string name="edge_gesture_previous_sentence">Đọc câu trước</string>
   <string name="edge_gesture_next_sentence">Đọc câu sau</string>
   <string name="edge_gesture_previous_recent">Mục trước trong Ứng dụng gần đây</string>

@@ -4,7 +4,11 @@ import android.content.SharedPreferences;
 import android.graphics.Insets;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
@@ -21,24 +25,36 @@ import java.util.Map;
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 final class EdgeGestureInput {
   private final TalkBackService service;
+  private final Handler handler;
+  private final EdgeHaptics haptics;
+  private final EdgeTapTracker tapTracker;
   private final Map<EdgeGesture, String> assignments = new EnumMap<>(EdgeGesture.class);
   private @Nullable EdgeGestureTracker.Area area;
   private @Nullable EdgeGestureTracker tracker;
   private @Nullable EdgeGesture claimed;
-  private boolean canUseLongSwipe;
+  private boolean hasThreeFingerBottomTap;
+  private long currentDownTime;
+  private final Runnable commitPendingTap = this::commitPendingTap;
 
   EdgeGestureInput(TalkBackService service) {
     this.service = service;
+    this.handler = new Handler(Looper.getMainLooper());
+    this.haptics = new EdgeHaptics(service);
+    this.tapTracker = new EdgeTapTracker(ViewConfiguration.get(service).getScaledTouchSlop());
   }
 
   void reload() {
     assignments.clear();
+    hasThreeFingerBottomTap = false;
     SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(service);
     String unassigned = service.getString(R.string.shortcut_value_unassigned);
     for (EdgeGesture gesture : EdgeGesture.values()) {
       String action = gesture.action(prefs, unassigned);
       if (!action.isEmpty() && !unassigned.equals(action)) {
         assignments.put(gesture, action);
+        if (gesture.isTap() && gesture.edge == EdgeGesture.Edge.BOTTOM && gesture.fingers == 3) {
+          hasThreeFingerBottomTap = true;
+        }
       }
     }
     refreshArea();
@@ -50,37 +66,84 @@ final class EdgeGestureInput {
   }
 
   void reset() {
+    handler.removeCallbacks(commitPendingTap);
     tracker = null;
     claimed = null;
-    canUseLongSwipe = false;
+    tapTracker.resetAll();
+  }
+
+  void clearStroke() {
+    tracker = null;
+    claimed = null;
+    tapTracker.resetStroke();
+  }
+
+  boolean isTrackingBottomThreeFingerTap() {
+    return hasThreeFingerBottomTap && tapTracker.isBottomThreeFingerStroke();
+  }
+
+  boolean isTrackingTap() {
+    return tapTracker.isStrokeActive();
   }
 
   void down(MotionEvent event) {
-    reset();
-    if (assignments.isEmpty()) {
+    currentDownTime = event.getEventTime();
+    tracker = null;
+    claimed = null;
+    if (assignments.isEmpty() || area == null) {
+      tapTracker.resetAll();
       return;
     }
-    if (area == null) {
-      return;
+    if (tapTracker.onDown(area, event, assignments.keySet())
+        && tapTracker.canContinueSequence(event)) {
+      handler.removeCallbacks(commitPendingTap);
+      handler.postAtTime(commitPendingTap, event.getEventTime() + EdgeTapTracker.MAX_TAP_HOLD_MS + 16);
     }
+
     EdgeGestureTracker candidate = EdgeGestureTracker.start(area, event.getX(), event.getY());
     if (candidate == null) {
       return;
     }
     for (EdgeGesture gesture : assignments.keySet()) {
-      if (gesture.edge == candidate.edge
+      if (gesture.isSwipe()
+          && gesture.edge == candidate.edge
           && (gesture.zone == candidate.zone || gesture.isLongSwipe())) {
         tracker = candidate;
-        canUseLongSwipe |= gesture.isLongSwipe();
+        break;
       }
     }
   }
 
-  boolean moveOrUp(MotionEvent event, Runnable claimInteraction) {
-    if (tracker == null) {
+  boolean onPointerDown(MotionEvent event) {
+    tracker = null;
+    claimed = null;
+    if (area == null || assignments.isEmpty()) {
+      tapTracker.resetAll();
       return false;
     }
-    boolean ending = event.getActionMasked() == MotionEvent.ACTION_UP;
+    return tapTracker.onPointerDown(area, event, assignments.keySet());
+  }
+
+  boolean moveOrUp(MotionEvent event, Runnable claimInteraction) {
+    int actionMasked = event.getActionMasked();
+    boolean ending = actionMasked == MotionEvent.ACTION_UP;
+
+    if (tapTracker.isStrokeActive()) {
+      if (actionMasked == MotionEvent.ACTION_MOVE) {
+        tapTracker.onMove(event);
+      } else if (actionMasked == MotionEvent.ACTION_POINTER_UP) {
+        tapTracker.onPointerUp(event);
+      } else if (ending) {
+        EdgeTapTracker.Stroke stroke = tapTracker.onUp(event);
+        if (stroke != null) {
+          return handleCompletedTapStroke(stroke, event, claimInteraction);
+        }
+      }
+    }
+
+    if (tracker == null || event.getPointerCount() > 1) {
+      return false;
+    }
     float x = event.getX();
     float y = event.getY();
     if (event.getHistorySize() > 0) {
@@ -89,32 +152,107 @@ final class EdgeGestureInput {
       }
     }
     tracker.observe(x, y);
-    if (!ending && claimed == null && !canUseLongSwipe) {
-      return false;
-    }
+
     EdgeGesture gesture = claimed == null ? tracker.match(x, y) : claimed;
     String action = gesture == null ? null : assignments.get(gesture);
-    if (gesture != null && action != null && gesture.isLongSwipe()
-        && EdgeGestureActions.repeats(service, action)) {
+
+    if (!ending && claimed == null && gesture != null && action != null
+        && EdgeGestureActions.isAvailable(service, action)) {
+      if (EdgeGestureActions.repeats(service, action)) {
+        if (tracker.takeStep(gesture, x, y, event.getEventTime(), /* ending= */ false)) {
+          claimInteraction.run();
+          claimed = gesture;
+          haptics.onSwipeStep();
+          service.onEdgeGesture(gesture.id(), -1);
+          return true;
+        }
+      } else {
+        claimInteraction.run();
+        claimed = gesture;
+        haptics.onSwipeConfirm();
+        return true;
+      }
+    }
+
+    if (gesture != null && action != null && EdgeGestureActions.repeats(service, action)) {
       if (tracker.takeStep(gesture, x, y, event.getEventTime(), ending)
           && (claimed != null || EdgeGestureActions.isAvailable(service, action))) {
         if (claimed == null) {
           claimInteraction.run();
           claimed = gesture;
         }
+        haptics.onSwipeStep();
         service.onEdgeGesture(gesture.id(), ending ? event.getEventTime() : -1);
       }
     } else if (ending && gesture != null && action != null
         && EdgeGestureActions.isAvailable(service, action)) {
-      claimInteraction.run();
-      claimed = gesture;
+      boolean newlyClaimed = claimed == null;
+      if (newlyClaimed) {
+        claimInteraction.run();
+        claimed = gesture;
+        haptics.onSwipeConfirm();
+      }
       service.onEdgeGesture(gesture.id(), event.getEventTime());
     }
+
     boolean handled = claimed != null;
     if (ending) {
-      reset();
+      tracker = null;
+      claimed = null;
     }
     return handled;
+  }
+
+  private boolean handleCompletedTapStroke(
+      EdgeTapTracker.Stroke stroke, MotionEvent event, Runnable claimInteraction) {
+    handler.removeCallbacks(commitPendingTap);
+    if (!tapTracker.matchesPendingStroke(stroke, currentDownTime)) {
+      commitPendingTap();
+    }
+    long eventTime = event.getEventTime();
+    int count = tapTracker.recordTap(stroke, eventTime);
+    EdgeGesture exact = EdgeGesture.findTap(stroke.edge(), stroke.zone(), stroke.fingers(), count);
+    boolean exactAssigned = exact != null && assignments.containsKey(exact);
+    boolean higherAssigned = tapTracker.hasHigherTapAssigned(stroke, count, assignments.keySet());
+
+    if (!exactAssigned && !higherAssigned) {
+      tapTracker.resetAll();
+      return false;
+    }
+
+    haptics.onEdgeTapBeat();
+    claimInteraction.run();
+    tracker = null;
+    claimed = null;
+
+    if (!higherAssigned) {
+      EdgeGesture confirmed = tapTracker.consumePending(assignments.keySet());
+      if (confirmed != null) {
+        String action = assignments.get(confirmed);
+        if (action != null && EdgeGestureActions.isAvailable(service, action)) {
+          haptics.onTapConfirm(confirmed.taps);
+          service.onEdgeGesture(confirmed.id(), eventTime);
+        }
+      }
+      return true;
+    }
+
+    handler.removeCallbacks(commitPendingTap);
+    handler.postDelayed(commitPendingTap, EdgeTapTracker.MULTI_TAP_TIMEOUT_MS);
+    return true;
+  }
+
+  private void commitPendingTap() {
+    EdgeGesture confirmed = tapTracker.consumePending(assignments.keySet());
+    if (confirmed == null) {
+      return;
+    }
+    String action = assignments.get(confirmed);
+    if (action == null || !EdgeGestureActions.isAvailable(service, action)) {
+      return;
+    }
+    haptics.onTapConfirm(confirmed.taps);
+    service.onEdgeGesture(confirmed.id(), SystemClock.uptimeMillis());
   }
 
   private @Nullable EdgeGestureTracker.Area readArea() {

@@ -30,7 +30,55 @@ public enum EdgeGesture {
   BOTTOM_MIDDLE_UP(Edge.BOTTOM, 1, Direction.UP),
   BOTTOM_RIGHT_UP(Edge.BOTTOM, 2, Direction.UP),
   BOTTOM_SWIPE_RIGHT(Edge.BOTTOM, -1, Direction.RIGHT),
-  BOTTOM_SWIPE_LEFT(Edge.BOTTOM, -1, Direction.LEFT);
+  BOTTOM_SWIPE_LEFT(Edge.BOTTOM, -1, Direction.LEFT),
+
+  LEFT_TOP_TAP_1(Edge.LEFT, 0, 1, 1),
+  LEFT_TOP_TAP_2(Edge.LEFT, 0, 1, 2),
+  LEFT_TOP_TAP_3(Edge.LEFT, 0, 1, 3),
+  LEFT_MIDDLE_TAP_1(Edge.LEFT, 1, 1, 1),
+  LEFT_MIDDLE_TAP_2(Edge.LEFT, 1, 1, 2),
+  LEFT_MIDDLE_TAP_3(Edge.LEFT, 1, 1, 3),
+  LEFT_BOTTOM_TAP_1(Edge.LEFT, 2, 1, 1),
+  LEFT_BOTTOM_TAP_2(Edge.LEFT, 2, 1, 2),
+  LEFT_BOTTOM_TAP_3(Edge.LEFT, 2, 1, 3),
+  RIGHT_TOP_TAP_1(Edge.RIGHT, 0, 1, 1),
+  RIGHT_TOP_TAP_2(Edge.RIGHT, 0, 1, 2),
+  RIGHT_TOP_TAP_3(Edge.RIGHT, 0, 1, 3),
+  RIGHT_MIDDLE_TAP_1(Edge.RIGHT, 1, 1, 1),
+  RIGHT_MIDDLE_TAP_2(Edge.RIGHT, 1, 1, 2),
+  RIGHT_MIDDLE_TAP_3(Edge.RIGHT, 1, 1, 3),
+  RIGHT_BOTTOM_TAP_1(Edge.RIGHT, 2, 1, 1),
+  RIGHT_BOTTOM_TAP_2(Edge.RIGHT, 2, 1, 2),
+  RIGHT_BOTTOM_TAP_3(Edge.RIGHT, 2, 1, 3),
+  BOTTOM_LEFT_TAP_1(Edge.BOTTOM, 0, 1, 1),
+  BOTTOM_LEFT_TAP_2(Edge.BOTTOM, 0, 1, 2),
+  BOTTOM_LEFT_TAP_3(Edge.BOTTOM, 0, 1, 3),
+  BOTTOM_MIDDLE_TAP_1(Edge.BOTTOM, 1, 1, 1),
+  BOTTOM_MIDDLE_TAP_2(Edge.BOTTOM, 1, 1, 2),
+  BOTTOM_MIDDLE_TAP_3(Edge.BOTTOM, 1, 1, 3),
+  BOTTOM_RIGHT_TAP_1(Edge.BOTTOM, 2, 1, 1),
+  BOTTOM_RIGHT_TAP_2(Edge.BOTTOM, 2, 1, 2),
+  BOTTOM_RIGHT_TAP_3(Edge.BOTTOM, 2, 1, 3),
+
+  LEFT_2F_TAP_1(Edge.LEFT, -1, 2, 1),
+  LEFT_2F_TAP_2(Edge.LEFT, -1, 2, 2),
+  LEFT_2F_TAP_3(Edge.LEFT, -1, 2, 3),
+  RIGHT_2F_TAP_1(Edge.RIGHT, -1, 2, 1),
+  RIGHT_2F_TAP_2(Edge.RIGHT, -1, 2, 2),
+  RIGHT_2F_TAP_3(Edge.RIGHT, -1, 2, 3),
+  BOTTOM_2F_TAP_1(Edge.BOTTOM, -1, 2, 1),
+  BOTTOM_2F_TAP_2(Edge.BOTTOM, -1, 2, 2),
+  BOTTOM_2F_TAP_3(Edge.BOTTOM, -1, 2, 3),
+
+  LEFT_3F_TAP_1(Edge.LEFT, -1, 3, 1),
+  LEFT_3F_TAP_2(Edge.LEFT, -1, 3, 2),
+  LEFT_3F_TAP_3(Edge.LEFT, -1, 3, 3),
+  RIGHT_3F_TAP_1(Edge.RIGHT, -1, 3, 1),
+  RIGHT_3F_TAP_2(Edge.RIGHT, -1, 3, 2),
+  RIGHT_3F_TAP_3(Edge.RIGHT, -1, 3, 3),
+  BOTTOM_3F_TAP_1(Edge.BOTTOM, -1, 3, 1),
+  BOTTOM_3F_TAP_2(Edge.BOTTOM, -1, 3, 2),
+  BOTTOM_3F_TAP_3(Edge.BOTTOM, -1, 3, 3);
 
   public enum Edge {
     LEFT(R.string.edge_gestures_left),
@@ -49,7 +97,8 @@ public enum EdgeGesture {
     UP(R.string.edge_gesture_up),
     DOWN(R.string.edge_gesture_down),
     RIGHT(R.string.edge_gesture_swipe_right),
-    LEFT(R.string.edge_gesture_swipe_left);
+    LEFT(R.string.edge_gesture_swipe_left),
+    TAP(R.string.edge_gesture_tap_1);
 
     final int title;
 
@@ -71,12 +120,25 @@ public enum EdgeGesture {
   public final Edge edge;
   final int zone;
   final Direction direction;
+  public final int fingers;
+  public final int taps;
   public final String key;
 
   EdgeGesture(Edge edge, int zone, Direction direction) {
     this.edge = edge;
     this.zone = zone;
     this.direction = direction;
+    this.fingers = 1;
+    this.taps = 0;
+    key = KEY_PREFIX + name().toLowerCase(Locale.ROOT);
+  }
+
+  EdgeGesture(Edge edge, int zone, int fingers, int taps) {
+    this.edge = edge;
+    this.zone = zone;
+    this.direction = Direction.TAP;
+    this.fingers = fingers;
+    this.taps = taps;
     key = KEY_PREFIX + name().toLowerCase(Locale.ROOT);
   }
 
@@ -84,8 +146,16 @@ public enum EdgeGesture {
     return FIRST_ID + ordinal();
   }
 
+  public boolean isTap() {
+    return taps > 0;
+  }
+
+  public boolean isSwipe() {
+    return taps == 0;
+  }
+
   public boolean isLongSwipe() {
-    return zone == -1;
+    return isSwipe() && zone == -1;
   }
 
   public static @Nullable EdgeGesture fromId(int id) {
@@ -107,7 +177,23 @@ public enum EdgeGesture {
 
   static @Nullable EdgeGesture find(Edge edge, int zone, Direction direction) {
     for (EdgeGesture gesture : GESTURES) {
-      if (gesture.edge == edge && gesture.zone == zone && gesture.direction == direction) {
+      if (gesture.isSwipe()
+          && gesture.edge == edge
+          && gesture.zone == zone
+          && gesture.direction == direction) {
+        return gesture;
+      }
+    }
+    return null;
+  }
+
+  static @Nullable EdgeGesture findTap(Edge edge, int zone, int fingers, int taps) {
+    for (EdgeGesture gesture : GESTURES) {
+      if (gesture.isTap()
+          && gesture.edge == edge
+          && gesture.zone == zone
+          && gesture.fingers == fingers
+          && gesture.taps == taps) {
         return gesture;
       }
     }
@@ -115,27 +201,46 @@ public enum EdgeGesture {
   }
 
   public String title(Context context) {
+    if (isTap()) {
+      int tapRes = switch (taps) {
+        case 1 -> R.string.edge_gesture_tap_1;
+        case 2 -> R.string.edge_gesture_tap_2;
+        default -> R.string.edge_gesture_tap_3;
+      };
+      if (fingers > 1) {
+        int fingerRes = fingers == 2 ? R.string.edge_gesture_2_fingers : R.string.edge_gesture_3_fingers;
+        return context.getString(
+            R.string.edge_gesture_zone_and_direction,
+            context.getString(fingerRes),
+            context.getString(tapRes));
+      }
+      return context.getString(
+          R.string.edge_gesture_zone_and_direction,
+          context.getString(zoneTitleRes()),
+          context.getString(tapRes));
+    }
     if (isLongSwipe()) {
       return context.getString(direction.title);
     }
-    int position;
+    return context.getString(
+        R.string.edge_gesture_zone_and_direction,
+        context.getString(zoneTitleRes()),
+        context.getString(direction.title));
+  }
+
+  private int zoneTitleRes() {
     if (edge == Edge.BOTTOM) {
-      position = switch (zone) {
+      return switch (zone) {
         case 0 -> R.string.edge_gesture_zone_left;
         case 1 -> R.string.edge_gesture_zone_middle;
         default -> R.string.edge_gesture_zone_right;
       };
-    } else {
-      position = switch (zone) {
-        case 0 -> R.string.edge_gesture_zone_top;
-        case 1 -> R.string.edge_gesture_zone_middle;
-        default -> R.string.edge_gesture_zone_bottom;
-      };
     }
-    return context.getString(
-        R.string.edge_gesture_zone_and_direction,
-        context.getString(position),
-        context.getString(direction.title));
+    return switch (zone) {
+      case 0 -> R.string.edge_gesture_zone_top;
+      case 1 -> R.string.edge_gesture_zone_middle;
+      default -> R.string.edge_gesture_zone_bottom;
+    };
   }
 
   public static boolean isEnabled(SharedPreferences prefs) {

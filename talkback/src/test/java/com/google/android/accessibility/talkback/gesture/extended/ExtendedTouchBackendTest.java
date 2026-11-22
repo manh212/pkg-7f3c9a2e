@@ -117,7 +117,10 @@ public class ExtendedTouchBackendTest {
   @After public void tearDown() {
     backend.stop();
     SharedPreferencesUtils.getSharedPreferences(service).edit()
-        .remove(EdgeGesture.LEFT_TOP_IN.key).apply();
+        .remove(EdgeGesture.LEFT_TOP_IN.key)
+        .remove(EdgeGesture.LEFT_TOP_TAP_1.key)
+        .remove(EdgeGesture.LEFT_TOP_TAP_2.key)
+        .apply();
     FocusFeedbackMapper.setTouchStopsSpeech(touchSpeechWasEnabled);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.EARLY_TOUCH_SPEECH, false);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE, false);
@@ -426,6 +429,32 @@ public class ExtendedTouchBackendTest {
     swipeRight(edge + 80, y);
     assertEquals(List.of(EdgeGesture.LEFT_TOP_IN.id(), AccessibilityService.GESTURE_SWIPE_RIGHT),
         service.gestures);
+  }
+
+  @Test public void doubleEdgeTapSurvivesFrameworkClearBetweenTaps() {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+        .putString(EdgeGesture.LEFT_TOP_TAP_1.key, service.getString(R.string.shortcut_value_overview))
+        .putString(EdgeGesture.LEFT_TOP_TAP_2.key, service.getString(R.string.shortcut_value_overview))
+        .apply();
+    backend.updateEdgeGestures(true);
+    WindowMetrics metrics = service.getSystemService(WindowManager.class).getMaximumWindowMetrics();
+    Rect bounds = metrics.getBounds();
+    Insets safe = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+        WindowInsets.Type.navigationBars() | WindowInsets.Type.statusBars()
+            | WindowInsets.Type.displayCutout() | WindowInsets.Type.mandatorySystemGestures());
+    float x = bounds.left + safe.left + 4;
+    float y = bounds.top + safe.top + (bounds.height() - safe.top - safe.bottom) / 6f;
+
+    motionAt(MotionEvent.ACTION_DOWN, x, y);
+    motionAt(MotionEvent.ACTION_UP, x, y);
+    touch.callback.onStateChanged(TouchInteractionController.STATE_CLEAR);
+    assertTrue(service.gestures.isEmpty());
+    touch.callback.onStateChanged(TouchInteractionController.STATE_TOUCH_INTERACTING);
+    motionAt(MotionEvent.ACTION_DOWN, x, y);
+    motionAt(MotionEvent.ACTION_UP, x, y);
+
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(400, TimeUnit.MILLISECONDS);
+    assertEquals(List.of(EdgeGesture.LEFT_TOP_TAP_2.id()), service.gestures);
   }
 
   private void swipeRight(float x, float y) {

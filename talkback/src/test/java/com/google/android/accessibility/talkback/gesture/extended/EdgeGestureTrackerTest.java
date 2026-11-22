@@ -29,7 +29,50 @@ public class EdgeGestureTrackerTest {
     }
     add(matches, 60, 728, 138, 728);
     add(matches, 300, 728, 222, 728);
-    assertEquals(EnumSet.allOf(EdgeGesture.class), matches);
+    EnumSet<EdgeGesture> allSwipes = EnumSet.noneOf(EdgeGesture.class);
+    for (EdgeGesture g : EdgeGesture.values()) {
+      if (g.isSwipe()) allSwipes.add(g);
+    }
+    assertEquals(23, allSwipes.size());
+    assertEquals(allSwipes, matches);
+  }
+
+  @Test
+  public void definesAllFortyFiveNewEdgeTapGestures() {
+    int taps = 0;
+    for (EdgeGesture g : EdgeGesture.values()) {
+      assertEquals(g, EdgeGesture.fromId(g.id()));
+      assertEquals(g, EdgeGesture.fromKey(g.key));
+      if (g.isTap()) {
+        taps++;
+        assertEquals(g, EdgeGesture.findTap(g.edge, g.zone, g.fingers, g.taps));
+      }
+    }
+    assertEquals(45, taps);
+    assertEquals(68, EdgeGesture.values().length);
+  }
+
+  @Test
+  public void cornerResolutionPicksCloserEdgeAndClampsZones() {
+    EdgeGestureTracker leftCorner = EdgeGestureTracker.start(AREA, 3, 725);
+    assertNotNull(leftCorner);
+    assertEquals(EdgeGesture.Edge.LEFT, leftCorner.edge);
+    assertEquals(2, leftCorner.zone);
+    assertEquals(0, EdgeGestureTracker.zone(-10, 0, 100));
+    assertEquals(2, EdgeGestureTracker.zone(200, 0, 100));
+    assertEquals(1, EdgeGestureTracker.zone(50, 100, 100));
+  }
+
+  @Test
+  public void continuousVerticalEdgeSwipeStepsRepeatedlyForVolumeOrRate() {
+    EdgeGestureTracker tracker = EdgeGestureTracker.start(AREA, 356, 620);
+    assertNotNull(tracker);
+    EdgeGesture gesture = EdgeGesture.RIGHT_BOTTOM_UP;
+    assertFalse(tracker.takeStep(gesture, 356, 595, 100, false));
+    assertTrue(tracker.takeStep(gesture, 356, 588, 110, false));
+    assertFalse(tracker.takeStep(gesture, 356, 560, 130, false));
+    assertTrue(tracker.takeStep(gesture, 356, 560, 180, false));
+    assertTrue(tracker.takeStep(gesture, 356, 535, 250, false));
   }
 
   @Test

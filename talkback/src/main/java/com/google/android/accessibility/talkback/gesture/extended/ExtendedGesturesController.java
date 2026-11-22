@@ -89,6 +89,7 @@ public final class ExtendedGesturesController {
     if (activeEdges) {
       edgesFailed = true;
       stop();
+      Toast.makeText(service, R.string.edge_gestures_failed, Toast.LENGTH_LONG).show();
       update(TalkBackService.isServiceActive()
           && !com.google.android.accessibility.talkback.pause.PauseController.isPaused());
       return;

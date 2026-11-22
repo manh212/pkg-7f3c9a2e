@@ -182,11 +182,11 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     active = false;
     handler.removeCallbacks(failure);
     finishTransition();
-    resetTouchInteraction();
+    resetTouchInteraction(false);
     try { controller.unregisterCallback(this); } catch (RuntimeException ignored) {}
   }
 
-  private void resetTouchInteraction() {
+  private void resetTouchInteraction(boolean preserveEdgeTaps) {
     LatencyExperiments.resetTouchControllerContact();
     firstPointerOnly = false;
     completedInteraction = false;
@@ -196,7 +196,11 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     movingTouchExplorationAt = 0;
     cancelStationaryTouchExploration();
     resetTwoFingerTracking();
-    resetEdge();
+    if (preserveEdgeTaps && edgeInput != null) {
+      edgeInput.clearStroke();
+    } else {
+      resetEdge();
+    }
     detector.clear();
     rotationTracker.clear();
     clearQueue();
@@ -214,6 +218,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
 
   void updateEdgeGestures(boolean enabled) {
     if (!enabled) {
+      resetEdge();
       edgeInput = null;
       return;
     }
@@ -276,8 +281,10 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
           handler.postAtTime(explore, movingTouchExplorationAt);
         }
       }
-      if (edgeInput != null && firstPointerOnly && canDetectGesture()
-          && (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP)
+      if (edgeInput != null && (firstPointerOnly || edgeInput.isTrackingTap())
+          && canDetectGesture()
+          && (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_POINTER_UP
+              || action == MotionEvent.ACTION_UP)
           && edgeInput.moveOrUp(event, claimEdge)) {
         if (action == MotionEvent.ACTION_UP) {
           firstPointerOnly = false;
@@ -313,7 +320,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
           scheduleExploration();
         }
       } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
-        resetEdge();
+        if (edgeInput != null && (!canDetectGesture() || !edgeInput.onPointerDown(event))) {
+          edgeInput.clearStroke();
+        }
         firstPointerOnly = false;
         int index = event.getActionIndex();
         handler.removeCallbacks(explore);
@@ -363,7 +372,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         delegate();
         return;
       }
-      if (event.getPointerCount() == 3 && bottomEdge(event)) {
+      if (event.getPointerCount() == 3 && bottomEdge(event)
+          && (edgeInput == null || !edgeInput.isTrackingBottomThreeFingerTap())) {
         delegate();
         return;
       }
@@ -405,6 +415,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private void scheduleExploration() {
     handler.removeCallbacks(explore);
     int selectedDelayMs = LatencyExperiments.stationaryTouchDelayMs();
+    if (edgeInput != null && edgeInput.isTrackingTap()) {
+      selectedDelayMs = Math.max(selectedDelayMs, (int) EdgeTapTracker.MAX_TAP_HOLD_MS);
+    }
     long now = SystemClock.uptimeMillis();
     movingTouchExplorationAt = now + Math.max(150, GestureConfiguration.DOUBLE_TAP_TIMEOUT_MS);
     stationaryExplorationPending = true;
@@ -444,7 +457,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     state = next;
     finishTransition();
     if (next == TouchInteractionController.STATE_CLEAR) {
-      resetTouchInteraction();
+      resetTouchInteraction(true);
       return;
     }
     handler.removeCallbacks(explore);
@@ -669,7 +682,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     finishTransition();
     state = reportedState;
     waitForTouchDown = true;
-    resetTouchInteraction();
+    resetTouchInteraction(false);
   }
 
   private boolean distorted(MotionEvent event) {
