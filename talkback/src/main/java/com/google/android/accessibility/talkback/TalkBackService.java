@@ -2168,6 +2168,15 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
+  /** Runs a command from the unified command list, including keyboard-only actions. */
+  public void performUnifiedCommand(String action) {
+    if (keyComboManager != null) {
+      keyComboManager.performUnifiedCommand(action, EVENT_ID_UNTRACKED);
+    } else {
+      performCatalogAction(action);
+    }
+  }
+
   public void performCatalogAction(String action, EventId eventId) {
     if (gestureController != null) {
       gestureController.performAction(action, eventId);

@@ -1384,6 +1384,11 @@ public class KeyComboManager
     return false;
   }
 
+  /** Performs a command from the unified command list with the keyboard command dispatcher. */
+  public void performUnifiedCommand(String command, EventId eventId) {
+    performCommandFromKeyboard(command, eventId);
+  }
+
   private void performCommandFromKeyboard(String command, EventId eventId) {
     TalkBackPhysicalKeyboardShortcut keyboardAction = Commands.keyboardActionOf(context, command);
     if (keyboardAction != null) {
