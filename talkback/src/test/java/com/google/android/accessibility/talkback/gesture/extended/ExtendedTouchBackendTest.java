@@ -125,6 +125,13 @@ public class ExtendedTouchBackendTest {
     LatencyExperiments.loadStationaryTouchDelay(service.getSharedPreferences("touch-timing-test", 0));
   }
 
+  @Test public void statusBarPullRequiresBothFingersMovingDownFromTheTop() {
+    assertTrue(ExtendedTouchBackend.startsNotificationShade(5, 18, 3, 48, -4, 41, 24));
+    assertFalse(ExtendedTouchBackend.startsNotificationShade(5, 26, 3, 48, -4, 41, 24));
+    assertFalse(ExtendedTouchBackend.startsNotificationShade(5, 18, 48, 3, 41, 4, 24));
+    assertFalse(ExtendedTouchBackend.startsNotificationShade(5, 18, 3, -48, -4, -41, 24));
+  }
+
   @Test public void stationaryFingerRequestsExplorationAfterTheReducedDelay() {
     setStationaryTouchDelay(100);
     motion(MotionEvent.ACTION_DOWN, 700);

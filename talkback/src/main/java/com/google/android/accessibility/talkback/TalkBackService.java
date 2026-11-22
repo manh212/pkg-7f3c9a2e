@@ -658,6 +658,8 @@ public class TalkBackService extends AccessibilityServiceCompat
   /** The second voice of a parallel bilingual reading, spoken outside the speech queue. */
   private BilingualParallelSpeaker bilingualParallelSpeaker;
   private OtherScreenReaderMonitor otherScreenReaderMonitor;
+  private volatile boolean yieldingToOtherScreenReader;
+  private int yieldedInputFlags;
   private final StartupUiGate startupUiGate = new StartupUiGate();
   private com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController extendedGesturesController;
 
@@ -881,6 +883,11 @@ public class TalkBackService extends AccessibilityServiceCompat
           | AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
           | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH
           | AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
+
+  private static final int COMPETING_READER_INPUT_FLAGS =
+      TOUCH_EXPLORATION_SETUP_FLAGS
+          | AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+          | AccessibilityServiceInfo.FLAG_REQUEST_FINGERPRINT_GESTURES;
 
   @Nullable private ProcessorVolumeStream processorVolumeStream;
   // In order to handle key action down/up in pair for the same functions.
@@ -1267,6 +1274,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   public void onAccessibilityEvent(AccessibilityEvent event) {
+    if (yieldingToOtherScreenReader) {
+      return;
+    }
     if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return;
     long receivedAt = SystemClock.uptimeMillis();
     if (pipeline != null) {
@@ -1344,6 +1354,9 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   private void dispatchAccessibilityEvent(AccessibilityEvent event, long receivedAt) {
+    if (yieldingToOtherScreenReader) {
+      return;
+    }
     if (touchExplorationResumePolicy.isSuspended()
         && (event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED
             || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)) {
@@ -1792,6 +1805,9 @@ public class TalkBackService extends AccessibilityServiceCompat
    */
   @Override
   protected final boolean onKeyEvent(KeyEvent keyEvent) {
+    if (yieldingToOtherScreenReader) {
+      return false;
+    }
     if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return false;
     if (backgroundEventGate != null) {
       backgroundEventGate.onUserInput();
@@ -2449,6 +2465,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   private boolean handleOnGestureById(
       int displayId, int gestureId, long motionEnd, long callbackUptimeMs) {
+    if (yieldingToOtherScreenReader) {
+      return false;
+    }
     if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return false;
     LatencyExperiments.onInput();
     if (backgroundEventGate != null) {
@@ -2807,15 +2826,16 @@ public class TalkBackService extends AccessibilityServiceCompat
     // cannot initialize fingerprint gesture detection in onCreate().
     initializeFingerprintGestureCallback();
 
-    resumeInfrastructure();
     if (otherScreenReaderMonitor != null) {
       otherScreenReaderMonitor.stop();
     }
     otherScreenReaderMonitor =
-        new OtherScreenReaderMonitor(this, this::applyTouchExplorationPreference);
+        new OtherScreenReaderMonitor(this, this::updateScreenReaderHandoff);
     otherScreenReaderMonitor.start();
+    updateScreenReaderHandoff();
+    resumeInfrastructure();
 
-    startTouchInteractionMonitor();
+    updateTouchInteractionMonitor();
 
     // Handle any update actions.
     new TalkBackUpdateHelper(this).checkUpdate();
@@ -2944,7 +2964,8 @@ public class TalkBackService extends AccessibilityServiceCompat
         new FingerprintGestureCallback() {
           @Override
           public void onGestureDetected(int gesture) {
-            if (isServiceActive() && !PauseController.isPaused() && gestureController != null) {
+            if (isServiceActive() && !PauseController.isPaused()
+                && !yieldingToOtherScreenReader && gestureController != null) {
               if (backgroundEventGate != null) backgroundEventGate.onUserInput();
               Performance perf = Performance.getInstance();
               EventId eventId = perf.onFingerprintGestureEventReceived(gesture);
@@ -3747,7 +3768,7 @@ public class TalkBackService extends AccessibilityServiceCompat
       LogUtils.e(TAG, "Fail to get service flag!");
       return;
     }
-    if (FeatureSupport.isMultiFingerGestureSupported()) {
+    if (FeatureSupport.isMultiFingerGestureSupported() && !yieldingToOtherScreenReader) {
       resetTouchExplorePassThrough();
     }
     info.flags =
@@ -3757,9 +3778,9 @@ public class TalkBackService extends AccessibilityServiceCompat
             FeatureSupport.isMultiFingerGestureSupported(),
             shouldSendGestureMotionEvents(),
             supportsTouchScreen,
-            getBooleanPref(
+            !PauseController.isPaused() && getBooleanPref(
                 R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default),
-            OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this),
+            yieldingToOtherScreenReader,
             FeatureFlagReader.enableReadCurrentUrl(this));
     if ((info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0
         && shouldHandleDoubleTap()) {
@@ -3780,7 +3801,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   public void updateNavigationMotionReporting() {
-    if (!BuildVersionUtils.isAtLeastS() || !isServiceActive()) {
+    if (!BuildVersionUtils.isAtLeastS() || !isServiceActive() || yieldingToOtherScreenReader) {
       return;
     }
     AccessibilityServiceInfo info = getServiceInfo();
@@ -3807,7 +3828,10 @@ public class TalkBackService extends AccessibilityServiceCompat
       boolean competingScreenReaderEnabled,
       boolean readCurrentUrlEnabled) {
     flags |= additionalFlags;
-    if (multiFingerGestureSupported) {
+    if (competingScreenReaderEnabled) {
+      flags &= ~COMPETING_READER_INPUT_FLAGS;
+    }
+    if (multiFingerGestureSupported && !competingScreenReaderEnabled) {
       flags |=
           AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
               | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH;
@@ -3816,8 +3840,10 @@ public class TalkBackService extends AccessibilityServiceCompat
           ~(AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
               | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH);
     }
-    if (sendMotionEvents) {
+    if (sendMotionEvents && !competingScreenReaderEnabled) {
       flags |= AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
+    } else {
+      flags &= ~AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS;
     }
     // Ensure the initial touch exploration request mode is correct.
     if (supportsTouchScreen && exploreByTouch && !competingScreenReaderEnabled) {
@@ -3997,7 +4023,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     armPendingLiveReapply();
     reloadPreferences();
     if (backTapCommands != null) {
-      backTapCommands.setAllowed(!PauseController.isPaused());
+      backTapCommands.setAllowed(!PauseController.isPaused() && !yieldingToOtherScreenReader);
     }
 
     inputFocusInterpreter.initLastEditableFocusForGlobalVariables();
@@ -4472,7 +4498,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     applyTouchExplorationPreference();
 
-    if (FeatureSupport.isMultiFingerGestureSupported()) {
+    if (FeatureSupport.isMultiFingerGestureSupported() && !yieldingToOtherScreenReader) {
       requestServiceFlag(
           AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
               | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH,
@@ -4914,11 +4940,12 @@ public class TalkBackService extends AccessibilityServiceCompat
   private @Nullable Boolean requestTouchExploration(boolean requestedState) {
     if (requestedState
         && (PauseController.isPaused()
-            || OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this))) {
+            || yieldingToOtherScreenReader)) {
       requestedState = false;
     }
     requestServiceFlag(
         AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE, requestedState);
+    updateTouchInteractionMonitor();
     updateExtendedGestures();
     return isTouchExplorationEnabled();
   }
@@ -4972,8 +4999,65 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
+  boolean isYieldingToOtherScreenReader() {
+    return yieldingToOtherScreenReader;
+  }
+
+  private void updateScreenReaderHandoff() {
+    boolean otherReader = OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this);
+    if (yieldingToOtherScreenReader == otherReader) {
+      return;
+    }
+    AccessibilityServiceInfo info = getServiceInfo();
+    if (otherReader) {
+      yieldedInputFlags = info == null ? 0 : info.flags & COMPETING_READER_INPUT_FLAGS;
+      if (extendedGesturesController != null) {
+        extendedGesturesController.stop();
+      }
+      stopTouchInteractionMonitor();
+      if (FeatureSupport.supportPassthrough() && passThroughModeActor != null) {
+        passThroughModeActor.resetForScreenReaderHandoff();
+      }
+      yieldingToOtherScreenReader = true;
+      interruptAllFeedback(false);
+      ScrollAhead.cancelAll("screen reader handoff");
+      onPauseChanged(true);
+      if (info != null) {
+        info.flags &= ~COMPETING_READER_INPUT_FLAGS;
+        setServiceInfo(info);
+      }
+      forgetTouchInteraction("screen reader handoff");
+    } else {
+      yieldingToOtherScreenReader = false;
+      if (info != null) {
+        info.flags |= yieldedInputFlags & ~TOUCH_EXPLORATION_SETUP_FLAGS;
+        setServiceInfo(info);
+      }
+      yieldedInputFlags = 0;
+      applyServiceInfo();
+      onPauseChanged(PauseController.isPaused());
+      setRootDirty(true);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        clearCache();
+      }
+    }
+    LogUtils.i(TAG, "Screen reader input handoff: %s", otherReader);
+  }
+
+  private void updateTouchInteractionMonitor() {
+    if (isServiceActive()
+        && !yieldingToOtherScreenReader
+        && !PauseController.isPaused()
+        && Boolean.TRUE.equals(isTouchExplorationEnabled())) {
+      startTouchInteractionMonitor();
+    } else {
+      stopTouchInteractionMonitor();
+    }
+  }
+
   /** Turns off, or back on, what pausing Backtalk turns off besides events and feedback. */
   private void onPauseChanged(boolean paused) {
+    paused = paused || yieldingToOtherScreenReader;
     if (paused) {
       CallAnnouncements.stopSpeech();
       progressBarAnnouncer.stop();
@@ -5073,6 +5157,17 @@ public class TalkBackService extends AccessibilityServiceCompat
   }
 
   private void applyRequestedServiceFlag(int flags, boolean newValue) {
+    if (yieldingToOtherScreenReader) {
+      if (newValue) {
+        yieldedInputFlags |= flags & ~TOUCH_EXPLORATION_SETUP_FLAGS & COMPETING_READER_INPUT_FLAGS;
+      } else {
+        yieldedInputFlags &= ~(flags & ~TOUCH_EXPLORATION_SETUP_FLAGS);
+      }
+      flags &= ~COMPETING_READER_INPUT_FLAGS;
+      if (flags == 0) {
+        return;
+      }
+    }
     final AccessibilityServiceInfo info = getServiceInfo();
     if (info == null) {
       return;
@@ -5100,8 +5195,15 @@ public class TalkBackService extends AccessibilityServiceCompat
     updateExtendedGestures();
   }
 
+  public boolean openSystemNotificationShade() {
+    return isServiceActive()
+        && !PauseController.isPaused()
+        && !yieldingToOtherScreenReader
+        && performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS);
+  }
+
   public boolean performTouchClick(int displayId) {
-    return isServiceActive() && !PauseController.isPaused()
+    return isServiceActive() && !PauseController.isPaused() && !yieldingToOtherScreenReader
         && extendedGesturesController != null
         && extendedGesturesController.performClick(displayId);
   }
@@ -5116,7 +5218,8 @@ public class TalkBackService extends AccessibilityServiceCompat
       extendedGesturesController =
           new com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController(this);
     }
-    extendedGesturesController.update(isServiceActive() && !PauseController.isPaused());
+    extendedGesturesController.update(
+        isServiceActive() && !PauseController.isPaused() && !yieldingToOtherScreenReader);
   }
 
   /**
@@ -5345,7 +5448,8 @@ public class TalkBackService extends AccessibilityServiceCompat
           if (extendedGesturesController == null) {
             updateExtendedGestures();
           } else {
-            extendedGesturesController.refreshEdges(isServiceActive() && !PauseController.isPaused());
+            extendedGesturesController.refreshEdges(
+                isServiceActive() && !PauseController.isPaused() && !yieldingToOtherScreenReader);
           }
           return;
         }

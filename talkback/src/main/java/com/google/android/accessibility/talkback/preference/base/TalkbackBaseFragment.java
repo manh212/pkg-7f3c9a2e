@@ -17,6 +17,9 @@ package com.google.android.accessibility.talkback.preference.base;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.view.View;
+import androidx.annotation.NonNull;
+import androidx.core.view.ViewCompat;
 import androidx.annotation.StringRes;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
@@ -30,6 +33,10 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 /** Panel holding a set of base fragment for preferences. */
 public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
   private static final int INVALID_VALUE = -1;
+  private static final String KEY_RETURN_FOCUS = "meridian.settings.return_focus";
+  private static final String KEY_INITIAL_FOCUS = "meridian.settings.initial_focus";
+  private boolean initialFocusPending = true;
+  private @Nullable String returnFocusKey;
 
   private final int xmlResId;
 
@@ -42,11 +49,47 @@ public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
   }
 
   @Override
+  public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+    super.onViewCreated(view, savedInstanceState);
+    ViewCompat.setAccessibilityPaneTitle(view, getTitle());
+    if (savedInstanceState != null) {
+      initialFocusPending = savedInstanceState.getBoolean(KEY_INITIAL_FOCUS, initialFocusPending);
+      if (returnFocusKey == null) {
+        returnFocusKey = savedInstanceState.getString(KEY_RETURN_FOCUS);
+      }
+    }
+  }
+
+  @Override
+  public void onSaveInstanceState(@NonNull Bundle outState) {
+    super.onSaveInstanceState(outState);
+    outState.putString(KEY_RETURN_FOCUS, returnFocusKey);
+    outState.putBoolean(KEY_INITIAL_FOCUS, initialFocusPending);
+  }
+
+  public void rememberReturnFocus(@Nullable String key) {
+    returnFocusKey = key;
+  }
+
+  @Override
   public void onResume() {
     super.onResume();
     if (getContext() != null) com.google.android.accessibility.talkback.licensing.SupportClient.opened(getContext());
-    if (getView() != null) {
-      getView().post(() -> SettingsSearchNavigation.focusTarget(this));
+    View view = getView();
+    if (view != null) {
+      view.post(() -> {
+        if (!isResumed() || getView() != view) {
+          return;
+        }
+        boolean focused = SettingsSearchNavigation.focusTarget(this)
+            || (returnFocusKey != null
+                && SettingsSearchNavigation.focusPreference(this, returnFocusKey));
+        if (!focused && (initialFocusPending || returnFocusKey != null)) {
+          SettingsSearchNavigation.focusFirstPreference(this);
+        }
+        initialFocusPending = false;
+        returnFocusKey = null;
+      });
     }
   }
 

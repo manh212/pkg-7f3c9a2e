@@ -129,6 +129,9 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
 
   @Override
   public boolean onPreferenceStartFragment(PreferenceFragmentCompat caller, Preference pref) {
+    if (pref.getFragment() != null && caller instanceof TalkbackBaseFragment) {
+      ((TalkbackBaseFragment) caller).rememberReturnFocus(pref.getKey());
+    }
     if (DeveloperPrefFragment.class.getName().equals(pref.getFragment())) {
       openDeveloperSettings(pref);
       return true;

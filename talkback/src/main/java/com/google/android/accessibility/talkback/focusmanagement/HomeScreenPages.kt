@@ -81,6 +81,13 @@ object HomeScreenPages {
   fun isHomePackage(context: Context, packageName: CharSequence?): Boolean =
     packageName != null && packageName.toString() == homePackage(context)
 
+  @JvmStatic
+  fun isWorkspace(context: Context, node: AccessibilityNodeInfoCompat): Boolean =
+    isWorkspaceClass(node.className) && isHomePackage(context, node.packageName)
+
+  internal fun isWorkspaceClass(className: CharSequence?): Boolean =
+    className?.toString()?.substringAfterLast('.') == "Workspace"
+
   private fun homePackage(context: Context): String? {
     val now = SystemClock.uptimeMillis()
     if (homeCheckedAt == 0L || now - homeCheckedAt > HOME_CHECK_INTERVAL_MS) {

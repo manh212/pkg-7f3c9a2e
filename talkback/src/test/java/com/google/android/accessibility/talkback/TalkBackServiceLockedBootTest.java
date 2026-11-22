@@ -87,6 +87,21 @@ public class TalkBackServiceLockedBootTest {
   }
 
   @Test
+  public void computeServiceFlags_releasesInputFlagsForCompetingReader() {
+    int inputFlags = AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE
+        | AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
+        | AccessibilityServiceInfo.FLAG_REQUEST_2_FINGER_PASSTHROUGH
+        | AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS
+        | AccessibilityServiceInfo.FLAG_SERVICE_HANDLES_DOUBLE_TAP
+        | AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+        | AccessibilityServiceInfo.FLAG_REQUEST_FINGERPRINT_GESTURES;
+    int enabled = TalkBackService.computeServiceFlags(
+        inputFlags, inputFlags, true, true, true, true, true, true);
+    assertEquals(0, enabled & inputFlags);
+    assertTrue((enabled & AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS) != 0);
+  }
+
+  @Test
   public void computeServiceFlags_clearsTouchExplorationWithoutTouchScreen() {
     int flags = flags(true, false, true, false);
 

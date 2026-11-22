@@ -197,11 +197,11 @@ public class FocusActorForScreenStateChange {
       lastFocusAction = history.getLastFocusActionRecordInWindow(windowIdentifier);
     }
     boolean exactCollectionMatch = lastFocusAction == null;
-    if (exactCollectionMatch && windowType == AccessibilityWindowInfo.TYPE_APPLICATION) {
-      lastFocusAction = history.getLastFocusActionRecordInWindow(windowId);
-    }
+    FocusActionRecord windowFallback = exactCollectionMatch
+            && windowType == AccessibilityWindowInfo.TYPE_APPLICATION
+        ? history.getLastFocusActionRecordInWindow(windowId) : null;
     // Do not fetch a busy app's root when there is no focus history or semantic memory.
-    if (lastFocusAction == null && history.getMemoryStore().size() == 0) {
+    if (lastFocusAction == null && windowFallback == null && history.getMemoryStore().size() == 0) {
       return false;
     }
     if (lastFocusAction != null) {
@@ -221,6 +221,11 @@ public class FocusActorForScreenStateChange {
         AccessibilityWindowInfoUtils.getRootCompat(currentActiveWindow);
     if (root == null) {
       return false;
+    }
+    boolean ownNamedPane = TextUtils.equals(root.getPackageName(), service.getPackageName())
+        && !TextUtils.isEmpty(screenState.getAccessibilityPaneTitle(windowId));
+    if (lastFocusAction == null && !ownNamedPane) {
+      lastFocusAction = windowFallback;
     }
 
     long startTime = primesController.getTime();

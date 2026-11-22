@@ -354,9 +354,15 @@ public class Pipeline implements AccessibilityEventListener, AccessibilityEventI
     return execute(feedback);
   }
 
+  private boolean feedbackBlocked() {
+    return PauseController.isPaused()
+        || (context instanceof TalkBackService
+            && ((TalkBackService) context).isYieldingToOtherScreenReader());
+  }
+
   /** Execute feedback returned by feedback-mappers. Returns success flag. */
   boolean execute(Feedback feedback) {
-    if (PauseController.isPaused()) {
+    if (feedbackBlocked()) {
       // Paused Backtalk gives no feedback and takes no actions.
       return false;
     }
@@ -516,7 +522,7 @@ public class Pipeline implements AccessibilityEventListener, AccessibilityEventI
       @SuppressWarnings("unchecked")
       EventIdAnd<Feedback.Part> eventIdAndFeedback = (EventIdAnd<Feedback.Part>) message.obj;
       Feedback.Part part = eventIdAndFeedback.object;
-      if (!PauseController.isPaused()) {
+      if (parent != null && !parent.feedbackBlocked()) {
         actors.act(eventIdAndFeedback.eventId, part);
       }
       if (getParent() != null) {

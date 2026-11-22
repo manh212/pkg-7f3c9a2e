@@ -12,6 +12,8 @@ import android.text.TextUtils;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.talkback.R;
@@ -34,6 +36,7 @@ import java.util.ArrayDeque;
 final class ExtendedTouchBackend implements TouchInteractionController.Callback, GestureManifold.Listener {
   private static final String TAG = "ExtendedTouchBackend";
   private static final int MAX_PENDING_MOTION_EVENTS = 128;
+  private static final int MIN_STATUS_BAR_HEIGHT_DP = 24;
   private final TalkBackService service;
   private final TouchInteractionController controller;
   private final GestureManifold detector;
@@ -51,6 +54,8 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean twoFingerMoved;
   private boolean heldTwoFingerGesture;
   private boolean pinchConsumed;
+  private boolean notificationShadeGesture;
+  private float statusBarHeight;
   private final Runnable failure;
   private final boolean rotationEnabled;
   private final boolean extendedEnabled;
@@ -150,6 +155,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   }
 
   void start() {
+    updateStatusBarHeight();
     active = true;
     try {
       controller.registerCallback(Runnable::run, this);
@@ -184,6 +190,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     LatencyExperiments.resetTouchControllerContact();
     firstPointerOnly = false;
     completedInteraction = false;
+    notificationShadeGesture = false;
     gestureStarted = false;
     handler.removeCallbacks(explore);
     movingTouchExplorationAt = 0;
@@ -197,6 +204,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
 
   void configurationChanged(Configuration configuration) {
     if (active) {
+      updateStatusBarHeight();
       if (edgeInput != null) {
         edgeInput.refreshArea();
       }
@@ -232,6 +240,14 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   @Override public void onMotionEvent(MotionEvent event) {
     if (!active) return;
     int action = event.getActionMasked();
+    if (notificationShadeGesture && action != MotionEvent.ACTION_DOWN) {
+      if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+        notificationShadeGesture = false;
+        LatencyExperiments.resetTouchControllerContact();
+      }
+      return;
+    }
+    notificationShadeGesture = false;
     if (waitForTouchDown && action != MotionEvent.ACTION_DOWN) return;
     if (action == MotionEvent.ACTION_DOWN) {
       waitForTouchDown = false;
@@ -562,8 +578,38 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     }
     if (distance1 < dragSlop || distance2 < dragSlop) return false;
     if ((dx1 * dx2 + dy1 * dy2) / (distance1 * distance2) < .7f) return false;
+    if (startsNotificationShade(dragStartY, otherStartY, dx1, dy1, dx2, dy2, statusBarHeight)
+        && service.openSystemNotificationShade()) {
+      notificationShadeGesture = true;
+      claimEdge();
+      resetTwoFingerTracking();
+      return true;
+    }
     requestDrag(dragPointerId);
     return true;
+  }
+
+  private void updateStatusBarHeight() {
+    statusBarHeight = service.getResources().getDisplayMetrics().density * MIN_STATUS_BAR_HEIGHT_DP;
+    WindowManager windowManager = service.getSystemService(WindowManager.class);
+    if (windowManager == null) {
+      return;
+    }
+    try {
+      int top = windowManager.getCurrentWindowMetrics().getWindowInsets()
+          .getInsetsIgnoringVisibility(WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout())
+          .top;
+      statusBarHeight = Math.max(statusBarHeight, top);
+    } catch (RuntimeException ignored) {
+    }
+  }
+
+  static boolean startsNotificationShade(
+      float firstY, float secondY, float dx1, float dy1, float dx2, float dy2, float topBandPx) {
+    return firstY <= topBandPx
+        && secondY <= topBandPx
+        && dy1 > Math.abs(dx1) * 1.5f
+        && dy2 > Math.abs(dx2) * 1.5f;
   }
 
   private void requestDrag(int pointerId) {

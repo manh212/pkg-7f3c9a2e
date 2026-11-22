@@ -131,6 +131,17 @@ public class PassThroughModeActor {
     }
   }
 
+  public void resetForScreenReaderHandoff() {
+    cancelPassThroughGuardTimer();
+    locked = false;
+    touchExplorePassThroughActive = false;
+    directTouchRegion = new Region();
+    if (FeatureSupport.supportPassthrough()) {
+      service.setTouchExplorationPassthroughRegion(Display.DEFAULT_DISPLAY, new Region());
+      service.setGestureDetectionPassthroughRegion(Display.DEFAULT_DISPLAY, new Region());
+    }
+  }
+
   public void showEducationDialog() {
     // The pass-through shortcut can be assigned to any gestures(including 1-finger).
     if (FeatureSupport.supportPassthrough() && !locked) {

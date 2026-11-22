@@ -36,6 +36,7 @@ import static com.google.android.accessibility.utils.AccessibilityNodeInfoUtils.
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 import static com.google.android.accessibility.utils.Role.ROLE_FLOATING_ACTION_BUTTON;
 import static com.google.android.accessibility.utils.monitor.InputModeTracker.INPUT_MODE_KEYBOARD;
+import static com.google.android.accessibility.utils.monitor.InputModeTracker.INPUT_MODE_TOUCH;
 import static com.google.android.accessibility.utils.output.ScrollActionRecord.AutoScrollSuccessChecker;
 import static com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_BACKWARD;
 import static com.google.android.accessibility.utils.traversal.TraversalStrategy.SEARCH_FOCUS_DOWN;
@@ -483,7 +484,7 @@ public class FocusProcessorForLogicalNavigation {
       return null;
     }
     AccessibilityNodeInfoCompat list = scrollableNodeInfo.getNode();
-    if (!isItemList(list)) {
+    if (!isItemList(list) || HomeScreenPages.isWorkspace(service, list)) {
       return null;
     }
     AccessibilityNodeInfoCompat item = itemOf(focused, list);
@@ -3673,6 +3674,11 @@ public class FocusProcessorForLogicalNavigation {
       return false;
     }
     AccessibilityNodeInfoCompat scrollableNode = scrollableNodeInfo.getNode();
+    if (node.isVisibleToUser()
+        && TraversalStrategyUtils.isLogicalDirection(searchDirection)
+        && HomeScreenPages.isWorkspace(service, scrollableNode)) {
+      return false;
+    }
 
     // The edge check reads the list's items from the app, which waits while the app is busy, such
     // as drawing a scroll. An item at least its own size clear of the list's edges needs no scroll
@@ -4115,6 +4121,13 @@ public class FocusProcessorForLogicalNavigation {
       return REVEAL_NONE;
     }
     AccessibilityNodeInfoCompat scrollableNode = scrollableNodeInfo.getNode();
+
+    if (navigationAction.inputMode == INPUT_MODE_TOUCH
+        && navigationAction.targetType == NavigationTarget.TARGET_DEFAULT
+        && TraversalStrategyUtils.isLogicalDirection(navigationAction.searchDirection)
+        && HomeScreenPages.isWorkspace(service, scrollableNode)) {
+      return REVEAL_NONE;
+    }
 
     if (!autoSwitchPage && isPager(scrollableNode)) {
       return REVEAL_NONE;

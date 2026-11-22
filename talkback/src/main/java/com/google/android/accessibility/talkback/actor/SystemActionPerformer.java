@@ -3,6 +3,7 @@ package com.google.android.accessibility.talkback.actor;
 import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_ALL_APPS;
 
 import android.accessibilityservice.AccessibilityService;
+import android.media.AudioManager;
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction;
 import com.google.android.accessibility.talkback.ActorStateWritable;
 import com.google.android.accessibility.talkback.notificationlist.NotificationListActivity;
@@ -76,9 +77,14 @@ public final class SystemActionPerformer {
     if (id == GLOBAL_ACTION_SYSTEM_NOTIFICATIONS) {
       return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS);
     }
-    if (id == AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
-        && NotificationListActivity.openInsteadOfShade(service)) {
-      return true;
+    if (id == AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS) {
+      AudioManager audio = service.getSystemService(AudioManager.class);
+      int audioMode = audio == null ? AudioManager.MODE_NORMAL : audio.getMode();
+      if (!shouldUseSystemNotifications(audioMode)
+          && NotificationListActivity.openInsteadOfShade(service)) {
+        return true;
+      }
+      return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS);
     }
     if (id == GLOBAL_ACTION_SYSTEM_QUICK_SETTINGS) {
       return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS);
@@ -106,6 +112,10 @@ public final class SystemActionPerformer {
       return service.performGlobalAction(id);
     }
     return false;
+  }
+
+  static boolean shouldUseSystemNotifications(int audioMode) {
+    return audioMode == AudioManager.MODE_IN_CALL || audioMode == AudioManager.MODE_IN_COMMUNICATION;
   }
 
   public void setActorState(ActorStateWritable actorState) {
