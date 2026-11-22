@@ -541,10 +541,7 @@ object UnifiedCommandBindings {
       TargetKind.EDGE_GESTURE -> clearEdgeGesture(context, prefs, entry.slotKey)
       TargetKind.VOLUME_KEY -> clearVolumeSlot(context, prefs, entry.slotKey)
       TargetKind.KEYBOARD_SHORTCUT -> {
-        keyComboManager.keyComboModel?.saveKeyComboCode(
-          entry.slotKey,
-          KeyComboModel.KEY_COMBO_CODE_UNASSIGNED.toLong(),
-        )
+        keyComboManager.keyComboModel?.clearKeyCombo(entry.slotKey)
       }
       TargetKind.MERIDIAN_MENU -> setInMeridianMenu(context, prefs, commandValue, enabled = false)
       TargetKind.CUSTOM_MENU -> {
@@ -602,9 +599,9 @@ object UnifiedCommandBindings {
       if (model != null) {
         for (key in model.keyComboMap.keys.toList()) {
           if (key.startsWith(Commands.SHORTCUT_KEY_PREFIX)) {
-            model.saveKeyComboCode(key, KeyComboModel.KEY_COMBO_CODE_UNASSIGNED.toLong())
+            model.clearKeyCombo(key)
           } else {
-            model.saveKeyComboCode(key, model.getDefaultKeyComboCode(key))
+            model.saveKeyCombo(key, model.getDefaultKeyCombo(key))
           }
         }
       }
