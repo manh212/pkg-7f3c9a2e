@@ -27,7 +27,7 @@ class UnifiedCommandBindingsTest {
     assertEquals(10, UnifiedCommandBindings.TargetKind.values().size)
     assertEquals(7, UnifiedCommandBindings.ResetScope.values().size)
     assertTrue(
-      UnifiedCommandBindings.TargetKind.values().containsAll(
+      UnifiedCommandBindings.TargetKind.values().toSet().containsAll(
         listOf(
           UnifiedCommandBindings.TargetKind.TOUCH_GESTURE,
           UnifiedCommandBindings.TargetKind.FINGERPRINT_GESTURE,
