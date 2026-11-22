@@ -213,7 +213,12 @@ object SpeechCompressor {
     private val highPass: Array<Cascade>
     private val compensation: Array<Array<AllPass?>>
     private val thresholds = settings.thresholds
-    private val ratios = FloatArray(BANDS) { settings.ratios[it] / 10f }
+    private val slopes = DoubleArray(BANDS) { 1.0 - 10.0 / settings.ratios[it] }
+    private val kneeLowLinear =
+      FloatArray(BANDS) {
+        val t = settings.thresholds[it]
+        if (t >= 0) Float.MAX_VALUE else 10.0.pow((t - KNEE_DB / 2.0) / 20.0).toFloat()
+      }
     private val attack = (1.0 - exp(-1.0 / (settings.attackMs / 1000.0 * rate))).toFloat()
     private val release = (1.0 - exp(-1.0 / (settings.releaseMs / 1000.0 * rate))).toFloat()
     private val makeup = 10.0.pow(settings.makeupDb / 20.0).toFloat()
@@ -223,10 +228,12 @@ object SpeechCompressor {
     private val envelopes = FloatArray(BANDS)
     private val bandSamples = FloatArray(BANDS * channels)
     private val loudest = FloatArray(BANDS)
-    private val gains = FloatArray(BANDS)
+    private val gains = FloatArray(BANDS) { 1f }
+    private val gainSteps = FloatArray(BANDS)
     private val raw = FloatArray(BANDS)
     private val fadeFrames = (rate * START_FADE_MS / 1000).coerceAtLeast(1)
     private var framesSeen = 0
+    private var framesUntilGainUpdate = 0
     private val dry = FloatArray(channels)
     private val wet = FloatArray(channels)
 
@@ -277,13 +284,24 @@ object SpeechCompressor {
           }
           for (band in splits + 1 until BANDS) bandSamples[band * channels + channel] = 0f
         }
-        // Follow each band's level and work out how much to turn it down by.
+        // Follow each band's level every frame; recompute log/pow target gains at block rate
+        // and interpolate linearly between updates to avoid transcendental math per sample.
+        val updateGains = framesUntilGainUpdate == 0
+        if (updateGains) {
+          framesUntilGainUpdate = GAIN_UPDATE_INTERVAL
+        }
+        framesUntilGainUpdate--
         for (band in 0 until BANDS) {
           val envelope = envelopes[band]
-          val coefficient = if (loudest[band] > envelope) attack else release
-          val followed = envelope + coefficient * (loudest[band] - envelope)
+          val level = loudest[band]
+          val coefficient = if (level > envelope) attack else release
+          val followed = envelope + coefficient * (level - envelope)
           envelopes[band] = followed
-          gains[band] = gainFor(band, followed)
+          if (updateGains) {
+            val target = gainFor(band, followed)
+            gainSteps[band] = (target - gains[band]) / GAIN_UPDATE_INTERVAL
+          }
+          gains[band] += gainSteps[band]
         }
         var peak = 0f
         for (channel in 0 until channels) {
@@ -315,28 +333,56 @@ object SpeechCompressor {
     }
 
     /** Two Butterworth sections in a row, keeping their state apart for each channel. */
-    private class Cascade(private val coefficients: DoubleArray, channels: Int) {
-      private val state = FloatArray(STAGES * channels * 4)
+    private class Cascade(coefficients: DoubleArray, private val channels: Int) {
+      private val b0 = coefficients[0]
+      private val b1 = coefficients[1]
+      private val b2 = coefficients[2]
+      private val a1 = coefficients[3]
+      private val a2 = coefficients[4]
+      // Scalar state for the common mono TTS case to avoid per-sample array indexing.
+      private var m0x1 = 0.0
+      private var m0x2 = 0.0
+      private var m0y1 = 0.0
+      private var m0y2 = 0.0
+      private var m1x1 = 0.0
+      private var m1x2 = 0.0
+      private var m1y1 = 0.0
+      private var m1y2 = 0.0
+      private val state = if (channels == 1) null else DoubleArray(STAGES * channels * 4)
       private val stride = channels * 4
 
       fun run(channel: Int, input: Float): Float {
-        var sample = input
+        if (channels == 1) {
+          val x0 = input.toDouble()
+          val y0 = b0 * x0 + b1 * m0x1 + b2 * m0x2 - a1 * m0y1 - a2 * m0y2
+          m0x2 = m0x1
+          m0x1 = x0
+          m0y2 = m0y1
+          m0y1 = y0
+          val y1 = b0 * y0 + b1 * m1x1 + b2 * m1x2 - a1 * m1y1 - a2 * m1y2
+          m1x2 = m1x1
+          m1x1 = y0
+          m1y2 = m1y1
+          m1y1 = y1
+          return y1.toFloat()
+        }
+        val st = state!!
+        var sample = input.toDouble()
         for (stage in 0 until STAGES) {
           val at = stage * stride + channel * 4
           val out =
-            (coefficients[0] * sample +
-              coefficients[1] * state[at] +
-              coefficients[2] * state[at + 1] -
-              coefficients[3] * state[at + 2] -
-              coefficients[4] * state[at + 3])
-              .toFloat()
-          state[at + 1] = state[at]
-          state[at] = sample
-          state[at + 3] = state[at + 2]
-          state[at + 2] = out
+            b0 * sample +
+              b1 * st[at] +
+              b2 * st[at + 1] -
+              a1 * st[at + 2] -
+              a2 * st[at + 3]
+          st[at + 1] = st[at]
+          st[at] = sample
+          st[at + 3] = st[at + 2]
+          st[at + 2] = out
           sample = out
         }
-        return sample
+        return sample.toFloat()
       }
     }
 
@@ -347,18 +393,16 @@ object SpeechCompressor {
 
     /** The gain for a band whose followed level is [envelope], from its threshold and ratio. */
     private fun gainFor(band: Int, envelope: Float): Float {
+      if (envelope <= kneeLowLinear[band]) return 1f
       val threshold = thresholds[band]
-      if (threshold >= 0 || envelope <= 0f) return 1f
-      val levelDb = 20 * log10(envelope.toDouble())
-      val slope = 1.0 - 1.0 / ratios[band]
+      val levelDb = 20.0 * log10(envelope.toDouble())
+      val slope = slopes[band]
       val reduction =
-        when {
-          levelDb <= threshold - KNEE_DB / 2 -> 0.0
-          levelDb >= threshold + KNEE_DB / 2 -> (levelDb - threshold) * slope
-          else -> {
-            val over = levelDb - threshold + KNEE_DB / 2
-            slope * over * over / (2 * KNEE_DB)
-          }
+        if (levelDb >= threshold + KNEE_DB / 2.0) {
+          (levelDb - threshold) * slope
+        } else {
+          val over = levelDb - threshold + KNEE_DB / 2.0
+          slope * over * over / (2.0 * KNEE_DB)
         }
       return 10.0.pow(-reduction / 20.0).toFloat()
     }
@@ -396,5 +440,6 @@ object SpeechCompressor {
   private const val LIMITER_CEILING = 0.98f
   private const val LIMITER_RELEASE_S = 0.08
   private const val START_FADE_MS = 60
+  private const val GAIN_UPDATE_INTERVAL = 16
   private const val DENORMAL = 1e-20f
 }

@@ -187,7 +187,8 @@ object Commands {
   @JvmStatic
   fun categories(context: Context): List<Category> = Builder(context, withApps = true).build()
 
-  private fun categoriesWithoutApps(context: Context): List<Category> =
+  @JvmStatic
+  fun categoriesWithoutApps(context: Context): List<Category> =
     Builder(context, withApps = false).build()
 
   /** Returns the command saved as [value], or null when it isn't one. */

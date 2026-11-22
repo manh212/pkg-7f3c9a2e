@@ -415,6 +415,7 @@ object DiagnosticsExport {
         out.append("  End-of-stream PCM waits: ${snapshot.tailWaits}\n")
         out.append("  Interrupted PCM shortages: ${snapshot.interruptedShortages}\n")
         out.append("  Open PCM shortages: ${snapshot.pendingShortages}\n")
+        out.append("  DSP/resample writes: ${snapshot.dspWrites}\n")
         out.append("  PCM shortage counters cover this player's lifetime.\n")
         out.append("  PCM shortage duration is not a measured physical speaker gap.\n")
         if (snapshot.bufferSizeInFrames >= 0) {

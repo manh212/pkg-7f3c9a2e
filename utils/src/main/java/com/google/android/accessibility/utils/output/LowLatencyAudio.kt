@@ -88,6 +88,29 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     gapMaxMs[index] = maxOf(gapMaxMs[index], gap.durationMs)
   }
 
+  private var dspWriteCount = 0L
+  private var dspWriteTotalUs = 0L
+  private var dspWriteMaxUs = 0L
+
+  private fun recordDspWrite(durationUs: Long) {
+    dspWriteCount++
+    dspWriteTotalUs += durationUs
+    if (durationUs > dspWriteMaxUs) dspWriteMaxUs = durationUs
+  }
+
+  private fun dspWriteSummary(): String {
+    if (dspWriteCount == 0L) return "0 writes"
+    val avgMs = (dspWriteTotalUs / dspWriteCount) / 1000.0
+    val maxMs = dspWriteMaxUs / 1000.0
+    return String.format(
+      java.util.Locale.ROOT,
+      "%d writes, avg %.2f ms, max %.2f ms",
+      dspWriteCount,
+      avgMs,
+      maxMs,
+    )
+  }
+
   private fun gapSummary(kind: SpeechGapTracker.Kind): String {
     val i = kind.ordinal
     return "${gapCounts[i]} episodes, ${gapTotalMs[i]} ms total, ${gapMaxMs[i]} ms maximum"
@@ -301,12 +324,14 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           SpatialSoundPlayer.isSupportedFormat(rate, channels)
       // Its filter takes a while to work out, so not while the audio thread waits for the lock.
       val built = if (supported) SincResampler(rate, sampleRate, channels) else null
+      // Run equalizer and multiband compressor at the engine's native sample rate before
+      // upsampling to the output rate, cutting per-sample DSP work roughly in half for 22-24 kHz TTS.
       val builtFilter =
-        if (built != null && equalizer != null) SpeechEqualizer.Filter(equalizer, sampleRate, channels)
+        if (built != null && equalizer != null) SpeechEqualizer.Filter(equalizer, rate, channels)
         else null
       val builtCompressor =
         if (built != null && compressor != null)
-          SpeechCompressor.Filter(compressor, sampleRate, channels)
+          SpeechCompressor.Filter(compressor, rate, channels)
         else null
       synchronized(lock) {
         lastActivity = SystemClock.uptimeMillis()
@@ -340,14 +365,23 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         synchronized(decodeLock) {
           val current = resampler ?: return
           if (finished) return
-          val converted = toStereo(filtered(current.process(floats)), channels)
-          synchronized(lock) { appendDecoded(floats, converted, hasSound) }
+          val dspStartNs = SystemClock.elapsedRealtimeNanos()
+          val converted = toStereo(current.process(filtered(floats)), channels)
+          val dspUs = (SystemClock.elapsedRealtimeNanos() - dspStartNs) / 1000L
+          synchronized(lock) {
+            recordDspWrite(dspUs)
+            appendDecoded(floats, converted, hasSound)
+          }
         }
       } else {
         synchronized(lock) {
           val current = resampler ?: return
           if (finished) return
-          appendDecoded(floats, toStereo(filtered(current.process(floats)), inChannels), hasSound)
+          val dspStartNs = SystemClock.elapsedRealtimeNanos()
+          val converted = toStereo(current.process(filtered(floats)), inChannels)
+          val dspUs = (SystemClock.elapsedRealtimeNanos() - dspStartNs) / 1000L
+          recordDspWrite(dspUs)
+          appendDecoded(floats, converted, hasSound)
         }
       }
       if (firstSound) Performance.getInstance().onFirstSoundPcm(id, availableAt)
@@ -415,7 +449,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     fun end() {
       if (convertOutsideLock) {
         synchronized(decodeLock) {
-          val tail = resampler?.let { toStereo(filtered(it.flush()), inChannels) }
+          val tail = resampler?.let { toStereo(it.flush(), inChannels) }
           synchronized(lock) {
             if (finished) return
             recordGap(gaps.close(SpeechGapTracker.Kind.TAIL, SystemClock.uptimeMillis()))
@@ -431,7 +465,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         recordGap(gaps.close(SpeechGapTracker.Kind.TAIL, SystemClock.uptimeMillis()))
         // A short utterance that is all silence, such as a pause or punctuation, says nothing
         // about whether the engine silenced its audio. Only SILENT_MS of silence does.
-        resampler?.let { add(toStereo(filtered(it.flush()), inChannels)) }
+        resampler?.let { add(toStereo(it.flush(), inChannels)) }
         ended = true
         wake()
       }
@@ -674,6 +708,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     val tailWaits: String,
     val interruptedShortages: String,
     val pendingShortages: Int,
+    val dspWrites: String,
   )
 
   /** This player's state now, for diagnostics. */
@@ -720,6 +755,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         tailWaits = gapSummary(SpeechGapTracker.Kind.TAIL),
         interruptedShortages = gapSummary(SpeechGapTracker.Kind.INTERRUPTED),
         pendingShortages = streams.count { it.gaps.waiting },
+        dspWrites = dspWriteSummary(),
       )
     }
 

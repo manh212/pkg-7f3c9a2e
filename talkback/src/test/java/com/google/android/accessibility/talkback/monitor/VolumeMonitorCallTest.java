@@ -18,6 +18,10 @@ public class VolumeMonitorCallTest {
         AudioManager.STREAM_MUSIC, 1000, 3500, 0));
     assertTrue(VolumeMonitor.shouldSuppressCallMediaChange(
         AudioManager.STREAM_MUSIC, 3000, 3500, 0));
+    assertTrue(VolumeMonitor.shouldSuppressCallMediaChange(
+        AudioManager.STREAM_RING, 1000, 3500, 0));
+    assertFalse(VolumeMonitor.shouldSuppressCallMediaChange(
+        AudioManager.STREAM_RING, 1000, 3500, 2000));
   }
 
   @Test

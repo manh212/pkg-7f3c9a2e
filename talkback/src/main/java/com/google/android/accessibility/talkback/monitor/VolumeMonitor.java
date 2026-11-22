@@ -132,7 +132,9 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
           (oldState, newState) -> {
             if (oldState != newState) {
               callMediaQuietUntil = SystemClock.uptimeMillis() + CALL_MEDIA_CHANGE_GRACE_MS;
-              if (currentStream == AudioManager.STREAM_MUSIC) {
+              if (currentStream == AudioManager.STREAM_MUSIC
+                  || currentStream == AudioManager.STREAM_RING) {
+                handler.clearReleaseControl();
                 releaseControl();
               }
             }
@@ -424,10 +426,10 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
     return switch (streamType) {
       case AudioManager.STREAM_MUSIC ->
           !audioManager.isMusicActive() && !suppressCallMediaAnnouncement(streamType);
+      case AudioManager.STREAM_RING -> !suppressCallMediaAnnouncement(streamType);
       default ->
-          // Announce all other streams by default. The VOICE_CALL and
-          // RING streams are handled by checking the telephony state in
-          // speakWithCompletion().
+          // Announce all other streams by default. The VOICE_CALL stream is
+          // handled by checking the telephony state in speakWithCompletion().
           true;
     };
   }
@@ -594,7 +596,7 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
   @VisibleForTesting
   static boolean shouldSuppressCallMediaChange(
       int streamType, long now, long quietUntil, long explicitUntil) {
-    return streamType == AudioManager.STREAM_MUSIC
+    return (streamType == AudioManager.STREAM_MUSIC || streamType == AudioManager.STREAM_RING)
         && now < quietUntil
         && now >= explicitUntil;
   }

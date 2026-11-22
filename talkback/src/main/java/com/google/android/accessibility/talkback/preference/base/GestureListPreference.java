@@ -85,8 +85,26 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
   /** A supported action. */
   static final int TYPE_ACTION_ITEM = 1;
 
-  // Every item in the page, contains titles and actions.
-  private ImmutableList<ActionItem> items;
+  // Shared cache of built-in static action items (excluding per-profile/custom/app rows) so
+  // inflating all ~65 GestureListPreference entries on the Gestures screen does not rebuild the
+  // entire action catalog 65 times on the UI thread.
+  private static final class BaseActionsCache {
+    final String cacheKey;
+    final ImmutableList<ActionItem> items;
+    final Map<String, String> labelsByValue;
+
+    BaseActionsCache(
+        String cacheKey, ImmutableList<ActionItem> items, Map<String, String> labelsByValue) {
+      this.cacheKey = cacheKey;
+      this.items = items;
+      this.labelsByValue = labelsByValue;
+    }
+  }
+
+  private static volatile @Nullable BaseActionsCache baseActionsCache;
+
+  // Every item in the page, contains titles and actions. Lazily populated when needed.
+  private @Nullable ImmutableList<ActionItem> items;
   private final boolean includeKeyboardOnlyActions;
   private String initialValue;
   // Whether the action list is restricted to the actions that make sense on the lock screen.
@@ -105,7 +123,6 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
     super(context, attributeSet);
     this.includeKeyboardOnlyActions = includeKeyboardOnlyActions;
     setSingleLineTitle(false);
-    populateActionItems();
   }
 
   public static Map<String, String> getAssignableGestureActions(Context context) {
@@ -379,25 +396,31 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         return getContext().getString(action.getTitle());
       }
     }
-    Optional<ActionItem> item =
-        items.stream().filter((s) -> TextUtils.equals(s.value, value)).findFirst();
-    if (item.isPresent()) {
-      return item.get().text;
+    if (lockScreenActionsOnly && items != null) {
+      Optional<ActionItem> item =
+          items.stream().filter((s) -> TextUtils.equals(s.value, value)).findFirst();
+      if (item.isPresent()) {
+        return item.get().text;
+      }
+    } else {
+      @Nullable String cachedLabel =
+          getOrBuildBaseActions(EdgeGesture.fromKey(getKey()) != null).labelsByValue.get(value);
+      if (cachedLabel != null) {
+        return cachedLabel;
+      }
     }
     LogUtils.w(TAG, "%s - Can't find the value from supported action list.", getTitle());
     return getContext().getResources().getString(R.string.shortcut_unassigned);
   }
 
-  private void populateActionItems() {
-    ImmutableList.Builder<ActionItem> builder = ImmutableList.builder();
-    boolean edgeGesture = EdgeGesture.fromKey(getKey()) != null;
-    if (GestureProfiles.isRowKey(getKey())) {
-      builder.add(
-          new ActionItem(
-              defaultText(),
-              GestureProfiles.DEFAULT_VALUE,
-              TYPE_ACTION_ITEM));
+  private BaseActionsCache getOrBuildBaseActions(boolean edgeGesture) {
+    String localeKey = getContext().getResources().getConfiguration().getLocales().toLanguageTags();
+    String key = localeKey + "|" + includeKeyboardOnlyActions + "|" + edgeGesture;
+    BaseActionsCache cached = baseActionsCache;
+    if (cached != null && key.equals(cached.cacheKey)) {
+      return cached;
     }
+    ImmutableList.Builder<ActionItem> builder = ImmutableList.builder();
     builder.add(
         new ActionItem(
             getContext().getString(edgeGesture ? R.string.edge_gesture_unassigned : R.string.shortcut_unassigned),
@@ -414,8 +437,10 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
       }
     }
     if (includeKeyboardOnlyActions) {
+      // Use categoriesWithoutApps() to avoid enumerating every installed app via PackageManager
+      // when only the static object-navigation and screen-review categories are needed.
       for (com.google.android.accessibility.talkback.commands.Commands.Category category :
-          Commands.categories(getContext())) {
+          Commands.categoriesWithoutApps(getContext())) {
         if (category.getTitleRes() == R.string.commands_category_object_navigation
             || category.getTitleRes() == R.string.commands_category_screen_review) {
           builder.add(new ActionItem(getContext().getString(category.getTitleRes()), TYPE_TITLE));
@@ -441,6 +466,38 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
       }
     }
     addActionItemsToList(builder, organizeMenuActions(known));
+    ImmutableList<ActionItem> built = builder.build();
+    Map<String, String> labels = new LinkedHashMap<>();
+    for (ActionItem item : built) {
+      if (item.viewType == TYPE_ACTION_ITEM && item.value != null) {
+        labels.putIfAbsent(item.value, item.text);
+      }
+    }
+    labels.putIfAbsent(
+        getContext().getString(R.string.shortcut_value_gesture_profiles),
+        getContext().getString(R.string.shortcut_gesture_profiles));
+    labels.putIfAbsent(
+        getContext().getString(R.string.shortcut_value_next_gesture_profile),
+        getContext().getString(R.string.shortcut_next_gesture_profile));
+    labels.putIfAbsent(
+        getContext().getString(R.string.shortcut_value_previous_gesture_profile),
+        getContext().getString(R.string.shortcut_previous_gesture_profile));
+    BaseActionsCache fresh = new BaseActionsCache(key, built, labels);
+    baseActionsCache = fresh;
+    return fresh;
+  }
+
+  private void populateActionItems() {
+    ImmutableList.Builder<ActionItem> builder = ImmutableList.builder();
+    boolean edgeGesture = EdgeGesture.fromKey(getKey()) != null;
+    if (GestureProfiles.isRowKey(getKey())) {
+      builder.add(
+          new ActionItem(
+              defaultText(),
+              GestureProfiles.DEFAULT_VALUE,
+              TYPE_ACTION_ITEM));
+    }
+    builder.addAll(getOrBuildBaseActions(edgeGesture).items);
     ImmutableList.Builder<ActionItem> customMenuActions =
         createActionListBuilder(R.string.custom_menus_title, 0, 0);
     for (CustomMenus.Menu menu : CustomMenus.menus(getContext())) {

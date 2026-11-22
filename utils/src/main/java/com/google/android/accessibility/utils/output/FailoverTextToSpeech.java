@@ -2635,12 +2635,17 @@ public class FailoverTextToSpeech {
     lowLatencyStreams.clear();
     preparedAudioUtterances.clear();
     lowLatencyRequests.clear();
+    startedLowLatencyUtterances.clear();
     respokenUtterances.clear();
     mHandler.removeCallbacks(checkEngineHang);
     engineQuietSince = 0;
     unfinishedUtterances.clear();
     LowLatencyAudio.shutdownAll();
   }
+
+  /** Utterances whose low-latency stream has already started playing audio to the user. */
+  private final Set<String> startedLowLatencyUtterances =
+      java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
   /** How many utterances in a row have ended without the engine giving them audio. */
   private int noAudioInARow = 0;
@@ -2659,6 +2664,7 @@ public class FailoverTextToSpeech {
         @Override
         public void onStarted(String id) {
           noAudioInARow = 0;
+          startedLowLatencyUtterances.add(id);
           utteranceProgressCallback.onStart(id);
         }
 
@@ -2678,6 +2684,7 @@ public class FailoverTextToSpeech {
 
         @Override
         public void onFinished(String id, boolean completed) {
+          startedLowLatencyUtterances.remove(id);
           if (preparedAudioUtterances.remove(id)) lowLatencyStreams.remove(id);
           lowLatencyRequests.remove(id);
           if (completed) {
@@ -2706,6 +2713,23 @@ public class FailoverTextToSpeech {
 
         @Override
         public void onStalled(String id) {
+          boolean alreadyStarted = startedLowLatencyUtterances.remove(id);
+          if (alreadyStarted) {
+            // Audio already played to the user before stalling mid-utterance; complete cleanly
+            // instead of restarting the entire paragraph from the beginning.
+            mHandler.post(
+                () -> {
+                  lowLatencyStreams.remove(id);
+                  preparedAudioUtterances.remove(id);
+                  lowLatencyRequests.remove(id);
+                  LogUtils.w(
+                      TAG,
+                      "Low-latency stream %s stalled after speech started; completing without repeating",
+                      id);
+                  utteranceProgressCallback.onDone(id);
+                });
+            return;
+          }
           // Say it the usual way. Only an engine that is idle and still sends nothing is at
           // fault: one saying another app's speech, which shares it, or speech still ahead in its
           // queue, just hasn't come to this yet, and low latency stays on for it.
@@ -2730,6 +2754,7 @@ public class FailoverTextToSpeech {
           // already. But an utterance with nothing to say, such as a pause, has no audio either, so
           // only several in a row mean that the engine plays its own. Then speak the usual way
           // with this engine from now on.
+          startedLowLatencyUtterances.remove(id);
           lowLatencyRequests.remove(id);
           noAudioInARow++;
           if (noAudioInARow >= NO_AUDIO_IN_A_ROW_LIMIT) {
@@ -2853,6 +2878,7 @@ public class FailoverTextToSpeech {
     if (stream != null) {
       stream.discard();
     }
+    startedLowLatencyUtterances.remove(utteranceId);
     lowLatencyStreams.remove(utteranceId);
     preparedAudioUtterances.remove(utteranceId);
     if (engineAtFault) {
@@ -3253,6 +3279,7 @@ public class FailoverTextToSpeech {
     lowLatencyStreams.clear();
     preparedAudioUtterances.clear();
     lowLatencyRequests.clear();
+    startedLowLatencyUtterances.clear();
     respokenUtterances.clear();
     LowLatencyAudio.stopAllStreams();
     mHandler.removeCallbacks(checkEngineHang);
