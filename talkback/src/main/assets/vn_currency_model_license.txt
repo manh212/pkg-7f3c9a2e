@@ -4,6 +4,7 @@ Author: Nguyen Quang Toan
 Source: https://github.com/hezioquan12/vietnamese-money-vision
 Source commit: 2c46d754c15f6739cb2467d29ebcb29ed1e4b4ec
 Source path: android/app/src/main/assets/models/yolo26_money_quant.tflite
+Archived verified download: https://raw.githubusercontent.com/manh212/pkg-7f3c9a2e/9cdc3c54988bc22e7bc88d452d7b3980fac86e70/talkback/src/main/assets/vn_currency_yolo11n.tflite
 SHA-256: b3d3727f9ca1fb41789071e5590f7677bca83e9dd61505b322580c52251fddd9
 
 MIT License

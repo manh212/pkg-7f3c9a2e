@@ -13,7 +13,7 @@ internal object OfflineModels {
   data class Model(val path: String, val url: String, val size: Long, val sha256: String)
 
   val detector = Model("offline-ocr-v1/inference.onnx",
-    "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/main/inference.onnx",
+    "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.onnx",
     9_880_512, "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e")
   val vietnamese = Model("offline-ocr-v1/tessdata/vie.traineddata",
     "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/4.1.0/vie.traineddata",
@@ -26,7 +26,7 @@ internal object OfflineModels {
   val vocabulary = Model("vietocr-v1/vietocr.json", VIETOCR_URL + "vietocr.json",
     712, "518345b7672fd36e534fb8ffcf6f6599c687793541259170834789fe2f7dd6e6")
   val currency = Model("recognition-models-v1/currency.tflite",
-    "https://raw.githubusercontent.com/hezioquan12/vietnamese-money-vision/2c46d754c15f6739cb2467d29ebcb29ed1e4b4ec/android/app/src/main/assets/models/yolo26_money_quant.tflite",
+    "https://raw.githubusercontent.com/manh212/pkg-7f3c9a2e/9cdc3c54988bc22e7bc88d452d7b3980fac86e70/talkback/src/main/assets/vn_currency_yolo11n.tflite",
     3_027_064, "b3d3727f9ca1fb41789071e5590f7677bca83e9dd61505b322580c52251fddd9")
   val objects = Model("recognition-models-v1/objects.tflite",
     "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite",
