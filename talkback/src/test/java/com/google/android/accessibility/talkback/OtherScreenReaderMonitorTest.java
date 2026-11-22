@@ -20,14 +20,63 @@ public class OtherScreenReaderMonitorTest {
   }
 
   @Test
-  public void yieldsWhileAnotherReaderHasTemporarilyReleasedTouch() {
+  public void yieldsForKnownScreenReaderServicesEvenWithoutActiveTouchFlag() {
     assertTrue(
         OtherScreenReaderMonitor.isCompetingScreenReader(
-            OWN, "another.reader", SPOKEN, 0,
+            OWN, "com.nirenr.talkman", "com.nirenr.talkman.TalkManAccessibilityService",
+            AccessibilityServiceInfo.FEEDBACK_GENERIC, 0, 0));
+    assertTrue(
+        OtherScreenReaderMonitor.isCompetingScreenReader(
+            OWN,
+            "com.google.android.marvin.talkback",
+            "com.google.android.marvin.talkback.TalkBackService",
+            SPOKEN,
+            0,
+            0));
+    assertTrue(
+        OtherScreenReaderMonitor.isCompetingScreenReader(
+            OWN,
+            "com.samsung.android.accessibility.talkback",
+            "com.samsung.android.accessibility.talkback.TalkBackService",
+            SPOKEN,
+            0,
+            0));
+  }
+
+  @Test
+  public void ignoresCompanionAccessibilityServicesAndStaticCapabilityOnly() {
+    assertFalse(
+        OtherScreenReaderMonitor.isCompetingScreenReader(
+            OWN,
+            "another.reader",
+            "another.reader.HelperService",
+            SPOKEN,
+            0,
             AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_TOUCH_EXPLORATION));
-    assertTrue(
+    assertFalse(
         OtherScreenReaderMonitor.isCompetingScreenReader(
-            OWN, "com.nirenr.talkman", AccessibilityServiceInfo.FEEDBACK_GENERIC, 0, 0));
+            OWN,
+            "com.google.android.marvin.talkback",
+            "com.google.android.accessibility.selecttospeak.SelectToSpeakService",
+            SPOKEN,
+            0,
+            AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_TOUCH_EXPLORATION));
+    assertFalse(
+        OtherScreenReaderMonitor.isCompetingScreenReader(
+            OWN,
+            "com.google.android.marvin.talkback",
+            "com.google.android.accessibility.accessibilitymenu.AccessibilityMenuService",
+            SPOKEN,
+            0,
+            0));
+    assertFalse(
+        OtherScreenReaderMonitor.isCompetingScreenReader(
+            OWN,
+            "com.samsung.android.accessibility.talkback",
+            "com.samsung.android.accessibility.talkback.AssistantHelperService",
+            SPOKEN,
+            0,
+            AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_TOUCH_EXPLORATION));
   }
 
   @Test

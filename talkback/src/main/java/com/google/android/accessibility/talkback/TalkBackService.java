@@ -659,6 +659,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   private BilingualParallelSpeaker bilingualParallelSpeaker;
   private OtherScreenReaderMonitor otherScreenReaderMonitor;
   private volatile boolean yieldingToOtherScreenReader;
+  private volatile @Nullable String competingScreenReaderName;
   private int yieldedInputFlags;
   private final StartupUiGate startupUiGate = new StartupUiGate();
   private com.google.android.accessibility.talkback.gesture.extended.ExtendedGesturesController extendedGesturesController;
@@ -3778,8 +3779,10 @@ public class TalkBackService extends AccessibilityServiceCompat
             FeatureSupport.isMultiFingerGestureSupported(),
             shouldSendGestureMotionEvents(),
             supportsTouchScreen,
-            !PauseController.isPaused() && getBooleanPref(
-                R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default),
+            !PauseController.isPaused()
+                && !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)
+                && getBooleanPref(
+                    R.string.pref_explore_by_touch_key, R.bool.pref_explore_by_touch_default),
             yieldingToOtherScreenReader,
             FeatureFlagReader.enableReadCurrentUrl(this));
     if ((info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0
@@ -4940,7 +4943,8 @@ public class TalkBackService extends AccessibilityServiceCompat
   private @Nullable Boolean requestTouchExploration(boolean requestedState) {
     if (requestedState
         && (PauseController.isPaused()
-            || yieldingToOtherScreenReader)) {
+            || yieldingToOtherScreenReader
+            || com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this))) {
       requestedState = false;
     }
     requestServiceFlag(
@@ -4999,12 +5003,22 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
   }
 
-  boolean isYieldingToOtherScreenReader() {
+  public boolean isYieldingToOtherScreenReader() {
     return yieldingToOtherScreenReader;
   }
 
+  public @Nullable String getCompetingScreenReaderName() {
+    return competingScreenReaderName;
+  }
+
+  public @Nullable Boolean isTouchExplorationFlagSet() {
+    return isTouchExplorationEnabled();
+  }
+
   private void updateScreenReaderHandoff() {
-    boolean otherReader = OtherScreenReaderMonitor.isCompetingScreenReaderEnabled(this);
+    String competing = OtherScreenReaderMonitor.findCompetingScreenReader(this);
+    boolean otherReader = competing != null;
+    competingScreenReaderName = competing;
     if (yieldingToOtherScreenReader == otherReader) {
       return;
     }
@@ -5041,7 +5055,7 @@ public class TalkBackService extends AccessibilityServiceCompat
         clearCache();
       }
     }
-    LogUtils.i(TAG, "Screen reader input handoff: %s", otherReader);
+    LogUtils.i(TAG, "Screen reader input handoff: %s (%s)", otherReader, competing);
   }
 
   private void updateTouchInteractionMonitor() {

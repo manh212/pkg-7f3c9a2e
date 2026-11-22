@@ -34,7 +34,10 @@ import com.Braille.BrailleKeyboardService
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.utils.LatencyExperiments
+import com.google.android.accessibility.talkback.OtherScreenReaderMonitor
 import com.google.android.accessibility.talkback.TalkBackService
+import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager
+import com.google.android.accessibility.talkback.pause.PauseController
 import com.google.android.accessibility.talkback.eventprocessor.ProcessorEventQueue
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration
 import com.google.android.accessibility.talkback.focusmanagement.TraversalTreeCache
@@ -351,6 +354,17 @@ object DiagnosticsExport {
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     out.append("== Meridian state ==\n")
     out.append("Debug log: ${if (LogUtils.isEnabled()) "on" else "off"}\n")
+    val service = TalkBackService.getInstance()
+    val competing = service?.competingScreenReaderName
+      ?: OtherScreenReaderMonitor.findCompetingScreenReader(context)
+    out.append("Service active: ${TalkBackService.isServiceActive()}\n")
+    out.append("Paused: ${PauseController.isPaused()}\n")
+    out.append("Yielding to other screen reader: ${service?.isYieldingToOtherScreenReader() ?: false}\n")
+    if (competing != null) {
+      out.append("Competing screen reader: $competing\n")
+    }
+    out.append("Touch exploration flag: ${service?.isTouchExplorationFlagSet() ?: "unavailable"}\n")
+    out.append("License restricted: ${DeviceLicenseManager.restricted(context)} (offline locked: ${DeviceLicenseManager.offlineLocked(context)})\n")
     val typingMethod =
       SharedPreferencesUtils.getIntFromStringPref(
         prefs,

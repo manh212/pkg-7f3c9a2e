@@ -31,6 +31,8 @@ import androidx.activity.ComponentActivity
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.monitor.RecentUserInput
+import kotlin.math.ln
+import kotlin.math.roundToInt
 
 internal class LiveLightDialog(
   private val activity: ComponentActivity,
@@ -57,12 +59,8 @@ internal class LiveLightDialog(
           !RecentUserInput.isRecent()) {
         lightTone.playForLux(lux, now)
       }
-      val label = when {
-        lux < 10f -> R.string.live_recognition_light_dark
-        lux < 100f -> R.string.live_recognition_light_dim
-        else -> R.string.live_recognition_light_bright
-      }
-      val text = activity.getString(label)
+      val percent = lightPercentForLux(lux)
+      val text = activity.getString(R.string.live_recognition_light_percent, percent)
       resultText?.text = text
       if (announcements.shouldSpeak("light", text, now)) {
         speak(text, false)
@@ -164,5 +162,21 @@ internal class LiveLightDialog(
     dismissed = true
     stopSensor()
     onClosed()
+  }
+
+  companion object {
+    private const val MAX_LUX = 1000f
+
+    /**
+     * Maps ambient illuminance (lux) onto a perceptual 0..100% scale rounded to 5% steps
+     * so small sensor jitter does not spam announcements.
+     */
+    internal fun lightPercentForLux(lux: Float): Int {
+      if (!lux.isFinite() || lux <= 0f) return 0
+      if (lux >= MAX_LUX) return 100
+      val ratio = ln(1.0 + lux.toDouble()) / ln(1.0 + MAX_LUX.toDouble())
+      val rawPercent = (ratio * 100.0).roundToInt().coerceIn(0, 100)
+      return (((rawPercent + 2) / 5) * 5).coerceIn(0, 100)
+    }
   }
 }

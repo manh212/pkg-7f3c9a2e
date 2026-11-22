@@ -9,6 +9,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityManager;
 import java.util.List;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class OtherScreenReaderMonitor {
   private final Context context;
@@ -73,39 +74,50 @@ public final class OtherScreenReaderMonitor {
   }
 
   public static boolean isCompetingScreenReaderEnabled(Context context) {
+    return findCompetingScreenReader(context) != null;
+  }
+
+  public static @Nullable String findCompetingScreenReader(Context context) {
     AccessibilityManager manager =
         (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
     if (manager == null) {
-      return false;
+      return null;
     }
     try {
-      if (hasCompetingScreenReader(
-          manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK),
-          context.getPackageName())) {
-        return true;
+      String match =
+          findCompetingScreenReader(
+              manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK),
+              context.getPackageName());
+      if (match != null) {
+        return match;
       }
       String enabled = Settings.Secure.getString(
           context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
       if (enabled == null) {
-        return false;
+        return null;
       }
       for (String entry : enabled.split(":")) {
         ComponentName component = ComponentName.unflattenFromString(entry);
         if (component != null
             && !context.getPackageName().equals(component.getPackageName())
-            && isKnownScreenReader(component.getPackageName())) {
-          return true;
+            && isKnownScreenReaderService(component.getPackageName(), component.getClassName())) {
+          return component.flattenToShortString();
         }
       }
-      return false;
+      return null;
     } catch (SecurityException e) {
-      return false;
+      return null;
     }
   }
 
   static boolean hasCompetingScreenReader(List<AccessibilityServiceInfo> services, String ownPackage) {
+    return findCompetingScreenReader(services, ownPackage) != null;
+  }
+
+  static @Nullable String findCompetingScreenReader(
+      List<AccessibilityServiceInfo> services, String ownPackage) {
     if (services == null) {
-      return false;
+      return null;
     }
     for (AccessibilityServiceInfo info : services) {
       if (info == null
@@ -113,33 +125,62 @@ public final class OtherScreenReaderMonitor {
           || info.getResolveInfo().serviceInfo == null) {
         continue;
       }
+      String packageName = info.getResolveInfo().serviceInfo.packageName;
+      String className = info.getResolveInfo().serviceInfo.name;
       if (isCompetingScreenReader(
           ownPackage,
-          info.getResolveInfo().serviceInfo.packageName,
+          packageName,
+          className,
           info.feedbackType,
           info.flags,
           info.getCapabilities())) {
-        return true;
+        return className != null ? packageName + "/" + className : packageName;
       }
     }
-    return false;
+    return null;
   }
 
   static boolean isCompetingScreenReader(
       String ownPackage, String candidatePackage, int feedbackType, int flags, int capabilities) {
-    return candidatePackage != null
-        && !ownPackage.equals(candidatePackage)
-        && (isKnownScreenReader(candidatePackage)
-            || ((feedbackType & AccessibilityServiceInfo.FEEDBACK_SPOKEN) != 0
-                && ((flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0
-                    || (capabilities
-                            & AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_TOUCH_EXPLORATION)
-                        != 0)));
+    return isCompetingScreenReader(
+        ownPackage, candidatePackage, /* candidateClassName= */ null, feedbackType, flags, capabilities);
   }
 
-  private static boolean isKnownScreenReader(String packageName) {
-    return "com.nirenr.talkman".equals(packageName)
-        || "com.google.android.marvin.talkback".equals(packageName)
-        || "com.samsung.android.accessibility.talkback".equals(packageName);
+  static boolean isCompetingScreenReader(
+      String ownPackage,
+      String candidatePackage,
+      @Nullable String candidateClassName,
+      int feedbackType,
+      int flags,
+      int capabilities) {
+    if (candidatePackage == null || ownPackage.equals(candidatePackage)) {
+      return false;
+    }
+    if (isKnownScreenReaderService(candidatePackage, candidateClassName)) {
+      return true;
+    }
+    // Only yield to other accessibility services when they actively request touch exploration
+    // right now, not merely because their manifest declares touch-exploration capability.
+    return (feedbackType & AccessibilityServiceInfo.FEEDBACK_SPOKEN) != 0
+        && (flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0;
+  }
+
+  static boolean isKnownScreenReaderService(
+      String packageName, @Nullable String className) {
+    if ("com.nirenr.talkman".equals(packageName)) {
+      return true;
+    }
+    if ("com.google.android.marvin.talkback".equals(packageName)
+        || "com.samsung.android.accessibility.talkback".equals(packageName)) {
+      if (className == null || className.isEmpty()) {
+        return false;
+      }
+      String lower = className.toLowerCase(java.util.Locale.ROOT);
+      return lower.endsWith(".talkbackservice")
+          || lower.equals("talkbackservice")
+          || lower.endsWith(".voiceassistantservice")
+          || lower.endsWith(".screenreaderservice");
+    }
+    return false;
   }
 }

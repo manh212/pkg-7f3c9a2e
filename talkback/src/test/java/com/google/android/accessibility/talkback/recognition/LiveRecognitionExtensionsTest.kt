@@ -225,6 +225,12 @@ class LiveRecognitionExtensionsTest {
     assertTrue(fDark in 255.0..265.0)
     assertTrue(fBright in 1315.0..1325.0)
     assertTrue(fBright > fDark)
+    assertEquals(0, LiveLightDialog.lightPercentForLux(0f))
+    assertEquals(100, LiveLightDialog.lightPercentForLux(1000f))
+    assertEquals(100, LiveLightDialog.lightPercentForLux(5000f))
+    val indoorPercent = LiveLightDialog.lightPercentForLux(100f)
+    assertTrue(indoorPercent in 60..70)
+    assertEquals(0, indoorPercent % 5)
 
     val tracker = CurrencyTracker()
     val fifty = CurrencyPrediction(50000, 0.92f)

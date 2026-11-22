@@ -13,6 +13,7 @@
     <string translatable="false" name="live_recognition_light_dark">Xung quanh tối.</string>
     <string translatable="false" name="live_recognition_light_dim">Xung quanh hơi tối.</string>
     <string translatable="false" name="live_recognition_light_bright">Xung quanh sáng.</string>
+    <string translatable="false" name="live_recognition_light_percent">Ánh sáng %1$d%%</string>
     <string translatable="false" name="live_recognition_currency_model_missing">Chưa có mô hình đọc tiền ngoại tuyến. Cần thêm tệp mô hình vào ứng dụng.</string>
     <string translatable="false" name="live_recognition_currency_error">Không tải hoặc chạy được mô hình đọc tiền ngoại tuyến. Đã tắt Đọc tiền.</string>
     <string translatable="false" name="live_recognition_mode_state"><xliff:g id="mode" example="Scenes">%1$s</xliff:g>, <xliff:g id="state" example="on">%2$s</xliff:g></string>
@@ -55,16 +56,17 @@
     <string translatable="false" name="live_recognition_model_download_failed">Không tải được mô hình. Kiểm tra mạng và bật lại chế độ để thử tiếp.</string>
     <string translatable="false" name="live_recognition_model_download_ready">Đã tải xong mô hình. Đang bắt đầu nhận dạng.</string>
     <string translatable="false" name="live_recognition_text_retry">Nhận dạng mất quá lâu. Đang thử lại với hình ảnh mới.</string>
-    <string translatable="false" name="live_recognition_text_not_found">Chưa thấy chữ rõ. Hãy đưa camera lại gần hơn, hướng thẳng vào chữ hoặc bật đèn flash.</string>
+    <string translatable="false" name="live_recognition_text_not_found">Chưa thấy chữ rõ. Hãy giơ cao hoặc hạ thấp tay để hướng thẳng vào văn bản.</string>
     <string translatable="false" name="live_recognition_text_confirming">Giữ yên điện thoại để đọc rõ chữ.</string>
     <string translatable="false" name="live_recognition_ocr_unlicensed">Giấy phép hiện tại không có tính năng nhận dạng chữ OCR.</string>
 
     <string translatable="false" name="live_recognition_text_dialog_title">Nhận dạng văn bản</string>
-    <string translatable="false" name="live_recognition_text_dialog_hint">Hướng camera sau vào bất kỳ văn bản nào cần đọc. Giữ yên tay để ứng dụng hướng dẫn nếu ảnh tối, chói hoặc mờ rồi bắt đầu đọc.</string>
+    <string translatable="false" name="live_recognition_text_dialog_hint">Hướng camera sau vào bất kỳ văn bản nào cần đọc. Ứng dụng sẽ đọc ngay nội dung nhận diện được và chỉ hướng dẫn nếu chưa thấy chữ.</string>
     <string translatable="false" name="live_recognition_text_engine_tesseract">Tesseract tiếng Việt (nhanh, nhẹ)</string>
     <string translatable="false" name="live_recognition_text_engine_vietocr">VietOCR tiếng Việt (rõ dấu hơn)</string>
     <string translatable="false" name="live_recognition_text_upscale">Phóng to và làm nét chữ nhỏ (như phụ đề)</string>
     <string translatable="false" name="live_recognition_text_start_live">Bắt đầu đọc trực tiếp</string>
+    <string translatable="false" name="live_recognition_text_reading_live">Đang đọc văn bản trực tiếp.</string>
     <string translatable="false" name="live_recognition_text_stop_live">Dừng đọc trực tiếp</string>
     <string translatable="false" name="live_recognition_text_capture">Chụp đọc rõ</string>
     <string translatable="false" name="live_recognition_please_wait">Vui lòng đợi…</string>
