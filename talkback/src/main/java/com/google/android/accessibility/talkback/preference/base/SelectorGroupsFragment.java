@@ -57,6 +57,17 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
     });
     screen.addPreference(CreateNewShortcut.mark(add));
 
+    Preference customControls = new Preference(context);
+    customControls.setKey("selector_custom_reading_controls");
+    customControls.setTitle(R.string.custom_reading_controls_title);
+    customControls.setSummary(R.string.custom_reading_controls_summary);
+    customControls.setIconSpaceReserved(false);
+    customControls.setOnPreferenceClickListener(preference -> {
+      SelectorGroupScreenUi.open(this, new CustomReadingControlsFragment(), new Bundle());
+      return true;
+    });
+    screen.addPreference(customControls);
+
     PreferenceCategory groupsCategory = new PreferenceCategory(context);
     groupsCategory.setKey("selector_navigation_groups");
     groupsCategory.setTitle(R.string.selector_groups_title);

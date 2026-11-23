@@ -43,6 +43,7 @@ import com.google.android.accessibility.talkback.HatsSurveyRequester;
 import com.google.android.accessibility.talkback.HelpAndFeedbackUtils;
 import com.google.android.accessibility.talkback.NotificationActivity;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
 import com.google.android.accessibility.talkback.backup.SettingsBackup;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.actor.ImageCaptioner;
@@ -164,6 +165,12 @@ public class TalkBackPreferenceFragment extends TalkbackBaseFragment {
   @Override
   public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
     super.onCreatePreferences(savedInstanceState, rootKey);
+    Preference selectorPref =
+        findPreference(getString(R.string.pref_category_manage_selector_menu_key));
+    if (selectorPref != null && SelectorGroupManager.isSupported()) {
+      selectorPref.setTitle(R.string.selector_groups_title);
+      selectorPref.setFragment(SelectorGroupsFragment.class.getName());
+    }
     if (getXmlResId() == R.xml.preferences) {
       rootSearchScreen = getPreferenceScreen();
     }

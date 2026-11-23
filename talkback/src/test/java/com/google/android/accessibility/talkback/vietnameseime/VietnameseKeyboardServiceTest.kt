@@ -382,6 +382,41 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun deleteSpaceThenAddToneOrShapeToPreviousWord() {
+    setAutoCapitalize(false)
+    startEditor()
+    press("a")
+    press("Dấu cách")
+    press("Xóa")
+    service.onUpdateSelection(2, 2, 1, 1, -1, -1)
+    press("sờ")
+    assertEquals("á", text.toString())
+
+    press("Dấu cách")
+    press("lờ")
+    press("o")
+    press("Dấu cách")
+    press("Xóa")
+    service.onUpdateSelection(text.length + 1, text.length + 1, text.length, text.length, -1, -1)
+    press("o")
+    assertEquals("á lô", text.toString())
+  }
+
+  @Test
+  fun cursorMovedIntoMiddleOfWordStillAppliesTone() {
+    setAutoCapitalize(false)
+    startEditor()
+    press("hờ")
+    press("o")
+    press("a")
+    press("Dấu cách")
+    Selection.setSelection(text, 1)
+    service.onUpdateSelection(4, 4, 1, 1, -1, -1)
+    press("sờ")
+    assertEquals("hóa ", text.toString())
+  }
+
+  @Test
   fun physicalKeyboardComposesEvenWhenTheInputViewIsHidden() {
     service.onStartInput(EditorInfo().apply {
       inputType = InputType.TYPE_CLASS_TEXT

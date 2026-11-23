@@ -273,7 +273,8 @@ class VietnameseKeyboardService : InputMethodService() {
         unicode != 0 && !unicode.toChar().isLetterOrDigit() && !unicode.toChar().isISOControl() &&
           expandShortcut(connection, null, unicode.toChar()) -> true
         !vietnamese -> false
-        unicode in 'a'.code..'z'.code || unicode in 'A'.code..'Z'.code ->
+        unicode in 'a'.code..'z'.code || unicode in 'A'.code..'Z'.code ||
+          (unicode != 0 && unicode.toChar() in "[]{}") ->
           composeLetter(connection, unicode.toChar(), null)
         keyCode == KeyEvent.KEYCODE_DEL && composing -> deleteComposingCharacter(connection, null)
         unicode == ' '.code && composing -> {
@@ -718,7 +719,7 @@ class VietnameseKeyboardService : InputMethodService() {
     val capitalized = if (letter.isLowerCase() && word.isEmpty() &&
       shouldCapitalize(connection)) letter.uppercaseChar() else letter
     val wordCharacter = letter.isLetterOrDigit()
-    if (letter.isLetter() && vietnamese && telexAllowed &&
+    if (Telex.isTelexKey(letter) && vietnamese && telexAllowed &&
       composeLetter(connection, capitalized, speakAt, typedKey = letter)) return true
     wordLost = false
     val finished = if (wordCharacter) "" else completedWord().ifEmpty {
@@ -744,7 +745,73 @@ class VietnameseKeyboardService : InputMethodService() {
     connection: InputConnection, letter: Char, speakAt: Long?, typedKey: Char = letter,
   ): Boolean {
     if (composingUnavailable) return false
-    if (!composing && wordLost) recoverWord(connection)
+    val hasSelection = selectionStart >= 0 && cursor >= 0 && selectionStart != cursor
+    if (!composing && !hasSelection) {
+      val before = adjacentWord(connection, beforeCursor = true)
+      val after = adjacentWord(connection, beforeCursor = false)
+      if (after.isNotEmpty() && before.length + after.length <= MAX_WORD_LENGTH) {
+        val fullWord = before + after
+        val transformed = Telex.apply(fullWord, letter, quickTelex = false)
+        if (transformed != fullWord + letter) {
+          wordLost = false
+          if (!connection.deleteSurroundingTextInCodePoints(before.length, after.length)) {
+            return false
+          }
+          val wordStart = if (cursor >= before.length) cursor - before.length else -1
+          if (connection.setComposingText(transformed, 1)) {
+            composing = transformed.isNotEmpty()
+            composingStart = if (composing) wordStart else -1
+            expectSelection(
+              if (wordStart >= 0) wordStart + transformed.length else -1,
+              composingStart,
+            )
+          } else if (connection.commitText(transformed, 1)) {
+            composing = false
+            composingStart = -1
+            expectSelection(if (wordStart >= 0) wordStart + transformed.length else -1)
+          } else {
+            return false
+          }
+          val changed =
+            if (speakAt != null && echoesCharacters()) changedCharacter(fullWord, transformed) else null
+          word = transformed
+          if (changed != null) keySpeech.confirm(keyNames.spokenName(changed), speakAt!!)
+          return true
+        }
+      } else if (before.isNotEmpty()) {
+        if (!recoverWord(connection, before)) {
+          val transformed = Telex.apply(before, letter, quickTelex = false)
+          if (transformed != before + letter && transformed.length <= MAX_WORD_LENGTH) {
+            wordLost = false
+            if (!connection.deleteSurroundingTextInCodePoints(before.length, 0)) {
+              return false
+            }
+            val wordStart = if (cursor >= before.length) cursor - before.length else -1
+            if (connection.setComposingText(transformed, 1)) {
+              composing = transformed.isNotEmpty()
+              composingStart = if (composing) wordStart else -1
+              expectSelection(
+                if (wordStart >= 0) wordStart + transformed.length else -1,
+                composingStart,
+              )
+            } else if (connection.commitText(transformed, 1)) {
+              composing = false
+              composingStart = -1
+              expectSelection(if (wordStart >= 0) wordStart + transformed.length else -1)
+            } else {
+              return false
+            }
+            val changed =
+              if (speakAt != null && echoesCharacters()) changedCharacter(before, transformed) else null
+            word = transformed
+            if (changed != null) keySpeech.confirm(keyNames.spokenName(changed), speakAt!!)
+            return true
+          }
+        }
+      } else if (wordLost) {
+        wordLost = false
+      }
+    }
     val useQuickTelex = quickTelex && letter.lowercaseChar() in "aeiouy" && word.length in 2..3 &&
       word.all { it.equals(word[0], ignoreCase = true) } &&
       connection.getTextBeforeCursor(word.length + 2, 0)
@@ -1054,17 +1121,18 @@ class VietnameseKeyboardService : InputMethodService() {
   // re-read the word before the cursor from the editor and mark it as the
   // composition. The next Telex key then shapes the word on screen instead
   // of starting a new word after it.
-  private fun recoverWord(connection: InputConnection) {
+  private fun recoverWord(connection: InputConnection, prefetched: String? = null): Boolean {
     wordLost = false
-    if (selectionStart != cursor || cursor < 0) return
-    val current = adjacentWord(connection, beforeCursor = true)
-    if (current.isEmpty()) return
+    if (selectionStart != cursor || cursor < 0) return false
+    val current = prefetched ?: adjacentWord(connection, beforeCursor = true)
+    if (current.isEmpty()) return false
     val start = cursor - current.length
-    if (start < 0 || !connection.setComposingRegion(start, cursor)) return
+    if (start < 0 || !connection.setComposingRegion(start, cursor)) return false
     word = current
     composing = true
     composingStart = start
     expectSelection(cursor, composingStart)
+    return true
   }
 
   private fun adjacentWord(

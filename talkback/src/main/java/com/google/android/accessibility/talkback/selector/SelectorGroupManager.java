@@ -124,6 +124,7 @@ public final class SelectorGroupManager {
         prefs.edit().putString(context.getString(GROUPS_KEY_RES), serialize(groups)).apply();
       }
       appendNewScriptControls(context, prefs);
+      appendNewCustomControls(context, prefs);
       appendGestureProfileControl(context, prefs);
       appendClipboardHistoryControl(context, prefs);
       groups = getGroups(context);
@@ -302,6 +303,10 @@ public final class SelectorGroupManager {
     for (ScriptReadingControl control : Scripts.readingControls()) {
       items.add(new ItemInfo(SCRIPT_ITEM_PREFIX + control.getKey(), control.getTitle(), null));
     }
+    SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(context);
+    for (CustomReadingControls.Control control : CustomReadingControls.list(prefs)) {
+      items.add(new ItemInfo(control.getItemId(), control.getName(), null));
+    }
     return items;
   }
 
@@ -311,6 +316,48 @@ public final class SelectorGroupManager {
 
   public static String scriptKey(String itemId) {
     return isScriptItem(itemId) ? itemId.substring(SCRIPT_ITEM_PREFIX.length()) : "";
+  }
+
+  public static boolean isCustomItem(String itemId) {
+    return CustomReadingControls.isCustomItem(itemId);
+  }
+
+  public static String customId(String itemId) {
+    return CustomReadingControls.customId(itemId);
+  }
+
+  public static void ensureCustomControlInUserGroup(Context context, String itemId) {
+    ensureInitialized(context);
+    ArrayList<Group> groups = mutableGroups(context);
+    if (containsItem(groups, itemId)) {
+      return;
+    }
+    Group userGroup = findGroup(groups, USER_GROUP_ID);
+    if (userGroup == null) {
+      userGroup =
+          new Group(
+              USER_GROUP_ID,
+              context.getString(R.string.selector_group_user),
+              true,
+              new ArrayList<>());
+      groups.add(userGroup);
+    }
+    userGroup.items.add(itemId);
+    saveGroups(context, groups);
+  }
+
+  public static void removeCustomControlFromGroups(Context context, String itemId) {
+    ensureInitialized(context);
+    ArrayList<Group> groups = mutableGroups(context);
+    boolean changed = false;
+    for (Group group : groups) {
+      if (group.items.remove(itemId)) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveGroups(context, groups);
+    }
   }
 
   public static String groupName(Context context, String groupId) {
@@ -665,6 +712,35 @@ public final class SelectorGroupManager {
     boolean changed = false;
     for (ScriptReadingControl control : Scripts.readingControls()) {
       String id = SCRIPT_ITEM_PREFIX + control.getKey();
+      if (!containsItem(groups, id)) {
+        if (userGroup == null) {
+          userGroup =
+              new Group(
+                  USER_GROUP_ID,
+                  context.getString(R.string.selector_group_user),
+                  true,
+                  new ArrayList<>());
+          groups.add(userGroup);
+        }
+        userGroup.items.add(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveGroups(context, groups);
+    }
+  }
+
+  private static void appendNewCustomControls(Context context, SharedPreferences prefs) {
+    List<CustomReadingControls.Control> customControls = CustomReadingControls.list(prefs);
+    if (customControls.isEmpty()) {
+      return;
+    }
+    ArrayList<Group> groups = mutableGroups(context);
+    Group userGroup = findGroup(groups, USER_GROUP_ID);
+    boolean changed = false;
+    for (CustomReadingControls.Control control : customControls) {
+      String id = control.getItemId();
       if (!containsItem(groups, id)) {
         if (userGroup == null) {
           userGroup =

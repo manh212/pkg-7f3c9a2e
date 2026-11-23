@@ -24,6 +24,7 @@ import android.content.res.Configuration;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.telephony.TelephonyManager;
@@ -47,7 +48,6 @@ import com.google.android.accessibility.utils.AccessibilityEventListener;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
-import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -476,11 +476,12 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
     // Has communicated with owner who's going to fix in R. So the AOD support should be put off
     // until R.
     // REFERTO for details
+    PowerManager powerManager = (PowerManager) service.getSystemService(Context.POWER_SERVICE);
+    @Nullable Boolean liveInteractive = powerManager != null ? powerManager.isInteractive() : null;
     boolean isScreenInteractive =
-        ringerModeAndScreenMonitor == null
-            || ringerModeAndScreenMonitor.isInteractive()
-            || (BuildVersionUtils.isAtLeastR() && ringerModeAndScreenMonitor.isDefaultDisplayOn());
-    // AoD mode: isInteractive() is false, but isDefaultDisplayOn() is true
+        isScreenTrulyInteractive(
+            ringerModeAndScreenMonitor == null || ringerModeAndScreenMonitor.isInteractive(),
+            liveInteractive);
 
     if (!isScreenInteractive && !isPhoneRinging) {
       boolean isNotification = AccessibilityEventUtils.isNotificationEvent(event);
@@ -503,6 +504,12 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
 
     // Drop all events related to touch interaction state on devices that don't support touch.
     return (touchscreenState == Configuration.TOUCHSCREEN_NOTOUCH) && isTouchInteractionStateChange;
+  }
+
+  @VisibleForTesting
+  static boolean isScreenTrulyInteractive(
+      boolean monitorInteractive, @Nullable Boolean powerManagerInteractive) {
+    return monitorInteractive && (powerManagerInteractive == null || powerManagerInteractive);
   }
 
   /** Helper method for checking if the pip window is both open and focused. */

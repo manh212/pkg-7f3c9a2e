@@ -3501,6 +3501,8 @@ public class TalkBackService extends AccessibilityServiceCompat
             speechController,
             screenStateMonitor.state,
             processorPhoneticLetters);
+    selectorController.setCommandPerformer(
+        (action, eventId) -> gestureController.performAction(action, eventId));
 
     pauseController =
         new PauseController(

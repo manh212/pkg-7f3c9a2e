@@ -769,7 +769,17 @@ public class SelectorController implements UserInputEventListener {
   private boolean actionsSettingActivatedForEditText;
   private boolean smartContextAutomaticallySelected;
 
+  public interface CommandPerformer {
+    void perform(String action, EventId eventId);
+  }
+
   private @Nullable String scriptControlKey;
+  private @Nullable String customControlId;
+  private @Nullable CommandPerformer commandPerformer;
+
+  public void setCommandPerformer(@Nullable CommandPerformer performer) {
+    this.commandPerformer = performer;
+  }
   // Whether double-tap toggles the chosen live recognition mode.
   private boolean liveRecognitionArmed;
 
@@ -1274,6 +1284,7 @@ public class SelectorController implements UserInputEventListener {
   private void setCurrentSetting(
       EventId eventId, Setting newSetting, AnnounceType announceType, boolean showOverlay) {
     scriptControlKey = null;
+    customControlId = null;
     if (newSetting != Setting.SMART_CONTEXT_GESTURES) {
       smartContextAutomaticallySelected = false;
     }
@@ -1830,12 +1841,20 @@ public class SelectorController implements UserInputEventListener {
             break;
           }
         }
+      } else if (SelectorGroupManager.isCustomItem(itemId)) {
+        if (CustomReadingControls.find(prefs, SelectorGroupManager.customId(itemId)) != null) {
+          availableItems.add(itemId);
+        }
       }
     }
     return availableItems;
   }
 
   private String currentItemId() {
+    @Nullable CustomReadingControls.Control custom = currentCustomControl();
+    if (custom != null) {
+      return custom.getItemId();
+    }
     List<ScriptReadingControl> controls = Scripts.readingControls();
     @Nullable ScriptReadingControl control = currentScriptControl(controls);
     return control == null
@@ -1857,6 +1876,15 @@ public class SelectorController implements UserInputEventListener {
       smartContextAutomaticallySelected = false;
       setCurrentSetting(eventId, setting, announceType, showOverlay);
       return true;
+    }
+    if (SelectorGroupManager.isCustomItem(itemId)) {
+      @Nullable CustomReadingControls.Control custom =
+          CustomReadingControls.find(prefs, SelectorGroupManager.customId(itemId));
+      if (custom != null) {
+        selectCustomControl(eventId, custom, announceType, showOverlay);
+        return true;
+      }
+      return false;
     }
     if (!SelectorGroupManager.isScriptItem(itemId)) {
       return false;
@@ -1930,6 +1958,7 @@ public class SelectorController implements UserInputEventListener {
       AnnounceType announceType,
       boolean showOverlay) {
     requestServiceHandlesDoubleTap(EVENT_ID_UNTRACKED, false);
+    customControlId = null;
     scriptControlKey = control.getKey();
     if (SelectorGroupManager.isSupported()) {
       String groupId = SelectorGroupManager.currentGroupId(context);
@@ -1947,6 +1976,45 @@ public class SelectorController implements UserInputEventListener {
         && !(actorState.getDimScreen().isDimmingEnabled()
             && !actorState.getDimScreen().isInstructionDisplayed())) {
       showQuickMenuOverlay(eventId, control.getTitle());
+    }
+  }
+
+  private @Nullable CustomReadingControls.Control currentCustomControl() {
+    if (customControlId == null) {
+      return null;
+    }
+    @Nullable CustomReadingControls.Control control =
+        CustomReadingControls.find(prefs, customControlId);
+    if (control == null) {
+      customControlId = null;
+    }
+    return control;
+  }
+
+  private void selectCustomControl(
+      EventId eventId,
+      CustomReadingControls.Control control,
+      AnnounceType announceType,
+      boolean showOverlay) {
+    requestServiceHandlesDoubleTap(EVENT_ID_UNTRACKED, false);
+    scriptControlKey = null;
+    customControlId = control.getId();
+    if (SelectorGroupManager.isSupported()) {
+      String groupId = SelectorGroupManager.currentGroupId(context);
+      String itemId = control.getItemId();
+      if (SelectorGroupManager.currentGroupContains(context, itemId)) {
+        SelectorGroupManager.rememberItem(context, groupId, itemId);
+      }
+    }
+    if (announceType == AnnounceType.DESCRIPTION) {
+      announceSetting(eventId, control.getName(), null);
+    } else if (announceType == AnnounceType.DESCRIPTION_AND_HINT) {
+      announceSetting(eventId, control.getName(), getAdjustSelectedSettingGestures());
+    }
+    if (showOverlay
+        && !(actorState.getDimScreen().isDimmingEnabled()
+            && !actorState.getDimScreen().isInstructionDisplayed())) {
+      showQuickMenuOverlay(eventId, control.getName());
     }
   }
 
@@ -2590,6 +2658,14 @@ public class SelectorController implements UserInputEventListener {
   public void adjustSelectedSetting(EventId eventId, boolean isNext) {
     applyPendingSwitch();
     clearEditTextActionsRestore();
+    @Nullable CustomReadingControls.Control customControl = currentCustomControl();
+    if (customControl != null) {
+      String action = isNext ? customControl.getDownAction() : customControl.getUpAction();
+      if (commandPerformer != null && !action.isEmpty()) {
+        commandPerformer.perform(action, eventId);
+      }
+      return;
+    }
     @Nullable ScriptReadingControl scriptControl = currentScriptControl(Scripts.readingControls());
     if (scriptControl != null) {
       scriptControl.adjust(isNext);
@@ -2610,6 +2686,10 @@ public class SelectorController implements UserInputEventListener {
       analytics.onSelectorActionEvent(currentSetting);
     }
 
+    adjustSettingInternal(eventId, currentSetting, isNext);
+  }
+
+  private void adjustSettingInternal(EventId eventId, Setting currentSetting, boolean isNext) {
     switch (currentSetting) {
       case SMART_CONTEXT_GESTURES -> {
         TalkBackService service = TalkBackService.getInstance();
@@ -3465,17 +3545,17 @@ public class SelectorController implements UserInputEventListener {
         }
       };
 
-  /**
-   * Changes the value of {@code setting}, which need not be the selected reading control, for a
-   * next or previous value command. Only the stream volume controls have such commands.
-   */
   public void adjustSettingByCommand(EventId eventId, Setting setting, boolean isNext) {
-    if (!STREAM_VOLUMES.containsKey(setting)) {
+    if (setting == null) {
       return;
     }
     adjustingByCommand = true;
     try {
-      changeStreamVolume(eventId, setting, isNext);
+      if (STREAM_VOLUMES.containsKey(setting)) {
+        changeStreamVolume(eventId, setting, isNext);
+      } else {
+        adjustSettingInternal(eventId, setting, isNext);
+      }
     } finally {
       adjustingByCommand = false;
     }

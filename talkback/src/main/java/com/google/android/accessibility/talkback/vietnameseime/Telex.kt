@@ -12,6 +12,8 @@ internal object Telex {
     "qq" to "qu", "hh" to "nh", "ggg" to "gh", "ttt" to "th",
   )
 
+  fun isTelexKey(key: Char): Boolean = key.isLetter() || key in "[]{}"
+
   fun apply(word: String, key: Char, quickTelex: Boolean = false): String {
     val letter = key.lowercaseChar()
     if (quickTelex && letter in "aeiouy") {
@@ -105,6 +107,10 @@ internal object Telex {
       'e' -> replaceShape(word, lower, key, 'e', 'ê', tone)
       'o' -> replaceShape(word, lower, key, 'o', 'ô', tone)
       'w' -> addHornOrBreve(word, lower, key)
+      '[' -> addBracketVowel(word, lower, '[', 'ơ')
+      ']' -> addBracketVowel(word, lower, ']', 'ư')
+      '{' -> addBracketVowel(word, lower, '{', 'Ơ')
+      '}' -> addBracketVowel(word, lower, '}', 'Ư')
       else -> null
     }
   }
@@ -140,7 +146,13 @@ internal object Telex {
       return replace(word, openPair, 'ư')
     }
     val index = hornTargetIndex(word, lower)
-    if (index < 0) return null
+    if (index < 0) {
+      val hasAnyVowel = lower.any { it in VOWELS }
+      if (!hasAnyVowel) {
+        return word + if (key.isUpperCase()) 'Ư' else 'ư'
+      }
+      return null
+    }
     if (lower[index] == 'u' && index == 1 && lower.startsWith("qu")) return null
     return when (lower[index]) {
       'a' -> replace(word, index, 'ă')
@@ -148,7 +160,12 @@ internal object Telex {
       'u' -> replace(word, index, 'ư')
       'ă' -> replace(word, index, 'a') + key
       'ơ' -> replace(word, index, 'o') + key
-      'ư' -> replace(word, index, 'u') + key
+      'ư' ->
+        if (word.length == 1) {
+          if (word[0].isUpperCase()) key.uppercase() else key.lowercase()
+        } else {
+          replace(word, index, 'u') + key
+        }
       else -> null
     }
   }
@@ -189,6 +206,14 @@ internal object Telex {
         !(index == 1 && word.startsWith("qu", ignoreCase = true)) -> replace(word, index, 'ư')
       else -> word
     }
+  }
+
+  private fun addBracketVowel(word: String, lower: String, key: Char, vowel: Char): String {
+    val targetLower = vowel.lowercaseChar()
+    if (lower.endsWith(targetLower)) {
+      return word.dropLast(1) + key
+    }
+    return word + vowel
   }
 
   private fun replace(word: String, index: Int, letter: Char): String =

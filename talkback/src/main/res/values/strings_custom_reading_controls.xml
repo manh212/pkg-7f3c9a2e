@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string translatable="false" name="custom_reading_controls_title">Điều khiển đọc tùy chỉnh</string>
+    <string translatable="false" name="custom_reading_controls_summary">Tạo điều khiển đọc mới bằng cách gán lệnh cho vuốt lên và vuốt xuống</string>
+    <string translatable="false" name="custom_reading_control_create">Tạo điều khiển đọc mới</string>
+    <string translatable="false" name="custom_reading_control_name_hint">Tên điều khiển đọc</string>
+    <string translatable="false" name="custom_reading_control_swipe_up_label">Điều khiển đọc khi vuốt lên</string>
+    <string translatable="false" name="custom_reading_control_swipe_down_label">Điều khiển đọc khi vuốt xuống</string>
+    <string translatable="false" name="custom_reading_control_not_selected">Chưa chọn lệnh</string>
+    <string translatable="false" name="custom_reading_control_summary_fmt">Vuốt lên: %1$s · Vuốt xuống: %2$s</string>
+    <string translatable="false" name="custom_reading_control_saved">Đã lưu điều khiển đọc %1$s.</string>
+    <string translatable="false" name="custom_reading_control_deleted">Đã xóa điều khiển đọc %1$s.</string>
+    <string translatable="false" name="custom_reading_control_delete_confirm">Xóa điều khiển đọc "%1$s"?</string>
+    <string translatable="false" name="custom_reading_control_name_required">Vui lòng nhập tên điều khiển đọc.</string>
+    <string translatable="false" name="custom_reading_control_commands_required">Vui lòng chọn lệnh cho cả vuốt lên và vuốt xuống.</string>
+    <string translatable="false" name="custom_reading_control_edit">Chỉnh sửa</string>
+    <string translatable="false" name="custom_reading_control_delete">Xóa</string>
+    <string translatable="false" name="custom_reading_control_search_command">Tìm kiếm lệnh…</string>
+    <string translatable="false" name="custom_reading_control_pick_category_fmt">%1$s (%2$d lệnh)</string>
+    <string translatable="false" name="custom_reading_control_back_to_categories">Quay lại chọn nhóm lệnh</string>
+    <string translatable="false" name="custom_reading_control_no_match">Không tìm thấy lệnh phù hợp.</string>
+    <string translatable="false" name="custom_reading_control_empty">Chưa có điều khiển đọc tùy chỉnh nào. Nhấn Tạo điều khiển đọc mới để bắt đầu.</string>
+
+    <string translatable="false" name="command_rc_actions">Thao tác</string>
+    <string translatable="false" name="command_rc_typo">Lỗi chính tả</string>
+    <string translatable="false" name="command_rc_screen_search">Kết quả tìm kiếm trên màn hình</string>
+    <string translatable="false" name="command_rc_adjustable_widget">Thanh trượt (tiện ích điều chỉnh)</string>
+    <string translatable="false" name="command_rc_page_scroll">Trang (cuộn tuần tự)</string>
+    <string translatable="false" name="command_rc_brightness">Độ sáng màn hình</string>
+    <string translatable="false" name="command_rc_lift_to_activate">Nhấc ngón tay để kích hoạt</string>
+    <string translatable="false" name="command_rc_wrap_around">Cuộn vòng</string>
+    <string translatable="false" name="command_rc_tts_engine">Bộ máy đọc TTS</string>
+    <string translatable="false" name="command_rc_clipboard_history">Lịch sử bộ nhớ tạm</string>
+</resources>

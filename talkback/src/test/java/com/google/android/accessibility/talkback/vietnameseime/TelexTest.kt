@@ -149,6 +149,35 @@ class TelexTest {
     assertEquals("", Telex.deleteLast("ả"))
   }
 
+  @Test
+  fun standaloneWAndConsonantWProduceUWithHornLikeDesktopTelex() {
+    assertEquals("ư", type("w"))
+    assertEquals("Ư", type("W"))
+    assertEquals("w", type("ww"))
+    assertEquals("W", type("WW"))
+    assertEquals("tư", type("tw"))
+    assertEquals("tứ", type("tws"))
+    assertEquals("ngư", type("ngw"))
+    assertEquals("người", type("ngwoif"))
+    assertEquals("trư", type("trw"))
+    assertEquals("như", type("nhw"))
+    assertEquals("chư", type("chw"))
+    assertEquals("đư", type("ddw"))
+    assertEquals("Tư", type("Tw"))
+  }
+
+  @Test
+  fun bracketKeysProduceHornedVowelsAndEscapeOnRepeat() {
+    assertEquals("ơ", type("["))
+    assertEquals("ư", type("]"))
+    assertEquals("Ơ", type("{"))
+    assertEquals("Ư", type("}"))
+    assertEquals("[", type("[["))
+    assertEquals("]", type("]]"))
+    assertEquals("tớ", type("t[s"))
+    assertEquals("tứ", type("t]s"))
+  }
+
   private fun type(keys: String, quickTelex: Boolean = false): String =
     keys.fold("") { word, key -> Telex.apply(word, key, quickTelex) }
 }

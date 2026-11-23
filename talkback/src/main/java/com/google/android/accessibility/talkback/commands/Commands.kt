@@ -94,6 +94,16 @@ object Commands {
    */
   private val READING_CONTROL_VALUE_SETTINGS: List<Pair<Setting, Int>> =
     listOf(
+      Setting.ACTIONS to R.string.command_rc_actions,
+      Setting.GRANULARITY_TYPO to R.string.command_rc_typo,
+      Setting.GRANULARITY_SEARCH to R.string.command_rc_screen_search,
+      Setting.ADJUSTABLE_WIDGET to R.string.command_rc_adjustable_widget,
+      Setting.SCROLLING_SEQUENTIAL to R.string.command_rc_page_scroll,
+      Setting.CHANGE_BRIGHTNESS to R.string.command_rc_brightness,
+      Setting.CHANGE_LIFT_TO_ACTIVATE to R.string.command_rc_lift_to_activate,
+      Setting.WRAP_AROUND to R.string.command_rc_wrap_around,
+      Setting.SWITCH_TTS_ENGINE to R.string.command_rc_tts_engine,
+      Setting.CLIPBOARD_HISTORY to R.string.command_rc_clipboard_history,
       Setting.CALL_VOLUME to R.string.quick_settings_call_volume,
       Setting.RING_VOLUME to R.string.quick_settings_ring_volume,
       Setting.NOTIFICATION_VOLUME to R.string.quick_settings_notification_volume,
@@ -308,7 +318,6 @@ object Commands {
       speech()
       feedbackAndVerbosity()
       readingControls()
-      settingValues()
       textEditing()
       clipboardAndCopy()
       device()
@@ -363,6 +372,25 @@ object Commands {
     private fun menuAction(entryName: String, keyboard: TalkBackPhysicalKeyboardShortcut? = null) {
       val entry = MenuGestureActions.ENTRIES.firstOrNull { it.value(context) == "MENU_ACTION:$entryName" } ?: return
       commands.add(Command(entry.value(context), context.getString(entry.label), keyboard))
+    }
+
+    private fun readingControlPair(setting: Setting, @StringRes titleRes: Int) {
+      if (wear) return
+      val title = context.getString(titleRes)
+      commands.add(
+        Command(
+          readingControlValue(setting, next = true),
+          context.getString(R.string.command_next_value, title),
+          null,
+        )
+      )
+      commands.add(
+        Command(
+          readingControlValue(setting, next = false),
+          context.getString(R.string.command_previous_value, title),
+          null,
+        )
+      )
     }
 
     /** Adds a gesture command whose value is [valueRes]. */
@@ -450,6 +478,8 @@ object Commands {
         keyboard(Key.REFOCUS_CURRENT_NODE)
         menuAction("window_menu")
         menuAction("viewpager_menu")
+        readingControlPair(Setting.GRANULARITY_SEARCH, R.string.command_rc_screen_search)
+        readingControlPair(Setting.WRAP_AROUND, R.string.command_rc_wrap_around)
         gesture(
           R.string.shortcut_value_toggle_focus_text_inside_items,
           R.string.shortcut_toggle_focus_text_inside_items,
@@ -498,6 +528,9 @@ object Commands {
         gesture(R.string.shortcut_value_direct_tap, R.string.shortcut_direct_tap)
         gesture(R.string.shortcut_value_toggle_touch_exploration, R.string.shortcut_toggle_touch_exploration)
         gesture(R.string.shortcut_value_tap_text_add, R.string.tap_text_add)
+        readingControlPair(Setting.ACTIONS, R.string.command_rc_actions)
+        readingControlPair(Setting.ADJUSTABLE_WIDGET, R.string.command_rc_adjustable_widget)
+        readingControlPair(Setting.CHANGE_LIFT_TO_ACTIVATE, R.string.command_rc_lift_to_activate)
       }
 
     private fun scrolling() =
@@ -531,10 +564,14 @@ object Commands {
           available = FeatureSupport.supportPassthrough(),
         )
         gesture(R.string.shortcut_value_auto_scroll, R.string.shortcut_auto_scroll)
+        readingControlPair(Setting.SCROLLING_SEQUENTIAL, R.string.command_rc_page_scroll)
       }
 
     private fun textNavigation() =
-      category(R.string.shortcut_title_navigate_by_text) { navigationActions(0) }
+      category(R.string.shortcut_title_navigate_by_text) {
+        navigationActions(0)
+        readingControlPair(Setting.GRANULARITY_TYPO, R.string.command_rc_typo)
+      }
 
     private fun elementNavigation() =
       category(R.string.shortcut_title_navigate_by_element) {
@@ -733,6 +770,7 @@ object Commands {
           Key.PREVIOUS_VOICE_PROFILE,
         )
         menuAction("tts_settings", Key.OPEN_TTS_SETTINGS)
+        readingControlPair(Setting.SWITCH_TTS_ENGINE, R.string.command_rc_tts_engine)
       }
 
     private fun readingControls() =
@@ -909,6 +947,13 @@ object Commands {
           R.string.shortcut_value_decrease_media_volume,
           R.string.shortcut_decrease_media_volume,
         )
+        readingControlPair(Setting.CALL_VOLUME, R.string.quick_settings_call_volume)
+        readingControlPair(Setting.RING_VOLUME, R.string.quick_settings_ring_volume)
+        readingControlPair(
+          Setting.NOTIFICATION_VOLUME,
+          R.string.quick_settings_notification_volume,
+        )
+        readingControlPair(Setting.ALARM_VOLUME, R.string.quick_settings_alarm_volume)
       }
 
     private fun notifications() =
@@ -1077,6 +1122,7 @@ object Commands {
         gesture(R.string.shortcut_value_copy_more, R.string.shortcut_copy_more)
         gesture(R.string.shortcut_value_copy_full_screen, R.string.shortcut_copy_full_screen)
         gesture(R.string.shortcut_value_text_statistics, R.string.shortcut_text_statistics)
+        readingControlPair(Setting.CLIPBOARD_HISTORY, R.string.command_rc_clipboard_history)
       }
 
     private fun clockAndTimers() =
@@ -1165,6 +1211,7 @@ object Commands {
           val label = ExtendedCommandActions.labelFor(context, value) ?: continue
           commands.add(Command(value, label, keyboardAction = null))
         }
+        readingControlPair(Setting.CHANGE_BRIGHTNESS, R.string.command_rc_brightness)
       }
 
     private fun developer() =
