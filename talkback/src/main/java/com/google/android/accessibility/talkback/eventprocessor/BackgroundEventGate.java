@@ -219,6 +219,20 @@ public final class BackgroundEventGate {
    * Coalesces foreground live-refresh content storms (e.g. countdown timers or heavy voucher lists)
    * and unsolicited passive auto-scrolls while still admitting normal foreground updates at once.
    */
+  private static boolean hasMeaningfulScrollPosition(AccessibilityEvent event) {
+    if (!ScrollEventInterpreter.hasScrollPosition(event)) {
+      return false;
+    }
+    if (event.getFromIndex() >= 0 && event.getToIndex() >= 0 && event.getItemCount() > 0) {
+      return true;
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        && (event.getScrollDeltaX() != -1 || event.getScrollDeltaY() != -1)) {
+      return true;
+    }
+    return event.isScrollable() && (event.getScrollX() > 0 || event.getScrollY() > 0);
+  }
+
   private boolean isPassiveSeekBarStateTick(AccessibilityEvent event) {
     if (interactionWindowId < 0 || event.getWindowId() != interactionWindowId) {
       return false;
@@ -265,7 +279,7 @@ public final class BackgroundEventGate {
         // chữ) đã vào trạng thái churning, gộp bớt bão SUBTREE khi người dùng không chạm tay để
         // không làm tắc hàng đợi và giữ độ trễ vuốt đồng đều như ứng dụng nhẹ.
         if (!touching && TraversalTreeCache.shouldUseLiveTraversal(event.getWindowId())) {
-          if (!ScrollEventInterpreter.hasScrollPosition(event)
+          if (!hasMeaningfulScrollPosition(event)
               && lastInput > 0
               && receivedAt - lastInput < INPUT_GRACE_MS) {
             return true;
@@ -310,7 +324,7 @@ public final class BackgroundEventGate {
         break;
       case AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED:
         if ((event.getContentChangeTypes() & AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE) == 0
-            || !isRecentInteraction(event) || !ScrollEventInterpreter.hasScrollPosition(event)) {
+            || !isRecentInteraction(event) || !hasMeaningfulScrollPosition(event)) {
           return cacheOnly(event);
         }
         break;

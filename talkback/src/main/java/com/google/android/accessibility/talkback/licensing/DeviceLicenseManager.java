@@ -301,24 +301,54 @@ public final class DeviceLicenseManager {
     } catch (Exception e) { return true; }
   }
 
+  private static final long RESTRICTION_REFRESH_MS = 30_000L;
   private static volatile long lastRestrictionCheck = -1;
   private static volatile boolean lastRestriction;
+  private static final AtomicBoolean restrictionRefreshQueued = new AtomicBoolean(false);
 
-  public static boolean restricted(Context context) {
-    if (!configured()) return true;
-    long now = SystemClock.elapsedRealtime();
-    if (lastRestrictionCheck >= 0 && now >= lastRestrictionCheck && now - lastRestrictionCheck < 1_000) {
-      return lastRestriction;
-    }
-    boolean blocked;
+  private static boolean evaluateRestrictionSync(Context context) {
     try {
       String token = prefs(context).getString(KEY_POLICY, "");
       if (!token.isEmpty()) {
-        blocked = !isLicensed(context);
-      } else {
-        blocked = false;
+        return !isLicensed(context);
       }
-    } catch (Exception error) { blocked = true; }
+      return false;
+    } catch (Exception error) {
+      return true;
+    }
+  }
+
+  private static void scheduleRestrictionRefresh(Context context) {
+    if (context == null || !restrictionRefreshQueued.compareAndSet(false, true)) return;
+    final Context appContext = context.getApplicationContext() != null
+        ? context.getApplicationContext() : context;
+    INTEGRITY_EXECUTOR.execute(() -> {
+      try {
+        lastRestriction = evaluateRestrictionSync(appContext);
+        lastRestrictionCheck = SystemClock.elapsedRealtime();
+      } finally {
+        restrictionRefreshQueued.set(false);
+      }
+    });
+  }
+
+  public static boolean restricted(Context context) {
+    if (!configured()) return true;
+    if (isUnitTestRuntime()) {
+      boolean blocked = evaluateRestrictionSync(context);
+      lastRestriction = blocked;
+      lastRestrictionCheck = SystemClock.elapsedRealtime();
+      return blocked;
+    }
+    long now = SystemClock.elapsedRealtime();
+    long checkedAt = lastRestrictionCheck;
+    if (checkedAt >= 0) {
+      if (now < checkedAt || now - checkedAt >= RESTRICTION_REFRESH_MS) {
+        scheduleRestrictionRefresh(context);
+      }
+      return lastRestriction;
+    }
+    boolean blocked = evaluateRestrictionSync(context);
     lastRestriction = blocked;
     lastRestrictionCheck = now;
     return blocked;

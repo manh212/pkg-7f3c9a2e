@@ -2135,18 +2135,6 @@ public class FocusProcessorForLogicalNavigation {
       return null;
     }
     if (WebInterfaceUtils.supportsWebActions(pivot)) {
-      if (targetType == NavigationTarget.TARGET_DEFAULT && LatencyExperiments.preparePcm()) {
-        SimpleTraversalStrategy webLive = new SimpleTraversalStrategy();
-        Filter<AccessibilityNodeInfoCompat> webFilter =
-            composeNodeFilter(targetType, webLive.getSpeakingNodesCache());
-        AccessibilityNodeInfoCompat webTarget =
-            TraversalStrategyUtils.searchFocus(webLive, pivot, searchDirection, webFilter);
-        if (webTarget != null
-            && webTarget.getWindowId() == pivot.getWindowId()
-            && webTarget.isVisibleToUser()) {
-          return webTarget;
-        }
-      }
       noteNoTarget(PreparedSpeechWork.NO_TARGET_WEB_PIVOT);
       return null;
     }

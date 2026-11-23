@@ -711,15 +711,22 @@ private class LanguagePreference(
           AppLanguage.entries.map { it.displayName },
         )
         .apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-    spinner.setSelection(selected)
+    spinner.onItemSelectedListener = null
+    spinner.setSelection(selected, false)
     spinner.onItemSelectedListener =
       object : AdapterView.OnItemSelectedListener {
+        private var initialized = false
+
         override fun onItemSelected(
           parent: AdapterView<*>?,
           view: View?,
           position: Int,
           id: Long,
         ) {
+          if (!initialized) {
+            initialized = true
+            if (position == selected) return
+          }
           onSelect(position)
         }
 
