@@ -160,4 +160,39 @@ public final class FocusMemoryV2Test {
     assertFalse(ScreenFocusMemoryStore.isUserIntentionalSource(ensureOnScreen));
     assertFalse(ScreenFocusMemoryStore.isUserIntentionalSource(null));
   }
+
+  @Test
+  public void semanticScreenKey_filtersVolatileChatControlsFromFallbackSignature() {
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("Xuống dưới cùng"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("Emoji, nhãn dán, và GIF"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("Scroll to bottom"));
+    assertEquals("", SemanticScreenKey.normalizeHeaderFallbackLabel("Gửi"));
+    assertEquals(
+        "accessible android chat",
+        SemanticScreenKey.normalizeHeaderFallbackLabel("Accessible Android Chat"));
+  }
+
+  @Test
+  public void fingerprint_rejectsUnlabeledGenericRootContainers() {
+    assertTrue(
+        FocusTargetFingerprint.isUnlabeledGenericContainer(
+            "com.epi:id/root_view", "android.widget.FrameLayout", "", false));
+    assertTrue(
+        FocusTargetFingerprint.isUnlabeledGenericContainer(
+            "", "android.widget.LinearLayout", "", false));
+    assertFalse(
+        FocusTargetFingerprint.isUnlabeledGenericContainer(
+            "com.epi:id/root_view", "android.widget.FrameLayout", "tin nóng", false));
+    assertFalse(
+        FocusTargetFingerprint.isUnlabeledGenericContainer(
+            "com.miui.home:id/icon_icon", "android.view.View", "", false));
+    assertFalse(
+        FocusTargetFingerprint.isUnlabeledGenericContainer(
+            "com.zing.zalo:id/chat_input", "android.widget.EditText", "", true));
+  }
+
+  @Test
+  public void coordinator_defaultRetryWindowSupportsSlowProgressiveScreens() {
+    assertTrue(FocusRestoreCoordinator.DEFAULT_RETRY_WINDOW_MS >= 1500L);
+  }
 }

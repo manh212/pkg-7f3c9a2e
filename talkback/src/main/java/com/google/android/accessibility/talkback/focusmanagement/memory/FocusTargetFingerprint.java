@@ -99,9 +99,39 @@ public final class FocusTargetFingerprint {
     if (unique.isEmpty() && vid.isEmpty() && normLabel.isEmpty()) {
       return null;
     }
+    if (isUnlabeledGenericContainer(vid, cls, normLabel, node.isEditable())) {
+      return null;
+    }
 
     return new FocusTargetFingerprint(
         unique, vid, cls, normLabel, primary, pVid, node.isEditable(), cy, uptimeMs);
+  }
+
+  static boolean isUnlabeledGenericContainer(
+      @NonNull String viewId,
+      @NonNull String className,
+      @NonNull String normalizedLabel,
+      boolean editable) {
+    if (editable || !normalizedLabel.isEmpty()) {
+      return false;
+    }
+    String lowerVid = viewId.toLowerCase(Locale.ROOT);
+    int slash = lowerVid.lastIndexOf('/');
+    String idName = slash >= 0 && slash + 1 < lowerVid.length() ? lowerVid.substring(slash + 1) : lowerVid;
+    if ("root_view".equals(idName)
+        || "root".equals(idName)
+        || "container".equals(idName)
+        || "content".equals(idName)
+        || idName.endsWith("_root")
+        || idName.endsWith("_root_view")
+        || idName.endsWith("_container")) {
+      return true;
+    }
+    return "android.widget.FrameLayout".equals(className)
+        || "android.widget.LinearLayout".equals(className)
+        || "android.widget.RelativeLayout".equals(className)
+        || "android.view.ViewGroup".equals(className)
+        || "androidx.constraintlayout.widget.ConstraintLayout".equals(className);
   }
 
   @NonNull

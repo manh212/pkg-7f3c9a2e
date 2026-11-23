@@ -1332,15 +1332,20 @@ public class TalkBackService extends AccessibilityServiceCompat
     PreparedFocusSpeech.onAccessibilityEvent(event);
   }
 
+  private static final long AUTO_SCROLL_EVENT_TIME_GRACE_MS = 250L;
+
   private boolean isExpectedScrollResponse(AccessibilityEvent event) {
     if (pipeline == null) return false;
     ScrollActionRecord record = pipeline.getActorState().getScrollerState().get();
-    if (record == null || event.getEventTime() < record.autoScrolledTime) return false;
+    if (record == null
+        || event.getEventTime() + AUTO_SCROLL_EVENT_TIME_GRACE_MS < record.autoScrolledTime) {
+      return false;
+    }
     AccessibilityNodeInfoCompat node = record.getScrolledNode();
     if (node == null || node.getWindowId() != event.getWindowId()) return false;
     AccessibilityNodeInfoCompat source = AccessibilityEventUtils.sourceCompat(event);
     try {
-      return record.scrolledNodeMatches(source);
+      return source == null || record.scrolledNodeMatches(source);
     } finally {
       if (source != null) source.recycle();
     }

@@ -29,10 +29,10 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
 public final class FocusRestoreCoordinator {
 
   private static final String TAG = "FocusMemoryV2Coord";
-  public static final long DEFAULT_RETRY_WINDOW_MS = 900L;
+  public static final long DEFAULT_RETRY_WINDOW_MS = 1500L;
   public static final long INPUT_SYNC_SUPPRESSION_MS = 750L;
   public static final long TITLE_FLICKER_GUARD_MS = 1200L;
-  private static final int MAX_ATTEMPTS = 10;
+  private static final int MAX_ATTEMPTS = 14;
   private static final int MAX_EXTERNAL_HIJACK_RECOVERIES = 2;
 
   private static final class PendingRestore {
@@ -196,8 +196,14 @@ public final class FocusRestoreCoordinator {
         LogUtils.d(TAG, "Pending restore expired for %s", pendingRestore.screenKey);
         pendingRestore = null;
       } else if (!pendingRestore.screenKey.equals(currentKey)) {
-        if (store.lookup(currentKey) != null) {
-          pendingRestore = new PendingRestore(currentKey, now + retryWindowMs);
+        ScreenFocusMemoryStore.MemoryEntry currentEntry = store.lookup(currentKey);
+        if (currentEntry != null) {
+          ScreenFocusMemoryStore.MemoryEntry prevEntry = store.lookup(pendingRestore.screenKey);
+          long nextDeadline =
+              (prevEntry != null && prevEntry == currentEntry)
+                  ? Math.max(pendingRestore.deadlineUptimeMs, now + retryWindowMs)
+                  : now + retryWindowMs;
+          pendingRestore = new PendingRestore(currentKey, nextDeadline);
         } else {
           pendingRestore = null;
         }

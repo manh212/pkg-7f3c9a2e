@@ -322,7 +322,19 @@ public final class SemanticScreenKey {
         || "chưa được gắn nhãn".equals(normalized)
         || "unlabelled".equals(normalized)
         || "tùy chọn khác".equals(normalized)
-        || "more options".equals(normalized)) {
+        || "more options".equals(normalized)
+        || "xuống dưới cùng".equals(normalized)
+        || "scroll to bottom".equals(normalized)
+        || "lên đầu trang".equals(normalized)
+        || "scroll to top".equals(normalized)
+        || "emoji, nhãn dán, và gif".equals(normalized)
+        || "emoji, stickers, and gifs".equals(normalized)
+        || "đính kèm".equals(normalized)
+        || "attach".equals(normalized)
+        || "tin nhắn thoại".equals(normalized)
+        || "voice message".equals(normalized)
+        || "gửi".equals(normalized)
+        || "send".equals(normalized)) {
       return "";
     }
     return normalized;

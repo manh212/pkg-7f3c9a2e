@@ -129,6 +129,9 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
 
     boolean missingMaxScroll =
         scrolledEvent.getMaxScrollX() <= 0 && scrolledEvent.getMaxScrollY() <= 0;
+    totalScrollDeltaX += scrollDeltaX;
+    totalScrollDeltaY += scrollDeltaY;
+
     if (scrollDeltaX == 0 && scrollDeltaY == 0) {
       consecutiveZeroDeltaEvents++;
       // RecyclerView không báo cáo maxScroll (ví dụ Nekogram, Gemini, com.toan.game):
@@ -142,17 +145,20 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
       }
     } else {
       consecutiveZeroDeltaEvents = 0;
-      if (missingMaxScroll
-          && ((scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD
-                  && (scrollDeltaX > 0 || scrollDeltaY > 0))
-              || (scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD
-                  && (scrollDeltaX < 0 || scrollDeltaY < 0)))) {
-        return true;
+      if (missingMaxScroll) {
+        // Tránh kết luận thành công quá sớm ở khung hình đầu tiên (ví dụ deltaY = 4 px trên
+        // Nekogram) gây kích hoạt 2-3 nhịp tự cuộn lặp liên tiếp; yêu cầu quãng cuộn tích lũy
+        // đạt tối thiểu 1/3 ngưỡng (hoặc 72 px) trước khi hoàn tất sớm.
+        long minDeltaX = Math.max(REACH_EDGE_MIN_TOLERANCE_DISTANCE_PX, threshold.x / 3L);
+        long minDeltaY = Math.max(REACH_EDGE_MIN_TOLERANCE_DISTANCE_PX, threshold.y / 3L);
+        if ((scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD
+                && (totalScrollDeltaX >= minDeltaX || totalScrollDeltaY >= minDeltaY))
+            || (scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD
+                && (totalScrollDeltaX <= -minDeltaX || totalScrollDeltaY <= -minDeltaY))) {
+          return true;
+        }
       }
     }
-
-    totalScrollDeltaX += scrollDeltaX;
-    totalScrollDeltaY += scrollDeltaY;
 
     LogUtils.d(
         TAG,
