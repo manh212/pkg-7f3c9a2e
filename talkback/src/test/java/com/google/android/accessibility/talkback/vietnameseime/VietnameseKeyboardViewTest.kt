@@ -1920,8 +1920,12 @@ class VietnameseKeyboardViewTest {
     }
   }
 
-  private fun virtualIdForLabel(label: String): Int = keyLabels().indexOf(label).also {
-    assertTrue("No virtual key found for $label", it >= 0)
+  private fun virtualIdForLabel(label: String): Int {
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    for (id in 0..200) {
+      if (provider.createAccessibilityNodeInfo(id)?.text?.toString() == label) return id
+    }
+    throw AssertionError("No virtual key found for $label")
   }
 
   private fun keyBounds(label: String): Rect {

@@ -173,7 +173,7 @@ class TypingSettingsStructureTest {
       ),
       rows.map { it.first },
     )
-    assertTrue(rows[3].second?.endsWith("VietnameseKeyboardShortcutsFragment") == true)
+    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardShortcutsFragment") == true)
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_shortcuts_enabled",
