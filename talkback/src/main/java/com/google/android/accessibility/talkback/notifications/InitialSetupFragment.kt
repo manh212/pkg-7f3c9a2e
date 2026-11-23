@@ -317,7 +317,10 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   }
 
   private fun currentLanguageIndex(): Int {
-    val tag = storedLanguageTag()
+    val tag =
+      storedLanguageTag()
+        ?: resources.configuration.locales[0]?.language
+        ?: Locale.getDefault().language
     val index = AppLanguage.entries.indexOfFirst { it.tag == tag }
     return if (index >= 0) index else 0
   }
@@ -662,15 +665,21 @@ private class PerformancePreference(
           PerformanceChoice.entries.map { context.getString(it.nameRes) },
         )
         .apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-    spinner.setSelection(selected)
+    spinner.setSelection(selected, false)
     spinner.onItemSelectedListener =
       object : AdapterView.OnItemSelectedListener {
+        private var initialized = false
+
         override fun onItemSelected(
           parent: AdapterView<*>?,
           view: View?,
           position: Int,
           id: Long,
         ) {
+          if (!initialized) {
+            initialized = true
+            if (position == selected) return
+          }
           onSelect(position)
         }
 

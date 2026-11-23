@@ -106,7 +106,7 @@ public final class EventTypeWindowContentChangedFeedbackRule {
       RoleDescriptionExtractor roleDescriptionExtractor,
       TreeNodesDescription treeNodesDescription) {
     if (node == null) {
-      LogUtils.e(TAG, "    windowContentChanged: error, node is null");
+      LogUtils.d(TAG, "    windowContentChanged: node is null");
       return EMPTY_FEEDBACK;
     }
 

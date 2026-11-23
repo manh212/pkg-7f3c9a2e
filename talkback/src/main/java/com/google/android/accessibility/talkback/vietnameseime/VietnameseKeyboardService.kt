@@ -72,6 +72,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private var vietnamese = true
   private var telexAllowed = false
   private var quickTelex = false
+  private var t9DoubleTap = false
   private var showLanguageKey = true
   private var shortcuts = emptyMap<String, String>()
   private var longestShortcut = 0
@@ -143,6 +144,7 @@ class VietnameseKeyboardService : InputMethodService() {
       key == getString(R.string.pref_vietnamese_keyboard_show_picker_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_show_language_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_quick_telex_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_t9_double_tap_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_shortcuts_enabled_key) ||
       key == VietnameseKeyboardShortcuts.ENTRIES_KEY ||
       key == getString(R.string.pref_vietnamese_keyboard_show_number_row_key) ||
@@ -495,6 +497,7 @@ class VietnameseKeyboardService : InputMethodService() {
     showKeyboardPicker = newShowKeyboardPicker
     showLanguageKey = newShowLanguageKey
     quickTelex = prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_quick_telex_key), true)
+    t9DoubleTap = prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_t9_double_tap_key), false)
     shortcuts = if (prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_shortcuts_enabled_key), false)) {
       VietnameseKeyboardShortcuts.read(prefs)
     } else emptyMap()
@@ -527,6 +530,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private fun configureView() {
     keyboard?.apply {
       typingMethod = method
+      t9DoubleTap = this@VietnameseKeyboardService.t9DoubleTap
       timing = this@VietnameseKeyboardService.timing
       speakHoveredKeys =
         ownVoice && method != DIRECT_SILENT_TYPING && method != SINGLE_TAP_TO_TYPE

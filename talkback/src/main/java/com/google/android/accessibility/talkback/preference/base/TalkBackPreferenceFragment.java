@@ -36,7 +36,9 @@ import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceGroupAdapter;
 import androidx.preference.PreferenceScreen;
 import androidx.preference.TwoStatePreference;
+import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerViewAccessibilityDelegate;
 import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity.HatsRequesterViewModel;
 import com.google.android.accessibility.talkback.HatsSurveyRequester;
@@ -114,8 +116,16 @@ public class TalkBackPreferenceFragment extends TalkbackBaseFragment {
     if (listView == null) {
       return;
     }
-    listView.setAccessibilityDelegate(
-        new View.AccessibilityDelegate() {
+    RecyclerViewAccessibilityDelegate existingDelegate = listView.getCompatAccessibilityDelegate();
+    listView.setAccessibilityDelegateCompat(
+        new RecyclerViewAccessibilityDelegate(listView) {
+          @Override
+          public AccessibilityDelegateCompat getItemDelegate() {
+            return existingDelegate != null
+                ? existingDelegate.getItemDelegate()
+                : super.getItemDelegate();
+          }
+
           @Override
           public boolean onRequestSendAccessibilityEvent(
               ViewGroup host, View child, AccessibilityEvent event) {

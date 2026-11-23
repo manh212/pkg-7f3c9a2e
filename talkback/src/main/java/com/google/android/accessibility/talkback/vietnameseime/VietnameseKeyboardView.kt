@@ -27,6 +27,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.IME_ACTION_KEY_ID_SUFFIX
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import kotlin.math.abs
@@ -131,6 +132,14 @@ internal class VietnameseKeyboardView(
       if (field != value) cancelInput()
       field = value
     }
+  var t9DoubleTap = false
+    set(value) {
+      if (field != value) cancelInput()
+      field = value
+    }
+
+  private fun effectiveTypingMethod(): Int =
+    if (t9Page && t9DoubleTap) DOUBLE_TAP else typingMethod
   var timing = VietnameseKeyboardTiming()
     set(value) {
       if (field != value) cancelInput()
@@ -316,7 +325,7 @@ internal class VietnameseKeyboardView(
   }
 
   public override fun dispatchHoverEvent(event: MotionEvent): Boolean {
-    if (speakHoveredKeys && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
+    if ((speakHoveredKeys || (t9Page && t9DoubleTap)) && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
       when (event.actionMasked) {
         MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
           val cell = cellAt(event.x, event.y)
@@ -387,7 +396,7 @@ internal class VietnameseKeyboardView(
           downY = y,
           downTime = event.eventTime,
           startingCell = cell,
-          method = typingMethod,
+          method = effectiveTypingMethod(),
           symbolPage = symbolPage,
           touch = VietnameseKeyTouch(
             timing.doubleTapMs, configuration.scaledDoubleTapSlop, firstTaps,

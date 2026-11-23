@@ -9,6 +9,9 @@ import com.google.android.accessibility.luamemory.LuaMemory;
 import com.google.android.accessibility.talkback.BuildConfig;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import io.meridian.licensing.EndpointCodec;
 import io.meridian.licensing.LicenseClock;
 import io.meridian.licensing.LicenseLease;
@@ -23,6 +26,34 @@ public final class DeviceLicenseManager {
   private static final String STORAGE_MIGRATED = EndpointCodec.decode("Mxf-2bWJfGckAvrGspV0byIH6t6qnmxM", 95);
   private static final String PUB_PREFIX = EndpointCodec.decode("JNDlgbEjHw", 119);
   private static final String LIC_PREFIX = EndpointCodec.decode("Gi7L74bXLQ", 73);
+
+  private static final String KEY_POLICY = EndpointCodec.decode("RTsf-9Kp", 53);
+  private static final String KEY_LICENSE = EndpointCodec.decode("LwvixdGtmA", 67);
+  private static final String KEY_SERVER = EndpointCodec.decode("IBfjxqqc", 83);
+  private static final String KEY_ELAPSED = EndpointCodec.decode("AOjCspJlew", 101);
+  private static final String KEY_BOOT = EndpointCodec.decode("D-PEvg", 109);
+  private static final String KEY_HIGHEST_WALL = EndpointCodec.decode("F_fatJ5pTQ8W-tk", 127);
+  private static final String KEY_MAC = EndpointCodec.decode("5suq", 139);
+  private static final String KEY_TRUSTED_TIME = EndpointCodec.decode("48Sgh2dXNS_7x6CJ", 151);
+  private static final String KEY_TIME_FLOOR = EndpointCodec.decode("06-IYXwkDe_wzA", 167);
+  private static final String KEY_TRUSTED_ELAPSED = EndpointCodec.decode("x6CEY1srCdPOpoh4VCMB", 179);
+  private static final String KEY_TRUSTED_BOOT = EndpointCodec.decode("y6yIb08_HcfVuZpg", 191);
+  private static final String STATE_ACTIVE = EndpointCodec.decode("pId3SzcF", 197);
+  private static final String STATE_REVOKED = EndpointCodec.decode("oZdnXyQL6Q", 211);
+  private static final String STATE_SUSPENDED = EndpointCodec.decode("rItuTD4U_d2z", 223);
+  private static final String KIND_TRIAL = EndpointCodec.decode("kXZKIw0", 229);
+  private static final String ROBO_FP = EndpointCodec.decode("nWFPIwfvyryVb0Y", 239);
+
+  private static final long INTEGRITY_REFRESH_MS = 45_000L;
+  private static final ExecutorService INTEGRITY_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+    Thread t = new Thread(r, "m-pool");
+    t.setDaemon(true);
+    t.setPriority(Thread.MIN_PRIORITY);
+    return t;
+  });
+  private static final AtomicBoolean integrityInFlight = new AtomicBoolean(false);
+  private static volatile int cachedIntegrityState;
+  private static volatile long lastIntegrityElapsed = -INTEGRITY_REFRESH_MS;
 
   private static volatile CachedPolicy verifiedPolicy;
   private static final class CachedPolicy {
@@ -46,11 +77,11 @@ public final class DeviceLicenseManager {
   }
 
   private static boolean isUnitTestRuntime() {
-    return "robolectric".equalsIgnoreCase(Build.FINGERPRINT);
+    return ROBO_FP.equalsIgnoreCase(Build.FINGERPRINT);
   }
 
-  public static boolean verifyRuntimeIntegrity(Context context) {
-    if (!configured()) return true;
+  private static boolean evaluateRuntimeIntegritySync(Context context) {
+    if (!configured()) return false;
     if (ApkSignatureVerifier.runtimeSeal(context) != ApkSignatureVerifier.SEAL_OK) return false;
     if (LuaMemory.INSTANCE.isAvailable()) {
       if (LuaMemory.runtimeEnvStatus() != 0x3E7B1D49) return false;
@@ -59,11 +90,46 @@ public final class DeviceLicenseManager {
     }
     return true;
   }
+
+  private static void scheduleIntegrityRefresh(Context context) {
+    if (!integrityInFlight.compareAndSet(false, true)) return;
+    Context app = context.getApplicationContext();
+    Context target = app != null ? app : context;
+    INTEGRITY_EXECUTOR.execute(() -> {
+      try {
+        boolean ok = evaluateRuntimeIntegritySync(target);
+        cachedIntegrityState = ok ? 1 : -1;
+        lastIntegrityElapsed = SystemClock.elapsedRealtime();
+      } catch (Throwable ignored) {
+        cachedIntegrityState = -1;
+      } finally {
+        integrityInFlight.set(false);
+      }
+    });
+  }
+
+  public static boolean verifyRuntimeIntegrity(Context context) {
+    if (isUnitTestRuntime()) {
+      return !configured() || evaluateRuntimeIntegritySync(context);
+    }
+    if (!configured()) return false;
+    int state = cachedIntegrityState;
+    if (state < 0) return false;
+    long now = SystemClock.elapsedRealtime();
+    if (state == 0 || now < lastIntegrityElapsed || now - lastIntegrityElapsed >= INTEGRITY_REFRESH_MS) {
+      scheduleIntegrityRefresh(context);
+    }
+    return true;
+  }
+
   public static String recoveryRequest(Context context) throws Exception {
     return RecoveryProtocol.request(context.getPackageName(),
         Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID));
   }
   public static void prepareDirectBoot(Context context) {
+    if (!isUnitTestRuntime() && configured()) {
+      scheduleIntegrityRefresh(context);
+    }
     if (!UserManagerCompat.isUserUnlocked(context)) return;
     try {
       licenseStorage(context);
@@ -81,7 +147,7 @@ public final class DeviceLicenseManager {
       throw new IllegalStateException("License storage has not been migrated");
     }
     SharedPreferences legacy = context.getSharedPreferences(POLICY_PREFS, Context.MODE_PRIVATE);
-    if ((legacy.contains("license") && !legacy.edit().remove("license").commit())
+    if ((legacy.contains(KEY_LICENSE) && !legacy.edit().remove(KEY_LICENSE).commit())
         || !storage.moveSharedPreferencesFrom(context, POLICY_PREFS)
         || !storage.moveSharedPreferencesFrom(context, VERIFICATION_PREFS)) {
       throw new IllegalStateException("Could not move license preferences");
@@ -139,11 +205,11 @@ public final class DeviceLicenseManager {
   private static VerificationState readVerificationState(Context context) {
     SharedPreferences check = verification(context);
     long wall = System.currentTimeMillis();
-    long server = check.getLong("server", 0);
-    long elapsed = check.getLong("elapsed", -1);
-    int verifiedBoot = check.getInt("boot", -2);
-    long highestWall = check.getLong("highestWall", 0);
-    String storedMac = check.getString("mac", "");
+    long server = check.getLong(KEY_SERVER, 0);
+    long elapsed = check.getLong(KEY_ELAPSED, -1);
+    int verifiedBoot = check.getInt(KEY_BOOT, -2);
+    long highestWall = check.getLong(KEY_HIGHEST_WALL, 0);
+    String storedMac = check.getString(KEY_MAC, "");
     if (server <= 0 || elapsed < 0 || storedMac == null || storedMac.isEmpty()) {
       return VerificationState.REQUIRED;
     }
@@ -164,7 +230,7 @@ public final class DeviceLicenseManager {
     if (wall - highestWall >= 60_000L) {
       String updatedMac = leaseMac(context, server, elapsed, wall, verifiedBoot);
       if (updatedMac.isEmpty()) return VerificationState.UNAVAILABLE;
-      check.edit().putLong("highestWall", wall).putString("mac", updatedMac).apply();
+      check.edit().putLong(KEY_HIGHEST_WALL, wall).putString(KEY_MAC, updatedMac).apply();
     }
     return VerificationState.VALID;
   }
@@ -195,11 +261,11 @@ public final class DeviceLicenseManager {
   private static synchronized void recordVerification(Context context, long serverMillis) throws Exception {
     if (serverMillis <= 0) throw new IllegalStateException("Không nhận được thời gian xác minh từ máy chủ.");
     SharedPreferences check = verification(context);
-    long prior = check.getLong("server", 0);
-    String priorMac = check.getString("mac", "");
+    long prior = check.getLong(KEY_SERVER, 0);
+    String priorMac = check.getString(KEY_MAC, "");
     boolean authenticated = priorMac != null && !priorMac.isEmpty() && matchesLeaseMac(priorMac,
-        leaseMac(context, prior, check.getLong("elapsed", -1),
-            check.getLong("highestWall", 0), check.getInt("boot", -2)));
+        leaseMac(context, prior, check.getLong(KEY_ELAPSED, -1),
+            check.getLong(KEY_HIGHEST_WALL, 0), check.getInt(KEY_BOOT, -2)));
     if (authenticated && !LicenseLease.newerVerification(serverMillis, prior)) {
       throw new IllegalStateException("Thời gian xác minh từ máy chủ cũ hơn lần xác minh đã lưu.");
     }
@@ -210,11 +276,11 @@ public final class DeviceLicenseManager {
     String mac = leaseMac(context, serverMillis, elapsed, highestWall, currentBoot);
     if (mac.isEmpty()) throw new IllegalStateException("Không tạo được dữ liệu xác minh giấy phép.");
     SharedPreferences.Editor edit = check.edit()
-        .putLong("server", serverMillis)
-        .putLong("elapsed", elapsed)
-        .putInt("boot", currentBoot)
-        .putLong("highestWall", highestWall)
-        .putString("mac", mac);
+        .putLong(KEY_SERVER, serverMillis)
+        .putLong(KEY_ELAPSED, elapsed)
+        .putInt(KEY_BOOT, currentBoot)
+        .putLong(KEY_HIGHEST_WALL, highestWall)
+        .putString(KEY_MAC, mac);
     if (!edit.commit()) throw new IllegalStateException("Không lưu được thời điểm xác minh giấy phép.");
     if (verificationState(context) != VerificationState.VALID) {
       throw new IllegalStateException(verificationMessage(context));
@@ -224,10 +290,10 @@ public final class DeviceLicenseManager {
   public static boolean offlineLocked(Context context) {
     if (!configured()) return false;
     try {
-      String token = prefs(context).getString("policy", "");
+      String token = prefs(context).getString(KEY_POLICY, "");
       if (!token.isEmpty()) {
         LicensePolicy policy = policy(context);
-        return policy != null && policy.state.equals("active")
+        return policy != null && policy.state.equals(STATE_ACTIVE)
             && (policy.expiresAt == 0 || policyTime(context, policy) < policy.expiresAt)
             && !recentlyVerified(context);
       }
@@ -246,7 +312,7 @@ public final class DeviceLicenseManager {
     }
     boolean blocked;
     try {
-      String token = prefs(context).getString("policy", "");
+      String token = prefs(context).getString(KEY_POLICY, "");
       if (!token.isEmpty()) {
         blocked = !isLicensed(context);
       } else {
@@ -287,7 +353,7 @@ public final class DeviceLicenseManager {
       throw new IllegalStateException("Bản cài đặt chưa được xác thực.");
     }
     String request = recoveryRequest(context);
-    String cached = prefs(context).getString("policy", "");
+    String cached = prefs(context).getString(KEY_POLICY, "");
     String pubKey = recoveryPublicKey();
     LicensePolicy next = LicensePolicy.verify(request, license,
         RecoveryProtocol.publicKey(pubKey));
@@ -302,12 +368,12 @@ public final class DeviceLicenseManager {
         || (next.revision == old.revision && !cached.equals(license)))) {
       return false;
     }
-    SharedPreferences.Editor edit = prefs(context).edit().putString("policy", license)
-        .remove("license")
-        .putLong("trusted_time", serverMillis / 1000L)
-        .putLong("time_floor", Math.max(prefs(context).getLong("time_floor", 0), serverMillis / 1000L))
-        .putLong("trusted_elapsed", SystemClock.elapsedRealtime() / 1000L)
-        .putInt("trusted_boot", boot(context));
+    SharedPreferences.Editor edit = prefs(context).edit().putString(KEY_POLICY, license)
+        .remove(KEY_LICENSE)
+        .putLong(KEY_TRUSTED_TIME, serverMillis / 1000L)
+        .putLong(KEY_TIME_FLOOR, Math.max(prefs(context).getLong(KEY_TIME_FLOOR, 0), serverMillis / 1000L))
+        .putLong(KEY_TRUSTED_ELAPSED, SystemClock.elapsedRealtime() / 1000L)
+        .putInt(KEY_TRUSTED_BOOT, boot(context));
     if (!edit.commit()) throw new IllegalStateException("Không lưu được trạng thái giấy phép.");
     recordVerification(context, serverMillis);
     lastRestrictionCheck = -1;
@@ -315,7 +381,7 @@ public final class DeviceLicenseManager {
   }
 
   private static LicensePolicy policy(Context context) throws Exception {
-    String token = prefs(context).getString("policy", "");
+    String token = prefs(context).getString(KEY_POLICY, "");
     if (token.isEmpty()) return null;
     String request = recoveryRequest(context);
     CachedPolicy cached = verifiedPolicy;
@@ -333,13 +399,13 @@ public final class DeviceLicenseManager {
   private static synchronized long policyTime(Context context, LicensePolicy policy) {
     long wall = System.currentTimeMillis() / 1000L;
     SharedPreferences data = prefs(context);
-    long floor = data.getLong("time_floor", 0);
-    long trusted = data.getLong("trusted_time", 0);
+    long floor = data.getLong(KEY_TIME_FLOOR, 0);
+    long trusted = data.getLong(KEY_TRUSTED_TIME, 0);
     int currentBoot = boot(context);
     wall = LicenseClock.now(wall, floor, trusted, SystemClock.elapsedRealtime() / 1000L,
-        data.getLong("trusted_elapsed", 0), currentBoot >= 0 && currentBoot == data.getInt("trusted_boot", -2));
+        data.getLong(KEY_TRUSTED_ELAPSED, 0), currentBoot >= 0 && currentBoot == data.getInt(KEY_TRUSTED_BOOT, -2));
     if (wall == Long.MAX_VALUE) return wall;
-    if (wall > floor + 60) data.edit().putLong("time_floor", wall).commit();
+    if (wall > floor + 60) data.edit().putLong(KEY_TIME_FLOOR, wall).commit();
     return wall;
   }
 
@@ -359,16 +425,16 @@ public final class DeviceLicenseManager {
     try {
       LicensePolicy policy = policy(context);
       if (policy == null) return "Chưa có giấy phép trực tuyến.";
-      if (policy.state.equals("revoked")) return "Đã thu hồi giấy phép.";
-      if (policy.state.equals("suspended")) return "Giấy phép đang bị tạm khóa.";
+      if (policy.state.equals(STATE_REVOKED)) return "Đã thu hồi giấy phép.";
+      if (policy.state.equals(STATE_SUSPENDED)) return "Giấy phép đang bị tạm khóa.";
       if (policy.expiresAt > 0 && policyTime(context, policy) >= policy.expiresAt) {
         return "Giấy phép đã hết hạn.";
       }
       if (!recentlyVerified(context)) return verificationMessage(context);
-      String state = policy.state.equals("revoked") ? "Đã thu hồi"
-          : policy.state.equals("suspended") ? "Tạm khóa"
+      String state = policy.state.equals(STATE_REVOKED) ? "Đã thu hồi"
+          : policy.state.equals(STATE_SUSPENDED) ? "Tạm khóa"
           : policy.active(policyTime(context, policy)) ? "Đang hoạt động" : "Đã hết hạn hoặc cần kiểm tra ngày giờ";
-      return state + " · " + (policy.kind.equals("trial") ? "Dùng thử" : "Chính thức")
+      return state + " · " + (policy.kind.equals(KIND_TRIAL) ? "Dùng thử" : "Chính thức")
           + " · Gói " + policy.packageName + "\n"
           + (policy.expiresAt == 0 ? "Không thời hạn" : "Hết hạn: "
               + java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(policy.expiresAt * 1000L)));

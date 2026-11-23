@@ -2135,6 +2135,18 @@ public class FocusProcessorForLogicalNavigation {
       return null;
     }
     if (WebInterfaceUtils.supportsWebActions(pivot)) {
+      if (targetType == NavigationTarget.TARGET_DEFAULT && LatencyExperiments.preparePcm()) {
+        SimpleTraversalStrategy webLive = new SimpleTraversalStrategy();
+        Filter<AccessibilityNodeInfoCompat> webFilter =
+            composeNodeFilter(targetType, webLive.getSpeakingNodesCache());
+        AccessibilityNodeInfoCompat webTarget =
+            TraversalStrategyUtils.searchFocus(webLive, pivot, searchDirection, webFilter);
+        if (webTarget != null
+            && webTarget.getWindowId() == pivot.getWindowId()
+            && webTarget.isVisibleToUser()) {
+          return webTarget;
+        }
+      }
       noteNoTarget(PreparedSpeechWork.NO_TARGET_WEB_PIVOT);
       return null;
     }
@@ -2193,8 +2205,19 @@ public class FocusProcessorForLogicalNavigation {
     if (activeRoot == null || activeRoot.getWindowId() != root.getWindowId()) {
       return null;
     }
+    long rereadStart = SystemClock.uptimeMillis();
     WindowNodePrefetcher.prefetch(root, service.getPackageName());
-    OrderedTraversalStrategy reread = new OrderedTraversalStrategy(root);
+    OrderedTraversalStrategy reread;
+    try {
+      reread =
+          TraversalBudget.run(
+              rereadStart + ORDER_BUILD_BUDGET_MS,
+              () -> new OrderedTraversalStrategy(root));
+    } catch (CancellationException exhausted) {
+      TraversalTreeCache.noteSlowBuild(
+          root.getWindowId(), SystemClock.uptimeMillis() - rereadStart, true);
+      return null;
+    }
     LogUtils.i(
         TAG,
         "Order of window %d missed children; read again, %s",
@@ -6754,12 +6777,13 @@ public class FocusProcessorForLogicalNavigation {
         && TraversalStrategyUtils.isLogicalDirection(sourceAction.searchDirection)
         && !NodeOverrides.hasSource()) {
       SimpleTraversalStrategy live = new SimpleTraversalStrategy();
-      AccessibilityNodeInfoCompat adjacent = live.findFocus(focusBeforeScroll, sourceAction.searchDirection);
       Filter<AccessibilityNodeInfoCompat> filter =
           composeNodeFilter(sourceAction.targetType, live.getSpeakingNodesCache());
+      AccessibilityNodeInfoCompat adjacent =
+          TraversalStrategyUtils.searchFocus(
+              live, focusBeforeScroll, sourceAction.searchDirection, filter);
       if (adjacent != null && adjacent.isVisibleToUser()
-          && AccessibilityNodeInfoUtils.hasAncestor(adjacent, scrolledNode)
-          && filter.accept(adjacent)) {
+          && AccessibilityNodeInfoUtils.hasAncestor(adjacent, scrolledNode)) {
         nodeToFocus = adjacent;
         TraversalTreeCache.noteLiveAnswer();
         Performance.getInstance().onNavigationDetail(eventId, "scroll_live_target", 1);
@@ -6780,9 +6804,25 @@ public class FocusProcessorForLogicalNavigation {
     AccessibilityNodeInfoCompat searchPivot = focusBeforeScroll;
     if (nodeToFocus == null) {
       long[] orderWork = Performance.getInstance().beginNavigationWork();
-      TraversalStrategy localTraversalStrategy =
-          TraversalStrategyUtils.getTraversalStrategy(
-              scrolledNode, focusFinder, sourceAction.searchDirection);
+      long scrollBuildStart = SystemClock.uptimeMillis();
+      boolean scrollBudgetExceeded = false;
+      TraversalStrategy localTraversalStrategy;
+      try {
+        localTraversalStrategy =
+            TraversalBudget.run(
+                scrollBuildStart + ORDER_BUILD_BUDGET_MS,
+                () ->
+                    TraversalStrategyUtils.getTraversalStrategy(
+                        scrolledNode, focusFinder, sourceAction.searchDirection));
+      } catch (CancellationException exhausted) {
+        scrollBudgetExceeded = true;
+        localTraversalStrategy = new SimpleTraversalStrategy();
+      } finally {
+        TraversalTreeCache.noteSlowBuild(
+            scrolledNode.getWindowId(),
+            SystemClock.uptimeMillis() - scrollBuildStart,
+            scrollBudgetExceeded);
+      }
       Performance.getInstance().endNavigationWork(eventId, "scroll_order", orderWork);
       Filter<AccessibilityNodeInfoCompat> nodeFilter =
           composeNodeFilter(sourceAction.targetType, localTraversalStrategy.getSpeakingNodesCache());

@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+extern int meridian_guard_is_ok(void);
+
 /* LuaJava's library; another name for tests on a computer. */
 #ifndef LUA_LIBRARY
 #define LUA_LIBRARY "liblua54.so"
@@ -62,6 +64,7 @@ static void *lua_function(const char *name) {
 /* Puts a budget of limit bytes on the state L. Returns its handle, or 0 if it couldn't. */
 JNIEXPORT jlong JNICALL Java_com_google_android_accessibility_luamemory_LuaMemory_nativeAttach(
     JNIEnv *env, jclass clazz, jlong state, jlong limit) {
+  if (!meridian_guard_is_ok()) return 0;
   getallocf_fn getallocf = (getallocf_fn)lua_function("lua_getallocf");
   setallocf_fn setallocf = (setallocf_fn)lua_function("lua_setallocf");
   gc_fn gc = (gc_fn)lua_function("lua_gc");

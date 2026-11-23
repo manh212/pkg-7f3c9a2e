@@ -78,7 +78,10 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
                 LogUtils.w(TAG, "Permission request receiver already unregistered.");
               }
 
-              if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+              cachedCallStatePermissionGranted =
+                  grantResults[i] == PackageManager.PERMISSION_GRANTED;
+              if (cachedCallStatePermissionGranted) {
+                loggedMissingCallStatePermission = false;
                 startMonitoring();
               }
               break;
@@ -95,6 +98,8 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
   private int lastCallState;
   @VisibleForTesting boolean isStarted;
   private boolean isPermissionReceiverRegistered = false;
+  private Boolean cachedCallStatePermissionGranted;
+  private boolean loggedMissingCallStatePermission = false;
 
   public CallStateMonitor(TalkBackService context) {
     service = context;
@@ -155,8 +160,9 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
     // Starting from M, permission model has changed, so that TalkBack is not granted with
     // READ_PHONE_STATE permission by default. Then there is no need to register the broadcast
     // receiver.
-    if (isCallStatePermissionGranted()) {
+    if (refreshCallStatePermissionGranted()) {
       LogUtils.d(TAG, "Start monitoring call state.");
+      loggedMissingCallStatePermission = false;
       lastCallState = getCallState();
       ContextCompat.registerReceiver(service, this, STATE_CHANGED_FILTER, RECEIVER_EXPORTED);
       isStarted = true;
@@ -169,6 +175,8 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
 
   /** Unregisters broadcast receiver and stop monitoring phone call state. */
   public void stopMonitoring() {
+    cachedCallStatePermissionGranted = null;
+    loggedMissingCallStatePermission = false;
     if (isStarted && supportTelephony) {
       LogUtils.d(TAG, "Stop monitoring call state.");
       service.unregisterReceiver(this);
@@ -195,7 +203,7 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
     if (supportTelephony
         && FeatureSupport.callStateRequiresPermission()
         && OnboardingInitiator.hasOnboardingForNewFeaturesBeenShown(prefs, service)
-        && !isCallStatePermissionGranted()
+        && !refreshCallStatePermissionGranted()
         && !ScreenMonitor.isDeviceLocked(service)) {
       startPhonePermissionRequestActivity();
     }
@@ -253,22 +261,40 @@ public class CallStateMonitor extends SameThreadBroadcastReceiver {
    */
   // TODO: Uses the new API since TelephonyManager.getCallState is deprecated in 31
   private int getCallState() {
+    if (!supportTelephony) {
+      if (!loggedMissingCallStatePermission) {
+        loggedMissingCallStatePermission = true;
+        LogUtils.w(TAG, "CALL_STATE_IDLE supportTelephony: false callStatePermissionGranted: false");
+      }
+      return TelephonyManager.CALL_STATE_IDLE;
+    }
     boolean permissionGranted = isCallStatePermissionGranted();
-    if (!supportTelephony || (FeatureSupport.callStateRequiresPermission() && !permissionGranted)) {
-      LogUtils.w(
-          TAG,
-          "CALL_STATE_IDLE supportTelephony: "
-              + supportTelephony
-              + " callStatePermissionGranted: "
-              + permissionGranted);
+    if (FeatureSupport.callStateRequiresPermission() && !permissionGranted) {
+      if (!loggedMissingCallStatePermission) {
+        loggedMissingCallStatePermission = true;
+        LogUtils.w(
+            TAG,
+            "CALL_STATE_IDLE supportTelephony: true callStatePermissionGranted: false");
+      }
       return TelephonyManager.CALL_STATE_IDLE;
     }
     return telephonyManager.getCallState();
   }
 
+  private boolean refreshCallStatePermissionGranted() {
+    boolean granted =
+        ContextCompat.checkSelfPermission(service, Manifest.permission.READ_PHONE_STATE)
+            == PackageManager.PERMISSION_GRANTED;
+    cachedCallStatePermissionGranted = granted;
+    return granted;
+  }
+
   /** @return whether the permission READ_PHONE_STATE is granted to TalkBack. */
   private boolean isCallStatePermissionGranted() {
-    return ContextCompat.checkSelfPermission(service, Manifest.permission.READ_PHONE_STATE)
-        == PackageManager.PERMISSION_GRANTED;
+    Boolean cached = cachedCallStatePermissionGranted;
+    if (cached != null) {
+      return cached;
+    }
+    return refreshCallStatePermissionGranted();
   }
 }

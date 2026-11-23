@@ -122,7 +122,7 @@ public final class BackgroundEventGate {
   private static final int FOREGROUND_STORM_THRESHOLD = 4;
   private static final long FOREGROUND_SCROLL_STORM_WINDOW_MS = 120L;
   private static final int FOREGROUND_SCROLL_STORM_THRESHOLD = 3;
-  private static final int CHURNING_SUBTREE_STORM_THRESHOLD = 6;
+  private static final int CHURNING_SUBTREE_STORM_THRESHOLD = 3;
   private long fgContentBurstWindowStartMs;
   private int fgContentBurstCount;
   private long fgScrollBurstWindowStartMs;
@@ -187,6 +187,9 @@ public final class BackgroundEventGate {
       return true;
     }
     boolean background = isBackgroundUpdate(event);
+    if (!background && isPassiveSeekBarStateTick(event)) {
+      return cacheOnly(event);
+    }
     if (!background && !isForegroundStormOrPassiveScroll(event, receivedAt)) {
       EventProcessingStats.admitted(event, 0);
       return true;
@@ -216,6 +219,20 @@ public final class BackgroundEventGate {
    * Coalesces foreground live-refresh content storms (e.g. countdown timers or heavy voucher lists)
    * and unsolicited passive auto-scrolls while still admitting normal foreground updates at once.
    */
+  private boolean isPassiveSeekBarStateTick(AccessibilityEvent event) {
+    if (interactionWindowId < 0 || event.getWindowId() != interactionWindowId) {
+      return false;
+    }
+    if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        || event.getContentChangeTypes() != AccessibilityEvent.CONTENT_CHANGE_TYPE_STATE_DESCRIPTION) {
+      return false;
+    }
+    CharSequence className = event.getClassName();
+    return className != null
+        && className.toString().contains("SeekBar")
+        && !isRecentInteraction(event);
+  }
+
   private boolean isForegroundStormOrPassiveScroll(AccessibilityEvent event, long receivedAt) {
     if (interactionWindowId < 0 || event.getWindowId() != interactionWindowId) {
       return false;
@@ -248,6 +265,11 @@ public final class BackgroundEventGate {
         // chữ) đã vào trạng thái churning, gộp bớt bão SUBTREE khi người dùng không chạm tay để
         // không làm tắc hàng đợi và giữ độ trễ vuốt đồng đều như ứng dụng nhẹ.
         if (!touching && TraversalTreeCache.shouldUseLiveTraversal(event.getWindowId())) {
+          if (!ScrollEventInterpreter.hasScrollPosition(event)
+              && lastInput > 0
+              && receivedAt - lastInput < INPUT_GRACE_MS) {
+            return true;
+          }
           if (receivedAt < fgSubtreeBurstWindowStartMs
               || receivedAt - fgSubtreeBurstWindowStartMs > FOREGROUND_STORM_WINDOW_MS) {
             fgSubtreeBurstWindowStartMs = receivedAt;
@@ -440,7 +462,7 @@ public final class BackgroundEventGate {
         return;
       }
       EventProcessingStats.admitted(event, lastDispatch - since);
-      receiver.accept(event, since);
+      receiver.accept(event, lastDispatch);
     } finally {
       event.recycle();
       if (pendingForeground != null || pendingBackground != null) {

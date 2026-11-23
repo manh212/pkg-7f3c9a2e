@@ -80,7 +80,7 @@ public final class EventTypeViewSelectedFeedbackRule {
       GlobalVariables globalVariables,
       RoleDescriptionExtractor roleDescriptionExtractor) {
     if (node == null) {
-      LogUtils.e(TAG, "viewSelected() error: node is null.");
+      LogUtils.d(TAG, "viewSelected(): node is null.");
       return EMPTY_FEEDBACK;
     }
 

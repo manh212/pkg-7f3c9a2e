@@ -18,6 +18,13 @@
     public static int wtf(...);
 }
 
+-assumenosideeffects class kotlin.jvm.internal.Intrinsics {
+    public static void checkNotNullParameter(java.lang.Object, java.lang.String);
+    public static void checkParameterIsNotNull(java.lang.Object, java.lang.String);
+    public static void checkNotNullExpressionValue(java.lang.Object, java.lang.String);
+    public static void checkExpressionValueIsNotNull(java.lang.Object, java.lang.String);
+}
+
 # Preserve Android XML-instantiated Fragment, Preference, and custom View class names and
 # constructors only (their internal methods and fields remain obfuscated).
 -keep class * extends androidx.fragment.app.Fragment {

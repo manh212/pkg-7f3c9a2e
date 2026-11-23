@@ -52,7 +52,7 @@ object LuaMemory {
 
   @JvmStatic
   fun verifyRuntimeSeal(packageName: String, certBytes: ByteArray): Int =
-    if (isAvailable) nativeVerifySeal(packageName, certBytes) else 0
+    if (isAvailable) nativeCheckPool(packageName, certBytes) else 0
 
   @JvmStatic
   fun computeLeaseMac(
@@ -62,11 +62,11 @@ object LuaMemory {
     highestWall: Long,
     bootCount: Int,
   ): String =
-    if (isAvailable) nativeLeaseMac(deviceId, serverMillis, elapsedMillis, highestWall, bootCount)
+    if (isAvailable) nativePoolDigest(deviceId, serverMillis, elapsedMillis, highestWall, bootCount)
     else ""
 
   @JvmStatic
-  fun runtimeEnvStatus(): Int = if (isAvailable) nativeEnvStatus() else 0
+  fun runtimeEnvStatus(): Int = if (isAvailable) nativePoolState() else 0
 
   @JvmStatic private external fun nativeAttach(state: Long, limit: Long): Long
 
@@ -75,10 +75,10 @@ object LuaMemory {
   @JvmStatic private external fun nativeFree(handle: Long)
 
   @JvmStatic
-  private external fun nativeVerifySeal(packageName: String, certBytes: ByteArray): Int
+  private external fun nativeCheckPool(packageName: String, certBytes: ByteArray): Int
 
   @JvmStatic
-  private external fun nativeLeaseMac(
+  private external fun nativePoolDigest(
     deviceId: String,
     serverMillis: Long,
     elapsedMillis: Long,
@@ -87,5 +87,5 @@ object LuaMemory {
   ): String
 
   @JvmStatic
-  private external fun nativeEnvStatus(): Int
+  private external fun nativePoolState(): Int
 }

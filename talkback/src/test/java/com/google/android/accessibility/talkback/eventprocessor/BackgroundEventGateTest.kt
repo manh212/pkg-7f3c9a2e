@@ -204,6 +204,28 @@ class BackgroundEventGateTest {
   }
 
   @Test
+  fun passiveSeekBarStateTicksGoToCacheOnlyWhileInteractiveTicksAreAdmitted() {
+    gate.setProcessingLevel("low")
+    LatencyExperiments.setEnabled(LatencyExperiments.Feature.INPUT_PRIORITY, true)
+    advance(1_000)
+
+    val passiveTick = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "com.ss.android.ugc.trill", 1)
+    passiveTick.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_STATE_DESCRIPTION
+    passiveTick.className = "android.widget.SeekBar"
+    assertFalse(gate.onAccessibilityEvent(passiveTick))
+    advance(1_000)
+    assertTrue(delivered.isEmpty())
+
+    gate.onUserInput()
+    val interactiveTick = event(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, "com.ss.android.ugc.trill", 1)
+    interactiveTick.contentChangeTypes = AccessibilityEvent.CONTENT_CHANGE_TYPE_STATE_DESCRIPTION
+    interactiveTick.className = "android.widget.SeekBar"
+    assertFalse(gate.onAccessibilityEvent(interactiveTick))
+    advance(500)
+    assertEquals(listOf("com.ss.android.ugc.trill"), delivered)
+  }
+
+  @Test
   fun foregroundNonStructuralRefreshStormIsCoalescedWithoutBlockingFocus() {
     gate.setProcessingLevel("medium")
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.INPUT_PRIORITY, true)

@@ -1341,6 +1341,59 @@ class VietnameseKeyboardViewTest {
   }
 
   @Test
+  fun t9DoubleTapRequiresConfirmationAndDisablingItRestoresLiftTyping() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    keyboard.typingMethod = LIFT_TO_TYPE
+    keyboard.t9DoubleTap = true
+    keyboard.showKeys(false, true, true, "Gửi", t9 = true)
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 200f, 75f, 100)
+    touch(MotionEvent.ACTION_UP, 200f, 75f, 170)
+    assertTrue(typed.isEmpty())
+    assertEquals(listOf("5"), spoken)
+
+    touch(MotionEvent.ACTION_DOWN, 200f, 75f, 200)
+    touch(MotionEvent.ACTION_UP, 200f, 75f, 270)
+    assertEquals(listOf("5"), typed)
+
+    keyboard.t9DoubleTap = false
+    touch(MotionEvent.ACTION_DOWN, 200f, 75f, 300)
+    touch(MotionEvent.ACTION_UP, 200f, 75f, 370)
+    assertEquals(listOf("5", "5"), typed)
+  }
+
+  @Test
+  fun t9DoubleTapLeavesLetterTypingMethodUnchanged() {
+    keyboard.t9DoubleTap = true
+    prepareKeyboard()
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+    touch(MotionEvent.ACTION_UP, 20f, 60f, 170)
+
+    assertEquals(listOf("q"), typed)
+  }
+
+  @Test
+  fun t9DoubleTapSpeaksHoveredDigitsWithoutTyping() {
+    keyboard.layoutSetting = VietnameseKeyboardView.LAYOUT_PHONE
+    keyboard.typingMethod = SINGLE_TAP_TO_TYPE
+    keyboard.t9DoubleTap = true
+    keyboard.showKeys(false, true, true, "Gửi", t9 = true)
+    keyboard.layout(0, 0, 400, 250)
+    val hover = MotionEvent.obtain(100, 100, MotionEvent.ACTION_HOVER_ENTER, 200f, 75f, 0)
+    hover.source = InputDevice.SOURCE_TOUCHSCREEN
+    try {
+      keyboard.dispatchHoverEvent(hover)
+
+      assertEquals(listOf("5"), spoken)
+      assertTrue(typed.isEmpty())
+    } finally {
+      hover.recycle()
+    }
+  }
+
+  @Test
   fun phoneShiftDoesNotChangeSymbolsRow() {
     keyboard.showNumberRow = true
     keyboard.showSymbolsRow = true

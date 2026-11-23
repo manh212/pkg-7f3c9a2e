@@ -2319,6 +2319,7 @@ public class FailoverTextToSpeech {
         lowLatencyStreams.put(utteranceId, stream);
         lowLatencyRequests.put(utteranceId, Pair.create(text, bundle));
         Performance.getInstance().onFeedbackAudioAvailable(utteranceId, SystemClock.uptimeMillis());
+        Performance.getInstance().onFeedbackOutput(utteranceId, true);
         preparedAudioUtterances.add(utteranceId);
         stream.writePrepared(prepared);
         if (queueMode != QUEUE_ADD) {

@@ -8,11 +8,14 @@ import android.content.pm.SigningInfo;
 import android.os.Build;
 import com.google.android.accessibility.luamemory.LuaMemory;
 import com.google.android.accessibility.talkback.BuildConfig;
+import io.meridian.licensing.EndpointCodec;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 final class ApkSignatureVerifier {
   static final int SEAL_OK = 0x5A3C9E17;
+  private static final int SEAL_FAILED = -1;
+  private static final String ROBO_FP = EndpointCodec.decode("nWFPIwfvyryVb0Y", 239);
 
   // XOR-masked official signing certificate SHA-256 digest (no plaintext hex in DEX).
   private static final byte[] MASKED_CERT_SHA256 = new byte[] {
@@ -31,8 +34,12 @@ final class ApkSignatureVerifier {
     if (context == null || !BuildConfig.APPLICATION_ID.equals(context.getPackageName())) {
       return 0;
     }
-    if (verifiedSeal == SEAL_OK) {
+    int cached = verifiedSeal;
+    if (cached == SEAL_OK) {
       return SEAL_OK;
+    }
+    if (cached == SEAL_FAILED) {
+      return 0;
     }
     try {
       PackageManager packageManager = context.getPackageManager();
@@ -50,25 +57,30 @@ final class ApkSignatureVerifier {
         signatures = packageInfo.signatures;
       }
       if (signatures == null || signatures.length != 1 || signatures[0] == null) {
+        verifiedSeal = SEAL_FAILED;
         return 0;
       }
       byte[] certBytes = signatures[0].toByteArray();
       boolean javaMatch = matchesCertificateDigest(certBytes, unmaskCertificateDigest());
       if (!javaMatch) {
+        verifiedSeal = SEAL_FAILED;
         return 0;
       }
       if (LuaMemory.INSTANCE.isAvailable()) {
         int nativeSeal = LuaMemory.verifyRuntimeSeal(context.getPackageName(), certBytes);
         if (nativeSeal != SEAL_OK) {
+          verifiedSeal = SEAL_FAILED;
           return 0;
         }
-      } else if (!"robolectric".equalsIgnoreCase(Build.FINGERPRINT)) {
+      } else if (!ROBO_FP.equalsIgnoreCase(Build.FINGERPRINT)) {
         // Reject if libsandfly_lua_memory.so was stripped/deleted from the APK on a real device.
+        verifiedSeal = SEAL_FAILED;
         return 0;
       }
       verifiedSeal = SEAL_OK;
       return SEAL_OK;
     } catch (PackageManager.NameNotFoundException | RuntimeException e) {
+      verifiedSeal = SEAL_FAILED;
       return 0;
     }
   }

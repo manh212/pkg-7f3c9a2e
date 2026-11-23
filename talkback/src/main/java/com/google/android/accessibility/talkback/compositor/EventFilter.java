@@ -883,6 +883,7 @@ public class EventFilter {
             : LatencyExperiments.Feature.PCM_SECOND.enabled();
         boolean storePreparedSpeech =
             (pass.distance == 1 ? prepareAdjacentSpeechEnabled : prepareSecondAheadSpeechEnabled)
+                && !WebInterfaceUtils.supportsWebActions(target)
                 && PreparedFocusSpeech.shouldPrepare(target);
         PreparedFocusSpeech.Prepared cached =
             storePreparedSpeech ? PreparedFocusSpeech.peek(target, targetType) : null;

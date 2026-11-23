@@ -264,6 +264,15 @@
         <!-- Allows local profiling on release builds -->
         <profileable android:shell="true" />
 
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
         <!-- TalkBack -->
         <service
             android:icon="@drawable/icon"
