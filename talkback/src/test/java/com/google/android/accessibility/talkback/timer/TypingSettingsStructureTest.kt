@@ -167,6 +167,7 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_auto_capitalize",
         "pref_vietnamese_keyboard_double_space_period",
         "pref_vietnamese_keyboard_mic_enabled",
+        "pref_vietnamese_keyboard_t9_double_tap",
       ),
       rows.map { it.first },
     )
