@@ -406,6 +406,7 @@ class VietnameseKeyboardService : InputMethodService() {
       keyboard?.cancelInput(cancelPendingEdits = false)
       keySpeech.clearPreview()
       resetWord()
+      wordLost = true
     }
     cursor = newSelEnd
     selectionStart = newSelStart
@@ -746,7 +747,7 @@ class VietnameseKeyboardService : InputMethodService() {
   ): Boolean {
     if (composingUnavailable) return false
     val hasSelection = selectionStart >= 0 && cursor >= 0 && selectionStart != cursor
-    if (!composing && !hasSelection) {
+    if (!composing && !hasSelection && wordLost) {
       val before = adjacentWord(connection, beforeCursor = true)
       val after = adjacentWord(connection, beforeCursor = false)
       if (after.isNotEmpty() && before.length + after.length <= MAX_WORD_LENGTH) {

@@ -412,7 +412,9 @@ class VietnameseKeyboardServiceTest {
     press("Dấu cách")
     Selection.setSelection(text, 1)
     service.onUpdateSelection(4, 4, 1, 1, -1, -1)
-    press("sờ")
+    val sKey = KeyEvent.KEYCODE_S
+    assertTrue(service.onKeyDown(sKey, physicalKey(KeyEvent.ACTION_DOWN, sKey)))
+    assertTrue(service.onKeyUp(sKey, physicalKey(KeyEvent.ACTION_UP, sKey)))
     assertEquals("hóa ", text.toString())
   }
 
