@@ -72,6 +72,7 @@ class TypingSettingsStructureTest {
       listOf(
         "pref_vietnamese_keyboard_android_settings",
         "pref_vietnamese_keyboard_own_voice",
+        "pref_vietnamese_keyboard_voice_profile",
         "pref_vietnamese_keyboard_layout",
         "pref_vietnamese_keyboard_size_screen",
         "pref_vietnamese_keyboard_sound_screen",
@@ -83,6 +84,7 @@ class TypingSettingsStructureTest {
     )
     assertEquals(
       listOf(
+        null,
         null,
         null,
         null,
@@ -167,6 +169,7 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_double_space_period",
         "pref_vietnamese_keyboard_mic_enabled",
         "pref_vietnamese_keyboard_t9_double_tap",
+        "pref_vietnamese_keyboard_auto_switch_letters_on_space",
       ),
       rows.map { it.first },
     )

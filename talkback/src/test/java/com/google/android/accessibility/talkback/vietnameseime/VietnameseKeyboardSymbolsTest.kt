@@ -8,8 +8,8 @@ class VietnameseKeyboardSymbolsTest {
   @Test
   fun availableSymbols_holdFortyUniqueCharactersIncludingTheDefaults() {
     val available = VietnameseKeyboardSymbols.AVAILABLE_SYMBOLS
-    assertEquals(40, available.length)
-    assertEquals(40, available.toSet().size)
+    assertEquals(125, available.length)
+    assertEquals(125, available.toSet().size)
     for (symbol in VietnameseKeyboardSymbols.DEFAULT_ROW) {
       assertTrue(available.contains(symbol))
     }

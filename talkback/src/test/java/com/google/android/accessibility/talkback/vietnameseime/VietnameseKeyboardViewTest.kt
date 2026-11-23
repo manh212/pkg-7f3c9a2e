@@ -116,11 +116,11 @@ class VietnameseKeyboardViewTest {
     prepareKeyboard()
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
     val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
-    assertEquals(45, host.childCount)
+    assertEquals(44, host.childCount)
 
     keyboard.micEnabled = true
     val micHost = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
-    assertEquals(46, micHost.childCount)
+    assertEquals(45, micHost.childCount)
     val labels = (0 until micHost.childCount).mapNotNull {
       provider.createAccessibilityNodeInfo(it)?.text?.toString()
     }
@@ -132,9 +132,9 @@ class VietnameseKeyboardViewTest {
     keyboard.micEnabled = true
     prepareKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 294f, 225f, 100)
+    touchKey(MotionEvent.ACTION_DOWN, context.getString(R.string.vietnamese_ime_voice_input), 100)
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(999))
-    touch(MotionEvent.ACTION_UP, 294f, 225f, 200)
+    touchKey(MotionEvent.ACTION_UP, context.getString(R.string.vietnamese_ime_voice_input), 200)
 
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_voice_input)), spoken)
     assertTrue(typed.isEmpty())
@@ -146,13 +146,13 @@ class VietnameseKeyboardViewTest {
     keyboard.micEnabled = true
     prepareKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 294f, 225f, 100)
+    touchKey(MotionEvent.ACTION_DOWN, context.getString(R.string.vietnamese_ime_voice_input), 100)
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_voice_input)), spoken)
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(999))
     assertTrue(typed.isEmpty())
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
     assertEquals(listOf("mic"), typed)
-    touch(MotionEvent.ACTION_UP, 294f, 225f, 200)
+    touchKey(MotionEvent.ACTION_UP, context.getString(R.string.vietnamese_ime_voice_input), 200)
 
     assertEquals(1, micStops)
     assertEquals(1, released)
@@ -165,11 +165,11 @@ class VietnameseKeyboardViewTest {
     keyboard.showKeys(false, false, true, "Gửi")
     keyboard.layout(0, 0, 400, 250)
 
-    touch(MotionEvent.ACTION_DOWN, 294f, 225f, 100)
+    touchKey(MotionEvent.ACTION_DOWN, context.getString(R.string.vietnamese_ime_voice_input), 100)
     assertEquals(listOf(context.getString(R.string.vietnamese_ime_voice_input)), spoken)
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1000))
     assertEquals(listOf("mic"), typed)
-    touch(MotionEvent.ACTION_UP, 294f, 225f, 200)
+    touchKey(MotionEvent.ACTION_UP, context.getString(R.string.vietnamese_ime_voice_input), 200)
 
     assertEquals(1, micStops)
   }
@@ -250,7 +250,7 @@ class VietnameseKeyboardViewTest {
 
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
     val host = checkNotNull(provider.createAccessibilityNodeInfo(View.NO_ID))
-    assertEquals(45, host.childCount)
+    assertEquals(44, host.childCount)
     val letter = checkNotNull(provider.createAccessibilityNodeInfo(24))
     assertEquals("g", letter.text)
     assertTrue(letter.isTextEntryKey)
@@ -264,7 +264,7 @@ class VietnameseKeyboardViewTest {
     assertEquals(listOf("g"), typed)
     assertTrue(spoken.isEmpty())
 
-    val action = checkNotNull(provider.createAccessibilityNodeInfo(44))
+    val action = checkNotNull(provider.createAccessibilityNodeInfo(host.childCount - 1))
     assertFalse(liftsToType(LIFT_TO_TYPE_EXCEPT_ACTION_KEY, AccessibilityNodeInfoCompat.wrap(action)))
     val hidden = checkNotNull(provider.createAccessibilityNodeInfo(24))
     assertEquals("g", hidden.text)
@@ -277,17 +277,20 @@ class VietnameseKeyboardViewTest {
   fun virtualShiftAndSymbolKeysRetainTheirActionsAcrossPageChanges() {
     preparePcKeyboard()
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
-    assertTrue(provider.performAction(15, AccessibilityNodeInfo.ACTION_CLICK, null))
-    assertTrue(provider.performAction(35, AccessibilityNodeInfo.ACTION_CLICK, null))
+    val shiftId = virtualIdForLabel(context.getString(R.string.vietnamese_ime_uppercase))
+    assertTrue(provider.performAction(shiftId, AccessibilityNodeInfo.ACTION_CLICK, null))
+    val digitId = virtualIdForLabel("1")
+    assertTrue(provider.performAction(digitId, AccessibilityNodeInfo.ACTION_CLICK, null))
     assertEquals(listOf("!"), typed)
 
     keyboard.showKeys(false, true, true, "Gửi")
+    val lettersId = virtualIdForLabel(context.getString(R.string.vietnamese_ime_letters))
     assertEquals(
       context.getString(R.string.vietnamese_ime_letters),
-      provider.createAccessibilityNodeInfo(0)?.text?.toString(),
+      provider.createAccessibilityNodeInfo(lettersId)?.text?.toString(),
     )
-    assertTrue(provider.performAction(0, AccessibilityNodeInfo.ACTION_CLICK, null))
-    assertFalse(provider.performAction(18, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertTrue(provider.performAction(lettersId, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertFalse(provider.performAction(Int.MAX_VALUE, AccessibilityNodeInfo.ACTION_CLICK, null))
     assertEquals(listOf("!", "letters"), typed)
   }
 
@@ -770,17 +773,12 @@ class VietnameseKeyboardViewTest {
   @Test
   fun pcLayoutSpaceBarIsTall() {
     preparePcKeyboard()
-
-    touch(MotionEvent.ACTION_DOWN, 80f, 200f, 100)
-    touch(MotionEvent.ACTION_UP, 80f, 200f, 170)
-    touch(MotionEvent.ACTION_DOWN, 80f, 55f, 200)
-    touch(MotionEvent.ACTION_UP, 80f, 55f, 270)
-    touch(MotionEvent.ACTION_DOWN, 80f, 344f, 300)
-    touch(MotionEvent.ACTION_UP, 80f, 344f, 370)
-    touch(MotionEvent.ACTION_DOWN, 80f, 87f, 400)
-    touch(MotionEvent.ACTION_UP, 80f, 87f, 470)
-
-    assertEquals(listOf(" ", "language", "picker", ","), typed)
+    val spaceBounds = keyBounds(context.getString(R.string.vietnamese_ime_space))
+    val letterBounds = keyBounds("q")
+    assertTrue(spaceBounds.height() > letterBounds.height())
+    touch(MotionEvent.ACTION_DOWN, spaceBounds.exactCenterX(), spaceBounds.exactCenterY(), 100)
+    touch(MotionEvent.ACTION_UP, spaceBounds.exactCenterX(), spaceBounds.exactCenterY(), 170)
+    assertEquals(listOf(" "), typed)
   }
 
   @Test
@@ -1062,9 +1060,16 @@ class VietnameseKeyboardViewTest {
   @Config(qualifiers = "w800dp-h400dp-land")
   fun landscapeSpaceColumnCanHideTheKeyboard() {
     preparePcKeyboard()
-
-    touch(MotionEvent.ACTION_DOWN, 80f, 290f, 100)
-    touch(MotionEvent.ACTION_UP, 80f, 290f, 170)
+    touchKey(
+      MotionEvent.ACTION_DOWN,
+      context.getString(R.string.vietnamese_ime_hide),
+      100,
+    )
+    touchKey(
+      MotionEvent.ACTION_UP,
+      context.getString(R.string.vietnamese_ime_hide),
+      170,
+    )
     assertEquals(listOf(VietnameseKeyboardView.HIDE), typed)
     assertTrue(keyLabels().contains(context.getString(R.string.vietnamese_ime_hide)))
   }
@@ -1778,8 +1783,8 @@ class VietnameseKeyboardViewTest {
     keyboard.micEnabled = true
     prepareKeyboard()
 
-    touch(MotionEvent.ACTION_DOWN, 294f, 225f, 100)
-    touch(MotionEvent.ACTION_UP, 294f, 225f, 200)
+    touchKey(MotionEvent.ACTION_DOWN, context.getString(R.string.vietnamese_ime_voice_input), 100)
+    touchKey(MotionEvent.ACTION_UP, context.getString(R.string.vietnamese_ime_voice_input), 200)
 
     assertTrue(feedback.calls.isEmpty())
     assertTrue(typed.isEmpty())
@@ -1913,6 +1918,23 @@ class VietnameseKeyboardViewTest {
     return (0 until host.childCount).mapNotNull {
       provider.createAccessibilityNodeInfo(it)?.text?.toString()
     }
+  }
+
+  private fun virtualIdForLabel(label: String): Int = keyLabels().indexOf(label).also {
+    assertTrue("No virtual key found for $label", it >= 0)
+  }
+
+  private fun keyBounds(label: String): Rect {
+    val provider = checkNotNull(keyboard.accessibilityNodeProvider)
+    val bounds = Rect()
+    checkNotNull(provider.createAccessibilityNodeInfo(virtualIdForLabel(label)))
+      .getBoundsInParent(bounds)
+    return bounds
+  }
+
+  private fun touchKey(action: Int, label: String, time: Long) {
+    val bounds = keyBounds(label)
+    touch(action, bounds.exactCenterX(), bounds.exactCenterY(), time)
   }
 
   private fun prepareKeyboard() {

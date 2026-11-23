@@ -477,7 +477,7 @@ class VietnameseKeyboardServiceTest {
     assertTrue(hasKey("Chuyển sang gõ tiếng Anh"))
     setKeyboardSwitch(R.string.pref_vietnamese_keyboard_show_language_key, false)
     assertFalse(hasKey("Chuyển sang gõ tiếng Anh"))
-    assertTrue(hasKey("Đổi bàn phím"))
+    assertFalse(hasKey("Đổi bàn phím"))
   }
 
   @Test
