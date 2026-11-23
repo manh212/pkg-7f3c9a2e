@@ -279,9 +279,9 @@ class VietnameseKeyboardViewTest {
     val provider = checkNotNull(keyboard.accessibilityNodeProvider)
     val shiftId = virtualIdForLabel(context.getString(R.string.vietnamese_ime_uppercase))
     assertTrue(provider.performAction(shiftId, AccessibilityNodeInfo.ACTION_CLICK, null))
-    val digitId = virtualIdForLabel("1")
-    assertTrue(provider.performAction(digitId, AccessibilityNodeInfo.ACTION_CLICK, null))
-    assertEquals(listOf("!"), typed)
+    val shiftedLetterId = virtualIdForLabel("A")
+    assertTrue(provider.performAction(shiftedLetterId, AccessibilityNodeInfo.ACTION_CLICK, null))
+    assertEquals(listOf("A"), typed)
 
     keyboard.showKeys(false, true, true, "Gửi")
     val lettersId = virtualIdForLabel(context.getString(R.string.vietnamese_ime_letters))
@@ -291,7 +291,7 @@ class VietnameseKeyboardViewTest {
     )
     assertTrue(provider.performAction(lettersId, AccessibilityNodeInfo.ACTION_CLICK, null))
     assertFalse(provider.performAction(Int.MAX_VALUE, AccessibilityNodeInfo.ACTION_CLICK, null))
-    assertEquals(listOf("!", "letters"), typed)
+    assertEquals(listOf("A", "letters"), typed)
   }
 
   @Test
