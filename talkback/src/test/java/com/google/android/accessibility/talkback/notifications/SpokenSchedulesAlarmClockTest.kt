@@ -20,6 +20,7 @@ import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
+import android.os.SystemClock
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.timer.Stopwatch
 import com.google.android.accessibility.talkback.timer.StopwatchEngine
@@ -125,6 +126,7 @@ class SpokenSchedulesAlarmClockTest {
 
   @Test
   fun clockSoundOff_broadcastStillSpeaksWithoutTheSound() {
+    SystemClock.setCurrentTimeMillis(1_800_000_000_000L)
     ShadowAlarmManager.setCanScheduleExactAlarms(true)
     startSchedules {
       putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet())
@@ -181,6 +183,7 @@ class SpokenSchedulesAlarmClockTest {
 
   @Test
   fun clockBroadcast_speaksTheTimeAndReschedules() {
+    SystemClock.setCurrentTimeMillis(1_800_000_000_000L)
     ShadowAlarmManager.setCanScheduleExactAlarms(true)
     startSchedules { putStringSet(SpokenSchedules.KEY_CLOCK_HOURS, SpokenSchedules.ALL_CLOCK_HOURS.map { it.toString() }.toSet()) }
     val operation = shadowAlarms.scheduledAlarms.single().operation
