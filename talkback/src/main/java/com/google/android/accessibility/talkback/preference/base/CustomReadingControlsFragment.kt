@@ -36,7 +36,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.commands.Commands
 import com.google.android.accessibility.talkback.selector.CustomReadingControls
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager
-import com.google.android.accessibility.utils.PreferencesActivityUtils
+import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 class CustomReadingControlsFragment : TalkbackBaseFragment() {

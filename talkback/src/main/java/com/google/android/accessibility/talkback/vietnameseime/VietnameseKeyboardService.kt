@@ -775,7 +775,9 @@ class VietnameseKeyboardService : InputMethodService() {
           val changed =
             if (speakAt != null && echoesCharacters()) changedCharacter(fullWord, transformed) else null
           word = transformed
-          if (changed != null) keySpeech.confirm(keyNames.spokenName(changed), speakAt!!)
+          if (changed != null) {
+            keySpeech.confirm(keyNames.spokenName(characterLabel(changed)), speakAt!!)
+          }
           return true
         }
       } else if (before.isNotEmpty()) {
@@ -804,7 +806,9 @@ class VietnameseKeyboardService : InputMethodService() {
             val changed =
               if (speakAt != null && echoesCharacters()) changedCharacter(before, transformed) else null
             word = transformed
-            if (changed != null) keySpeech.confirm(keyNames.spokenName(changed), speakAt!!)
+            if (changed != null) {
+              keySpeech.confirm(keyNames.spokenName(characterLabel(changed)), speakAt!!)
+            }
             return true
           }
         }
