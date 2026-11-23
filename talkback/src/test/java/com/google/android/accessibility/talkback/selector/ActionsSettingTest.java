@@ -12,6 +12,7 @@ import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator;
 import com.google.android.accessibility.talkback.menurules.NodeMenuRuleCreator.MenuRules;
+import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.Collections;
 import java.util.List;
@@ -36,6 +37,7 @@ public class ActionsSettingTest {
   @Before
   public void setUp() {
     context = RuntimeEnvironment.getApplication();
+    FormFactorUtils.initialize(context);
     prefs = SharedPreferencesUtils.getSharedPreferences(context);
     prefs.edit().clear().commit();
     NodeMenuRuleCreator nodeMenuRuleCreator =
@@ -93,3 +95,4 @@ public class ActionsSettingTest {
     return AccessibilityNodeInfoCompat.wrap(node);
   }
 }
+
