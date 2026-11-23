@@ -16,7 +16,6 @@
 
 package com.google.android.accessibility.utils.output;
 
-import static com.google.android.accessibility.utils.AccessibilityNodeInfoUtils.BASE_CLICKABLE_SPAN;
 import static com.google.android.accessibility.utils.output.TextFormattingUtils.FEEDBACK_MODE_SOUND;
 import static com.google.android.accessibility.utils.output.TextFormattingUtils.FEEDBACK_MODE_SPEECH;
 
@@ -35,6 +34,7 @@ import android.text.style.CharacterStyle;
 import android.text.style.ClickableSpan;
 import android.text.style.LocaleSpan;
 import android.text.style.TtsSpan;
+import android.text.style.URLSpan;
 import androidx.annotation.VisibleForTesting;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -425,7 +425,7 @@ public class FeedbackProcessingUtils {
     Set<Class<?>> formattingClasses =
         TextFormattingUtils.getFormattingSpanClasses(formattingOptions);
     formattingClasses.add(LocaleSpan.class);
-    formattingClasses.add(BASE_CLICKABLE_SPAN);
+    formattingClasses.add(URLSpan.class);
     for (int i = 0; i < item.getFragments().size(); ++i) {
       final FeedbackFragment fragment = item.getFragments().get(i);
       CharSequence fragmentText = fragment.getText();
@@ -471,7 +471,7 @@ public class FeedbackProcessingUtils {
         for (CharacterStyle span : spans) {
           if (span instanceof LocaleSpan localeSpan && localeFromSpan == null) {
             localeFromSpan = localeSpan.getLocale();
-          } else if (span instanceof ClickableSpan) {
+          } else if (span instanceof URLSpan) {
             isClickableSpan = true;
           }
         }
@@ -508,6 +508,9 @@ public class FeedbackProcessingUtils {
             subString =
                 subString.subSequence((subString.charAt(1) == ' ') ? 2 : 1, subString.length());
           }
+        }
+        if (subString.toString().indexOf('\uFEFF') >= 0) {
+          subString = subString.toString().replace("\uFEFF", "");
         }
         if (isFirstFragment) {
           // This is the first new fragment, so we should reuse the old fragment.
@@ -580,7 +583,7 @@ public class FeedbackProcessingUtils {
    * <li>2. The span is in a full word.
    */
   private static boolean isValidSpan(Spannable spannable, int index, Class<?> type, int options) {
-    if (type == ClickableSpan.class || type == LocaleSpan.class) {
+    if (type == URLSpan.class || type == LocaleSpan.class) {
       return true;
     }
     Object[] spans = spannable.getSpans(index, index, type);

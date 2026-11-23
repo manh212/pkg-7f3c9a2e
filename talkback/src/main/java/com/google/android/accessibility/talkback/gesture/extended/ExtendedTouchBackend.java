@@ -267,6 +267,18 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
       return;
     }
     try {
+      if (action == MotionEvent.ACTION_DOWN
+          && service.isInDirectTouchRegion(event.getX(), event.getY())) {
+        handler.removeCallbacks(explore);
+        cancelStationaryTouchExploration();
+        resetEdge();
+        detector.clear();
+        rotationTracker.clear();
+        gestureStarted = false;
+        completedInteraction = false;
+        delegate();
+        return;
+      }
       if (action == MotionEvent.ACTION_UP && canDetectGesture()) {
         LatencyExperiments.onTouchControllerContact(false);
         service.onGestureFingerReleased();

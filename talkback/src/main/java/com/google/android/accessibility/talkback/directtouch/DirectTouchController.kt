@@ -166,8 +166,10 @@ class DirectTouchController(
    * field taking focus.
    */
   fun onRawAccessibilityEvent(event: AccessibilityEvent) {
-    if (!paused && DirectTouchRegions.reassertsRegion(event.eventType) &&
-      (isSilentDirectTyping() || usesVietnameseKeyboardDirectTouch())) {
+    if (paused || !(isSilentDirectTyping() || usesVietnameseKeyboardDirectTouch())) return
+    val shouldRefresh = DirectTouchRegions.reassertsRegion(event.eventType) ||
+      (event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED && event.source?.isEditable == true)
+    if (shouldRefresh) {
       refreshVietnameseKeyboardTouch()
     }
   }

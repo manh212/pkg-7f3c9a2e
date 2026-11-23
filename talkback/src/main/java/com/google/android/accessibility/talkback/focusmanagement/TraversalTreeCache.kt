@@ -343,6 +343,10 @@ object TraversalTreeCache {
     // No counter is added; the log line is the instrument. The check is the transition
     // itself: a window already unknown logs nothing, so the deferred path logs at most
     // once per poisoning.
+    if (sourceBounds != null && !sourceBounds.isEmpty &&
+      gracedChangeRegions.any { it.first == windowId && it.second == sourceBounds }) {
+      return
+    }
     if (windowId !in gracedChangeUnknownWindows &&
       (sourceBounds == null || sourceBounds.isEmpty ||
         gracedChangeRegions.count { it.first == windowId } >= MAX_GRACED_CHANGE_REGIONS)) {
@@ -799,7 +803,13 @@ object TraversalTreeCache {
     // window — and only when the window is known; an unknown window cannot be blamed
     // on any window.
     if (event.windowId >= 0 && WindowCachePolicy.isNonStructuralContent(event)) {
-      noteGracedChange(event.windowId, null, event.packageName?.toString())
+      val isSeekBarStateTick =
+        event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+          event.contentChangeTypes == AccessibilityEvent.CONTENT_CHANGE_TYPE_STATE_DESCRIPTION &&
+          event.className?.toString()?.contains("SeekBar") == true
+      if (!isSeekBarStateTick) {
+        noteGracedChange(event.windowId, null, event.packageName?.toString())
+      }
     }
   }
 

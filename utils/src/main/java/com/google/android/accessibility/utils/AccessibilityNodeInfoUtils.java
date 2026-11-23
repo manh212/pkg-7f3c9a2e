@@ -1358,8 +1358,10 @@ public class AccessibilityNodeInfoUtils {
   private static boolean hasInvisibleNonActionableSpeakingChildren(
       AccessibilityNodeInfoCompat node, List<AccessibilityNodeInfoCompat> invisibleChildren) {
     // We don't want the presence of invisible children to lead to focus being set on a scrollable
-    // parent that is capable of showing partially-visible data.
-    if (FILTER_AUTO_SCROLL.accept(node)) {
+    // parent or pager that is capable of showing partially-visible data.
+    if (FILTER_AUTO_SCROLL.accept(node)
+        || node.isScrollable()
+        || Role.getRole(node) == Role.ROLE_PAGER) {
       return false;
     }
 

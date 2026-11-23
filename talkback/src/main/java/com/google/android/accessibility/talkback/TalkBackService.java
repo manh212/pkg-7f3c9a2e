@@ -4018,6 +4018,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     KeyboardEchoSettings.migrate(this, prefs);
     // Combines the two window name switches into the Window names setting.
     WindowNamesSetting.migrate(prefs, getResources());
+    migrateAutoImageCaptioningOff(prefs);
     // Verbosity's switch for notifications with the screen off became the Notifications one.
     NotificationSettings.migrateScreenOff(
         prefs,
@@ -4498,9 +4499,13 @@ public class TalkBackService extends AccessibilityServiceCompat
       typingMethod = FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE;
     }
     accessibilityFocusInterpreter.setTypingMethod(typingMethod);
+    boolean isSingleTapToType =
+        typingMethod == FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE;
+    if (passThroughModeActor != null) {
+      passThroughModeActor.setGesturePassthroughOwnedExternally(isSingleTapToType);
+    }
     if (singleTapTypingController != null) {
-      singleTapTypingController.setEnabled(
-          typingMethod == FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE);
+      singleTapTypingController.setEnabled(isSingleTapToType);
     }
     accessibilityFocusInterpreter.setTypingLongPressDurationMs(
         SharedPreferencesUtils.getIntFromStringPref(
@@ -5231,6 +5236,30 @@ public class TalkBackService extends AccessibilityServiceCompat
     return isServiceActive() && !PauseController.isPaused() && !yieldingToOtherScreenReader
         && extendedGesturesController != null
         && extendedGesturesController.performClick(displayId);
+  }
+
+  public boolean isInDirectTouchRegion(float x, float y) {
+    return isServiceActive()
+        && !PauseController.isPaused()
+        && !yieldingToOtherScreenReader
+        && passThroughModeActor != null
+        && passThroughModeActor.isInDirectTouchRegion(Math.round(x), Math.round(y));
+  }
+
+  private void migrateAutoImageCaptioningOff(SharedPreferences prefs) {
+    final String marker = "pref_auto_image_caption_off_v1_migrated";
+    if (prefs.getBoolean(marker, false)) {
+      return;
+    }
+    prefs
+        .edit()
+        .putBoolean(getString(R.string.pref_auto_icon_detection_key), false)
+        .putBoolean(getString(R.string.pref_auto_image_description_key), false)
+        .putBoolean(getString(R.string.pref_auto_text_recognition_key), false)
+        .putBoolean(getString(R.string.pref_auto_on_devices_image_description_key), false)
+        .putBoolean(getString(R.string.pref_detailed_image_description_key), false)
+        .putBoolean(marker, true)
+        .apply();
   }
 
   private void updateExtendedGestures() {
