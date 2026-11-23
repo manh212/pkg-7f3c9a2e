@@ -406,10 +406,12 @@ class VietnameseKeyboardServiceTest {
   fun cursorMovedIntoMiddleOfWordStillAppliesTone() {
     setAutoCapitalize(false)
     startEditor()
-    press("hờ")
-    press("o")
-    press("a")
-    press("Dấu cách")
+    for (letter in "hoa ") {
+      val keyCode =
+        if (letter == ' ') KeyEvent.KEYCODE_SPACE else KeyEvent.KEYCODE_A + (letter - 'a')
+      assertTrue(service.onKeyDown(keyCode, physicalKey(KeyEvent.ACTION_DOWN, keyCode)))
+      assertTrue(service.onKeyUp(keyCode, physicalKey(KeyEvent.ACTION_UP, keyCode)))
+    }
     Selection.setSelection(text, 1)
     service.onUpdateSelection(4, 4, 1, 1, -1, -1)
     val sKey = KeyEvent.KEYCODE_S
