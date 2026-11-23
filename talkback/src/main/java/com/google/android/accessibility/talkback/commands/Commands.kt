@@ -335,9 +335,6 @@ object Commands {
 
     private fun missingGestureActions() {
       val alreadyListed = categories.flatMap { it.commands }.map { it.value }.toMutableSet()
-      // Exclude legacy MenuGestureActions duplicates already represented by full commands.
-      alreadyListed.add("MENU_ACTION:talkback_settings")
-      alreadyListed.add("MENU_ACTION:show_keyboard_shortcuts")
       category(R.string.shortcut_title_special_features) {
         for ((value, label) in GestureListPreference.getAssignableGestureActions(context)) {
           if (!withApps
@@ -1024,13 +1021,7 @@ object Commands {
             keyboardAction = null,
           )
         )
-        commands.add(
-          Command(
-            ExtendedCommandActions.ACTION_OPEN_MERIDIAN_SETTINGS,
-            context.getString(R.string.command_open_meridian_settings),
-            Key.OPEN_TALKBACK_SETTINGS,
-          )
-        )
+        menuAction("talkback_settings", Key.OPEN_TALKBACK_SETTINGS)
         gesture(R.string.shortcut_value_tutorial, R.string.shortcut_tutorial, Key.SHOW_TUTORIAL)
         gesture(
           R.string.shortcut_value_practice_gestures,
@@ -1042,6 +1033,7 @@ object Commands {
           available = FeatureFlagReader.enableKeyboardLearnModePage(context),
         )
         keyboard(Key.SHOW_KEYBOARD_SHORTCUTS_DIALOG)
+        menuAction("show_keyboard_shortcuts", Key.SHOW_KEYBOARD_SHORTCUTS_DIALOG)
       }
 
     private fun feedbackAndVerbosity() =

@@ -43,7 +43,6 @@
     <string translatable="false" name="command_open_notification_list">Mở Danh sách thông báo</string>
     <string translatable="false" name="command_open_notification_history">Mở Lịch sử thông báo</string>
     <string translatable="false" name="command_toggle_back_tap">Bật/tắt Gõ mặt lưng</string>
-    <string translatable="false" name="command_open_meridian_settings">Mở Cài đặt Meridian</string>
     <string translatable="false" name="pref_back_tap_enabled_title">Bật Gõ mặt lưng</string>
     <string translatable="false" name="pref_back_tap_enabled_summary">Cho phép gõ 2 hoặc 3 lần vào mặt lưng để chạy lệnh đã gán</string>
 

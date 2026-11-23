@@ -49,7 +49,6 @@ object ExtendedCommandActions {
   const val ACTION_OPEN_NOTIFICATION_LIST = "EXTENDED_OPEN_NOTIFICATION_LIST"
   const val ACTION_OPEN_NOTIFICATION_HISTORY = "EXTENDED_OPEN_NOTIFICATION_HISTORY"
   const val ACTION_TOGGLE_BACK_TAP = "EXTENDED_TOGGLE_BACK_TAP"
-  const val ACTION_OPEN_MERIDIAN_SETTINGS = "EXTENDED_OPEN_MERIDIAN_SETTINGS"
 
   const val PREFIX_QUICK_CONTROL = "EXTENDED_QUICK_CONTROL:"
 
@@ -102,7 +101,6 @@ object ExtendedCommandActions {
       ACTION_OPEN_NOTIFICATION_LIST -> return context.getString(R.string.command_open_notification_list)
       ACTION_OPEN_NOTIFICATION_HISTORY -> return context.getString(R.string.command_open_notification_history)
       ACTION_TOGGLE_BACK_TAP -> return context.getString(R.string.command_toggle_back_tap)
-      ACTION_OPEN_MERIDIAN_SETTINGS -> return context.getString(R.string.command_open_meridian_settings)
     }
     parseQuickControl(action)?.let { control ->
       return if (control == QuickControl.SOUND_MODE) {
@@ -172,10 +170,6 @@ object ExtendedCommandActions {
             name,
           )
         )
-        return true
-      }
-      ACTION_OPEN_MERIDIAN_SETTINGS -> {
-        launchActivity(context, Intent(context, TalkBackPreferencesActivity::class.java))
         return true
       }
     }
