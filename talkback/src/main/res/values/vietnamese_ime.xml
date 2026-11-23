@@ -9,7 +9,6 @@
     <integer name="pref_vietnamese_keyboard_bottom_spacing_default">56</integer>
     <integer name="pref_vietnamese_keyboard_bottom_spacing_max">80</integer>
     <string name="pref_vietnamese_keyboard_mic_enabled_key" translatable="false">pref_vietnamese_keyboard_mic_enabled</string>
-    <string name="pref_vietnamese_keyboard_show_picker_key" translatable="false">pref_vietnamese_keyboard_show_picker</string>
     <string name="pref_vietnamese_keyboard_quick_telex_key" translatable="false">pref_vietnamese_keyboard_quick_telex</string>
     <string name="pref_vietnamese_keyboard_t9_double_tap_key" translatable="false">pref_vietnamese_keyboard_t9_double_tap</string>
     <string name="pref_vietnamese_keyboard_show_language_key" translatable="false">pref_vietnamese_keyboard_show_language</string>
@@ -43,8 +42,6 @@
     <string name="vietnamese_ime_selected_text" tools:ignore="MissingTranslation">phần văn bản đã chọn</string>
     <string name="vietnamese_ime_space" tools:ignore="MissingTranslation">Dấu cách</string>
     <string name="vietnamese_ime_hide">Ẩn bàn phím</string>
-    <string name="vietnamese_ime_show_picker">Hiển thị nút đổi bàn phím</string>
-    <string name="vietnamese_ime_picker_key" tools:ignore="MissingTranslation">Đổi bàn phím</string>
     <string name="vietnamese_ime_enter" tools:ignore="MissingTranslation">Xuống dòng</string>
     <string name="vietnamese_ime_done" tools:ignore="MissingTranslation">Xong</string>
     <string name="vietnamese_ime_send" tools:ignore="MissingTranslation">Gửi</string>
@@ -117,4 +114,12 @@
     <string name="vietnamese_ime_shortcut_required_text">Hãy nhập nội dung thay thế.</string>
     <string name="vietnamese_ime_t9_double_tap">Chạm 2 lần để nhập số trên bàn phím T9</string>
     <string name="vietnamese_ime_t9_double_tap_summary">Chạm để nghe phím số rồi nhấp 2 lần để nhập, bất kể chế độ gõ chữ đang dùng</string>
+    <string name="pref_vietnamese_keyboard_voice_profile_key" translatable="false">pref_vietnamese_keyboard_voice_profile</string>
+    <string name="pref_vietnamese_keyboard_auto_switch_letters_on_space_key" translatable="false">pref_vietnamese_keyboard_auto_switch_letters_on_space</string>
+    <string name="vietnamese_ime_voice_profile">Hồ sơ giọng nói riêng của bàn phím</string>
+    <string name="vietnamese_ime_voice_profile_system_default">Giọng mặc định của hệ thống</string>
+    <string name="vietnamese_ime_auto_switch_letters_on_space">Tự chuyển về bàn phím chữ khi nhấn dấu cách</string>
+    <string name="vietnamese_ime_auto_switch_letters_on_space_summary">Tự động quay lại trang chữ cái sau khi nhấn dấu cách ở trang ký hiệu</string>
+    <string name="vietnamese_ime_symbols_page_1">Trang ký hiệu 1</string>
+    <string name="vietnamese_ime_symbols_page_2">Trang ký hiệu 2</string>
 </resources>

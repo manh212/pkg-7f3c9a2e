@@ -12,6 +12,13 @@
       android:key="@string/pref_vietnamese_keyboard_own_voice_key"
       android:title="@string/vietnamese_ime_own_voice" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+      android:defaultValue=""
+      android:dependency="@string/pref_vietnamese_keyboard_own_voice_key"
+      android:dialogTitle="@string/vietnamese_ime_voice_profile"
+      android:key="@string/pref_vietnamese_keyboard_voice_profile_key"
+      android:summary="%s"
+      android:title="@string/vietnamese_ime_voice_profile" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
       android:defaultValue="@string/pref_vietnamese_keyboard_layout_default"
       android:dialogTitle="@string/vietnamese_ime_layout"
       android:entries="@array/pref_vietnamese_keyboard_layout_entries"

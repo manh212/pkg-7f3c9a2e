@@ -18,7 +18,6 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.R
@@ -45,6 +44,7 @@ import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
+import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -67,6 +67,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private var wordLost = false
   private var shifted = false
   private var symbols = false
+  private var symbolSecondPage = false
   // True while the T9 pad is the shown page for a numeric field; ABC clears it.
   private var t9 = false
   private var vietnamese = true
@@ -85,7 +86,9 @@ class VietnameseKeyboardService : InputMethodService() {
   private var sizePortraitPercent = 100
   private var sizeLandscapePercent = 100
   private var micEnabled = false
-  private var showKeyboardPicker = true
+  private var autoSwitchLettersOnSpace = true
+  private var voiceProfileId = ""
+  private var voiceProfileSignature = ""
   private var showNumberRow = true
   private var showSymbolsRow = false
   private var symbolsRow = VietnameseKeyboardSymbols.DEFAULT_ROW
@@ -141,7 +144,9 @@ class VietnameseKeyboardService : InputMethodService() {
       key == getString(R.string.pref_vietnamese_keyboard_size_portrait_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_size_landscape_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_mic_enabled_key) ||
-      key == getString(R.string.pref_vietnamese_keyboard_show_picker_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_voice_profile_key) ||
+      key == getString(R.string.pref_vietnamese_keyboard_auto_switch_letters_on_space_key) ||
+      key.startsWith(VoiceProfiles.PREF_PREFIX) ||
       key == getString(R.string.pref_vietnamese_keyboard_show_language_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_quick_telex_key) ||
       key == getString(R.string.pref_vietnamese_keyboard_t9_double_tap_key) ||
@@ -252,6 +257,7 @@ class VietnameseKeyboardService : InputMethodService() {
     val inputClass = inputType and InputType.TYPE_MASK_CLASS
     symbols = inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE ||
       inputClass == InputType.TYPE_CLASS_DATETIME
+    symbolSecondPage = false
     t9 = symbols
     editorActionId = editorAction(attribute)
     editorActionLabel = attribute?.actionLabel?.toString()?.takeIf {
@@ -443,9 +449,13 @@ class VietnameseKeyboardService : InputMethodService() {
     val newMicEnabled = prefs.getBoolean(
       getString(R.string.pref_vietnamese_keyboard_mic_enabled_key), true,
     )
-    val newShowKeyboardPicker = prefs.getBoolean(
-      getString(R.string.pref_vietnamese_keyboard_show_picker_key), true,
+    val newAutoSwitchLettersOnSpace = prefs.getBoolean(
+      getString(R.string.pref_vietnamese_keyboard_auto_switch_letters_on_space_key), true,
     )
+    val newVoiceProfileId = prefs.getString(
+      getString(R.string.pref_vietnamese_keyboard_voice_profile_key), "",
+    ).orEmpty()
+    val newVoiceProfileSignature = voiceProfileSignature(prefs, newVoiceProfileId)
     val newShowLanguageKey = prefs.getBoolean(
       getString(R.string.pref_vietnamese_keyboard_show_language_key), false,
     )
@@ -479,7 +489,7 @@ class VietnameseKeyboardService : InputMethodService() {
     ).coerceIn(0, 100)
     if (method != newMethod || timing != newTiming || layout != newLayout || ownVoice != newOwnVoice ||
       sizePortraitPercent != newSizePortrait || sizeLandscapePercent != newSizeLandscape ||
-      micEnabled != newMicEnabled || showKeyboardPicker != newShowKeyboardPicker ||
+      micEnabled != newMicEnabled ||
       showLanguageKey != newShowLanguageKey ||
       showNumberRow != newShowNumberRow ||
       showSymbolsRow != newShowSymbolsRow || symbolsRow != newSymbolsRow) {
@@ -494,7 +504,7 @@ class VietnameseKeyboardService : InputMethodService() {
     sizePortraitPercent = newSizePortrait
     sizeLandscapePercent = newSizeLandscape
     micEnabled = newMicEnabled
-    showKeyboardPicker = newShowKeyboardPicker
+    autoSwitchLettersOnSpace = newAutoSwitchLettersOnSpace
     showLanguageKey = newShowLanguageKey
     quickTelex = prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_quick_telex_key), true)
     t9DoubleTap = prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_t9_double_tap_key), false)
@@ -512,6 +522,10 @@ class VietnameseKeyboardService : InputMethodService() {
     keySound = newKeySound
     keySounds = newKeySounds
     vibrateIntensityPercent = newVibrateIntensityPercent
+    val profileChanged = voiceProfileId != newVoiceProfileId ||
+      voiceProfileSignature != newVoiceProfileSignature
+    voiceProfileId = newVoiceProfileId
+    voiceProfileSignature = newVoiceProfileSignature
     if (ownVoice != newOwnVoice) {
       ownVoice = newOwnVoice
       if (!ownVoice) {
@@ -519,6 +533,12 @@ class VietnameseKeyboardService : InputMethodService() {
         releaseKeyboardVoice()
         ImeEditFeedback.clear()
       } else if (windowShown) {
+        observeReaderSpeech(speechController())
+        warmUpKeyboardVoice()
+      }
+    } else if (ownVoice && profileChanged) {
+      releaseKeyboardVoice()
+      if (windowShown) {
         observeReaderSpeech(speechController())
         warmUpKeyboardVoice()
       }
@@ -539,7 +559,6 @@ class VietnameseKeyboardService : InputMethodService() {
       sizePortraitPercent = this@VietnameseKeyboardService.sizePortraitPercent
       sizeLandscapePercent = this@VietnameseKeyboardService.sizeLandscapePercent
       micEnabled = isMicVisible()
-      showKeyboardPicker = this@VietnameseKeyboardService.showKeyboardPicker
       showLanguageKey = this@VietnameseKeyboardService.showLanguageKey
       showNumberRow = this@VietnameseKeyboardService.showNumberRow
       showSymbolsRow = this@VietnameseKeyboardService.showSymbolsRow
@@ -561,6 +580,7 @@ class VietnameseKeyboardService : InputMethodService() {
       editorActionLabel.ifEmpty { getString(R.string.vietnamese_ime_enter) },
       telexAllowed,
       t9 = t9,
+      symbolSecondPage = symbolSecondPage,
     )
   }
 
@@ -578,22 +598,32 @@ class VietnameseKeyboardService : InputMethodService() {
     val connection = currentInputConnection ?: return false
     val speakAt = if (releasedAt > 0) releasedAt + timing.releaseSpeechMs else 0L
     when (id) {
-      VietnameseKeyboardView.SHIFT -> shifted = !shifted
+      VietnameseKeyboardView.SHIFT -> {
+        if (symbols) {
+          symbolSecondPage = !symbolSecondPage
+          val pageAnnouncement = if (symbolSecondPage) {
+            R.string.vietnamese_ime_symbols_page_2
+          } else {
+            R.string.vietnamese_ime_symbols_page_1
+          }
+          keySpeech.confirm(getString(pageAnnouncement), speakAt)
+        } else {
+          shifted = !shifted
+        }
+      }
       VietnameseKeyboardView.SYMBOLS -> {
         symbols = true
+        symbolSecondPage = false
         t9 = false
       }
       VietnameseKeyboardView.LETTERS -> {
         symbols = false
+        symbolSecondPage = false
         t9 = false
       }
       VietnameseKeyboardView.LANGUAGE -> {
         finishWord(connection)
         if (telexAllowed) vietnamese = !vietnamese
-      }
-      VietnameseKeyboardView.PICKER -> {
-        finishWord(connection)
-        getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
       }
       VietnameseKeyboardView.HIDE -> {
         finishWord(connection)
@@ -619,8 +649,14 @@ class VietnameseKeyboardService : InputMethodService() {
       else -> {
         val letter = id.single()
         if (!type(connection, if (shifted) letter.uppercaseChar() else letter, speakAt)) return false
-        if (!shifted || !letter.isLetter()) return true
-        shifted = false
+        if (symbols && autoSwitchLettersOnSpace && letter == ' ') {
+          symbols = false
+          symbolSecondPage = false
+        } else if (shifted && letter.isLetter()) {
+          shifted = false
+        } else {
+          return true
+        }
       }
     }
     if (id == VietnameseKeyboardView.LANGUAGE && telexAllowed) {
@@ -1353,9 +1389,24 @@ class VietnameseKeyboardService : InputMethodService() {
     reader?.addObserver(readerSpeechObserver)
   }
 
+  private fun currentVoiceProfile(): VoiceProfiles.VoiceProfile? {
+    if (voiceProfileId.isEmpty()) return null
+    val prefs = SharedPreferencesUtils.getSharedPreferences(this)
+    if (!VoiceProfiles.ids(prefs).contains(voiceProfileId)) return null
+    return VoiceProfiles.read(prefs, voiceProfileId)
+  }
+
+  private fun voiceProfileSignature(prefs: SharedPreferences, id: String): String {
+    if (id.isEmpty() || !VoiceProfiles.ids(prefs).contains(id)) return ""
+    val p = VoiceProfiles.read(prefs, id)
+    return "${p.id}|${p.engine}|${p.language}|${p.voice}|${p.volume}|${p.rate}|${p.pitch}"
+  }
+
   private fun warmUpKeyboardVoice() {
     if (voiceWarmedUp) return
-    val voice = keyboardVoice ?: VietnameseKeyboardVoice(this).also { keyboardVoice = it }
+    val voice = keyboardVoice ?: VietnameseKeyboardVoice(this, currentVoiceProfile()).also {
+      keyboardVoice = it
+    }
     voiceWarmedUp = true
     voice.warmUp(fixedKeyLabels())
   }
@@ -1385,14 +1436,22 @@ class VietnameseKeyboardService : InputMethodService() {
       labels.add(keyNames.spokenName(telex.toString()))
       labels.add(keyNames.spokenName(telex.uppercaseChar().toString()))
     }
-    for (symbol in "@#%&*+-=()!?:;/'\"_\$^~<>[]{},.\\`|") labels.add(keyNames.spokenName(symbol.toString()))
+    for (symbol in VietnameseKeyboardSymbols.SYMBOL_PAGE_1_ROW_1 +
+      VietnameseKeyboardSymbols.SYMBOL_PAGE_1_ROW_2 +
+      VietnameseKeyboardSymbols.SYMBOL_PAGE_1_ROW_3 +
+      VietnameseKeyboardSymbols.SYMBOL_PAGE_2_ROW_1 +
+      VietnameseKeyboardSymbols.SYMBOL_PAGE_2_ROW_2 +
+      VietnameseKeyboardSymbols.SYMBOL_PAGE_2_ROW_3 + ",.") {
+      labels.add(keyNames.spokenName(symbol.toString()))
+    }
     labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_space)))
     labels.add(keyNames.spokenName(getString(R.string.vietnamese_ime_password_character)))
     labels.add(getString(R.string.vietnamese_ime_uppercase))
     labels.add(getString(R.string.vietnamese_ime_lowercase))
     labels.add(getString(R.string.vietnamese_ime_symbols))
     labels.add(getString(R.string.vietnamese_ime_letters))
-    labels.add(getString(R.string.vietnamese_ime_picker_key))
+    labels.add(getString(R.string.vietnamese_ime_symbols_page_1))
+    labels.add(getString(R.string.vietnamese_ime_symbols_page_2))
     labels.add(getString(R.string.vietnamese_ime_hide))
     labels.add(getString(R.string.vietnamese_ime_voice_input))
     labels.add(getString(R.string.vietnamese_ime_voice_input_stopped))

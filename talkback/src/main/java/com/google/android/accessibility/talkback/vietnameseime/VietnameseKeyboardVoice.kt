@@ -15,13 +15,17 @@ import com.google.android.accessibility.utils.output.SpeechCachePlayer.SpeechInf
 import com.google.android.accessibility.utils.output.SpeechController.STATUS_ERROR
 import com.google.android.accessibility.utils.output.SpeechController.STATUS_INTERRUPTED
 import com.google.android.accessibility.utils.output.SpeechController.STATUS_SPOKEN
+import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executor
 import java.util.function.IntSupplier
 
-internal class VietnameseKeyboardVoice(context: Context) {
+internal class VietnameseKeyboardVoice(
+  context: Context,
+  private val profile: VoiceProfile? = null,
+) {
   private val appContext = context.applicationContext
   private val main = Handler(Looper.getMainLooper())
   private val workerThread = HandlerThread("VietnameseKeyboardVoice").apply { start() }
@@ -30,6 +34,8 @@ internal class VietnameseKeyboardVoice(context: Context) {
     Executor { runnable -> main.post(runnable) },
     IntSupplier { AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY },
   )
+  private val targetLocale: Locale =
+    profile?.language?.takeIf { it.isNotEmpty() }?.let { Locale.forLanguageTag(it) } ?: VIETNAMESE
   @Volatile private var tts: TextToSpeech? = null
   private var starting = false
   @Volatile private var ready = false
@@ -140,7 +146,7 @@ internal class VietnameseKeyboardVoice(context: Context) {
   private fun playCached(label: String, started: (() -> Unit)?, completed: ((Int) -> Unit)?): Boolean {
     val id = CACHE_PLAYBACK_ID_PREFIX + (++idCounter)
     cacheCallbacks[id] = Callbacks(started, completed)
-    if (!player.playSpeech(SpeechInfo(id, label, VIETNAMESE, Bundle()), playbackListener)) {
+    if (!player.playSpeech(SpeechInfo(id, label, targetLocale, speechParams()), playbackListener)) {
       cacheCallbacks.remove(id)
       return speakLive(label, started, completed)
     }
@@ -151,7 +157,7 @@ internal class VietnameseKeyboardVoice(context: Context) {
     val engine = tts ?: return false
     val id = LIVE_ID_PREFIX + (++idCounter)
     callbacks[id] = Callbacks(started, completed)
-    val result = engine.speak(label, TextToSpeech.QUEUE_FLUSH, null, id)
+    val result = engine.speak(label, TextToSpeech.QUEUE_FLUSH, speechParams(), id)
     if (result != TextToSpeech.SUCCESS) {
       callbacks.remove(id)
       return false
@@ -185,39 +191,40 @@ internal class VietnameseKeyboardVoice(context: Context) {
     if (SystemClock.uptimeMillis() - lastFailureAt < RETRY_BACKOFF_MS) return false
     starting = true
     val generation = ++initGeneration
-    try {
-      tts = TextToSpeech(appContext) { status ->
-        main.post {
-          if (closed || !starting || generation != initGeneration) return@post
-          val engine = tts ?: return@post
-          if (status != TextToSpeech.SUCCESS) {
-            failInitialization("Keyboard text-to-speech failed to start")
-            return@post
-          }
-          main.removeCallbacks(initTimeout)
-          starting = false
-          engine.setOnUtteranceProgressListener(progressListener)
-          engine.setAudioAttributes(
-            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
-          )
-          val languageResult = engine.setLanguage(VIETNAMESE)
-          languageAvailable = languageResult >= TextToSpeech.LANG_AVAILABLE
-          if (!languageAvailable) {
-            LogUtils.e(
-              TAG, "Vietnamese voice is missing or unsupported, result=%s", languageResult)
-          }
-          ready = true
-          val pending = pendingSpeak
-          pendingSpeak = null
-          if (pending != null) {
-            lastSpokeAt = SystemClock.uptimeMillis()
-            if (!speakNow(pending.label, pending.started, pending.completed)) {
-              pending.completed?.invoke(STATUS_ERROR)
-            }
-          }
-          worker.post { synthesizeNext() }
+    val initListener = TextToSpeech.OnInitListener { status ->
+      main.post {
+        if (closed || !starting || generation != initGeneration) return@post
+        val engine = tts ?: return@post
+        if (status != TextToSpeech.SUCCESS) {
+          failInitialization("Keyboard text-to-speech failed to start")
+          return@post
         }
+        main.removeCallbacks(initTimeout)
+        starting = false
+        engine.setOnUtteranceProgressListener(progressListener)
+        engine.setAudioAttributes(
+          AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
+        )
+        applyProfileSettings(engine)
+        ready = true
+        val pending = pendingSpeak
+        pendingSpeak = null
+        if (pending != null) {
+          lastSpokeAt = SystemClock.uptimeMillis()
+          if (!speakNow(pending.label, pending.started, pending.completed)) {
+            pending.completed?.invoke(STATUS_ERROR)
+          }
+        }
+        worker.post { synthesizeNext() }
+      }
+    }
+    try {
+      val enginePkg = profile?.engine?.takeIf { it.isNotEmpty() }
+      tts = if (enginePkg != null) {
+        TextToSpeech(appContext, initListener, enginePkg)
+      } else {
+        TextToSpeech(appContext, initListener)
       }
       main.postDelayed(initTimeout, INIT_TIMEOUT_MS)
       return true
@@ -226,6 +233,36 @@ internal class VietnameseKeyboardVoice(context: Context) {
       failInitialization("Keyboard text-to-speech initialization failed")
       return false
     }
+  }
+
+  private fun applyProfileSettings(engine: TextToSpeech) {
+    val languageResult = engine.setLanguage(targetLocale)
+    languageAvailable = languageResult >= TextToSpeech.LANG_AVAILABLE
+    if (!languageAvailable) {
+      LogUtils.e(TAG, "Keyboard voice language %s unavailable, result=%s", targetLocale, languageResult)
+    }
+    val activeProfile = profile ?: return
+    if (activeProfile.voice.isNotEmpty()) {
+      runCatching {
+        engine.voices?.firstOrNull { it.name == activeProfile.voice }?.let { voice ->
+          engine.voice = voice
+        }
+      }
+    }
+    engine.setSpeechRate(activeProfile.rate)
+    engine.setPitch(activeProfile.pitch)
+  }
+
+  private fun speechParams(): Bundle {
+    val bundle = Bundle()
+    val activeProfile = profile
+    if (activeProfile != null) {
+      bundle.putFloat(
+        TextToSpeech.Engine.KEY_PARAM_VOLUME,
+        (activeProfile.volume / 100f).coerceIn(0f, 1f),
+      )
+    }
+    return bundle
   }
 
   private fun failInitialization(message: String) {
@@ -305,7 +342,7 @@ internal class VietnameseKeyboardVoice(context: Context) {
     }
     pendingSynthesis[utteranceId] = SynthesisRequest(label, file)
     worker.postDelayed({ finishSynthesis(utteranceId, false) }, SYNTHESIS_TIMEOUT_MS)
-    if (engine.synthesizeToFile(label, null, file, utteranceId) != TextToSpeech.SUCCESS) {
+    if (engine.synthesizeToFile(label, speechParams(), file, utteranceId) != TextToSpeech.SUCCESS) {
       finishSynthesis(utteranceId, false)
     }
   }
@@ -316,7 +353,7 @@ internal class VietnameseKeyboardVoice(context: Context) {
       request.file.delete()
       return
     } else if (success) {
-      val info = SpeechInfo(utteranceId, request.label, VIETNAMESE, Bundle(), request.file)
+      val info = SpeechInfo(utteranceId, request.label, targetLocale, speechParams(), request.file)
       if (!player.loadSpeechFileIntoMemory(info)) {
         LogUtils.w(TAG, "Failed to load a cached label")
         retrySynthesis(request.label)
@@ -341,7 +378,7 @@ internal class VietnameseKeyboardVoice(context: Context) {
     }
   }
 
-  private fun speechInfo(label: String): SpeechInfo = SpeechInfo(null, label, VIETNAMESE, Bundle())
+  private fun speechInfo(label: String): SpeechInfo = SpeechInfo(null, label, targetLocale, speechParams())
 
   private fun cacheDirectory(): File {
     var directory = cacheDirFile

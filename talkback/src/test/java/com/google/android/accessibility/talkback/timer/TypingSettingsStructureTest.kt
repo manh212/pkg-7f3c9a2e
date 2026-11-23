@@ -162,7 +162,6 @@ class TypingSettingsStructureTest {
       listOf(
         "pref_vietnamese_keyboard_quick_telex",
         "pref_vietnamese_keyboard_show_language",
-        "pref_vietnamese_keyboard_show_picker",
         "pref_vietnamese_keyboard_shortcuts_screen",
         "pref_vietnamese_keyboard_auto_capitalize",
         "pref_vietnamese_keyboard_double_space_period",

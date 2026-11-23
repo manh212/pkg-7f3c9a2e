@@ -17,11 +17,18 @@ class VietnameseKeyboardSymbolsFragment : TalkbackBaseFragment() {
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     val context = requireContext()
+    val keyNames = VietnameseKeyNames(context)
     val screen = preferenceManager.createPreferenceScreen(context)
     preferenceScreen = screen
     for (symbol in VietnameseKeyboardSymbols.AVAILABLE_SYMBOLS) {
+      if (rows.containsKey(symbol)) continue
       val row = AccessibilitySuitePreference(context)
-      row.title = symbol.toString()
+      val spoken = keyNames.spokenName(symbol.toString())
+      row.title = if (spoken.isNotEmpty() && spoken != symbol.toString()) {
+        "$symbol ($spoken)"
+      } else {
+        symbol.toString()
+      }
       row.isPersistent = false
       row.isIconSpaceReserved = false
       row.setOnPreferenceClickListener {

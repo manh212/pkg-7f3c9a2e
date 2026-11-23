@@ -43,7 +43,10 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -322,21 +325,84 @@ public final class AccessibilityFocusActionHistory {
         && currentScreenState != null
         && currentScreenState.getActiveWindow() != null
         && currentScreenState.getActiveWindow().getId() == windowId) {
-      AccessibilityNodeInfoCompat activeRoot =
-          AccessibilityWindowInfoUtils.getRootCompat(currentScreenState.getActiveWindow());
-      if (activeRoot != null
-          && node.refresh()
-          && node.isVisibleToUser()
-          && (node.equals(activeRoot)
-              || AccessibilityNodeInfoUtils.hasDescendant(activeRoot, node))) {
-        memoryStore.recordIfUserIntentional(
-            activeRoot, node, extraData, currentScreenState, windowId, actionTime);
-      }
+      scheduleMemoryStoreRecord(
+          AccessibilityNodeInfoCompat.obtain(node),
+          extraData,
+          currentScreenState,
+          windowId,
+          actionTime);
     }
 
     // Update the last editable node focus action.
     if (node.isEditable() || (Role.getRole(node) == Role.ROLE_EDIT_TEXT)) {
       lastEditableFocusActionRecord = FocusActionRecord.copy(record);
+    }
+  }
+
+  /**
+   * Single-thread background executor for Focus Memory v2 recording. Uses latest-wins coalescing
+   * so rapid swipes never queue redundant Binder IPCs or block the main thread.
+   */
+  private static final ExecutorService MEMORY_RECORD_EXECUTOR =
+      Executors.newSingleThreadExecutor(
+          r -> {
+            Thread t = new Thread(r, "FocusMemoryRecord");
+            t.setDaemon(true);
+            return t;
+          });
+
+  private final AtomicReference<Runnable> pendingMemoryRecord = new AtomicReference<>();
+
+  private void scheduleMemoryStoreRecord(
+      @NonNull AccessibilityNodeInfoCompat nodeCopy,
+      @NonNull FocusActionInfo extraData,
+      @NonNull ScreenState currentScreenState,
+      int windowId,
+      long actionTime) {
+    Runnable task =
+        () -> {
+          try {
+            if (currentScreenState.getActiveWindow() == null
+                || currentScreenState.getActiveWindow().getId() != windowId) {
+              return;
+            }
+            if (!nodeCopy.refresh() || !nodeCopy.isVisibleToUser()) {
+              return;
+            }
+            int refreshedWindowId = nodeCopy.getWindowId();
+            if (refreshedWindowId != -1 && refreshedWindowId != windowId) {
+              return;
+            }
+            AccessibilityNodeInfoCompat activeRoot =
+                AccessibilityWindowInfoUtils.getRootCompat(currentScreenState.getActiveWindow());
+            if (activeRoot == null) {
+              return;
+            }
+            // Verify window membership without O(N) top-down hasDescendant() tree traversal.
+            if (!nodeCopy.equals(activeRoot) && refreshedWindowId != windowId) {
+              AccessibilityNodeInfoCompat nodeRoot = AccessibilityNodeInfoUtils.getRoot(nodeCopy);
+              if (nodeRoot == null || !nodeRoot.equals(activeRoot)) {
+                return;
+              }
+            }
+            memoryStore.recordIfUserIntentional(
+                activeRoot, nodeCopy, extraData, currentScreenState, windowId, actionTime);
+          } catch (RuntimeException e) {
+            LogUtils.d(TAG, "Skipped background focus memory record: %s", e.getMessage());
+          }
+        };
+    boolean wasIdle = pendingMemoryRecord.getAndSet(task) == null;
+    if (wasIdle) {
+      MEMORY_RECORD_EXECUTOR.execute(
+          () -> {
+            while (true) {
+              Runnable next = pendingMemoryRecord.getAndSet(null);
+              if (next == null) {
+                return;
+              }
+              next.run();
+            }
+          });
     }
   }
 

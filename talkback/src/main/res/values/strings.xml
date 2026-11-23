@@ -4689,4 +4689,5 @@
     <string name="shortcut_switch_speech_stream" tools:ignore="MissingTranslation">Chuyển kênh giọng nói</string>
     <string name="keyboard_editing_active" tools:ignore="MissingTranslation">Đang chỉnh sửa</string>
   <string name="editor_action_correct_text" tools:ignore="MissingTranslation">Hiệu chỉnh văn bản</string>
+    <string name="editor_action_choose_input_method">Choose input method</string>
 </resources>

@@ -9,11 +9,27 @@ internal object VietnameseKeyboardSymbols {
   const val DEFAULT_ROW = "@#$%&*+=-_"
   const val ROW_LENGTH = 10
 
+  /** Page 1 of the symbols keyboard: 30 most common everyday ASCII symbols. */
+  const val SYMBOL_PAGE_1_ROW_1 = "@#%&*+-=()"
+  const val SYMBOL_PAGE_1_ROW_2 = "!?:;/'\"_\$\\"
+  const val SYMBOL_PAGE_1_ROW_3 = "^~<>[]{}`|"
+
+  /** Page 2 of the symbols keyboard: 30 popular currency, math, quote, arrow & mark symbols. */
+  const val SYMBOL_PAGE_2_ROW_1 = "₫€£¥×÷±°≠≈"
+  const val SYMBOL_PAGE_2_ROW_2 = "≤≥…•–—“”‘’"
+  const val SYMBOL_PAGE_2_ROW_3 = "←→↑↓✓✗©®™§"
+
+  /** Less common / specialized symbols assignable to the custom symbols row in settings. */
+  const val EXTRA_SYMBOLS = "¢₹₩₽₿∞√π∆∑∏∫‰¶†‡№«»‹›„‚¡¿¦¬¯¨´¸·⁰¹²³⁴⁵⁶⁷⁸⁹¼½¾⅓⅔★☆♠♣♥♦♪♫"
+
   /**
-   * Every symbol the user can place in the row: the three symbols-page rows plus the digits.
-   * The second row ends with a backslash and the third row holds the backtick.
+   * Every symbol the user can place in the custom symbols row:
+   * Page 1 + Page 2 + specialized symbols + digits.
    */
-  const val AVAILABLE_SYMBOLS = "@#%&*+-=()!?:;/'\"_\$\\^~<>[]{}`|0123456789"
+  const val AVAILABLE_SYMBOLS =
+    SYMBOL_PAGE_1_ROW_1 + SYMBOL_PAGE_1_ROW_2 + SYMBOL_PAGE_1_ROW_3 +
+      SYMBOL_PAGE_2_ROW_1 + SYMBOL_PAGE_2_ROW_2 + SYMBOL_PAGE_2_ROW_3 +
+      EXTRA_SYMBOLS + "0123456789"
 
   fun read(context: Context, prefs: SharedPreferences): String {
     val stored = prefs.getString(

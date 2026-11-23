@@ -267,8 +267,21 @@ public class FocusManagerInternal {
       history.onPendingAccessibilityFocusActionOnWebElement(
           updatedFocusActionInfo, currentTime, screenState.getStableScreenState(), eventId);
     } else {
-      history.onAccessibilityFocusAction(
-          newFocus, updatedFocusActionInfo, currentTime, screenState.getStableScreenState(), eventId);
+      AccessibilityNodeInfoCompat nodeForRecord = AccessibilityNodeInfoCompat.obtain(newFocus);
+      ScreenState stableScreenState = screenState.getStableScreenState();
+      history.onImmediateAccessibilityFocusAction(
+          AccessibilityNodeInfoCompat.obtain(newFocus),
+          updatedFocusActionInfo,
+          currentTime,
+          eventId);
+      historyHandler.post(
+          () ->
+              history.onAccessibilityFocusAction(
+                  nodeForRecord,
+                  updatedFocusActionInfo,
+                  currentTime,
+                  stableScreenState,
+                  eventId));
     }
   }
 

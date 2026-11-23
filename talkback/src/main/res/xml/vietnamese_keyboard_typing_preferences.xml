@@ -10,10 +10,6 @@
       android:defaultValue="false"
       android:key="@string/pref_vietnamese_keyboard_show_language_key"
       android:title="@string/vietnamese_ime_show_language" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-      android:defaultValue="true"
-      android:key="@string/pref_vietnamese_keyboard_show_picker_key"
-      android:title="@string/vietnamese_ime_show_picker" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardShortcutsFragment"
       android:key="pref_vietnamese_keyboard_shortcuts_screen"
@@ -35,4 +31,9 @@
       android:key="@string/pref_vietnamese_keyboard_t9_double_tap_key"
       android:summary="@string/vietnamese_ime_t9_double_tap_summary"
       android:title="@string/vietnamese_ime_t9_double_tap" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="@string/pref_vietnamese_keyboard_auto_switch_letters_on_space_key"
+      android:summary="@string/vietnamese_ime_auto_switch_letters_on_space_summary"
+      android:title="@string/vietnamese_ime_auto_switch_letters_on_space" />
 </PreferenceScreen>

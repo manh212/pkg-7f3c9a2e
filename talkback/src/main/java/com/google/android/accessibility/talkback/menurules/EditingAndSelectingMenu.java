@@ -214,6 +214,16 @@ public class EditingAndSelectingMenu implements NodeMenu {
               context.getString(R.string.shortcut_dictate)));
     }
 
+    if (node.isEditable() && node.isEnabled()) {
+      items.add(
+          ContextMenu.createMenuItem(
+              context,
+              Menu.NONE,
+              R.id.edittext_breakout_choose_keyboard,
+              Menu.NONE,
+              context.getString(R.string.editor_action_choose_input_method)));
+    }
+
     // TODO Use a checkable menu item once supported.
     if (!isAndroidWear) {
       final ContextMenuItem selectionMode;
@@ -305,6 +315,14 @@ public class EditingAndSelectingMenu implements NodeMenu {
                     itemId == R.id.edittext_breakout_correct_text
                         ? R.string.shortcut_value_correct_text
                         : R.string.shortcut_value_dictate),
+                node);
+          }
+        } else if (itemId == R.id.edittext_breakout_choose_keyboard) {
+          TalkBackService service = TalkBackService.getInstance();
+          result = service != null;
+          if (result) {
+            service.performCatalogActionOnNode(
+                service.getString(R.string.shortcut_value_choose_keyboard),
                 node);
           }
         } else if (itemId == R.id.edittext_breakout_start_selection_mode) {

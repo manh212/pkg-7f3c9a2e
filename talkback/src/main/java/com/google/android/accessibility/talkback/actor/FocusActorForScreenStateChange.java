@@ -145,8 +145,18 @@ public class FocusActorForScreenStateChange {
   private static boolean isInWindow(
       AccessibilityNodeInfoCompat node, int windowId, AccessibilityNodeInfoCompat windowRoot) {
     int nodeWindowId = node.getWindowId();
-    return (nodeWindowId == WINDOW_ID_NONE || nodeWindowId == windowId)
-        && AccessibilityNodeInfoUtils.hasDescendant(windowRoot, node);
+    if (nodeWindowId != WINDOW_ID_NONE && nodeWindowId != windowId) {
+      return false;
+    }
+    if (windowRoot == null) {
+      return false;
+    }
+    if (node.equals(windowRoot)) {
+      return true;
+    }
+    // Walk upward (O(depth)) instead of top-down hasDescendant() (O(N) full-tree scan on Chrome).
+    AccessibilityNodeInfoCompat root = AccessibilityNodeInfoUtils.getRoot(node);
+    return root != null && root.equals(windowRoot);
   }
 
   /** Restores last focus from {@link AccessibilityFocusActionHistory} to the active window. */

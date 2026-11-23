@@ -1917,4 +1917,5 @@
     <string name="title_pref_back_tap_sensitivity">Độ nhạy khi gõ mặt lưng</string>
   <string name="menu_item_call_number">Gọi <xliff:g id="number" example="020 7946 0018">%1$s</xliff:g></string>
   <string name="menu_item_copy_code">Sao chép mã <xliff:g id="code" example="482916">%1$s</xliff:g></string>
+    <string name="editor_action_choose_input_method">Chọn phương thức nhập</string>
 </resources>

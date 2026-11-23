@@ -8,6 +8,7 @@
     <item name="clear_all_text_menu" type="id" />
     <item name="edittext_breakout_correct_text" type="id" />
     <item name="edittext_breakout_dictate" type="id" />
+    <item name="edittext_breakout_choose_keyboard" type="id" />
     <item name="direct_tap_menu" type="id" />
     <item name="take_screenshot_menu" type="id" />
     <item name="toggle_touch_exploration_menu" type="id" />

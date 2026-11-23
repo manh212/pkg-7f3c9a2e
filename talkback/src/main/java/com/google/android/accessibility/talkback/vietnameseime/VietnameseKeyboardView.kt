@@ -74,6 +74,7 @@ internal class VietnameseKeyboardView(
   private var rows = emptyList<List<Cell>>()
   private var shifted = false
   private var symbolPage = false
+  private var symbolSecondPage = false
   private var t9Page = false
   private var telexEnabled = true
   private var telexAvailable = true
@@ -118,6 +119,7 @@ internal class VietnameseKeyboardView(
     val startingCell: Cell?,
     val method: Int,
     val symbolPage: Boolean,
+    val symbolSecondPage: Boolean,
     val touch: VietnameseKeyTouch,
     val pcShift: Boolean,
     var moved: Boolean = false,
@@ -180,13 +182,6 @@ internal class VietnameseKeyboardView(
       field = value
       rebuildRows()
     }
-  var showKeyboardPicker = true
-    set(value) {
-      if (field == value) return
-      cancelInput()
-      field = value
-      rebuildRows()
-    }
   var showLanguageKey = true
     set(value) {
       if (field == value) return
@@ -241,8 +236,10 @@ internal class VietnameseKeyboardView(
     actionLabel: String,
     telexAvailable: Boolean = true,
     t9: Boolean = false,
+    symbolSecondPage: Boolean = false,
   ) {
-    val pageChanged = symbolPage != symbols
+    val effectiveSecondPage = symbols && symbolSecondPage
+    val pageChanged = symbolPage != symbols || this.symbolSecondPage != effectiveSecondPage
     val t9Changed = t9Page != t9
     val layoutChanged = isPcLayout() != rowsArePc || isLandscape() != rowsAreLandscape
     val rebuild = rows.isEmpty() || pageChanged || t9Changed || layoutChanged ||
@@ -255,6 +252,7 @@ internal class VietnameseKeyboardView(
     }
     this.shifted = shifted
     symbolPage = symbols
+    this.symbolSecondPage = effectiveSecondPage
     t9Page = t9
     telexEnabled = telex
     this.telexAvailable = telexAvailable
@@ -398,6 +396,7 @@ internal class VietnameseKeyboardView(
           startingCell = cell,
           method = effectiveTypingMethod(),
           symbolPage = symbolPage,
+          symbolSecondPage = symbolSecondPage,
           touch = VietnameseKeyTouch(
             timing.doubleTapMs, configuration.scaledDoubleTapSlop, firstTaps,
           ),
@@ -432,7 +431,7 @@ internal class VietnameseKeyboardView(
           state.lastX = x
           state.lastY = y
           if (state.pointerId == micHoldPointer && movedBeyondSlop(state, x, y)) disarmMicHold()
-          if (!state.pcShift && state.symbolPage != symbolPage) continue
+          if (!state.pcShift && (state.symbolPage != symbolPage || state.symbolSecondPage != symbolSecondPage)) continue
           if (movedBeyondSlop(state, x, y)) state.moved = true
           if (state.pcShift) continue
           val cell = cellAt(x, y)
@@ -462,7 +461,7 @@ internal class VietnameseKeyboardView(
           } else if (state.pcShift) {
             releaseShiftPointer(state, tap)
             finishAnnouncement(state, cell)
-          } else if (state.symbolPage == symbolPage) {
+          } else if (state.symbolPage == symbolPage && state.symbolSecondPage == symbolSecondPage) {
             if (cell?.key != state.touch.selected) {
               state.touch.explore(cell?.key)
               announceSelected(state, cell)
@@ -712,7 +711,12 @@ internal class VietnameseKeyboardView(
   private fun keyLabel(cell: Cell): String = spokenTitle(cell)
 
   private fun spokenTitle(cell: Cell): String = when (cell.key.id) {
-    SHIFT -> if (rowsArePc) context.getString(R.string.vietnamese_ime_uppercase)
+    SHIFT -> if (symbolPage) {
+      context.getString(
+        if (symbolSecondPage) R.string.vietnamese_ime_symbols_page_1
+        else R.string.vietnamese_ime_symbols_page_2,
+      )
+    } else if (rowsArePc) context.getString(R.string.vietnamese_ime_uppercase)
       else if (shifted) context.getString(R.string.vietnamese_ime_lowercase)
       else context.getString(R.string.vietnamese_ime_uppercase)
     SYMBOLS -> context.getString(R.string.vietnamese_ime_symbols)
@@ -849,7 +853,10 @@ internal class VietnameseKeyboardView(
   }
 
   private fun displayTitle(cell: Cell): String {
-    if (cell.key.id == SHIFT) return if (isShiftActive()) "⇧" else "↑"
+    if (cell.key.id == SHIFT) {
+      if (symbolPage) return if (symbolSecondPage) "1/2" else "=\\<"
+      return if (isShiftActive()) "⇧" else "↑"
+    }
     val key = cell.key.id.singleOrNull() ?: return cell.baseTitle
     if (!isShiftActive()) return cell.baseTitle
     if (rowsArePc) SHIFT_SYMBOLS[key]?.let { return it }
@@ -870,11 +877,30 @@ internal class VietnameseKeyboardView(
   private fun buildRows(): List<List<Cell>> {
     if (t9Page) return buildT9Rows()
     val digits = characters("1234567890")
-    val first = characters(if (symbolPage) "@#%&*+-=()" else "qwertyuiop")
-    val second = characters(if (symbolPage) "!?:;/'\"_\$\\" else "asdfghjkl")
-    val third = characters(if (symbolPage) "^~<>[]{}`|" else "zxcvbnm")
+    val first = characters(
+      when {
+        !symbolPage -> "qwertyuiop"
+        symbolSecondPage -> VietnameseKeyboardSymbols.SYMBOL_PAGE_2_ROW_1
+        else -> VietnameseKeyboardSymbols.SYMBOL_PAGE_1_ROW_1
+      },
+    )
+    val second = characters(
+      when {
+        !symbolPage -> "asdfghjkl"
+        symbolSecondPage -> VietnameseKeyboardSymbols.SYMBOL_PAGE_2_ROW_2
+        else -> VietnameseKeyboardSymbols.SYMBOL_PAGE_1_ROW_2
+      },
+    )
+    val third = characters(
+      when {
+        !symbolPage -> "zxcvbnm"
+        symbolSecondPage -> VietnameseKeyboardSymbols.SYMBOL_PAGE_2_ROW_3
+        else -> VietnameseKeyboardSymbols.SYMBOL_PAGE_1_ROW_3
+      },
+    )
     val pc = rowsArePc
-    val shift = function(SHIFT, "↑", if (pc) 2.0f else 1.4f)
+    val shiftTitle = if (symbolPage) (if (symbolSecondPage) "1/2" else "=\\<") else "↑"
+    val shift = function(SHIFT, shiftTitle, if (pc) 2.0f else 1.4f)
     val delete = function(DELETE, "⌫", if (pc) 1.0f else 1.6f)
     val thirdRow = listOf(shift) + third + delete
     val bottom = listOfNotNull(
@@ -887,8 +913,6 @@ internal class VietnameseKeyboardView(
       characters(".").single(),
       function(MIC, context.getString(R.string.vietnamese_ime_voice_input), 1.1f)
         .takeIf { micEnabled },
-      function(PICKER, context.getString(R.string.vietnamese_ime_picker_key), 1.1f)
-        .takeIf { showKeyboardPicker },
       Cell(VietnameseKeyTouch.Key(ENTER, editorAction = true), actionLabel, 1.3f),
     )
     val symbolsRow = if (showSymbolsRow && !symbolPage) characters(symbolsRowString) else null
@@ -940,7 +964,6 @@ internal class VietnameseKeyboardView(
     const val SYMBOLS = "symbols"
     const val LETTERS = "letters"
     const val LANGUAGE = "language"
-    const val PICKER = "picker"
     const val HIDE = "hide"
     const val MIC = "mic"
     const val LAYOUT_PHONE = "phone"

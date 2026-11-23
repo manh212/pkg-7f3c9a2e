@@ -1060,16 +1060,12 @@ class VietnameseKeyboardViewTest {
 
   @Test
   @Config(qualifiers = "w800dp-h400dp-land")
-  fun landscapeSpaceColumnCanHideTheKeyboardAndOmitInputMethodPicker() {
+  fun landscapeSpaceColumnCanHideTheKeyboard() {
     preparePcKeyboard()
 
     touch(MotionEvent.ACTION_DOWN, 80f, 290f, 100)
     touch(MotionEvent.ACTION_UP, 80f, 290f, 170)
     assertEquals(listOf(VietnameseKeyboardView.HIDE), typed)
-    assertTrue(keyLabels().contains(context.getString(R.string.vietnamese_ime_picker_key)))
-
-    keyboard.showKeyboardPicker = false
-    assertFalse(keyLabels().contains(context.getString(R.string.vietnamese_ime_picker_key)))
     assertTrue(keyLabels().contains(context.getString(R.string.vietnamese_ime_hide)))
   }
 
