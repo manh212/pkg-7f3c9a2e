@@ -2,6 +2,7 @@ package com.google.android.accessibility.talkback.preference.base;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -100,6 +101,10 @@ public class GestureActionCategoryTest {
     for (Commands.Category category : Commands.categories(context)) {
       for (Commands.Command command : category.getCommands()) {
         groups.put(command.getValue(), category.getTitleRes());
+        if (command.getValue().matches("(NEXT|PREVIOUS)_HEADING_[1-6]")) {
+          assertNull(command.getKeyboardAction());
+          assertEquals(Commands.shortcutKey(command.getValue()), command.keyboardKey(context));
+        }
         if (category.getTitleRes() == R.string.shortcut_title_special_features) {
           other.add(command.getValue() + ": " + command.getLabel());
         }

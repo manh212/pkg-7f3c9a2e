@@ -391,10 +391,14 @@ object Commands {
     }
 
     /** Adds the navigation actions of [category], with the keyboard actions that match them. */
-    private fun navigationActions(category: Int) {
+    private fun navigationActions(category: Int, keyboardActions: Boolean = true) {
       for (action in NavigationGestureActions.CATEGORIES[category].actions) {
         commands.add(
-          Command(action.value, context.getString(action.labelRes), NAVIGATION_KEYS[action.value])
+          Command(
+            action.value,
+            context.getString(action.labelRes),
+            if (keyboardActions) NAVIGATION_KEYS[action.value] else null,
+          )
         )
       }
     }
@@ -569,8 +573,8 @@ object Commands {
 
     private fun web() =
       category(R.string.commands_category_web) {
-        navigationActions(3)
-        navigationActions(4)
+        navigationActions(3, keyboardActions = false)
+        navigationActions(4, keyboardActions = false)
         gesture(
           R.string.shortcut_value_toggle_browse_mode,
           R.string.keycombo_menu_other_toggle_browse_mode,
