@@ -16,6 +16,8 @@ import io.meridian.licensing.LicensePolicy;
 import io.meridian.licensing.RecoveryProtocol;
 
 public final class DeviceLicenseManager {
+  enum VerificationState { VALID, REQUIRED, INVALID, EXPIRED, CLOCK_CHANGED, UNAVAILABLE }
+
   private static final String POLICY_PREFS = EndpointCodec.decode("WikJ4sOoml1OJjkS9NK-pXVRNBP7x7Y", 41);
   private static final String VERIFICATION_PREFS = EndpointCodec.decode("2rOHfVc7EP7wooRvTiQa7fiwgHZKJAjj_sq0k3U", 183);
   private static final String STORAGE_MIGRATED = EndpointCodec.decode("Mxf-2bWJfGckAvrGspV0byIH6t6qnmxM", 95);
@@ -107,77 +109,130 @@ public final class DeviceLicenseManager {
     return id == null ? "" : id;
   }
 
-  private static boolean recentlyVerified(Context context) {
+  private static String leaseMac(Context context, long server, long elapsed, long highestWall,
+      int verifiedBoot) {
+    try {
+      if (!LuaMemory.INSTANCE.isAvailable()) return "";
+      String mac = LuaMemory.computeLeaseMac(
+          deviceBindId(context), server, elapsed, highestWall, verifiedBoot);
+      return mac != null && mac.matches("[0-9a-f]{64}") ? mac : "";
+    } catch (LinkageError | RuntimeException error) {
+      return "";
+    }
+  }
+
+  private static boolean matchesLeaseMac(String stored, String expected) {
+    return stored != null && !expected.isEmpty() && MessageDigest.isEqual(
+        stored.getBytes(StandardCharsets.US_ASCII), expected.getBytes(StandardCharsets.US_ASCII));
+  }
+
+  static synchronized VerificationState verificationState(Context context) {
+    try {
+      return readVerificationState(context);
+    } catch (LinkageError error) {
+      return VerificationState.UNAVAILABLE;
+    } catch (RuntimeException error) {
+      return VerificationState.INVALID;
+    }
+  }
+
+  private static VerificationState readVerificationState(Context context) {
     SharedPreferences check = verification(context);
     long wall = System.currentTimeMillis();
     long server = check.getLong("server", 0);
     long elapsed = check.getLong("elapsed", -1);
     int verifiedBoot = check.getInt("boot", -2);
     long highestWall = check.getLong("highestWall", 0);
-    if (!LuaMemory.INSTANCE.isAvailable() && !isUnitTestRuntime()) {
-      return false;
+    String storedMac = check.getString("mac", "");
+    if (server <= 0 || elapsed < 0 || storedMac == null || storedMac.isEmpty()) {
+      return VerificationState.REQUIRED;
     }
-    if (LuaMemory.INSTANCE.isAvailable()) {
-      String storedMac = check.getString("mac", "");
-      if (storedMac == null || storedMac.isEmpty()) {
-        return false;
-      }
-      String expectedMac = LuaMemory.computeLeaseMac(
-          deviceBindId(context), server, elapsed, highestWall, verifiedBoot);
-      if (expectedMac.isEmpty() || !MessageDigest.isEqual(
-          storedMac.getBytes(StandardCharsets.US_ASCII),
-          expectedMac.getBytes(StandardCharsets.US_ASCII))) {
-        return false;
-      }
+    String expectedMac = leaseMac(context, server, elapsed, highestWall, verifiedBoot);
+    if (expectedMac.isEmpty()) return VerificationState.UNAVAILABLE;
+    if (!matchesLeaseMac(storedMac, expectedMac)) return VerificationState.INVALID;
+    long nowElapsed = SystemClock.elapsedRealtime();
+    int currentBoot = boot(context);
+    boolean sameBoot = verifiedBoot >= 0 && verifiedBoot == currentBoot;
+    if (wall <= 0 || nowElapsed < 0
+        || wall + LicenseLease.CLOCK_TOLERANCE_MS < Math.max(server, highestWall)
+        || (sameBoot && nowElapsed < elapsed) || (!sameBoot && wall < server)) {
+      return VerificationState.CLOCK_CHANGED;
     }
-    boolean allowed = LicenseLease.valid(wall, SystemClock.elapsedRealtime(), boot(context),
-        server, elapsed, verifiedBoot, highestWall);
-    if (allowed && wall - highestWall >= 60_000L) {
-      SharedPreferences.Editor edit = check.edit().putLong("highestWall", wall);
-      if (LuaMemory.INSTANCE.isAvailable()) {
-        String updatedMac = LuaMemory.computeLeaseMac(
-            deviceBindId(context), server, elapsed, wall, verifiedBoot);
-        if (!updatedMac.isEmpty()) edit.putString("mac", updatedMac);
-      }
-      edit.apply();
+    if (!LicenseLease.valid(wall, nowElapsed, currentBoot, server, elapsed, verifiedBoot, highestWall)) {
+      return VerificationState.EXPIRED;
     }
-    return allowed;
+    if (wall - highestWall >= 60_000L) {
+      String updatedMac = leaseMac(context, server, elapsed, wall, verifiedBoot);
+      if (updatedMac.isEmpty()) return VerificationState.UNAVAILABLE;
+      check.edit().putLong("highestWall", wall).putString("mac", updatedMac).apply();
+    }
+    return VerificationState.VALID;
   }
 
-  private static void recordVerification(Context context, long serverMillis) throws Exception {
-    if (serverMillis <= 0) return;
+  private static boolean recentlyVerified(Context context) {
+    return verificationState(context) == VerificationState.VALID;
+  }
+
+  static boolean needsOnlineVerification(Context context) {
+    try {
+      return policy(context) == null || !recentlyVerified(context);
+    } catch (Exception error) {
+      return true;
+    }
+  }
+
+  static String verificationMessage(Context context) {
+    return switch (verificationState(context)) {
+      case REQUIRED -> "Cần xác minh lại giấy phép. Mở Khôi phục kích hoạt để kiểm tra.";
+      case INVALID -> "Dữ liệu xác minh giấy phép không hợp lệ. Mở Khôi phục kích hoạt để xác minh lại.";
+      case EXPIRED -> "Đã quá 7 ngày chưa xác minh giấy phép thành công. Mở Khôi phục kích hoạt để kiểm tra lại.";
+      case CLOCK_CHANGED -> "Ngày giờ trên thiết bị chưa phù hợp. Bật ngày giờ tự động rồi khôi phục kích hoạt.";
+      case UNAVAILABLE -> "Không thực hiện được xác minh trên thiết bị. Hãy thử khôi phục kích hoạt.";
+      case VALID -> "Giấy phép đã được xác minh.";
+    };
+  }
+
+  private static synchronized void recordVerification(Context context, long serverMillis) throws Exception {
+    if (serverMillis <= 0) throw new IllegalStateException("Không nhận được thời gian xác minh từ máy chủ.");
     SharedPreferences check = verification(context);
     long prior = check.getLong("server", 0);
-    if (!LicenseLease.newerVerification(serverMillis, prior)) return;
+    String priorMac = check.getString("mac", "");
+    boolean authenticated = priorMac != null && !priorMac.isEmpty() && matchesLeaseMac(priorMac,
+        leaseMac(context, prior, check.getLong("elapsed", -1),
+            check.getLong("highestWall", 0), check.getInt("boot", -2)));
+    if (authenticated && !LicenseLease.newerVerification(serverMillis, prior)) {
+      throw new IllegalStateException("Thời gian xác minh từ máy chủ cũ hơn lần xác minh đã lưu.");
+    }
     long wall = System.currentTimeMillis();
     long elapsed = SystemClock.elapsedRealtime();
     int currentBoot = boot(context);
     long highestWall = Math.max(wall, serverMillis);
+    String mac = leaseMac(context, serverMillis, elapsed, highestWall, currentBoot);
+    if (mac.isEmpty()) throw new IllegalStateException("Không tạo được dữ liệu xác minh giấy phép.");
     SharedPreferences.Editor edit = check.edit()
         .putLong("server", serverMillis)
         .putLong("elapsed", elapsed)
         .putInt("boot", currentBoot)
-        .putLong("highestWall", highestWall);
-    if (LuaMemory.INSTANCE.isAvailable()) {
-      String mac = LuaMemory.computeLeaseMac(
-          deviceBindId(context), serverMillis, elapsed, highestWall, currentBoot);
-      if (!mac.isEmpty()) edit.putString("mac", mac);
-    }
+        .putLong("highestWall", highestWall)
+        .putString("mac", mac);
     if (!edit.commit()) throw new IllegalStateException("Không lưu được thời điểm xác minh giấy phép.");
+    if (verificationState(context) != VerificationState.VALID) {
+      throw new IllegalStateException(verificationMessage(context));
+    }
   }
 
   public static boolean offlineLocked(Context context) {
     if (!configured()) return false;
     try {
-      if (recentlyVerified(context)) return false;
       String token = prefs(context).getString("policy", "");
       if (!token.isEmpty()) {
         LicensePolicy policy = policy(context);
         return policy != null && policy.state.equals("active")
-            && (policy.expiresAt == 0 || policyTime(context, policy) < policy.expiresAt);
+            && (policy.expiresAt == 0 || policyTime(context, policy) < policy.expiresAt)
+            && !recentlyVerified(context);
       }
       return false;
-    } catch (Exception e) { return false; }
+    } catch (Exception e) { return true; }
   }
 
   private static volatile long lastRestrictionCheck = -1;
@@ -236,8 +291,13 @@ public final class DeviceLicenseManager {
     String pubKey = recoveryPublicKey();
     LicensePolicy next = LicensePolicy.verify(request, license,
         RecoveryProtocol.publicKey(pubKey));
-    LicensePolicy old = cached.isEmpty() ? null : LicensePolicy.verify(request, cached,
-        RecoveryProtocol.publicKey(pubKey));
+    LicensePolicy old = null;
+    if (!cached.isEmpty()) {
+      try {
+        old = LicensePolicy.verify(request, cached, RecoveryProtocol.publicKey(pubKey));
+      } catch (Exception ignored) {
+      }
+    }
     if (old != null && (next.revision < old.revision
         || (next.revision == old.revision && !cached.equals(license)))) {
       return false;
@@ -304,7 +364,7 @@ public final class DeviceLicenseManager {
       if (policy.expiresAt > 0 && policyTime(context, policy) >= policy.expiresAt) {
         return "Giấy phép đã hết hạn.";
       }
-      if (!recentlyVerified(context)) return "Cần xác minh giấy phép trực tuyến.";
+      if (!recentlyVerified(context)) return verificationMessage(context);
       String state = policy.state.equals("revoked") ? "Đã thu hồi"
           : policy.state.equals("suspended") ? "Tạm khóa"
           : policy.active(policyTime(context, policy)) ? "Đang hoạt động" : "Đã hết hạn hoặc cần kiểm tra ngày giờ";
@@ -312,6 +372,6 @@ public final class DeviceLicenseManager {
           + " · Gói " + policy.packageName + "\n"
           + (policy.expiresAt == 0 ? "Không thời hạn" : "Hết hạn: "
               + java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(policy.expiresAt * 1000L)));
-    } catch (Exception e) { return "Trạng thái giấy phép không hợp lệ. Hãy khôi phục kích hoạt."; }
+    } catch (Exception e) { return "Không đọc được giấy phép đã lưu. Mở Khôi phục kích hoạt để kiểm tra lại."; }
   }
 }

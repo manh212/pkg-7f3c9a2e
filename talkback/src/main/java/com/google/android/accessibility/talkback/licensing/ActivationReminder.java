@@ -241,7 +241,7 @@ public final class ActivationReminder {
       Notification alert = new Notification.Builder(service, CHANNEL)
           .setSmallIcon(android.R.drawable.ic_dialog_alert)
           .setContentTitle("Cần xác minh giấy phép")
-          .setContentText("Đã quá 7 ngày ngoại tuyến. Kết nối mạng để tự động mở lại quyền sử dụng.")
+          .setContentText(DeviceLicenseManager.status(service))
           .setContentIntent(action).setOngoing(true).build();
       manager.notify(NOTIFICATION_ID, alert);
     } catch (RuntimeException ignored) {}

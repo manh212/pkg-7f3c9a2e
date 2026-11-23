@@ -365,6 +365,7 @@ object DiagnosticsExport {
     }
     out.append("Touch exploration flag: ${service?.isTouchExplorationFlagSet() ?: "unavailable"}\n")
     out.append("License restricted: ${DeviceLicenseManager.restricted(context)} (offline locked: ${DeviceLicenseManager.offlineLocked(context)})\n")
+    out.append("License status: ${DeviceLicenseManager.status(context)}\n")
     val typingMethod =
       SharedPreferencesUtils.getIntFromStringPref(
         prefs,

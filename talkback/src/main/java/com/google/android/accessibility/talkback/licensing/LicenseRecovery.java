@@ -19,13 +19,16 @@ import java.util.List;
 import org.json.JSONObject;
 
 final class LicenseRecovery {
-  enum Result { RESTORED, ALREADY_LICENSED, NOT_FOUND, OFFLINE, INVALID, NOT_CONFIGURED }
+  enum Result {
+    RESTORED, ALREADY_LICENSED, NOT_FOUND, OFFLINE, INVALID, NOT_CONFIGURED,
+    VERIFICATION_REQUIRED, VERIFICATION_FAILED, UNVERIFIED_INSTALLATION
+  }
   interface Callback { void completed(Result result); }
   private static final ExecutorService WORKER = Executors.newSingleThreadExecutor();
   private static final Handler MAIN = new Handler(Looper.getMainLooper());
   private static boolean running;
   private static long lastAttempt = -LicenseRefreshSchedule.RETRY_MS;
-  private static Result lastResult = Result.NOT_FOUND;
+  private static Result lastResult = Result.VERIFICATION_REQUIRED;
   private static final List<Callback> WAITING = new ArrayList<>();
 
   private LicenseRecovery() {}
@@ -42,7 +45,14 @@ final class LicenseRecovery {
 
   static synchronized void start(Context context, boolean force, Callback callback) {
     Context app = context.getApplicationContext();
-    if (!UserManagerCompat.isUserUnlocked(app) || !ApkSignatureVerifier.isOfficial(app)) return;
+    if (!UserManagerCompat.isUserUnlocked(app)) {
+      if (callback != null) callback.completed(Result.VERIFICATION_REQUIRED);
+      return;
+    }
+    if (!ApkSignatureVerifier.isOfficial(app)) {
+      if (callback != null) callback.completed(Result.UNVERIFIED_INSTALLATION);
+      return;
+    }
     if (!DeviceLicenseManager.recoveryConfigured()) {
       if (callback != null) callback.completed(Result.NOT_CONFIGURED);
       return;
@@ -55,8 +65,13 @@ final class LicenseRecovery {
     android.content.SharedPreferences checks = app.getSharedPreferences("meridian_license_checks", Context.MODE_PRIVATE);
     boolean due = LicenseRefreshSchedule.due(System.currentTimeMillis(), now, boot(app),
         checks.getLong("wall", 0), checks.getLong("elapsed", 0), checks.getInt("boot", -2));
-    if (!force && (!due || now - lastAttempt < LicenseRefreshSchedule.RETRY_MS)) {
-      if (callback != null) callback.completed(lastResult);
+    boolean verificationRequired = DeviceLicenseManager.needsOnlineVerification(app);
+    if (!force && ((!due && !verificationRequired)
+        || now - lastAttempt < LicenseRefreshSchedule.RETRY_MS)) {
+      Result cached = verificationRequired
+          ? (lastResult == Result.RESTORED ? Result.VERIFICATION_REQUIRED : lastResult)
+          : Result.ALREADY_LICENSED;
+      if (callback != null) callback.completed(cached);
       return;
     }
     if (callback != null) WAITING.add(callback);
@@ -90,13 +105,17 @@ final class LicenseRecovery {
         io.meridian.licensing.DistributionEndpoints.dataCatalogRoot());
   }
   
-    private static Result recoverFrom(Context context, String catalogRoot) {
+  static HttpURLConnection openConnection(URL url) throws java.io.IOException {
+    return (HttpURLConnection) url.openConnection();
+  }
+
+  private static Result recoverFrom(Context context, String catalogRoot) {
     HttpURLConnection connection = null;
     try {
       String request = DeviceLicenseManager.recoveryRequest(context);
       URL url = new URL(catalogRoot
           + RecoveryProtocol.recordPath(request) + "?v=" + System.currentTimeMillis());
-      connection = (HttpURLConnection) url.openConnection();
+      connection = openConnection(url);
       connection.setConnectTimeout(8_000);
       connection.setReadTimeout(8_000);
       connection.setInstanceFollowRedirects(false);
@@ -125,6 +144,8 @@ final class LicenseRecovery {
       return Result.RESTORED;
     } catch (java.io.IOException e) {
       return Result.OFFLINE;
+    } catch (IllegalStateException e) {
+      return Result.VERIFICATION_FAILED;
     } catch (Exception e) {
       return Result.INVALID;
     } finally {

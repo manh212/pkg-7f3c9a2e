@@ -89,14 +89,21 @@ public final class ActivationActivity extends Activity {
       switch (result) {
         case RESTORED:
         case ALREADY_LICENSED:
+        case VERIFICATION_REQUIRED:
           activity.refresh();
           break;
         case NOT_FOUND:
           if (DeviceLicenseManager.isLicensed(activity)) activity.refresh();
-          else activity.status.setText("Chưa có giấy phép trực tuyến.");
+          else activity.status.setText("Không tìm thấy giấy phép của thiết bị trong kho phân phối. Liên hệ quản trị viên để kiểm tra.");
           break;
         case OFFLINE:
-          activity.status.setText(DeviceLicenseManager.status(activity) + "\nChưa kết nối được GitHub.");
+          activity.status.setText(DeviceLicenseManager.status(activity) + "\nChưa lấy được giấy phép từ GitHub. Hãy thử lại.");
+          break;
+        case VERIFICATION_FAILED:
+          activity.status.setText(DeviceLicenseManager.status(activity) + "\nChưa hoàn tất được lần xác minh mới. Hãy thử khôi phục kích hoạt lại.");
+          break;
+        case UNVERIFIED_INSTALLATION:
+          activity.refresh();
           break;
         case NOT_CONFIGURED:
           activity.status.setText("Bản Meridian này chưa tích hợp khóa cấp phép mới. Hãy cài bản mới nhất sau khi quản trị viên kết nối công cụ với GitHub.");
