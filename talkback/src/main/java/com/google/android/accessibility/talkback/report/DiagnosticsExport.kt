@@ -152,7 +152,7 @@ object DiagnosticsExport {
     val selectedProcessingLevel = prefs.getString("pref_event_processing_level", "low")
     val prepareSpeechActive =
       !extrasDisabled && (prepareAdjacent || prepareSecondAhead)
-    out.append("Source commit: ${BuildConfig.COMMIT_HASH}\n")
+    out.append("Build: ${BuildConfig.VERSION_CODE}\n")
     out.append("== Latency experiments ==\n")
     for (feature in LatencyExperiments.Feature.values()) {
       out.append("${feature.key}: ${prefs.getBoolean(feature.key, feature.defaultEnabled)}\n")

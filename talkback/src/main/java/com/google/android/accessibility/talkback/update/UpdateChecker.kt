@@ -61,9 +61,9 @@ data class UpdateInfo(
  */
 object UpdateChecker {
   private const val TAG = "UpdateChecker"
-  private val RELEASES_URL = io.meridian.licensing.DistributionEndpoints.apiRepository() + "/releases/"
-    private val DATA_RELEASES_URL =
+  private val DATA_RELEASES_URL =
       io.meridian.licensing.DistributionEndpoints.apiDataRepository() + "/releases/"
+  private val RELEASES_URL = DATA_RELEASES_URL
     private val DATA_STABLE_RELEASE_URL = DATA_RELEASES_URL + "latest"
     private val DATA_DEV_RELEASE_URL = DATA_RELEASES_URL + "tags/dev"
  

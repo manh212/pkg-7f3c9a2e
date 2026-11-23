@@ -252,11 +252,23 @@ jobs:
       - name: Check the signing key
         if: github.event_name == 'push'
         run: |
-          verifier=talkback/src/main/java/com/google/android/accessibility/talkback/licensing/ApkSignatureVerifier.java
-          if ! grep -Fq "\"$SANDFLY_CERT_SHA256\"" "$verifier"; then
-            echo "The runtime activation certificate does not match the release signing key." >&2
-            exit 1
-          fi
+          python3 - <<'PYEOF'
+          import os, re
+          from pathlib import Path
+          expected = os.environ["SANDFLY_CERT_SHA256"].lower()
+          for path in (
+              "talkback/src/main/java/com/google/android/accessibility/talkback/licensing/ApkSignatureVerifier.java",
+              "luamemory/src/main/cpp/meridian_guard.c",
+          ):
+              text = Path(path).read_text(encoding="utf-8")
+              m = re.search(r"MASKED_CERT_SHA256[^\{]*\{([^\}]+)\}", text)
+              if not m:
+                  raise SystemExit(f"Missing MASKED_CERT_SHA256 in {path}")
+              masked = [int(h, 16) for h in re.findall(r"0x([0-9a-fA-F]{2})", m.group(1))]
+              actual = bytes(b ^ ((0xA7 + i * 29) & 0xFF) for i, b in enumerate(masked)).hex()
+              if actual != expected:
+                  raise SystemExit(f"Runtime certificate mismatch in {path}")
+          PYEOF
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
           for apk in build/outputs/apk/*/debug/*.apk; do
             certs=$("$apksigner" verify --print-certs "$apk" 2>&1) || {

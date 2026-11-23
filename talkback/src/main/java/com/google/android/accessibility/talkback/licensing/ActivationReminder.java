@@ -51,6 +51,19 @@ public final class ActivationReminder {
               stopCountdown();
               return;
             }
+            if (!DeviceLicenseManager.verifyRuntimeIntegrity(service)) {
+              stopCountdown();
+              serviceRef.clear();
+              try {
+                if (service instanceof TalkBackService talkBack) {
+                  talkBack.turnOff();
+                } else {
+                  service.disableSelf();
+                }
+              } catch (RuntimeException ignored) {
+              }
+              return;
+            }
             LicenseRecovery.start(service, false, null);
             if (!DeviceLicenseManager.configured() || DeviceLicenseManager.isLicensed(service)) {
               stopCountdown();

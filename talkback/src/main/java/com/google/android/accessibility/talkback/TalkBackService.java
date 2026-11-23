@@ -1278,7 +1278,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (yieldingToOtherScreenReader) {
       return;
     }
-    if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return;
+    if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)
+        || !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.verifyRuntimeIntegrity(this)) return;
     long receivedAt = SystemClock.uptimeMillis();
     if (pipeline != null) {
       fullScreenMonitor.onEvent(event, pipeline.getFeedbackReturner());
@@ -1809,7 +1810,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (yieldingToOtherScreenReader) {
       return false;
     }
-    if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return false;
+    if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)
+        || !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.verifyRuntimeIntegrity(this)) return false;
     if (backgroundEventGate != null) {
       backgroundEventGate.onUserInput();
     }
@@ -2478,7 +2480,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (yieldingToOtherScreenReader) {
       return false;
     }
-    if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)) return false;
+    if (com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.restricted(this)
+        || !com.google.android.accessibility.talkback.licensing.DeviceLicenseManager.verifyRuntimeIntegrity(this)) return false;
     LatencyExperiments.onInput();
     if (backgroundEventGate != null) {
       backgroundEventGate.onUserInput();

@@ -81,17 +81,14 @@ final class LicenseRecovery {
 
   static boolean isOnlinePolicyRecord(JSONObject record) {
     return record != null && record.optInt("format") == 3
-        && record.optString("value", "").startsWith("SFLIC3.");
+        && record.optString("value", "").startsWith(
+            io.meridian.licensing.EndpointCodec.decode("Gi7L74bXLQ", 73));
   }
 
-private static Result recover(Context context) {
-  Result result = recoverFrom(context,
+  private static Result recover(Context context) {
+    return recoverFrom(context,
         io.meridian.licensing.DistributionEndpoints.dataCatalogRoot());
-      if (result == Result.NOT_FOUND) {
-        result = recoverFrom(context, io.meridian.licensing.DistributionEndpoints.catalogRoot());
-      }
-      return result;
-}
+  }
   
     private static Result recoverFrom(Context context, String catalogRoot) {
     HttpURLConnection connection = null;

@@ -1,20 +1,26 @@
 package com.google.android.accessibility.talkback.licensing;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.SystemClock;
 import android.provider.Settings;
 import androidx.core.os.UserManagerCompat;
+import com.google.android.accessibility.luamemory.LuaMemory;
 import com.google.android.accessibility.talkback.BuildConfig;
-import com.google.android.libraries.accessibility.utils.log.LogUtils;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import io.meridian.licensing.EndpointCodec;
 import io.meridian.licensing.LicenseClock;
 import io.meridian.licensing.LicenseLease;
 import io.meridian.licensing.LicensePolicy;
 import io.meridian.licensing.RecoveryProtocol;
 
 public final class DeviceLicenseManager {
-  private static final String POLICY_PREFS = "sandfly_offline_license";
-  private static final String VERIFICATION_PREFS = "meridian_license_verification";
-  private static final String STORAGE_MIGRATED = "license_storage_migrated";
+  private static final String POLICY_PREFS = EndpointCodec.decode("WikJ4sOoml1OJjkS9NK-pXVRNBP7x7Y", 41);
+  private static final String VERIFICATION_PREFS = EndpointCodec.decode("2rOHfVc7EP7wooRvTiQa7fiwgHZKJAjj_sq0k3U", 183);
+  private static final String STORAGE_MIGRATED = EndpointCodec.decode("Mxf-2bWJfGckAvrGspV0byIH6t6qnmxM", 95);
+  private static final String PUB_PREFIX = EndpointCodec.decode("JNDlgbEjHw", 119);
+  private static final String LIC_PREFIX = EndpointCodec.decode("Gi7L74bXLQ", 73);
 
   private static volatile CachedPolicy verifiedPolicy;
   private static final class CachedPolicy {
@@ -28,8 +34,28 @@ public final class DeviceLicenseManager {
   public static boolean configured() {
     return recoveryConfigured();
   }
+  private static String recoveryPublicKey() {
+    String encoded = BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY_ENC;
+    return encoded == null || encoded.isEmpty() ? "" : EndpointCodec.decode(encoded, 149);
+  }
+
   public static boolean recoveryConfigured() {
-    return BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY.startsWith("SFPUB1.");
+    return recoveryPublicKey().startsWith(PUB_PREFIX);
+  }
+
+  private static boolean isUnitTestRuntime() {
+    return "robolectric".equalsIgnoreCase(Build.FINGERPRINT);
+  }
+
+  public static boolean verifyRuntimeIntegrity(Context context) {
+    if (!configured()) return true;
+    if (ApkSignatureVerifier.runtimeSeal(context) != ApkSignatureVerifier.SEAL_OK) return false;
+    if (LuaMemory.INSTANCE.isAvailable()) {
+      if (LuaMemory.runtimeEnvStatus() != 0x3E7B1D49) return false;
+    } else if (!isUnitTestRuntime()) {
+      return false;
+    }
+    return true;
   }
   public static String recoveryRequest(Context context) throws Exception {
     return RecoveryProtocol.request(context.getPackageName(),
@@ -39,8 +65,7 @@ public final class DeviceLicenseManager {
     if (!UserManagerCompat.isUserUnlocked(context)) return;
     try {
       licenseStorage(context);
-    } catch (IllegalStateException error) {
-      LogUtils.w("DeviceLicenseManager", "Could not prepare license storage for Direct Boot");
+    } catch (IllegalStateException ignored) {
     }
   }
 
@@ -77,14 +102,44 @@ public final class DeviceLicenseManager {
     return licenseStorage(context).getSharedPreferences(VERIFICATION_PREFS, Context.MODE_PRIVATE);
   }
 
+  private static String deviceBindId(Context context) {
+    String id = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+    return id == null ? "" : id;
+  }
+
   private static boolean recentlyVerified(Context context) {
     SharedPreferences check = verification(context);
     long wall = System.currentTimeMillis();
+    long server = check.getLong("server", 0);
+    long elapsed = check.getLong("elapsed", -1);
+    int verifiedBoot = check.getInt("boot", -2);
+    long highestWall = check.getLong("highestWall", 0);
+    if (!LuaMemory.INSTANCE.isAvailable() && !isUnitTestRuntime()) {
+      return false;
+    }
+    if (LuaMemory.INSTANCE.isAvailable()) {
+      String storedMac = check.getString("mac", "");
+      if (storedMac == null || storedMac.isEmpty()) {
+        return false;
+      }
+      String expectedMac = LuaMemory.computeLeaseMac(
+          deviceBindId(context), server, elapsed, highestWall, verifiedBoot);
+      if (expectedMac.isEmpty() || !MessageDigest.isEqual(
+          storedMac.getBytes(StandardCharsets.US_ASCII),
+          expectedMac.getBytes(StandardCharsets.US_ASCII))) {
+        return false;
+      }
+    }
     boolean allowed = LicenseLease.valid(wall, SystemClock.elapsedRealtime(), boot(context),
-        check.getLong("server", 0), check.getLong("elapsed", -1),
-        check.getInt("boot", -2), check.getLong("highestWall", 0));
-    if (allowed && wall - check.getLong("highestWall", 0) >= 60_000L) {
-      check.edit().putLong("highestWall", wall).apply();
+        server, elapsed, verifiedBoot, highestWall);
+    if (allowed && wall - highestWall >= 60_000L) {
+      SharedPreferences.Editor edit = check.edit().putLong("highestWall", wall);
+      if (LuaMemory.INSTANCE.isAvailable()) {
+        String updatedMac = LuaMemory.computeLeaseMac(
+            deviceBindId(context), server, elapsed, wall, verifiedBoot);
+        if (!updatedMac.isEmpty()) edit.putString("mac", updatedMac);
+      }
+      edit.apply();
     }
     return allowed;
   }
@@ -95,9 +150,20 @@ public final class DeviceLicenseManager {
     long prior = check.getLong("server", 0);
     if (!LicenseLease.newerVerification(serverMillis, prior)) return;
     long wall = System.currentTimeMillis();
-    if (!check.edit().putLong("server", serverMillis).putLong("elapsed", SystemClock.elapsedRealtime())
-        .putInt("boot", boot(context)).putLong("highestWall", Math.max(wall, serverMillis))
-        .commit()) throw new IllegalStateException("Không lưu được thời điểm xác minh giấy phép.");
+    long elapsed = SystemClock.elapsedRealtime();
+    int currentBoot = boot(context);
+    long highestWall = Math.max(wall, serverMillis);
+    SharedPreferences.Editor edit = check.edit()
+        .putLong("server", serverMillis)
+        .putLong("elapsed", elapsed)
+        .putInt("boot", currentBoot)
+        .putLong("highestWall", highestWall);
+    if (LuaMemory.INSTANCE.isAvailable()) {
+      String mac = LuaMemory.computeLeaseMac(
+          deviceBindId(context), serverMillis, elapsed, highestWall, currentBoot);
+      if (!mac.isEmpty()) edit.putString("mac", mac);
+    }
+    if (!edit.commit()) throw new IllegalStateException("Không lưu được thời điểm xác minh giấy phép.");
   }
 
   public static boolean offlineLocked(Context context) {
@@ -159,7 +225,7 @@ public final class DeviceLicenseManager {
   }
 
   static synchronized boolean acceptRemote(Context context, String license, long serverMillis) throws Exception {
-    if (license == null || !license.startsWith("SFLIC3.") || serverMillis <= 0) {
+    if (license == null || !license.startsWith(LIC_PREFIX) || serverMillis <= 0) {
       throw new IllegalArgumentException("Giấy phép trực tuyến không hợp lệ.");
     }
     if (!ApkSignatureVerifier.isOfficial(context) || !recoveryConfigured()) {
@@ -167,10 +233,11 @@ public final class DeviceLicenseManager {
     }
     String request = recoveryRequest(context);
     String cached = prefs(context).getString("policy", "");
+    String pubKey = recoveryPublicKey();
     LicensePolicy next = LicensePolicy.verify(request, license,
-        RecoveryProtocol.publicKey(BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY));
+        RecoveryProtocol.publicKey(pubKey));
     LicensePolicy old = cached.isEmpty() ? null : LicensePolicy.verify(request, cached,
-        RecoveryProtocol.publicKey(BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY));
+        RecoveryProtocol.publicKey(pubKey));
     if (old != null && (next.revision < old.revision
         || (next.revision == old.revision && !cached.equals(license)))) {
       return false;
@@ -194,7 +261,7 @@ public final class DeviceLicenseManager {
     CachedPolicy cached = verifiedPolicy;
     if (cached != null && cached.token.equals(token) && cached.request.equals(request)) return cached.policy;
     LicensePolicy policy = LicensePolicy.verify(request, token,
-        RecoveryProtocol.publicKey(BuildConfig.SANDFLY_RECOVERY_PUBLIC_KEY));
+        RecoveryProtocol.publicKey(recoveryPublicKey()));
     verifiedPolicy = new CachedPolicy(token, request, policy);
     return policy;
   }

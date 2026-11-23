@@ -26,9 +26,8 @@ internal object OfflineModels {
   val vocabulary = Model("vietocr-v1/vietocr.json", VIETOCR_URL + "vietocr.json",
     712, "518345b7672fd36e534fb8ffcf6f6599c687793541259170834789fe2f7dd6e6")
   val currency = Model("recognition-models-v1/currency.tflite",
-    io.meridian.licensing.DistributionEndpoints.rawOrigin() + "/" +
-      io.meridian.licensing.DistributionEndpoints.repository() +
-      "/9cdc3c54988bc22e7bc88d452d7b3980fac86e70/talkback/src/main/assets/vn_currency_yolo11n.tflite",
+    io.meridian.licensing.DistributionEndpoints.dataCatalogRoot() +
+      "models/vn_currency_yolo11n.tflite",
     3_027_064, "b3d3727f9ca1fb41789071e5590f7677bca83e9dd61505b322580c52251fddd9")
   val objects = Model("recognition-models-v1/objects.tflite",
     "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite",

@@ -46,8 +46,12 @@ public final class LicensePolicy {
     this.features = Collections.unmodifiableSet(new TreeSet<>(features));
   }
 
+  private static final String TOKEN_PREFIX = EndpointCodec.decode("Gi7L74bXLQ", 73);
+  private static final String PAYLOAD_PREFIX = EndpointCodec.decode("rsC2n2tRMx_02v6CflwmDfTQ", 157);
+  private static final String POLICY_TAG = EndpointCodec.decode("oIl5Qy0B5sjolGxOKAMG", 205);
+
   private String payload() {
-    return "3|meridian-policy|" + device + "|" + revision + "|" + issuedAt + "|"
+    return PAYLOAD_PREFIX + device + "|" + revision + "|" + issuedAt + "|"
         + expiresAt + "|" + state + "|" + kind + "|" + packageId + "|"
         + String.join(",", features) + "|" + encode(packageName.getBytes(StandardCharsets.UTF_8));
   }
@@ -55,14 +59,14 @@ public final class LicensePolicy {
   public String sign(Signature signer) throws Exception {
     byte[] payload = payload().getBytes(StandardCharsets.US_ASCII);
     signer.update(payload);
-    return "SFLIC3." + encode(payload) + "." + encode(signer.sign());
+    return TOKEN_PREFIX + encode(payload) + "." + encode(signer.sign());
   }
 
   public static LicensePolicy verify(String request, String token, PublicKey issuer) throws Exception {
-    if (token == null || token.length() > 2048 || !token.startsWith("SFLIC3.")) {
+    if (token == null || token.length() > 2048 || !token.startsWith(TOKEN_PREFIX)) {
       throw new IllegalArgumentException("Giấy phép sai định dạng.");
     }
-    String[] parts = token.substring(7).split("\\.", -1);
+    String[] parts = token.substring(TOKEN_PREFIX.length()).split("\\.", -1);
     if (parts.length != 2) throw new IllegalArgumentException("Giấy phép sai định dạng.");
     byte[] payload = decode(parts[0], 1024);
     Signature verifier = Signature.getInstance("SHA256withECDSA");
@@ -71,7 +75,7 @@ public final class LicensePolicy {
     if (!verifier.verify(decode(parts[1], 80))) throw new IllegalArgumentException("Sai chữ ký giấy phép.");
     String raw = new String(payload, StandardCharsets.US_ASCII);
     String[] f = raw.split("\\|", -1);
-    if (f.length != 11 || !f[0].equals("3") || !f[1].equals("meridian-policy")
+    if (f.length != 11 || !f[0].equals("3") || !f[1].equals(POLICY_TAG)
         || !f[2].equals(RecoveryProtocol.deviceId(request))) {
       throw new IllegalArgumentException("Giấy phép không khớp thiết bị.");
     }
