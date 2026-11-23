@@ -13,6 +13,10 @@
     <string translatable="false" name="commands_category_descriptions_extended">Mô tả hình ảnh, màn hình và phụ đề</string>
 
     <!-- Grouped picker labels -->
+    <string translatable="false" name="commands_touch_group_one_finger">Cử chỉ 1 ngón tay</string>
+    <string translatable="false" name="commands_edge_group_tap_fmt">%1$s — Chạm</string>
+    <string translatable="false" name="edge_gesture_4_fingers">4 ngón tay</string>
+    <string translatable="false" name="edge_gesture_group_tap_4f">Chạm 4 ngón tay</string>
     <string translatable="false" name="commands_picker_back_to_groups">Quay lại chọn nhóm</string>
     <string translatable="false" name="commands_picker_group_count_fmt">%1$s (%2$d mục)</string>
     <string translatable="false" name="commands_touch_group_one_finger_basic">Cử chỉ 1 ngón tay — Vuốt đơn</string>

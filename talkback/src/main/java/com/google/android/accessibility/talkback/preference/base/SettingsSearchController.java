@@ -12,6 +12,7 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
+import java.util.ArrayList;
 import java.util.List;
 
 final class SettingsSearchController {
@@ -19,7 +20,11 @@ final class SettingsSearchController {
   private final PreferenceScreen original;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final SettingsSearchIndex.Builder builder;
-  private List<SettingsSearchIndex.Entry> entries;
+  private final PreferenceScreen results;
+  private List<SettingsSearchIndex.Entry> entries = new ArrayList<>();
+  private List<SettingsSearchIndex.Entry> shownEntries;
+  private boolean indexed;
+  private boolean shownIndexed;
   private String query;
   private SearchView search;
   private boolean stopped;
@@ -29,6 +34,7 @@ final class SettingsSearchController {
     this.query = query;
     original = fragment.getPreferenceScreen();
     builder = new SettingsSearchIndex.Builder(fragment.requireContext());
+    results = fragment.getPreferenceManager().createPreferenceScreen(fragment.requireContext());
   }
 
   View wrap(View preferences) {
@@ -38,6 +44,7 @@ final class SettingsSearchController {
     search = new SearchView(context);
     search.setIconifiedByDefault(true);
     search.setQueryHint(context.getString(R.string.settings_search_title));
+    search.setSaveFromParentEnabled(false);
     search.setQuery(query, false);
     search.clearFocus();
     search.setOnQueryTextListener(
@@ -68,6 +75,7 @@ final class SettingsSearchController {
 
   void stop() {
     stopped = true;
+    search.setOnQueryTextListener(null);
     handler.removeCallbacksAndMessages(null);
   }
 
@@ -75,11 +83,12 @@ final class SettingsSearchController {
     if (stopped || !fragment.isAdded()) {
       return;
     }
-    if (builder.step()) {
+    boolean more = builder.step();
+    entries = builder.entries();
+    indexed = !more;
+    showResults();
+    if (more) {
       handler.post(this::indexNext);
-    } else {
-      entries = builder.entries();
-      showResults();
     }
   }
 
@@ -88,38 +97,45 @@ final class SettingsSearchController {
       return;
     }
     if (SearchMatcher.normalize(query).isEmpty()) {
+      shownEntries = null;
       if (fragment.getPreferenceScreen() != original) {
         fragment.setPreferenceScreen(original);
       }
       return;
     }
-    Context context = fragment.requireContext();
-    PreferenceScreen screen = fragment.getPreferenceManager().createPreferenceScreen(context);
-    if (entries == null) {
-      addMessage(screen, R.string.settings_search_loading);
-    } else {
-      for (SettingsSearchIndex.Entry entry : SettingsSearchIndex.search(entries, query)) {
-        Preference row = new Preference(context);
-        row.setTitle(entry.title);
-        row.setSingleLineTitle(false);
-        row.setIconSpaceReserved(false);
-        if (!entry.path.isEmpty()) {
-          row.setSummary(entry.path);
-        }
-        row.setOnPreferenceClickListener(
-            preference -> {
-              dismissKeyboard();
-              ((TalkBackPreferencesActivity) fragment.requireActivity())
-                  .openSearchResult(entry);
-              return true;
-            });
-        screen.addPreference(row);
-      }
-      if (screen.getPreferenceCount() == 0) {
-        addMessage(screen, R.string.settings_search_empty);
-      }
+    List<SettingsSearchIndex.Entry> matches = SettingsSearchIndex.search(entries, query);
+    if (matches.equals(shownEntries) && shownIndexed == indexed) {
+      return;
     }
-    fragment.setPreferenceScreen(screen);
+    shownEntries = matches;
+    shownIndexed = indexed;
+    Context context = fragment.requireContext();
+    results.removeAll();
+    for (SettingsSearchIndex.Entry entry : matches) {
+      Preference row = new Preference(context);
+      row.setTitle(entry.title);
+      row.setSingleLineTitle(false);
+      row.setIconSpaceReserved(false);
+      if (!entry.path.isEmpty()) {
+        row.setSummary(entry.path);
+      }
+      row.setOnPreferenceClickListener(
+          preference -> {
+            dismissKeyboard();
+            ((TalkBackPreferencesActivity) fragment.requireActivity())
+                .openSearchResult(entry);
+            return true;
+          });
+      results.addPreference(row);
+    }
+    if (!indexed) {
+      addMessage(results, R.string.settings_search_loading);
+    } else if (matches.isEmpty()) {
+      addMessage(results, R.string.settings_search_empty);
+    }
+    if (fragment.getPreferenceScreen() != results) {
+      fragment.setPreferenceScreen(results);
+    }
   }
 
   private void addMessage(PreferenceScreen screen, int title) {

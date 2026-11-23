@@ -454,6 +454,7 @@ object Commands {
 
     private fun activation() =
       category(R.string.commands_category_activation) {
+        commands.add(Command(TapTextActions.SENTINEL, context.getString(R.string.tap_text_title), null))
         gesture(
           R.string.shortcut_value_action_setting_activate_current_action,
           R.string.command_activate_current_action,
@@ -568,6 +569,8 @@ object Commands {
 
     private fun web() =
       category(R.string.commands_category_web) {
+        navigationActions(3)
+        navigationActions(4)
         gesture(
           R.string.shortcut_value_toggle_browse_mode,
           R.string.keycombo_menu_other_toggle_browse_mode,
@@ -740,6 +743,8 @@ object Commands {
           R.string.shortcut_select_previous_setting,
           Key.SELECT_PREVIOUS_READING_MENU,
         )
+        gesture(R.string.shortcut_value_select_next_group, R.string.shortcut_select_next_group)
+        gesture(R.string.shortcut_value_select_previous_group, R.string.shortcut_select_previous_group)
         gesture(
           R.string.shortcut_value_selected_setting_next_action,
           R.string.shortcut_selected_setting_next_action,
@@ -1167,7 +1172,6 @@ object Commands {
         gesture(
           R.string.shortcut_value_print_node_tree,
           R.string.shortcut_print_node_tree,
-          available = prefs.getBoolean(context.getString(R.string.pref_tree_debug_key), false),
         )
         gesture(
           R.string.shortcut_value_print_performance_stats,

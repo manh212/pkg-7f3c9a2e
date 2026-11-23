@@ -38,7 +38,7 @@ public class EdgeGestureTrackerTest {
   }
 
   @Test
-  public void definesAllFortyFiveNewEdgeTapGestures() {
+  public void definesAllFiftyFourEdgeTapGesturesWithStableIds() {
     int taps = 0;
     for (EdgeGesture g : EdgeGesture.values()) {
       assertEquals(g, EdgeGesture.fromId(g.id()));
@@ -48,8 +48,10 @@ public class EdgeGestureTrackerTest {
         assertEquals(g, EdgeGesture.findTap(g.edge, g.zone, g.fingers, g.taps));
       }
     }
-    assertEquals(45, taps);
-    assertEquals(68, EdgeGesture.values().length);
+    assertEquals(54, taps);
+    assertEquals(77, EdgeGesture.values().length);
+    assertEquals(12001, EdgeGesture.LEFT_TOP_IN.id());
+    assertEquals(12068, EdgeGesture.BOTTOM_3F_TAP_3.id());
   }
 
   @Test

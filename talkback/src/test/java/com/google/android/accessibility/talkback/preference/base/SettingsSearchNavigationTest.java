@@ -12,6 +12,7 @@ import android.widget.LinearLayout;
 import android.widget.SearchView;
 import androidx.fragment.app.Fragment;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -74,6 +75,54 @@ public class SettingsSearchNavigationTest {
     }
   }
 
+
+  @Test
+  public void commandSearchKeepsTheLatestQueryAfterIndexingAndOpensTheCommand() {
+    ActivityController<TestActivity> controller = Robolectric.buildActivity(TestActivity.class);
+    TestActivity activity = controller.get();
+    activity.setTheme(R.style.TalkBackSettings);
+    FormFactorUtils.initialize(activity);
+    SharedPreferencesUtils.getSharedPreferences(activity).edit().clear().commit();
+    controller.setup();
+    try {
+      TalkBackPreferenceFragment main = (TalkBackPreferenceFragment) current(activity);
+      SearchView search = (SearchView) ((LinearLayout) main.requireView()).getChildAt(0);
+      search.setIconified(false);
+      search.setQuery("khongco-ketqua-123456", false);
+      String label = activity.getString(R.string.shortcut_take_screenshot);
+      String query = "lenh " + SearchMatcher.normalize(label);
+      search.setQuery(query, false);
+      shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(3));
+      assertEquals(query, search.getQuery().toString());
+      androidx.preference.Preference row = null;
+      for (int i = 0; i < main.getPreferenceScreen().getPreferenceCount(); i++) {
+        androidx.preference.Preference candidate = main.getPreferenceScreen().getPreference(i);
+        if (label.contentEquals(candidate.getTitle())
+            && candidate.getSummary() != null
+            && candidate.getSummary().toString().startsWith(activity.getString(R.string.title_pref_commands))) {
+          row = candidate;
+          break;
+        }
+      }
+      assertNotNull(row);
+      row.performClick();
+      activity.getSupportFragmentManager().executePendingTransactions();
+      shadowOf(Looper.getMainLooper()).idle();
+      assertTrue(current(activity) instanceof CommandsFragment);
+      CommandsFragment commands = (CommandsFragment) current(activity);
+      assertNotNull(commands.findPreference("pref_cmd_row_"
+          + activity.getString(R.string.shortcut_value_take_screenshot)));
+      activity.getSupportFragmentManager().popBackStackImmediate();
+      shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(3));
+      main = (TalkBackPreferenceFragment) current(activity);
+      search = (SearchView) ((LinearLayout) main.requireView()).getChildAt(0);
+      assertEquals(query, search.getQuery().toString());
+      assertFalse(main.getPreferenceScreen().getPreference(0).getTitle()
+          .equals(activity.getString(R.string.settings_search_empty)));
+    } finally {
+      controller.pause().stop().destroy();
+    }
+  }
 
   @Test
   public void navigationShowsGestureShortcutAndVolumeLinksTogetherWithoutOldScreen()

@@ -19,8 +19,12 @@ package com.google.android.accessibility.talkback.commands
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.text.InputType
-import android.widget.EditText
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import android.widget.LinearLayout
+import android.widget.SearchView
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
@@ -39,6 +43,7 @@ import com.google.android.accessibility.talkback.gesture.TapTextEditor
 import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture
 import com.google.android.accessibility.talkback.keyboard.KeyComboManager
 import com.google.android.accessibility.talkback.preference.PreferencesActivityUtils
+import com.google.android.accessibility.talkback.preference.base.SearchMatcher
 import com.google.android.accessibility.talkback.preference.base.TalkBackGestureShortcutPreferenceFragment
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -52,6 +57,13 @@ class CommandsFragment : TalkbackBaseFragment() {
   private var allGestureSlots: List<CommandBindings.GestureSlot> = emptyList()
   private var showAssignedOnly: Boolean = false
   private var searchQuery: String = ""
+  private var selectedCommandValue: String? = null
+  private var search: SearchView? = null
+  private var categories: List<Commands.Category> = emptyList()
+  private var bindingIndex: Map<String, List<BindingEntry>> = emptyMap()
+  private var tapTextCommands: List<Commands.Command> = emptyList()
+  private var searchableCommands: Map<String, String> = emptyMap()
+  private var keyComboManager: KeyComboManager? = null
 
   override fun getTitle(): CharSequence = getString(R.string.title_pref_commands)
 
@@ -59,10 +71,77 @@ class CommandsFragment : TalkbackBaseFragment() {
     preferenceManager.setStorageDeviceProtected()
     allGestureSlots = readGestures(this) + CommandBindings.arrowKeys(requireContext())
     searchQuery =
-      arguments?.getString(ARG_SEARCH_QUERY)
+      savedInstanceState?.getString(ARG_SEARCH_QUERY)
+        ?: arguments?.getString(ARG_SEARCH_QUERY)
         ?: arguments?.getString(TalkBackGestureShortcutPreferenceFragment.ACTION_SEARCH_QUERY)
         ?: ""
+    showAssignedOnly = savedInstanceState?.getBoolean(STATE_ASSIGNED_ONLY) ?: false
+    selectedCommandValue =
+      if (savedInstanceState != null) savedInstanceState.getString(ARG_COMMAND_VALUE)
+      else arguments?.getString(ARG_COMMAND_VALUE)
     preferenceScreen = preferenceManager.createPreferenceScreen(requireContext())
+  }
+
+  override fun onCreateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?,
+  ): View {
+    val preferences = super.onCreateView(inflater, container, savedInstanceState)
+    val context = requireContext()
+    val searchView =
+      SearchView(context).apply {
+        setIconifiedByDefault(true)
+        setQueryHint(getString(R.string.commands_search_title))
+        isSaveFromParentEnabled = false
+        setQuery(searchQuery, false)
+        clearFocus()
+        setOnQueryTextListener(
+          object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String): Boolean {
+              dismissKeyboard()
+              return true
+            }
+
+            override fun onQueryTextChange(query: String): Boolean {
+              if (searchQuery != query) {
+                searchQuery = query
+                selectedCommandValue = null
+                renderCommands()
+              }
+              return true
+            }
+          }
+        )
+      }
+    search = searchView
+    return LinearLayout(context).apply {
+      orientation = LinearLayout.VERTICAL
+      addView(
+        searchView,
+        LinearLayout.LayoutParams(
+          ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.WRAP_CONTENT,
+        ),
+      )
+      addView(
+        preferences,
+        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f),
+      )
+    }
+  }
+
+  override fun onSaveInstanceState(outState: Bundle) {
+    super.onSaveInstanceState(outState)
+    outState.putString(ARG_SEARCH_QUERY, searchQuery)
+    outState.putBoolean(STATE_ASSIGNED_ONLY, showAssignedOnly)
+    outState.putString(ARG_COMMAND_VALUE, selectedCommandValue)
+  }
+
+  override fun onDestroyView() {
+    search?.setOnQueryTextListener(null)
+    search = null
+    super.onDestroyView()
   }
 
   override fun onResume() {
@@ -73,18 +152,43 @@ class CommandsFragment : TalkbackBaseFragment() {
   private fun rebuild() {
     val context = requireContext()
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
-    val keyComboManager = CommandBindings.keyComboManager(context)
-    val categories = Commands.categories(context)
+    val manager = CommandBindings.keyComboManager(context)
+    keyComboManager = manager
+    categories = Commands.categories(context)
     val staticCommands = categories.flatMap { it.commands }
-    val bindingIndex =
+    bindingIndex =
       UnifiedCommandBindings.buildBindingIndex(
         context,
         prefs,
         allGestureSlots,
-        keyComboManager,
+        manager,
         staticCommands,
       )
-    val tapTextCommands = UnifiedCommandBindings.collectTapTextCommands(context, bindingIndex)
+    tapTextCommands = UnifiedCommandBindings.collectTapTextCommands(context, bindingIndex)
+    searchableCommands = buildMap {
+      for (category in categories) {
+        for (command in category.commands) {
+          put(command.value, SearchMatcher.normalize(
+            command.label + " " + getString(category.titleRes) + " " +
+              bindingIndex[command.value].orEmpty().joinToString(" ") { it.displayLabel }
+          ))
+        }
+      }
+      for (command in tapTextCommands) {
+        put(command.value, SearchMatcher.normalize(
+          command.label + " " + getString(R.string.tap_text_title) + " " +
+            bindingIndex[command.value].orEmpty().joinToString(" ") { it.displayLabel }
+        ))
+      }
+    }
+    renderCommands()
+  }
+
+  private fun renderCommands() {
+    val keyComboManager = keyComboManager ?: return
+    val context = requireContext()
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    val staticCommands = categories.flatMap { it.commands }
     val allCommands = staticCommands + tapTextCommands
 
     val screen = preferenceScreen
@@ -100,25 +204,6 @@ class CommandsFragment : TalkbackBaseFragment() {
     screen.addPreference(controls)
 
     controls.addPreference(
-      AccessibilitySuitePreference(context).apply {
-        key = "pref_commands_search"
-        isPersistent = false
-        isIconSpaceReserved = false
-        title = getString(R.string.commands_search_title)
-        summary =
-          if (searchQuery.isNotBlank()) {
-            getString(R.string.commands_search_active_summary, searchQuery)
-          } else {
-            getString(R.string.commands_search_hint)
-          }
-        setOnPreferenceClickListener {
-          showSearchDialog()
-          true
-        }
-      }
-    )
-
-    controls.addPreference(
       SwitchPreferenceCompat(context).apply {
         key = "pref_commands_filter_assigned"
         isPersistent = false
@@ -127,7 +212,7 @@ class CommandsFragment : TalkbackBaseFragment() {
         isChecked = showAssignedOnly
         setOnPreferenceChangeListener { _, newValue ->
           showAssignedOnly = newValue as Boolean
-          rebuild()
+          renderCommands()
           true
         }
       }
@@ -178,16 +263,18 @@ class CommandsFragment : TalkbackBaseFragment() {
     )
 
     // Flat filtered list when searching or filtering assigned-only
-    if (searchQuery.isNotBlank() || showAssignedOnly) {
-      val q = searchQuery.trim().lowercase()
+    if (searchQuery.isNotBlank() || showAssignedOnly || selectedCommandValue != null) {
+      val q = SearchMatcher.normalize(searchQuery)
       val matched =
         allCommands.filter { cmd ->
           val bindings = bindingIndex[cmd.value].orEmpty()
           val matchesFilter = !showAssignedOnly || bindings.isNotEmpty()
           val matchesQuery =
-            q.isEmpty() ||
-              cmd.label.lowercase().contains(q) ||
-              bindings.any { it.displayLabel.lowercase().contains(q) }
+            selectedCommandValue?.let { cmd.value == it }
+              ?: SearchMatcher.matchesNormalized(
+                q,
+                searchableCommands[cmd.value].orEmpty(),
+              )
           matchesFilter && matchesQuery
         }
       val resultsCat =
@@ -291,32 +378,17 @@ class CommandsFragment : TalkbackBaseFragment() {
     )
   }
 
-  private fun showSearchDialog() {
-    val context = requireContext()
-    val input =
-      EditText(context).apply {
-        inputType = InputType.TYPE_CLASS_TEXT
-        hint = getString(R.string.commands_search_hint)
-        setText(searchQuery)
-        setSelection(text.length)
-      }
-    AlertDialog.Builder(context)
-      .setTitle(R.string.commands_search_title)
-      .setView(input)
-      .setPositiveButton(android.R.string.ok) { _, _ ->
-        searchQuery = input.text?.toString()?.trim().orEmpty()
-        rebuild()
-      }
-      .setNeutralButton(R.string.commands_search_clear) { _, _ ->
-        searchQuery = ""
-        rebuild()
-      }
-      .setNegativeButton(android.R.string.cancel, null)
-      .show()
+  private fun dismissKeyboard() {
+    val searchView = search ?: return
+    searchView.clearFocus()
+    val keyboard = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+    keyboard?.hideSoftInputFromWindow(searchView.windowToken, 0)
   }
 
   companion object {
     const val ARG_SEARCH_QUERY = "commands_search_query"
+    const val ARG_COMMAND_VALUE = "commands_command_value"
+    private const val STATE_ASSIGNED_ONLY = "commands_assigned_only"
   }
 }
 
@@ -417,6 +489,15 @@ internal object UnifiedCommandDialogs {
     bindings: List<BindingEntry>,
     onChanged: () -> Unit,
   ) {
+    if (TapTextActions.isSentinel(command.value)) {
+      TapTextEditor.show(context, null) { value ->
+        val created = Commands.Command(value, TapTextActions.label(context, value) ?: value, null)
+        showChooseTargetDialog(
+          fragment, context, prefs, allGestureSlots, keyComboManager, created, onChanged,
+        )
+      }
+      return
+    }
     if (bindings.isEmpty()) {
       showChooseTargetDialog(
         fragment,
@@ -773,12 +854,18 @@ internal object UnifiedCommandDialogs {
     groups: List<UnifiedCommandBindings.SlotGroup<T>>,
     itemLabel: (T) -> String,
     onPicked: (T) -> Unit,
+    onBack: (() -> Unit)? = null,
   ) {
-    if (groups.size <= 1) {
+    if (groups.size <= 1 && groups.firstOrNull()?.groups.isNullOrEmpty()) {
       val items = groups.firstOrNull()?.items.orEmpty()
       AlertDialog.Builder(context)
         .setTitle(title)
         .setItems(items.map(itemLabel).toTypedArray()) { _, which -> onPicked(items[which]) }
+        .apply {
+          if (onBack != null) {
+            setNeutralButton(R.string.commands_picker_back_to_groups) { _, _ -> onBack() }
+          }
+        }
         .setNegativeButton(android.R.string.cancel, null)
         .show()
       return
@@ -791,16 +878,34 @@ internal object UnifiedCommandDialogs {
       .setTitle(title)
       .setItems(groupLabels.toTypedArray()) { _, groupIndex ->
         val chosenGroup = groups[groupIndex]
+        if (chosenGroup.groups.isNotEmpty()) {
+          showGroupedPickerDialog(
+            context,
+            chosenGroup.title,
+            chosenGroup.groups,
+            itemLabel,
+            onPicked,
+            onBack = {
+              showGroupedPickerDialog(context, title, groups, itemLabel, onPicked, onBack)
+            },
+          )
+          return@setItems
+        }
         AlertDialog.Builder(context)
           .setTitle(chosenGroup.title)
           .setItems(chosenGroup.items.map(itemLabel).toTypedArray()) { _, itemIndex ->
             onPicked(chosenGroup.items[itemIndex])
           }
           .setNeutralButton(R.string.commands_picker_back_to_groups) { _, _ ->
-            showGroupedPickerDialog(context, title, groups, itemLabel, onPicked)
+            showGroupedPickerDialog(context, title, groups, itemLabel, onPicked, onBack)
           }
           .setNegativeButton(android.R.string.cancel, null)
           .show()
+      }
+      .apply {
+        if (onBack != null) {
+          setNeutralButton(R.string.commands_picker_back_to_groups) { _, _ -> onBack() }
+        }
       }
       .setNegativeButton(android.R.string.cancel, null)
       .show()
@@ -839,8 +944,8 @@ internal object UnifiedCommandDialogs {
           .show()
       }
     }
-    if (slots.size > 10) {
-      val groups = UnifiedCommandBindings.groupTouchGestureSlots(context, slots)
+    val groups = UnifiedCommandBindings.groupTouchGestureSlots(context, slots)
+    if (groups.size > 1) {
       showGroupedPickerDialog(
         context = context,
         title = context.getString(titleRes),

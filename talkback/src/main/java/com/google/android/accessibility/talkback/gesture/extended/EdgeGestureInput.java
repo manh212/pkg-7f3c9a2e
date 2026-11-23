@@ -32,7 +32,7 @@ final class EdgeGestureInput {
   private @Nullable EdgeGestureTracker.Area area;
   private @Nullable EdgeGestureTracker tracker;
   private @Nullable EdgeGesture claimed;
-  private boolean hasThreeFingerBottomTap;
+  private boolean hasMultiFingerBottomTap;
   private long currentDownTime;
   private final Runnable commitPendingTap = this::commitPendingTap;
 
@@ -45,15 +45,15 @@ final class EdgeGestureInput {
 
   void reload() {
     assignments.clear();
-    hasThreeFingerBottomTap = false;
+    hasMultiFingerBottomTap = false;
     SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(service);
     String unassigned = service.getString(R.string.shortcut_value_unassigned);
     for (EdgeGesture gesture : EdgeGesture.values()) {
       String action = gesture.action(prefs, unassigned);
       if (!action.isEmpty() && !unassigned.equals(action)) {
         assignments.put(gesture, action);
-        if (gesture.isTap() && gesture.edge == EdgeGesture.Edge.BOTTOM && gesture.fingers == 3) {
-          hasThreeFingerBottomTap = true;
+        if (gesture.isTap() && gesture.edge == EdgeGesture.Edge.BOTTOM && gesture.fingers >= 3) {
+          hasMultiFingerBottomTap = true;
         }
       }
     }
@@ -78,8 +78,8 @@ final class EdgeGestureInput {
     tapTracker.resetStroke();
   }
 
-  boolean isTrackingBottomThreeFingerTap() {
-    return hasThreeFingerBottomTap && tapTracker.isBottomThreeFingerStroke();
+  boolean isTrackingBottomMultiFingerTap() {
+    return hasMultiFingerBottomTap && tapTracker.isBottomMultiFingerStroke();
   }
 
   boolean isTrackingTap() {

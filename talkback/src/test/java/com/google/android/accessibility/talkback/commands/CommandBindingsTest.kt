@@ -84,6 +84,37 @@ class CommandBindingsTest {
   }
 
   @Test
+  fun groupsRealGestureKeysByTheirSourceFingerCount() {
+    val fragment = GesturePreferencesFragment()
+    activity.supportFragmentManager.beginTransaction()
+      .replace(android.R.id.content, fragment).commitNow()
+    val slots = CommandBindings.gestures(activity, fragment.preferenceScreen)
+    val groups = UnifiedCommandBindings.groupTouchGestureSlots(activity, slots)
+    assertEquals(4, groups.size)
+    assertEquals(slots.toSet(), groups.flatMap { it.items }.toSet())
+    assertEquals(slots.size, groups.sumOf { it.items.size })
+    val examples = listOf(
+      R.string.pref_shortcut_up_and_down_key,
+      R.string.pref_shortcut_2finger_2tap_key,
+      R.string.pref_shortcut_3finger_2tap_key,
+      R.string.pref_shortcut_4finger_2tap_key,
+    )
+    for ((index, resource) in examples.withIndex()) {
+      val key = activity.getString(resource)
+      assertTrue(key, groups[index].items.any {
+        UnifiedCommandBindings.stripGestureSetSuffix(it.key) == key
+      })
+      assertTrue(groups[index].items.all { it.fingerCount == index + 1 })
+    }
+    val extended = slots.filter {
+      UnifiedCommandBindings.stripGestureSetSuffix(it.key) ==
+        activity.getString(R.string.pref_extended_gesture_up_down_key)
+    }
+    assertTrue(extended.isNotEmpty())
+    assertTrue(groups[1].items.containsAll(extended))
+  }
+
+  @Test
   fun twoFingerSwipeAssignmentInAProfileReachesDispatch() {
     val prefs = SharedPreferencesUtils.getSharedPreferences(activity)
     GestureProfiles.write(

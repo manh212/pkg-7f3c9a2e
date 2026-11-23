@@ -375,7 +375,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
         return;
       }
       if (event.getPointerCount() == 3 && bottomEdge(event)
-          && (edgeInput == null || !edgeInput.isTrackingBottomThreeFingerTap())) {
+          && (edgeInput == null || !edgeInput.isTrackingBottomMultiFingerTap())) {
         delegate();
         return;
       }

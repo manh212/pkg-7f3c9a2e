@@ -67,8 +67,8 @@ final class EdgeTapTracker {
         && downTime - lastTapUpTime <= MULTI_TAP_TIMEOUT_MS;
   }
 
-  boolean isBottomThreeFingerStroke() {
-    return isStrokeActive() && firstEdge == Edge.BOTTOM && maxPointersInStroke == 3;
+  boolean isBottomMultiFingerStroke() {
+    return isStrokeActive() && firstEdge == Edge.BOTTOM && maxPointersInStroke >= 3;
   }
 
   boolean onDown(EdgeGestureTracker.Area area, MotionEvent event, Set<EdgeGesture> assigned) {
@@ -102,7 +102,7 @@ final class EdgeTapTracker {
       return false;
     }
     int count = event.getPointerCount();
-    if (count > 3 || pointerLifted) {
+    if (count > 4 || pointerLifted) {
       strokeInvalid = true;
       return false;
     }

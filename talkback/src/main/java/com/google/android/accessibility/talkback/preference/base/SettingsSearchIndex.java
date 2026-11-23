@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.actor.gemini.AiProvider;
 import com.google.android.accessibility.talkback.commands.Commands;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.talkback.directtouch.DirectTouchFragment;
 import com.google.android.accessibility.talkback.gesture.CustomMenus;
 import com.google.android.accessibility.talkback.individualfeedback.FeedbackItem;
@@ -60,7 +61,7 @@ public final class SettingsSearchIndex {
       this.arguments = new Bundle(arguments);
       this.developer = developer;
       this.actionQuery = actionQuery;
-      searchable = SearchMatcher.normalize(title + " " + summary);
+      searchable = SearchMatcher.normalize(title + " " + summary + " " + path);
     }
 
     public boolean matches(String normalizedQuery) {
@@ -79,6 +80,7 @@ public final class SettingsSearchIndex {
     private final Set<String> visited = new HashSet<>();
     private final Set<String> identities = new HashSet<>();
     private final List<Entry> entries = new ArrayList<>();
+    private boolean commandsIndexed;
     private boolean finished;
 
     public Builder(Context context) {
@@ -92,6 +94,11 @@ public final class SettingsSearchIndex {
       if (finished) {
         return false;
       }
+      if (!commandsIndexed) {
+        addCommands();
+        commandsIndexed = true;
+        return true;
+      }
       if (!pending.isEmpty()) {
         Screen screen = pending.removeFirst();
         if (visited.add(screen.fragment + ":" + screen.xml)) {
@@ -100,7 +107,6 @@ public final class SettingsSearchIndex {
         return true;
       }
       addSupplemental();
-      addCommands();
       addEnumeratedSettings();
       finished = true;
       return false;
@@ -222,14 +228,17 @@ public final class SettingsSearchIndex {
           if (TextUtils.isEmpty(label)) {
             continue;
           }
+          Bundle arguments = new Bundle();
+          arguments.putString(CommandsFragment.ARG_SEARCH_QUERY, label);
+          arguments.putString(CommandsFragment.ARG_COMMAND_VALUE, command.getValue());
           add(
               new Entry(
                   label,
                   "",
                   categoryPath,
                   fragment,
-                  "",
-                  new Bundle(),
+                  "pref_cmd_row_" + command.getValue(),
+                  arguments,
                   false,
                   label));
         }

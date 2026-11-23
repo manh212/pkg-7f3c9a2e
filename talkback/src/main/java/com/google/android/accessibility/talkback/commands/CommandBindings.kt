@@ -33,7 +33,12 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 object CommandBindings {
 
   /** A gesture that can run a command: its preference key in the current gesture set. */
-  class GestureSlot(val key: String, val name: CharSequence, private val defaultValue: String) {
+  class GestureSlot @JvmOverloads constructor(
+    val key: String,
+    val name: CharSequence,
+    private val defaultValue: String,
+    val fingerCount: Int = 1,
+  ) {
     /** Returns the value of the command this gesture runs. */
     fun value(context: Context, prefs: SharedPreferences): String {
       val value = prefs.getString(key, defaultValue) ?: defaultValue
@@ -98,6 +103,13 @@ object CommandBindings {
           GestureShortcutMapping.getPrefKeyWithGestureSet(it.key, gestureSet),
           GestureShortcutMapping.getSwipePreferenceTitle(context, it.key, com.google.android.accessibility.talkback.gesture.ReverseSwipeSettings.isEnabled(prefs)) ?: it.title ?: it.key,
           it.defaultValue,
+          when (it.parent?.key) {
+            context.getString(R.string.pref_category_2finger_shortcuts_key),
+            context.getString(R.string.pref_category_2finger_extended_shortcuts_key) -> 2
+            context.getString(R.string.pref_category_3finger_shortcuts_key) -> 3
+            context.getString(R.string.pref_category_4finger_shortcuts_key) -> 4
+            else -> 1
+          },
         )
       }
   }

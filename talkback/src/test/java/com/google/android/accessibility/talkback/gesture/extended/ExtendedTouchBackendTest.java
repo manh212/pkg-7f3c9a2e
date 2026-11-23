@@ -120,6 +120,7 @@ public class ExtendedTouchBackendTest {
         .remove(EdgeGesture.LEFT_TOP_IN.key)
         .remove(EdgeGesture.LEFT_TOP_TAP_1.key)
         .remove(EdgeGesture.LEFT_TOP_TAP_2.key)
+        .remove(EdgeGesture.BOTTOM_4F_TAP_1.key)
         .apply();
     FocusFeedbackMapper.setTouchStopsSpeech(touchSpeechWasEnabled);
     LatencyExperiments.setEnabled(LatencyExperiments.Feature.EARLY_TOUCH_SPEECH, false);
@@ -463,6 +464,31 @@ public class ExtendedTouchBackendTest {
       motionAt(MotionEvent.ACTION_MOVE, x + step * 25, y);
     }
     motionAt(MotionEvent.ACTION_UP, x + 150, y);
+  }
+
+  @Test public void bottomFourFingerEdgeTapSurvivesTheThirdPointerWithoutAThreeFingerAssignment() {
+    SharedPreferencesUtils.getSharedPreferences(service).edit()
+        .putString(EdgeGesture.BOTTOM_4F_TAP_1.key, service.getString(R.string.shortcut_value_overview))
+        .apply();
+    backend.updateEdgeGestures(true);
+    WindowMetrics metrics = service.getSystemService(WindowManager.class).getMaximumWindowMetrics();
+    Rect bounds = metrics.getBounds();
+    Insets safe = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+        WindowInsets.Type.navigationBars() | WindowInsets.Type.statusBars()
+            | WindowInsets.Type.displayCutout() | WindowInsets.Type.mandatorySystemGestures());
+    float x = bounds.left + safe.left + 60;
+    float y = bounds.bottom - safe.bottom - 4;
+    dragMotion(MotionEvent.ACTION_DOWN, 1, x, y);
+    for (int count = 2; count <= 4; count++) {
+      dragMotion(MotionEvent.ACTION_POINTER_DOWN | ((count - 1) << MotionEvent.ACTION_POINTER_INDEX_SHIFT), count, x, y);
+    }
+    for (int count = 4; count >= 2; count--) {
+      dragMotion(MotionEvent.ACTION_POINTER_UP | ((count - 1) << MotionEvent.ACTION_POINTER_INDEX_SHIFT), count, x, y);
+    }
+    dragMotion(MotionEvent.ACTION_UP, 1, x, y);
+    Shadows.shadowOf(Looper.getMainLooper()).idleFor(400, TimeUnit.MILLISECONDS);
+    assertEquals(List.of(EdgeGesture.BOTTOM_4F_TAP_1.id()), service.gestures);
+    assertTrue(touch.draggedPointers.isEmpty());
   }
 
   @Test public void oneFingerTwoSegmentGestureStillUsesFullRecognizer() {

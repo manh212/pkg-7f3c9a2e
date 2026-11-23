@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.commands.Commands;
+import com.google.android.accessibility.talkback.commands.CommandsFragment;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -78,6 +79,27 @@ public class SettingsSearchIndexTest {
     assertTrue(entries.stream().anyMatch(entry -> entry.fragment.endsWith("AiProviderFragment") && entry.arguments.getString("provider", "").equals("openai")));
     assertFalse(SettingsSearchIndex.search(entries, "màn").isEmpty());
     assertTrue(entries.stream().filter(entry -> !entry.actionQuery.isEmpty()).anyMatch(entry -> SearchMatcher.matches("màn hình chính", entry.title)));
+  }
+
+  @Test
+  public void commandsAreIndexedFirstAndSearchIncludesTheirCategory() {
+    Context context = RuntimeEnvironment.getApplication();
+    FormFactorUtils.initialize(context);
+    SettingsSearchIndex.Builder builder = new SettingsSearchIndex.Builder(context);
+    assertTrue(builder.step());
+    String value = context.getString(R.string.shortcut_value_take_screenshot);
+    SettingsSearchIndex.Entry command = builder.entries().stream()
+        .filter(entry -> value.equals(entry.arguments.getString(CommandsFragment.ARG_COMMAND_VALUE)))
+        .findFirst().orElseThrow();
+    assertTrue(command.fragment.endsWith("CommandsFragment"));
+    assertEquals("pref_cmd_row_" + value, command.key);
+    assertEquals(command.title, command.arguments.getString(CommandsFragment.ARG_SEARCH_QUERY));
+    String query = "lenh " + SearchMatcher.normalize(command.title);
+    assertTrue(SettingsSearchIndex.search(builder.entries(), query).contains(command));
+    while (builder.step()) {
+      assertTrue(SettingsSearchIndex.search(builder.entries(), query).contains(command));
+    }
+    assertTrue(SettingsSearchIndex.search(builder.entries(), query).contains(command));
   }
 
   @Test

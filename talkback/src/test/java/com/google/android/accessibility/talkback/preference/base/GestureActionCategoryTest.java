@@ -11,6 +11,7 @@ import com.google.android.accessibility.talkback.gesture.MenuGestureActions;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.Before;
@@ -90,6 +91,28 @@ public class GestureActionCategoryTest {
       }
     }
     assertTrue("Other has " + otherCount + " actions", otherCount <= 4);
+  }
+
+  @Test
+  public void unifiedCommandsKeepWebHeadingsAndOtherKnownActionsOutOfOther() {
+    Map<String, Integer> groups = new HashMap<>();
+    List<String> other = new java.util.ArrayList<>();
+    for (Commands.Category category : Commands.categories(context)) {
+      for (Commands.Command command : category.getCommands()) {
+        groups.put(command.getValue(), category.getTitleRes());
+        if (category.getTitleRes() == R.string.shortcut_title_special_features) {
+          other.add(command.getValue() + ": " + command.getLabel());
+        }
+      }
+    }
+    for (int level = 1; level <= 6; level++) {
+      assertEquals(Integer.valueOf(R.string.commands_category_web), groups.get("NEXT_HEADING_" + level));
+      assertEquals(Integer.valueOf(R.string.commands_category_web), groups.get("PREVIOUS_HEADING_" + level));
+    }
+    for (String value : new String[] {"NEXT_LANDMARK", "PREVIOUS_TABLE", "NEXT_LIST", "PREVIOUS_VISITED_LINK"}) {
+      assertEquals(value, Integer.valueOf(R.string.commands_category_web), groups.get(value));
+    }
+    assertTrue("Uncategorized commands: " + other, other.isEmpty());
   }
 
   @Test

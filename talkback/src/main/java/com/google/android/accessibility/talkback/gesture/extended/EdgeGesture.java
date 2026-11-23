@@ -78,7 +78,17 @@ public enum EdgeGesture {
   RIGHT_3F_TAP_3(Edge.RIGHT, -1, 3, 3),
   BOTTOM_3F_TAP_1(Edge.BOTTOM, -1, 3, 1),
   BOTTOM_3F_TAP_2(Edge.BOTTOM, -1, 3, 2),
-  BOTTOM_3F_TAP_3(Edge.BOTTOM, -1, 3, 3);
+  BOTTOM_3F_TAP_3(Edge.BOTTOM, -1, 3, 3),
+
+  LEFT_4F_TAP_1(Edge.LEFT, -1, 4, 1),
+  LEFT_4F_TAP_2(Edge.LEFT, -1, 4, 2),
+  LEFT_4F_TAP_3(Edge.LEFT, -1, 4, 3),
+  RIGHT_4F_TAP_1(Edge.RIGHT, -1, 4, 1),
+  RIGHT_4F_TAP_2(Edge.RIGHT, -1, 4, 2),
+  RIGHT_4F_TAP_3(Edge.RIGHT, -1, 4, 3),
+  BOTTOM_4F_TAP_1(Edge.BOTTOM, -1, 4, 1),
+  BOTTOM_4F_TAP_2(Edge.BOTTOM, -1, 4, 2),
+  BOTTOM_4F_TAP_3(Edge.BOTTOM, -1, 4, 3);
 
   public enum Edge {
     LEFT(R.string.edge_gestures_left),
@@ -208,7 +218,11 @@ public enum EdgeGesture {
         default -> R.string.edge_gesture_tap_3;
       };
       if (fingers > 1) {
-        int fingerRes = fingers == 2 ? R.string.edge_gesture_2_fingers : R.string.edge_gesture_3_fingers;
+        int fingerRes = switch (fingers) {
+          case 2 -> R.string.edge_gesture_2_fingers;
+          case 3 -> R.string.edge_gesture_3_fingers;
+          default -> R.string.edge_gesture_4_fingers;
+        };
         return context.getString(
             R.string.edge_gesture_zone_and_direction,
             context.getString(fingerRes),

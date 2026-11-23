@@ -43,6 +43,9 @@ public final class EdgeGestureSettingsFragment extends TalkBackPreferenceFragmen
       addCategory(edgePrefix + "_tap_3f",
           getString(R.string.edge_gesture_category_format, edgeName, getString(R.string.edge_gesture_group_tap_3f)),
           edge, /* tap= */ true, /* fingers= */ 3, unassigned);
+      addCategory(edgePrefix + "_tap_4f",
+          getString(R.string.edge_gesture_category_format, edgeName, getString(R.string.edge_gesture_group_tap_4f)),
+          edge, true, 4, unassigned);
     }
     collapseCategories();
   }
