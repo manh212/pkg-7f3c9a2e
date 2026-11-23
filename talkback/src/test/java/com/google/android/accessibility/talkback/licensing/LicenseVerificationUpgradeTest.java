@@ -50,6 +50,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
+import org.robolectric.shadows.ShadowSystem;
 import org.robolectric.shadows.ShadowSystemClock;
 import org.robolectric.util.ReflectionHelpers;
 import org.robolectric.util.ReflectionHelpers.ClassParameter;
@@ -170,7 +171,7 @@ public final class LicenseVerificationUpgradeTest {
     NativeShadow.failMac = false;
     RecoveryShadow.requests = 0;
     RecoveryShadow.status = 200;
-    RecoveryShadow.date = System.currentTimeMillis();
+    RecoveryShadow.date = ShadowSystem.currentTimeMillis();
     Context storage = context.createDeviceProtectedStorageContext();
     policies = storage.getSharedPreferences("sandfly_offline_license", Context.MODE_PRIVATE);
     verification = storage.getSharedPreferences("meridian_license_verification", Context.MODE_PRIVATE);
@@ -182,8 +183,8 @@ public final class LicenseVerificationUpgradeTest {
     ReflectionHelpers.setStaticField(LicenseRecovery.class, "lastResult", LicenseRecovery.Result.VERIFICATION_REQUIRED);
     token = signedPolicy(DeviceLicenseManager.recoveryRequest(context), "active", 1, 0, issuer);
     policies.edit().putString("policy", token).commit();
-    saveLease(System.currentTimeMillis() - 60_000L, SystemClock.elapsedRealtime(),
-        System.currentTimeMillis(), BOOT, false);
+    saveLease(ShadowSystem.currentTimeMillis() - 60_000L, SystemClock.elapsedRealtime(),
+        ShadowSystem.currentTimeMillis(), BOOT, false);
     RecoveryShadow.value = token;
     LicenseRecovery.checked(context);
   }
@@ -225,7 +226,7 @@ public final class LicenseVerificationUpgradeTest {
 
   @Test
   public void authenticatedExpiredLeaseReportsSevenDays() throws Exception {
-    long oldServer = System.currentTimeMillis() - LicenseLease.MAX_OFFLINE_MS - 1_000L;
+    long oldServer = ShadowSystem.currentTimeMillis() - LicenseLease.MAX_OFFLINE_MS - 1_000L;
     saveLease(oldServer, 0L, oldServer, BOOT - 1, true);
     assertEquals(DeviceLicenseManager.VerificationState.EXPIRED,
         DeviceLicenseManager.verificationState(context));
@@ -235,7 +236,7 @@ public final class LicenseVerificationUpgradeTest {
 
   @Test
   public void clockRollbackIsNotReportedAsSevenDays() throws Exception {
-    long wall = System.currentTimeMillis();
+    long wall = ShadowSystem.currentTimeMillis();
     saveLease(wall, SystemClock.elapsedRealtime(),
         wall + LicenseLease.CLOCK_TOLERANCE_MS + 60_000L, BOOT, true);
     assertEquals(DeviceLicenseManager.VerificationState.CLOCK_CHANGED,
@@ -246,7 +247,7 @@ public final class LicenseVerificationUpgradeTest {
 
   @Test
   public void modifiedLeaseCannotGrantAccessOrClaimAnExpiredWindow() throws Exception {
-    long wall = System.currentTimeMillis();
+    long wall = ShadowSystem.currentTimeMillis();
     saveLease(wall, SystemClock.elapsedRealtime(), wall, BOOT, true);
     verification.edit().putLong("server", wall + 1_000L).commit();
     assertEquals(DeviceLicenseManager.VerificationState.INVALID,
@@ -257,7 +258,7 @@ public final class LicenseVerificationUpgradeTest {
 
   @Test
   public void authenticatedLeaseRequiresWorkingNativeVerification() throws Exception {
-    long wall = System.currentTimeMillis();
+    long wall = ShadowSystem.currentTimeMillis();
     saveLease(wall, SystemClock.elapsedRealtime(), wall, BOOT, true);
     NativeShadow.available = false;
     assertEquals(DeviceLicenseManager.VerificationState.UNAVAILABLE,
@@ -268,7 +269,7 @@ public final class LicenseVerificationUpgradeTest {
 
   @Test
   public void freshSignedResponseReplacesAnUnauthenticatedFutureAnchor() throws Exception {
-    long future = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1);
+    long future = ShadowSystem.currentTimeMillis() + TimeUnit.DAYS.toMillis(1);
     saveLease(future, SystemClock.elapsedRealtime(), future, BOOT, false);
     assertEquals(LicenseRecovery.Result.RESTORED, recover(false));
     assertEquals(RecoveryShadow.date, verification.getLong("server", 0));
@@ -277,7 +278,7 @@ public final class LicenseVerificationUpgradeTest {
 
   @Test
   public void authenticatedServerAnchorCannotBeMovedBackwards() throws Exception {
-    long future = System.currentTimeMillis() + 60_000L;
+    long future = ShadowSystem.currentTimeMillis() + 60_000L;
     saveLease(future, SystemClock.elapsedRealtime(), future, BOOT, true);
     String savedMac = verification.getString("mac", "");
     assertEquals(LicenseRecovery.Result.VERIFICATION_FAILED, recover(true));
@@ -339,7 +340,7 @@ public final class LicenseVerificationUpgradeTest {
   @Test
   public void verifiedDeniedOrExpiredPoliciesDoNotUnlockDuringMigration() throws Exception {
     for (String state : new String[] {"revoked", "suspended", "active"}) {
-      long expires = state.equals("active") ? System.currentTimeMillis() / 1000L - 60L : 0;
+      long expires = state.equals("active") ? ShadowSystem.currentTimeMillis() / 1000L - 60L : 0;
       RecoveryShadow.value = signedPolicy(DeviceLicenseManager.recoveryRequest(context), state,
           RecoveryShadow.requests + 2, expires, issuer);
       assertEquals(LicenseRecovery.Result.RESTORED, recover(true));
@@ -372,7 +373,7 @@ public final class LicenseVerificationUpgradeTest {
     assertEquals(1, RecoveryShadow.requests);
     ShadowSystemClock.advanceBy(Duration.ofMinutes(15));
     RecoveryShadow.status = 200;
-    RecoveryShadow.date = System.currentTimeMillis();
+    RecoveryShadow.date = ShadowSystem.currentTimeMillis();
     assertEquals(LicenseRecovery.Result.RESTORED, recover(false));
     assertEquals(2, RecoveryShadow.requests);
     assertTrue(DeviceLicenseManager.isLicensed(context));
@@ -423,7 +424,7 @@ public final class LicenseVerificationUpgradeTest {
 
   private static String signedPolicy(String request, String state, long revision, long expires,
       KeyPair key) throws Exception {
-    long issued = System.currentTimeMillis() / 1000L - TimeUnit.DAYS.toSeconds(1);
+    long issued = ShadowSystem.currentTimeMillis() / 1000L - TimeUnit.DAYS.toSeconds(1);
     Signature signer = Signature.getInstance("SHA256withECDSA");
     signer.initSign(key.getPrivate());
     return new LicensePolicy(request, revision, issued, expires, state, "standard", "standard",
