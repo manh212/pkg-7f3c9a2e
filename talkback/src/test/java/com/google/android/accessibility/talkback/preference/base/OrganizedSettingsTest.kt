@@ -284,7 +284,8 @@ class OrganizedSettingsTest {
       requireNotNull(fragment.findPreference<SeekBarPreference>(EdgeGesture.DISTANCE)).value,
     )
     assertEquals(23, EdgeGesture.values().count { it.isSwipe() })
-    assertEquals(45, EdgeGesture.values().count { it.isTap() })
+    assertEquals(54, EdgeGesture.values().count { it.isTap() })
+    assertEquals(9, EdgeGesture.values().count { it.fingers == 4 })
     for (gesture in EdgeGesture.values()) {
       val row = requireNotNull(fragment.findPreference<GestureListPreference>(gesture.key))
       assertEquals(activity.getString(R.string.shortcut_value_unassigned), row.currentValue)
