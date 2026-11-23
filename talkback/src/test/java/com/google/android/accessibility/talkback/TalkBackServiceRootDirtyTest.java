@@ -19,8 +19,10 @@ package com.google.android.accessibility.talkback;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import android.content.Context;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityWindowInfo;
+import com.google.android.accessibility.talkback.licensing.DeviceLicenseManager;
 import com.google.android.accessibility.talkback.pause.PauseController;
 import com.google.android.accessibility.talkback.quicksettings.SystemPanelClicker;
 import java.lang.reflect.Field;
@@ -32,6 +34,8 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.Implementation;
+import org.robolectric.annotation.Implements;
 import org.robolectric.util.ReflectionHelpers;
 import org.robolectric.util.ReflectionHelpers.ClassParameter;
 
@@ -43,8 +47,21 @@ import org.robolectric.util.ReflectionHelpers.ClassParameter;
  * inspection: it needs a live automation session, which the service-level test cannot stage.
  */
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34)
+@Config(
+    sdk = 34,
+    instrumentedPackages = "com.google.android.accessibility.talkback.licensing",
+    shadows = TalkBackServiceRootDirtyTest.RuntimeIntegrityShadow.class)
 public class TalkBackServiceRootDirtyTest {
+
+  @Implements(value = DeviceLicenseManager.class, isInAndroidSdk = false)
+  public static class RuntimeIntegrityShadow {
+    static boolean allowed;
+
+    @Implementation
+    protected static boolean verifyRuntimeIntegrity(Context context) {
+      return allowed;
+    }
+  }
 
   public static class NoWindowScanService extends TalkBackService {
     @Override
@@ -57,6 +74,7 @@ public class TalkBackServiceRootDirtyTest {
 
   @Before
   public void setUp() {
+    RuntimeIntegrityShadow.allowed = true;
     service = Robolectric.buildService(NoWindowScanService.class).create().get();
     setPaused(false);
     setSystemPanelWorking(false);
@@ -105,6 +123,18 @@ public class TalkBackServiceRootDirtyTest {
     service.setRootDirty(false);
 
     service.onAccessibilityEvent(event(AccessibilityEvent.TYPE_VIEW_CLICKED, "com.example.app"));
+
+    assertFalse(isRootNodeDirty());
+  }
+
+  @Test
+  public void failedRuntimeIntegrity_windowStateChanged_doesNotDirtyRootCache() {
+    RuntimeIntegrityShadow.allowed = false;
+    setPaused(true);
+    service.setRootDirty(false);
+
+    service.onAccessibilityEvent(
+        event(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, "com.example.app"));
 
     assertFalse(isRootNodeDirty());
   }

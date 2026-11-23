@@ -18,6 +18,8 @@ class CurrencyModelAssetTest {
     assertFalse(context.assets.list("").orEmpty().contains("vn_currency_yolo11n.tflite"))
     assertEquals(3_027_064L, OfflineModels.currency.size)
     assertEquals("b3d3727f9ca1fb41789071e5590f7677bca83e9dd61505b322580c52251fddd9", OfflineModels.currency.sha256)
-    assertTrue(OfflineModels.currency.url.contains("9cdc3c54988bc22e7bc88d452d7b3980fac86e70"))
+    assertEquals(
+      "https://raw.githubusercontent.com/manh212/meridian-data/master/models/vn_currency_yolo11n.tflite",
+      OfflineModels.currency.url)
   }
 }
