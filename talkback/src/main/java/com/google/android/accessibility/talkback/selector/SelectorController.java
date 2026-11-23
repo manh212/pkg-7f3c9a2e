@@ -1851,7 +1851,7 @@ public class SelectorController implements UserInputEventListener {
   }
 
   private String currentItemId() {
-    @Nullable CustomReadingControls.Control custom = currentCustomControl();
+    CustomReadingControls.@Nullable Control custom = currentCustomControl();
     if (custom != null) {
       return custom.getItemId();
     }
@@ -1878,7 +1878,7 @@ public class SelectorController implements UserInputEventListener {
       return true;
     }
     if (SelectorGroupManager.isCustomItem(itemId)) {
-      @Nullable CustomReadingControls.Control custom =
+      CustomReadingControls.@Nullable Control custom =
           CustomReadingControls.find(prefs, SelectorGroupManager.customId(itemId));
       if (custom != null) {
         selectCustomControl(eventId, custom, announceType, showOverlay);
@@ -1979,11 +1979,11 @@ public class SelectorController implements UserInputEventListener {
     }
   }
 
-  private @Nullable CustomReadingControls.Control currentCustomControl() {
+  private CustomReadingControls.@Nullable Control currentCustomControl() {
     if (customControlId == null) {
       return null;
     }
-    @Nullable CustomReadingControls.Control control =
+    CustomReadingControls.@Nullable Control control =
         CustomReadingControls.find(prefs, customControlId);
     if (control == null) {
       customControlId = null;
@@ -2658,7 +2658,7 @@ public class SelectorController implements UserInputEventListener {
   public void adjustSelectedSetting(EventId eventId, boolean isNext) {
     applyPendingSwitch();
     clearEditTextActionsRestore();
-    @Nullable CustomReadingControls.Control customControl = currentCustomControl();
+    CustomReadingControls.@Nullable Control customControl = currentCustomControl();
     if (customControl != null) {
       String action = isNext ? customControl.getDownAction() : customControl.getUpAction();
       if (commandPerformer != null && !action.isEmpty()) {
