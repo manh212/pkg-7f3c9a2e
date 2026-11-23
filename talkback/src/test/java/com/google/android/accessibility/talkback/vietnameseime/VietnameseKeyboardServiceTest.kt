@@ -412,6 +412,7 @@ class VietnameseKeyboardServiceTest {
       assertTrue(service.onKeyDown(keyCode, physicalKey(KeyEvent.ACTION_DOWN, keyCode)))
       assertTrue(service.onKeyUp(keyCode, physicalKey(KeyEvent.ACTION_UP, keyCode)))
     }
+    service.onUpdateSelection(4, 4, 4, 4, -1, -1)
     Selection.setSelection(text, 1)
     service.onUpdateSelection(4, 4, 1, 1, -1, -1)
     val sKey = KeyEvent.KEYCODE_S
