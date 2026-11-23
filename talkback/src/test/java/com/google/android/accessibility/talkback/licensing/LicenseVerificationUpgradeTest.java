@@ -33,6 +33,7 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -215,9 +216,9 @@ public final class LicenseVerificationUpgradeTest {
     ReminderService service = Robolectric.buildService(ReminderService.class).create().get();
     ReflectionHelpers.callStaticMethod(ActivationReminder.class, "showOfflineNotification",
         ClassParameter.from(AccessibilityService.class, service));
-    Notification[] alerts = shadowOf(service.getSystemService(NotificationManager.class)).getAllNotifications();
-    assertEquals(1, alerts.length);
-    String text = alerts[0].extras.getCharSequence(Notification.EXTRA_TEXT).toString();
+    List<Notification> alerts = shadowOf(service.getSystemService(NotificationManager.class)).getAllNotifications();
+    assertEquals(1, alerts.size());
+    String text = alerts.get(0).extras.getCharSequence(Notification.EXTRA_TEXT).toString();
     assertTrue(text.contains("Cần xác minh lại"));
     assertFalse(text.contains("7 ngày"));
   }
