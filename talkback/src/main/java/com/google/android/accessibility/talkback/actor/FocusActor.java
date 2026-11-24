@@ -306,31 +306,46 @@ public class FocusActor implements UserInputEventListener {
     // Wide full-row containers (such as Zalo chat message canvases where incoming bubbles sit on
     // the left and outgoing bubbles sit on the right) have empty background at bounds.centerX().
     // Sample the rendered pixels inside the row to land directly on the visible bubble.
+    boolean isCallCard = isZaloCallCardNode(node);
+    int fallbackY =
+        isCallCard
+            ? bounds.top + (int) (bounds.height() * 0.45f)
+            : bounds.centerY();
     if (bounds.width() > metrics.widthPixels * 0.65f
         && FeatureSupport.canTakeScreenShotByAccessibilityService()) {
       int fallbackX = resolveFallbackBubbleX(node, bounds);
-      int fallbackY = bounds.centerY();
       ScreenshotCapture.takeScreenshot(
           service,
           (screenCapture, isFormatSupported) -> {
+            int screenW =
+                screenCapture != null && !screenCapture.isRecycled()
+                    ? Math.max(metrics.widthPixels, screenCapture.getWidth())
+                    : Math.max(metrics.widthPixels, bounds.right);
+            int screenH =
+                screenCapture != null && !screenCapture.isRecycled()
+                    ? Math.max(metrics.heightPixels, screenCapture.getHeight())
+                    : Math.max(metrics.heightPixels, bounds.bottom);
             int[] point =
-                findVisibleBubblePoint(screenCapture, bounds, fallbackX, fallbackY);
+                findVisibleBubblePoint(
+                    screenCapture, bounds, fallbackX, fallbackY, isCallCard);
             if (screenCapture != null && !screenCapture.isRecycled()) {
               screenCapture.recycle();
             }
-            dispatchRawLongPressAt(point[0], point[1], metrics, eventId);
+            dispatchRawLongPressAt(point[0], point[1], screenW, screenH, eventId);
           });
       return true;
     }
 
     int targetX = resolveFallbackBubbleX(node, bounds);
-    return dispatchRawLongPressAt(targetX, bounds.centerY(), metrics, eventId);
+    int screenW = Math.max(metrics.widthPixels, bounds.right);
+    int screenH = Math.max(metrics.heightPixels, bounds.bottom);
+    return dispatchRawLongPressAt(targetX, fallbackY, screenW, screenH, eventId);
   }
 
   private boolean dispatchRawLongPressAt(
-      int rawX, int rawY, DisplayMetrics metrics, EventId eventId) {
-    int maxX = Math.max(1, metrics.widthPixels - 2);
-    int maxY = Math.max(1, metrics.heightPixels - 2);
+      int rawX, int rawY, int screenWidth, int screenHeight, EventId eventId) {
+    int maxX = Math.max(1, screenWidth - 2);
+    int maxY = Math.max(1, screenHeight - 2);
     int x = Math.max(1, Math.min(rawX, maxX));
     int y = Math.max(1, Math.min(rawY, maxY));
 
@@ -357,8 +372,8 @@ public class FocusActor implements UserInputEventListener {
         new Region(
             Math.max(0, x - DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
             Math.max(0, y - DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
-            Math.min(metrics.widthPixels, x + DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
-            Math.min(metrics.heightPixels, y + DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS));
+            Math.min(screenWidth, x + DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
+            Math.min(screenHeight, y + DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS));
     pipeline.returnFeedback(
         eventId, Feedback.passThroughMode(LOCK_PASS_THROUGH, passThroughRegion));
     Runnable unlockPassThrough =
@@ -395,7 +410,7 @@ public class FocusActor implements UserInputEventListener {
    * coordinates. Falls back to {@code [fallbackX, fallbackY]} when no clear bubble is detected.
    */
   private static int[] findVisibleBubblePoint(
-      @Nullable Bitmap bitmap, Rect bounds, int fallbackX, int fallbackY) {
+      @Nullable Bitmap bitmap, Rect bounds, int fallbackX, int fallbackY, boolean isCallCard) {
     if (bitmap == null || bitmap.isRecycled()) {
       return new int[] {fallbackX, fallbackY};
     }
@@ -428,22 +443,24 @@ public class FocusActor implements UserInputEventListener {
     // Skip far-left avatar zone (first ~9% of row width) and focus border inset on right.
     int scanStartX = left + Math.max(edgeInset, (int) (width * 0.09f));
     int scanEndX = right - edgeInset;
-    int[] scanYs =
-        new int[] {
-          top + (int) (height * 0.35f),
-          midY,
-          top + (int) (height * 0.65f),
-        };
-
-    int bestLen = 0;
-    int bestX = fallbackX;
-    int bestY = fallbackY;
+    int centerX = left + width / 2;
     int minRunPx = Math.max(24, width / 18);
+    float[] fracs = new float[] {0.28f, 0.37f, 0.46f, 0.55f, 0.64f, 0.73f, 0.82f};
 
-    for (int y : scanYs) {
+    int[] runYs = new int[fracs.length];
+    int[] runMidXs = new int[fracs.length];
+    int[] runLens = new int[fracs.length];
+    boolean[] runIsCenteredPill = new boolean[fracs.length];
+    int count = 0;
+    boolean hasNonPill = false;
+
+    for (float frac : fracs) {
+      int y = top + (int) (height * frac);
       if (y < top || y >= bottom) {
         continue;
       }
+      int lineBestLen = 0;
+      int lineBestMidX = fallbackX;
       int curStart = -1;
       for (int x = scanStartX; x < scanEndX; x++) {
         int px = bitmap.getPixel(x, y);
@@ -457,24 +474,94 @@ public class FocusActor implements UserInputEventListener {
           }
         } else if (curStart >= 0) {
           int runLen = x - curStart;
-          if (runLen > bestLen) {
-            bestLen = runLen;
-            bestX = (curStart + x) / 2;
-            bestY = y;
+          if (runLen > lineBestLen) {
+            lineBestLen = runLen;
+            lineBestMidX = (curStart + x) / 2;
           }
           curStart = -1;
         }
       }
       if (curStart >= 0) {
         int runLen = scanEndX - curStart;
-        if (runLen > bestLen) {
-          bestLen = runLen;
-          bestX = (curStart + scanEndX) / 2;
-          bestY = y;
+        if (runLen > lineBestLen) {
+          lineBestLen = runLen;
+          lineBestMidX = (curStart + scanEndX) / 2;
         }
       }
+      if (lineBestLen >= minRunPx) {
+        boolean centeredPill =
+            Math.abs(lineBestMidX - centerX) < width * 0.08f && lineBestLen < width * 0.35f;
+        runYs[count] = y;
+        runMidXs[count] = lineBestMidX;
+        runLens[count] = lineBestLen;
+        runIsCenteredPill[count] = centeredPill;
+        if (!centeredPill) {
+          hasNonPill = true;
+        }
+        count++;
+      }
     }
-    return bestLen >= minRunPx ? new int[] {bestX, bestY} : new int[] {fallbackX, fallbackY};
+
+    if (count == 0) {
+      return new int[] {fallbackX, fallbackY};
+    }
+
+    int maxLen = 0;
+    for (int i = 0; i < count; i++) {
+      if (hasNonPill && runIsCenteredPill[i]) {
+        continue;
+      }
+      if (runLens[i] > maxLen) {
+        maxLen = runLens[i];
+      }
+    }
+
+    int[] matchedIndices = new int[count];
+    int matchedCount = 0;
+    int threshold = (int) (maxLen * 0.65f);
+    for (int i = 0; i < count; i++) {
+      if (hasNonPill && runIsCenteredPill[i]) {
+        continue;
+      }
+      if (runLens[i] >= threshold) {
+        matchedIndices[matchedCount++] = i;
+      }
+    }
+    if (matchedCount == 0) {
+      return new int[] {fallbackX, fallbackY};
+    }
+
+    // For call cards, target upper-middle of the bubble to avoid the bottom "GỌI LẠI" button.
+    int chosenPos =
+        isCallCard
+            ? Math.min(matchedCount - 1, matchedCount / 3)
+            : matchedCount / 2;
+    int idx = matchedIndices[chosenPos];
+    return new int[] {runMidXs[idx], runYs[idx]};
+  }
+
+  private static boolean isZaloCallCardNode(AccessibilityNodeInfoCompat node) {
+    if (!ZaloAccessibilityHelper.isZaloPackage(node.getPackageName())) {
+      return false;
+    }
+    String lower = collectNodeLowerText(node);
+    return lower.contains("gọi lại")
+        || lower.contains("cuộc gọi thoại")
+        || lower.contains("cuộc gọi video")
+        || lower.contains("bạn bị nhỡ")
+        || lower.contains("bạn đã hủy")
+        || lower.contains("bạn đã từ chối");
+  }
+
+  private static String collectNodeLowerText(AccessibilityNodeInfoCompat node) {
+    StringBuilder sb = new StringBuilder();
+    if (node.getText() != null) {
+      sb.append(node.getText()).append(' ');
+    }
+    if (node.getContentDescription() != null) {
+      sb.append(node.getContentDescription());
+    }
+    return sb.toString().toLowerCase(Locale.ROOT);
   }
 
   private static int median4(int a, int b, int c, int d) {
@@ -488,14 +575,7 @@ public class FocusActor implements UserInputEventListener {
     if (!ZaloAccessibilityHelper.isZaloPackage(node.getPackageName())) {
       return bounds.centerX();
     }
-    StringBuilder sb = new StringBuilder();
-    if (node.getText() != null) {
-      sb.append(node.getText()).append(' ');
-    }
-    if (node.getContentDescription() != null) {
-      sb.append(node.getContentDescription());
-    }
-    String lower = sb.toString().toLowerCase(Locale.ROOT);
+    String lower = collectNodeLowerText(node);
     if (lower.contains("đã gửi")
         || lower.contains("đã nhận")
         || lower.contains("đã xem")
@@ -507,6 +587,8 @@ public class FocusActor implements UserInputEventListener {
     }
     if (lower.contains("cuộc gọi thoại đến")
         || lower.contains("cuộc gọi video đến")
+        || lower.contains("bạn bị nhỡ")
+        || lower.contains("cuộc gọi nhỡ")
         || lower.contains("bạn đã từ chối")) {
       return bounds.left + (int) (bounds.width() * 0.28f);
     }
