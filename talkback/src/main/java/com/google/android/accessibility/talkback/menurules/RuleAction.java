@@ -44,6 +44,7 @@ public class RuleAction extends NodeMenuRule {
   private final LinkMenu linkMenu;
   private final TextEntityMenu textEntityMenu;
   private final QuotedMessageMenu quotedMessageMenu;
+  private final ZaloReactionMenu zaloReactionMenu;
 
   public RuleAction(
       Pipeline.FeedbackReturner pipeline,
@@ -62,6 +63,7 @@ public class RuleAction extends NodeMenuRule {
     linkMenu = new LinkMenu(analytics);
     textEntityMenu = new TextEntityMenu(pipeline);
     quotedMessageMenu = new QuotedMessageMenu(pipeline);
+    zaloReactionMenu = new ZaloReactionMenu(pipeline);
   }
 
   @Override
@@ -73,7 +75,8 @@ public class RuleAction extends NodeMenuRule {
         || typoSuggestionMenu.accept(context, node)
         || linkMenu.accept(context, node)
         || textEntityMenu.accept(context, node)
-        || quotedMessageMenu.accept(context, node);
+        || quotedMessageMenu.accept(context, node)
+        || zaloReactionMenu.accept(context, node);
   }
 
   @Override
@@ -114,6 +117,10 @@ public class RuleAction extends NodeMenuRule {
 
     if (quotedMessageMenu.accept(context, node)) {
       actionItems.addAll(quotedMessageMenu.getMenuItemsForNode(context, node, includeAncestors));
+    }
+
+    if (zaloReactionMenu.accept(context, node)) {
+      actionItems.addAll(zaloReactionMenu.getMenuItemsForNode(context, node, includeAncestors));
     }
 
     return actionItems;

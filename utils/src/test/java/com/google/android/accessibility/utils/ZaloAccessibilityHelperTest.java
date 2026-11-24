@@ -71,4 +71,11 @@ public final class ZaloAccessibilityHelperTest {
     assertEquals("Từ chối cuộc gọi", ZaloAccessibilityHelper.formatCallActionLabel("End call", "Từ chối"));
     assertEquals("Kết thúc cuộc gọi", ZaloAccessibilityHelper.formatCallActionLabel("End call", "Kết thúc"));
   }
+
+  @Test
+  public void formatStickerLabel_includesPackNameAndIndex() {
+    assertEquals(
+        "Nhãn dán 3, Củ hành", ZaloAccessibilityHelper.formatStickerLabel("Củ hành", 3));
+    assertEquals("Nhãn dán 2", ZaloAccessibilityHelper.formatStickerLabel(null, 2));
+  }
 }

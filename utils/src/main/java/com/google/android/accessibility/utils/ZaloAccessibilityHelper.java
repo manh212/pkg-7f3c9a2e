@@ -100,6 +100,14 @@ public final class ZaloAccessibilityHelper {
   private static final String ID_DELETE_EMOJI_BUTTON = ID_PREFIX + "delete_emoji_button";
   private static final String ID_MORE_CONTAINER = ID_PREFIX + "moreContainer";
   private static final String ID_STICKER_LIST_INDICATOR = ID_PREFIX + "sticker_list_indicator";
+  private static final String ID_STICKER_PANEL_PAGER = ID_PREFIX + "sticker_panel_pager";
+  private static final String ID_STICKER_ITEM_ELEMENT = ID_PREFIX + "sticker_item_element";
+  private static final String ID_ICN_EMOJI_ITEM = ID_PREFIX + "icn_emoji_item";
+  private static final String ID_HEADER_NAME = ID_PREFIX + "header_name";
+  private static final String ID_STICKER_NAME = ID_PREFIX + "sticker_name";
+  private static final String ID_LAYOUT_SOCIAL_FEED = ID_PREFIX + "layoutSocialFeed";
+  private static final String ID_RV_STORY_BAR = ID_PREFIX + "rv_story_bar";
+  private static final String ID_LIKE_COMPONENT = ID_PREFIX + "like_component";
 
   private static final String ID_CALL_MINIMIZE_BTN = ID_PREFIX + "call_minimizeBtn";
   private static final String ID_CALL_WATERMASK_ZALO = ID_PREFIX + "call_waterMaskZalo";
@@ -133,7 +141,8 @@ public final class ZaloAccessibilityHelper {
               ID_ACTIONBAR_TRAILING_CONTAINER,
               ID_CHIP_TABS_CONTAINER,
               ID_HIGHLIGHT_FRAME_LAYOUT,
-              ID_POPUP_CONTENT_CONTAINER));
+              ID_POPUP_CONTENT_CONTAINER,
+              ID_LAYOUT_SOCIAL_FEED));
 
   private static final Set<String> CALL_ACTION_ENGLISH_LABELS =
       new HashSet<>(Arrays.asList("change speaker", "end call", "mute record", "accept call"));
@@ -149,6 +158,16 @@ public final class ZaloAccessibilityHelper {
 
   public static boolean isZaloNode(@Nullable AccessibilityNodeInfoCompat node) {
     return node != null && isZaloPackage(node.getPackageName());
+  }
+
+  /**
+   * Trả về {@code true} khi {@code node} là thanh bày tỏ cảm xúc khi nhấn giữ tin nhắn trên Zalo
+   * ({@code reaction_container_view}) được vẽ trực tiếp không có view con.
+   */
+  public static boolean isReactionBarNode(@Nullable AccessibilityNodeInfoCompat node) {
+    return isZaloNode(node)
+        && ID_REACTION_CONTAINER_VIEW.equals(node.getViewIdResourceName())
+        && node.getChildCount() == 0;
   }
 
   /**
@@ -185,6 +204,15 @@ public final class ZaloAccessibilityHelper {
       if (isDuplicateCallLabelText(node, parent)) {
         return true;
       }
+      if (!node.isClickable()
+          && isImageViewClass(node.getClassName())
+          && TextUtils.isEmpty(node.getContentDescription())
+          && isInsideStickerPanelGrid(parent)) {
+        return true;
+      }
+    }
+    if (isRedundantClickableWrapper(node)) {
+      return true;
     }
     return false;
   }
@@ -306,6 +334,21 @@ public final class ZaloAccessibilityHelper {
       return callActionLabel;
     }
 
+    if (TextUtils.isEmpty(rawDescription) && TextUtils.isEmpty(node.getText())) {
+      CharSequence storyLabel = resolveStoryItemLabel(node);
+      if (storyLabel != null) {
+        return storyLabel;
+      }
+      CharSequence emojiLabel = resolveEmojiCellLabel(node);
+      if (emojiLabel != null) {
+        return emojiLabel;
+      }
+      CharSequence stickerLabel = resolveStickerItemLabel(node);
+      if (stickerLabel != null) {
+        return stickerLabel;
+      }
+    }
+
     return rawDescription;
   }
 
@@ -366,7 +409,10 @@ public final class ZaloAccessibilityHelper {
         return Role.ROLE_TAB_BAR;
       }
     }
-    if (resolveCallActionLabel(node, node.getContentDescription()) != null) {
+    if (resolveCallActionLabel(node, node.getContentDescription()) != null
+        || ID_STICKER_ITEM_ELEMENT.equals(id)
+        || resolveStoryItemLabel(node) != null
+        || resolveEmojiCellLabel(node) != null) {
       return Role.ROLE_BUTTON;
     }
     return null;
@@ -639,5 +685,196 @@ public final class ZaloAccessibilityHelper {
       }
     }
     return false;
+  }
+
+  private static boolean isRedundantClickableWrapper(AccessibilityNodeInfoCompat node) {
+    if (node.getChildCount() == 0
+        || !TextUtils.isEmpty(node.getText())
+        || !TextUtils.isEmpty(node.getContentDescription())) {
+      return false;
+    }
+    for (int i = 0; i < node.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      String childId = child.getViewIdResourceName();
+      if (ID_LIKE_COMPONENT.equals(childId)
+          || ID_COMMENT_COMPONENT.equals(childId)
+          || ID_STICKER_PANEL_PAGER.equals(childId)
+          || ID_STICKER_LIST_INDICATOR.equals(childId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean isInsideStickerPanelGrid(AccessibilityNodeInfoCompat grid) {
+    CharSequence cls = grid.getClassName();
+    if (cls == null || !cls.toString().endsWith("GridView")) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat gp = grid.getParent();
+    return gp != null && ID_STICKER_PANEL_PAGER.equals(gp.getViewIdResourceName());
+  }
+
+  @Nullable
+  private static CharSequence resolveStoryItemLabel(AccessibilityNodeInfoCompat node) {
+    if (!node.isClickable() || node.getChildCount() != 0) {
+      return null;
+    }
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null) {
+      return null;
+    }
+    AccessibilityNodeInfoCompat grandParent = parent.getParent();
+    if (grandParent == null || !ID_RV_STORY_BAR.equals(grandParent.getViewIdResourceName())) {
+      return null;
+    }
+    for (int i = 0; i < grandParent.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat item = grandParent.getChild(i);
+      if (item != null && item.equals(parent)) {
+        return "Khoảnh khắc " + (i + 1);
+      }
+    }
+    return "Khoảnh khắc";
+  }
+
+  @Nullable
+  private static CharSequence resolveEmojiCellLabel(AccessibilityNodeInfoCompat node) {
+    if (!node.isClickable() || node.getChildCount() != 0) {
+      return null;
+    }
+    AccessibilityNodeInfoCompat row = node.getParent();
+    if (row == null || !ID_ICN_EMOJI_ITEM.equals(row.getViewIdResourceName())) {
+      return null;
+    }
+    int col = -1;
+    for (int i = 0; i < row.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat c = row.getChild(i);
+      if (c != null && c.equals(node)) {
+        col = i + 1;
+        break;
+      }
+    }
+    int rowNum = -1;
+    AccessibilityNodeInfoCompat list = row.getParent();
+    if (list != null) {
+      int emojiRowCount = 0;
+      for (int i = 0; i < list.getChildCount(); i++) {
+        AccessibilityNodeInfoCompat r = list.getChild(i);
+        if (r != null && ID_ICN_EMOJI_ITEM.equals(r.getViewIdResourceName())) {
+          emojiRowCount++;
+          if (r.equals(row)) {
+            rowNum = emojiRowCount;
+            break;
+          }
+        }
+      }
+    }
+    if (rowNum > 0 && col > 0) {
+      return "Biểu tượng cảm xúc hàng " + rowNum + ", cột " + col;
+    }
+    return col > 0 ? ("Biểu tượng cảm xúc " + col) : "Biểu tượng cảm xúc";
+  }
+
+  @Nullable
+  private static CharSequence resolveStickerItemLabel(AccessibilityNodeInfoCompat node) {
+    if (!node.isClickable()) {
+      return null;
+    }
+    String id = node.getViewIdResourceName();
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null) {
+      return null;
+    }
+    if (ID_STICKER_ITEM_ELEMENT.equals(id)) {
+      AccessibilityNodeInfoCompat grid = parent.getParent();
+      if (grid != null) {
+        String packName = findStickerPackName(grid);
+        int index = findChildIndex(grid, parent, /* skipHeaders= */ true);
+        return formatStickerLabel(packName, index);
+      }
+      return "Nhãn dán";
+    }
+    if (isImageViewClass(node.getClassName()) && isInsideStickerPanelGrid(parent)) {
+      int index = findClickableImageIndex(parent, node);
+      return index > 0 ? ("Nhãn dán gần đây " + index) : "Nhãn dán gần đây";
+    }
+    return null;
+  }
+
+  @Nullable
+  private static String findStickerPackName(AccessibilityNodeInfoCompat grid) {
+    for (int i = 0; i < grid.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = grid.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      for (int j = 0; j < child.getChildCount(); j++) {
+        AccessibilityNodeInfoCompat grand = child.getChild(j);
+        if (grand == null) {
+          continue;
+        }
+        String gid = grand.getViewIdResourceName();
+        if ((ID_HEADER_NAME.equals(gid) || ID_STICKER_NAME.equals(gid))
+            && !TextUtils.isEmpty(grand.getText())) {
+          return grand.getText().toString().trim();
+        }
+      }
+    }
+    return null;
+  }
+
+  private static int findChildIndex(
+      AccessibilityNodeInfoCompat grid, AccessibilityNodeInfoCompat target, boolean skipHeaders) {
+    int count = 0;
+    for (int i = 0; i < grid.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = grid.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      if (skipHeaders && !hasStickerElementChild(child)) {
+        continue;
+      }
+      count++;
+      if (child.equals(target)) {
+        return count;
+      }
+    }
+    return -1;
+  }
+
+  private static boolean hasStickerElementChild(AccessibilityNodeInfoCompat container) {
+    for (int i = 0; i < container.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat c = container.getChild(i);
+      if (c != null && ID_STICKER_ITEM_ELEMENT.equals(c.getViewIdResourceName())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static int findClickableImageIndex(
+      AccessibilityNodeInfoCompat grid, AccessibilityNodeInfoCompat target) {
+    int count = 0;
+    for (int i = 0; i < grid.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = grid.getChild(i);
+      if (child != null && child.isClickable() && isImageViewClass(child.getClassName())) {
+        count++;
+        if (child.equals(target)) {
+          return count;
+        }
+      }
+    }
+    return -1;
+  }
+
+  public static String formatStickerLabel(@Nullable String packName, int index) {
+    String base = index > 0 ? ("Nhãn dán " + index) : "Nhãn dán";
+    if (packName != null && !packName.isEmpty()) {
+      return base + ", " + packName.trim();
+    }
+    return base;
   }
 }
