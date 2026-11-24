@@ -1022,4 +1022,52 @@
         <item>@string/notification_shake_2</item>
         <item>@string/notification_shake_3</item>
     </string-array>
+
+    <string name="notification_group_advanced_title">Advanced settings</string>
+    <string name="notification_reading_advanced_title">Text and length options</string>
+    <string name="notification_apps_special_count_summary">%1$d apps always read when screen is off</string>
+    <string name="notification_special_screen_off_title">Special notifications when screen is off</string>
+    <string name="notification_special_screen_off_summary">Pick banking, wallet, or messaging apps to always read while the screen is off</string>
+    <string name="notification_special_screen_off_selected">%1$d apps selected</string>
+    <string name="notification_special_screen_off_voice_title">Voice for selected apps</string>
+    <string name="notification_app_screen_off_title">Always read when screen is off</string>
+    <string name="notification_app_screen_off_on">On — reads even when the screen is off or locked</string>
+    <string name="notification_app_screen_off_off">Off — follows general screen-off setting</string>
+    <string name="notification_app_screen_off_badge">reads when screen is off</string>
+    <string name="notification_format_preset_default">Category, title, and text (Default)</string>
+    <string name="notification_format_preset_app_title_text">App name, title, and text</string>
+    <string name="notification_format_preset_title_text">Title and text only (Short)</string>
+    <string name="notification_format_preset_app_content">App name and full content</string>
+    <string name="notification_format_preset_with_time">App name, title, text, and time</string>
+    <string name="notification_format_preset_app_title">App name and title only</string>
+    <string name="notification_format_custom_summary">Custom: %1$s</string>
+    <string name="notification_preset_custom">Custom (type your own)…</string>
+    <string name="notification_private_preset_app">App name only (Default)</string>
+    <string name="notification_private_preset_new_from">“New notification from [App name]”</string>
+    <string name="notification_private_preset_new_from_value">New notification from {app}</string>
+    <string name="notification_private_preset_app_time">App name and time</string>
+    <string name="notification_url_preset_link">link</string>
+    <string name="notification_url_preset_address">web address</string>
+    <string name="notification_url_preset_contains">contains a link</string>
+    <string name="notification_url_text_message">Spoken in place of links when “Links” is set to replace. Example: “link”.</string>
+    <string name="notification_summary_name_message">Used to greet you during the daily notification summary. Leave blank if not needed.</string>
+    <string name="notification_summary_name_empty">Not set (optional)</string>
+    <string name="notification_words_suggestions_title">Quick suggestions</string>
+    <string name="notification_required_word_message">Warning: once you add a word here, notifications that do NOT contain these words will be skipped.</string>
+    <string name="notification_blocked_word_message">Notifications containing this word will be skipped. Examples: promo, ad, typing…</string>
+    <string name="notification_private_word_message">Only the app name will be read for notifications containing this word. Examples: OTP, verification code, password.</string>
+    <string name="notification_replacement_message">Replace how a word or symbol is spoken. Example: find “USD” and replace with “dollars”.</string>
+    <string name="notification_template_important_screen_off">Always read important notifications when screen is off</string>
+    <string-array name="notification_blocked_word_suggestions">
+        <item>promo</item>
+        <item>discount</item>
+        <item>typing…</item>
+        <item>ad</item>
+    </string-array>
+    <string-array name="notification_private_word_suggestions">
+        <item>OTP</item>
+        <item>verification code</item>
+        <item>password</item>
+        <item>balance</item>
+    </string-array>
 </resources>

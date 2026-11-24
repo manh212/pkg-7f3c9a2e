@@ -477,13 +477,13 @@ public class FocusActionRecord {
                 root, lastFocusedNode.getPackageName(), searchDeadline);
         if (matchingItem != null) return matchingItem;
       }
-      if (focusActionRecord.collectionItem
-          && nodeAtSamePosition != null
-          && !nodePath.matchesLeafText(nodeAtSamePosition)) {
+      if (nodeAtSamePosition != null
+          && ((focusActionRecord.collectionItem && !nodePath.matchesLeafText(nodeAtSamePosition))
+              || nodePath.hasDifferentNonEmptyLeafText(nodeAtSamePosition))) {
         // The node at the recorded position shows different content — the list re-sorted
         // while the user was away, or the recorded row scrolled off-screen and is unbound
         // so no unique text match exists. Returning it would land focus on the wrong
-        // conversation; return null so the failovers run instead.
+        // item; return null so the failovers run instead.
         LogUtils.d(
             TAG,
             "getFocusableNodeFromFocusRecord: node at recorded position has different text, not returning it");

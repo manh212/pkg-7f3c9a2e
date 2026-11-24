@@ -100,6 +100,7 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
           NotificationListService.rebind(requireContext())
           updateAccess()
         }
+        NotificationSettings.Companion.Keys.URLS -> updateUrlTextVisibility()
       }
     }
 
@@ -116,6 +117,7 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
     super.onResume()
     prefs.registerOnSharedPreferenceChangeListener(listener)
     updateAccess()
+    updateUrlTextVisibility()
   }
 
   override fun onPause() {
@@ -143,6 +145,9 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
           preference.value = (choices.firstOrNull { it.first == current } ?: choices.first()).first.toString()
         }
       }
+      key == NotificationSettings.Companion.Keys.FORMAT -> setUpFormatPreset(preference)
+      key == NotificationSettings.Companion.Keys.PRIVATE_FORMAT -> setUpPrivateFormatPreset(preference)
+      key == NotificationSettings.Companion.Keys.URL_TEXT -> setUpUrlTextPreset(preference)
       preference is EditTextPreference -> setUpText(preference, key)
       key == NotificationSettings.Companion.Keys.QUIET_START ||
         key == NotificationSettings.Companion.Keys.QUIET_END ||
@@ -176,7 +181,92 @@ abstract class NotificationXmlFragment(@XmlRes xml: Int, @StringRes private val 
     findPreference<ListPreference>(NotificationSettings.Companion.Keys.VOICE_PROFILE)?.let { setUpVoices(it) }
   }
 
+  private fun setUpFormatPreset(preference: Preference) {
+    val context = requireContext()
+    fun refresh() {
+      val current = prefs.getString(NotificationSettings.Companion.Keys.FORMAT, NotificationSettings.DEFAULT_FORMAT)
+      preference.summary = NotificationPresets.speechFormatSummary(context, current)
+    }
+    refresh()
+    preference.setOnPreferenceClickListener {
+      val current = prefs.getString(NotificationSettings.Companion.Keys.FORMAT, NotificationSettings.DEFAULT_FORMAT).orEmpty()
+      NotificationPresets.showPresetPicker(
+        activity = requireActivity(),
+        title = getString(R.string.notification_format_title),
+        currentValue = current,
+        choices = NotificationPresets.speechFormatChoices(context),
+        customMessageRes = R.string.notification_format_message,
+      ) { chosen ->
+        prefs.edit().putString(NotificationSettings.Companion.Keys.FORMAT, chosen.ifEmpty { NotificationSettings.DEFAULT_FORMAT }).apply()
+        refresh()
+      }
+      true
+    }
+  }
+
+  private fun setUpPrivateFormatPreset(preference: Preference) {
+    val context = requireContext()
+    fun refresh() {
+      val current = prefs.getString(NotificationSettings.Companion.Keys.PRIVATE_FORMAT, NotificationSettings.DEFAULT_PRIVATE_FORMAT)
+      preference.summary = NotificationPresets.privateFormatSummary(context, current)
+    }
+    refresh()
+    preference.setOnPreferenceClickListener {
+      val current = prefs.getString(NotificationSettings.Companion.Keys.PRIVATE_FORMAT, NotificationSettings.DEFAULT_PRIVATE_FORMAT).orEmpty()
+      NotificationPresets.showPresetPicker(
+        activity = requireActivity(),
+        title = getString(R.string.notification_private_format_title),
+        currentValue = current,
+        choices = NotificationPresets.privateFormatChoices(context),
+        customMessageRes = R.string.notification_private_format_message,
+      ) { chosen ->
+        prefs.edit().putString(NotificationSettings.Companion.Keys.PRIVATE_FORMAT, chosen.ifEmpty { NotificationSettings.DEFAULT_PRIVATE_FORMAT }).apply()
+        refresh()
+      }
+      true
+    }
+  }
+
+  private fun setUpUrlTextPreset(preference: Preference) {
+    val context = requireContext()
+    fun refresh() {
+      val current = prefs.getString(NotificationSettings.Companion.Keys.URL_TEXT, "")
+      preference.summary = NotificationPresets.urlTextSummary(context, current)
+      updateUrlTextVisibility()
+    }
+    refresh()
+    preference.setOnPreferenceClickListener {
+      val current = prefs.getString(NotificationSettings.Companion.Keys.URL_TEXT, "").orEmpty()
+      NotificationPresets.showPresetPicker(
+        activity = requireActivity(),
+        title = getString(R.string.notification_url_text_title),
+        currentValue = current,
+        choices = NotificationPresets.urlTextChoices(context),
+        customMessageRes = R.string.notification_url_text_message,
+        customHint = getString(R.string.notification_url_preset_link),
+      ) { chosen ->
+        prefs.edit().putString(NotificationSettings.Companion.Keys.URL_TEXT, chosen).apply()
+        refresh()
+      }
+      true
+    }
+  }
+
+  private fun updateUrlTextVisibility() {
+    val urlTextPref = findPreference<Preference>(NotificationSettings.Companion.Keys.URL_TEXT) ?: return
+    val mode = UrlHandling.of(prefs.getString(NotificationSettings.Companion.Keys.URLS, UrlHandling.DOMAIN.name))
+    urlTextPref.isVisible = mode == UrlHandling.REPLACE
+  }
+
   private fun setUpText(preference: EditTextPreference, key: String) {
+    if (key == SpokenSchedules.KEY_SUMMARY_NAME) {
+      preference.dialogMessage = getString(R.string.notification_summary_name_message)
+      preference.setSummaryProvider {
+        (it as EditTextPreference).text?.takeIf { text -> text.isNotBlank() }
+          ?: getString(R.string.notification_summary_name_empty)
+      }
+      return
+    }
     val defaultText =
       when (key) {
         NotificationSettings.Companion.Keys.FORMAT -> NotificationSettings.DEFAULT_FORMAT
@@ -328,3 +418,14 @@ class NotificationAutomationMonitorFragment :
   TalkbackBaseFragment(R.xml.notification_group_automation_monitor_preferences) {
   override fun getTitle(): CharSequence = getText(R.string.notification_group_automation_monitor_title)
 }
+
+class NotificationAdvancedFragment :
+  TalkbackBaseFragment(R.xml.notification_group_advanced_preferences) {
+  override fun getTitle(): CharSequence = getText(R.string.notification_group_advanced_title)
+}
+
+class NotificationReadingAdvancedFragment :
+  NotificationXmlFragment(
+    R.xml.notification_reading_advanced_preferences,
+    R.string.notification_reading_advanced_title,
+  )

@@ -74,17 +74,18 @@ public final class FocusRestoreCoordinator {
     return desc.contains("win='popup window'") && desc.contains("sig=''");
   }
 
-  public synchronized void armPendingRestore(
+  public synchronized boolean armPendingRestore(
       @Nullable SemanticScreenKey screenKey, long nowUptimeMs) {
     if (screenKey == null || isTransientPopupKey(screenKey)) {
-      return;
+      return false;
     }
     if (store.lookup(screenKey) == null) {
-      return;
+      return false;
     }
     long now = resolveNow(nowUptimeMs);
     pendingRestore = new PendingRestore(screenKey, now + retryWindowMs);
     LogUtils.d(TAG, "Armed pending restore for %s (window=%dms)", screenKey, retryWindowMs);
+    return true;
   }
 
   /** Trả về true nếu đang có yêu cầu khôi phục tiêu điểm chưa hết hạn. */

@@ -24,6 +24,7 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -264,6 +265,30 @@ public class TraversalStrategyUtils {
       @TraversalStrategy.SearchDirection int searchDirection,
       FocusFinder focusFinder,
       @Nullable TraversalStrategy windowOrderedStrategy) {
+    return isAutoScrollEdgeListItem(
+        pivot,
+        scrollableNodeInfo,
+        ignoreDescendantsOfPivot,
+        searchDirection,
+        focusFinder,
+        windowOrderedStrategy,
+        /* focusNodeFilterTransform= */ null);
+  }
+
+  /**
+   * Same as {@link #isAutoScrollEdgeListItem(AccessibilityNodeInfoCompat, ScrollableNodeInfo,
+   * boolean, int, FocusFinder, TraversalStrategy)}, but optionally wraps the candidate focus node
+   * filter with {@code focusNodeFilterTransform} (for example, to skip collapsed child buttons
+   * hidden from default swipe navigation).
+   */
+  public static boolean isAutoScrollEdgeListItem(
+      AccessibilityNodeInfoCompat pivot,
+      @NonNull ScrollableNodeInfo scrollableNodeInfo,
+      boolean ignoreDescendantsOfPivot,
+      @TraversalStrategy.SearchDirection int searchDirection,
+      FocusFinder focusFinder,
+      @Nullable TraversalStrategy windowOrderedStrategy,
+      @Nullable UnaryOperator<Filter<AccessibilityNodeInfoCompat>> focusNodeFilterTransform) {
 
     Integer supportedDirection = scrollableNodeInfo.getSupportedScrollDirection(searchDirection);
     if (supportedDirection == null) {
@@ -280,7 +305,8 @@ public class TraversalStrategyUtils {
         ignoreDescendantsOfPivot,
         supportedDirection,
         AccessibilityNodeInfoUtils.FILTER_AUTO_SCROLL,
-        traversalStrategy);
+        traversalStrategy,
+        focusNodeFilterTransform);
   }
 
   /**
@@ -304,7 +330,8 @@ public class TraversalStrategyUtils {
       boolean ignoreDescendantsOfCursor,
       @TraversalStrategy.SearchDirection int direction,
       Filter<AccessibilityNodeInfoCompat> filter,
-      TraversalStrategy traversalStrategy) {
+      TraversalStrategy traversalStrategy,
+      @Nullable UnaryOperator<Filter<AccessibilityNodeInfoCompat>> focusNodeFilterTransform) {
     AccessibilityNodeInfoCompat webViewNode = null;
 
     boolean cursorNodeNotContainedInScrollableList =
@@ -330,6 +357,13 @@ public class TraversalStrategyUtils {
           };
     } else {
       focusNodeFilter = AccessibilityNodeInfoUtils.FILTER_SHOULD_FOCUS;
+    }
+    if (focusNodeFilterTransform != null) {
+      Filter<AccessibilityNodeInfoCompat> transformed =
+          focusNodeFilterTransform.apply(focusNodeFilter);
+      if (transformed != null) {
+        focusNodeFilter = transformed;
+      }
     }
     if (ignoreDescendantsOfCursor) {
       focusNodeFilter =

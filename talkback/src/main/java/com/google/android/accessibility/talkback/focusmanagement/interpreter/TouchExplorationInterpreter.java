@@ -132,11 +132,92 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
     }
   }
 
+  /**
+   * Attempts to start virtual touch exploration over an obscuring full-screen video overlay (such
+   * as TikTok's {@code long_press_layout}) while staying in {@code STATE_TOUCH_INTERACTING} so
+   * continuous {@code ACTION_MOVE} coordinates keep arriving as the finger glides over buttons.
+   */
+  public boolean tryStartVirtualOverlayExploration(
+      @Nullable AccessibilityNodeInfoCompat root, int rawX, int rawY) {
+    AccessibilityNodeInfoCompat overlay =
+        OverlayTouchTargetResolver.findVisibleObscuringOverlay(root);
+    if (overlay == null || root == null) {
+      return false;
+    }
+    Runnable startTask =
+        () -> {
+          pendingHover = null;
+          postDelayHandler.executePendingTouchEndAction();
+          postDelayHandler.cancelPendingEmptyTouchAction(
+              /* dispatchPendingActionImmediately= */ false);
+          dispatchTouchExplorationAction(
+              new TouchExplorationAction(
+                  TouchExplorationAction.TOUCH_INTERACTION_START,
+                  /* touchedFocusableNode= */ null),
+              EVENT_ID_UNTRACKED);
+          AccessibilityNodeInfoCompat resolved =
+              overlayResolver.startVirtualExploration(root, overlay, rawX, rawY);
+          lastTouchedNode = overlay;
+          lastTouchedFocusableNode = resolved;
+          if (dispatchTouchExplorationAction(
+              new TouchExplorationAction(TouchExplorationAction.HOVER_ENTER, resolved),
+              EVENT_ID_UNTRACKED)) {
+            setInputTouchMode();
+          }
+        };
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      startTask.run();
+    } else {
+      mainHandler.post(startTask);
+    }
+    return true;
+  }
+
+  /** Updates virtual overlay exploration as the finger glides across the screen. */
+  public void onVirtualOverlayTouchMove(int rawX, int rawY) {
+    long now = SystemClock.uptimeMillis();
+    if ((now - lastOverlayMoveCheckMs) < OVERLAY_MOVE_THROTTLE_MS) {
+      return;
+    }
+    lastOverlayMoveCheckMs = now;
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      handleOverlayTouchMove(rawX, rawY);
+    } else {
+      mainHandler.post(() -> handleOverlayTouchMove(rawX, rawY));
+    }
+  }
+
+  /** Finishes virtual overlay exploration when the finger lifts or a multi-finger gesture starts. */
+  public void endVirtualOverlayExploration() {
+    Runnable endTask =
+        () -> {
+          if (!overlayResolver.isActive()) {
+            return;
+          }
+          setLastTouchedNode(/* touchedNode= */ null);
+          lastTouchedFocusableNode = null;
+          postDelayHandler.cancelPendingEmptyTouchAction(
+              /* dispatchPendingActionImmediately= */ false);
+          if (dispatchTouchExplorationAction(
+              new TouchExplorationAction(
+                  TouchExplorationAction.TOUCH_INTERACTION_END, /* touchedFocusableNode= */ null),
+              EVENT_ID_UNTRACKED)) {
+            setInputTouchMode();
+          }
+        };
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      endTask.run();
+    } else {
+      mainHandler.post(endTask);
+    }
+  }
+
   private void handleOverlayTouchMove(int rawX, int rawY) {
     AccessibilityNodeInfoCompat resolved = overlayResolver.resolveOnTouchMove(rawX, rawY);
     if (resolved == null) {
       return;
     }
+    lastTouchedFocusableNode = resolved;
     postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ false);
     if (dispatchTouchExplorationAction(
         new TouchExplorationAction(TouchExplorationAction.HOVER_ENTER, resolved),
@@ -257,6 +338,20 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
       return false;
     }
     if (touchedNode.equals(lastTouchedNode)) {
+      if (overlayResolver.isActive()) {
+        int x = TouchInteractionMonitor.getLastTouchX();
+        int y = TouchInteractionMonitor.getLastTouchY();
+        if (x != Integer.MIN_VALUE && y != Integer.MIN_VALUE) {
+          AccessibilityNodeInfoCompat moved = overlayResolver.resolveOnTouchMove(x, y);
+          if (moved != null) {
+            lastTouchedFocusableNode = moved;
+            postDelayHandler.cancelPendingEmptyTouchAction(
+                /* dispatchPendingActionImmediately= */ false);
+            return dispatchTouchExplorationAction(
+                new TouchExplorationAction(TouchExplorationAction.HOVER_ENTER, moved), eventId);
+          }
+        }
+      }
       // If two consecutive Hover_Enter events have the same source node, we won't dispatch it
       // because it doesn't change anything.
       return false;
@@ -293,6 +388,7 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
     } else {
       AccessibilityNodeInfoCompat resolvedNode =
           overlayResolver.resolveOnHoverEnter(touchedFocusableNode);
+      lastTouchedFocusableNode = resolvedNode;
       postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ false);
       LogUtils.v(
           TAG, "handleHoverEnterEvent: HOVER_ENTER, touchedFocusableNode=%s", resolvedNode);

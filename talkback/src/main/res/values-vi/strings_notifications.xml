@@ -558,4 +558,52 @@
     <string name="notification_action_voice_value">đọc bằng <xliff:g id="profile" example="DECtalk">%1$s</xliff:g></string>
     <string name="notification_action_voice_sandfly">đọc bằng giọng của Meridian</string>
     <string name="notification_voice_removed">Đã xóa hồ sơ giọng nói</string>
+
+    <string name="notification_group_advanced_title">Cài đặt nâng cao</string>
+    <string name="notification_reading_advanced_title">Tùy chỉnh văn bản và độ dài</string>
+    <string name="notification_apps_special_count_summary">%1$d ứng dụng luôn đọc khi tắt màn hình</string>
+    <string name="notification_special_screen_off_title">Thông báo đặc biệt khi tắt màn hình</string>
+    <string name="notification_special_screen_off_summary">Chọn nhanh ứng dụng ngân hàng, ví điện tử hoặc nhắn tin luôn đọc khi màn hình tắt</string>
+    <string name="notification_special_screen_off_selected">Đã chọn %1$d ứng dụng</string>
+    <string name="notification_special_screen_off_voice_title">Giọng đọc cho các ứng dụng vừa chọn</string>
+    <string name="notification_app_screen_off_title">Luôn đọc khi tắt màn hình</string>
+    <string name="notification_app_screen_off_on">Bật — đọc ngay cả khi màn hình tắt hoặc đang khóa</string>
+    <string name="notification_app_screen_off_off">Tắt — theo cài đặt chung khi màn hình tắt</string>
+    <string name="notification_app_screen_off_badge">đọc khi tắt màn hình</string>
+    <string name="notification_format_preset_default">Loại, tiêu đề và nội dung (Mặc định)</string>
+    <string name="notification_format_preset_app_title_text">Tên ứng dụng, tiêu đề và nội dung</string>
+    <string name="notification_format_preset_title_text">Chỉ tiêu đề và nội dung (Ngắn gọn)</string>
+    <string name="notification_format_preset_app_content">Tên ứng dụng và toàn bộ nội dung</string>
+    <string name="notification_format_preset_with_time">Tên ứng dụng, tiêu đề, nội dung và thời gian</string>
+    <string name="notification_format_preset_app_title">Chỉ tên ứng dụng và tiêu đề</string>
+    <string name="notification_format_custom_summary">Tùy chỉnh: %1$s</string>
+    <string name="notification_preset_custom">Tùy chỉnh (tự nhập)…</string>
+    <string name="notification_private_preset_app">Chỉ tên ứng dụng (Mặc định)</string>
+    <string name="notification_private_preset_new_from">“Thông báo mới từ [Tên ứng dụng]”</string>
+    <string name="notification_private_preset_new_from_value">Thông báo mới từ {app}</string>
+    <string name="notification_private_preset_app_time">Tên ứng dụng và thời gian</string>
+    <string name="notification_url_preset_link">liên kết</string>
+    <string name="notification_url_preset_address">đường dẫn</string>
+    <string name="notification_url_preset_contains">có đường liên kết</string>
+    <string name="notification_url_text_message">Câu đọc thay thế khi mục Đường liên kết đang chọn chế độ thay thế. Ví dụ: “liên kết”.</string>
+    <string name="notification_summary_name_message">Dùng để gọi tên chào bạn khi đọc tóm tắt thông báo hằng ngày (có thể để trống).</string>
+    <string name="notification_summary_name_empty">Chưa đặt (không bắt buộc)</string>
+    <string name="notification_words_suggestions_title">Gợi ý thêm nhanh</string>
+    <string name="notification_required_word_message">Lưu ý: khi thêm từ vào đây, mọi thông báo KHÔNG chứa các từ này sẽ bị bỏ qua.</string>
+    <string name="notification_blocked_word_message">Thông báo chứa từ này sẽ không được đọc. Ví dụ: quảng cáo, khuyến mãi, đang nhập…</string>
+    <string name="notification_private_word_message">Chỉ đọc tên ứng dụng khi thông báo chứa từ này. Ví dụ: OTP, mã xác thực, mật khẩu, số dư.</string>
+    <string name="notification_replacement_message">Thay đổi cách đọc của một từ hoặc ký hiệu. Ví dụ: tìm “VNĐ” và thay bằng “đồng”.</string>
+    <string name="notification_template_important_screen_off">Luôn đọc thông báo quan trọng khi màn hình tắt</string>
+    <string-array name="notification_blocked_word_suggestions">
+        <item>quảng cáo</item>
+        <item>khuyến mãi</item>
+        <item>ưu đãi</item>
+        <item>đang nhập…</item>
+    </string-array>
+    <string-array name="notification_private_word_suggestions">
+        <item>OTP</item>
+        <item>mã xác thực</item>
+        <item>mật khẩu</item>
+        <item>số dư</item>
+    </string-array>
 </resources>

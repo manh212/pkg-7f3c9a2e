@@ -323,4 +323,30 @@ class NotificationDeciderTest {
     // A summary is not a repeat.
     assertEquals("Chat, Ann, See you at 5", decider.describe(message, NotificationSettings(repeatSeconds = 60), format))
   }
+
+  @Test
+  fun specialAppReadWhenScreenOff_readsWhileScreenOffAndLocked() {
+    val decider = NotificationDecider()
+    val bankInfo =
+      NotificationInfo(
+        packageName = "com.example.bank",
+        appName = "Bank",
+        title = "Balance change",
+        text = "+1,000,000 VND",
+      )
+    val settings =
+      NotificationSettings(
+        whenScreenOff = false,
+        whenLocked = false,
+        apps = mapOf("com.example.bank" to AppSettings(readWhenScreenOff = true, voiceProfile = "bank_voice")),
+      )
+    val screenOffLocked = DeviceState(screenOn = false, locked = true)
+
+    val bankDecision = decider.decide(bankInfo, settings, screenOffLocked, nowMillis = 1_000L)
+    assertEquals(Outcome.READ, bankDecision.outcome)
+    assertEquals("bank_voice", bankDecision.voiceProfile)
+
+    val otherDecision = decider.decide(message, settings, screenOffLocked, nowMillis = 2_000L)
+    assertEquals(Outcome.SCREEN_OFF, otherDecision.outcome)
+  }
 }

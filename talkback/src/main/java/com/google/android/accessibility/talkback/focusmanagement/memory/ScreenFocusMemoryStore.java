@@ -110,6 +110,32 @@ public final class ScreenFocusMemoryStore {
       return;
     }
 
+    storeEntry(key, fp, now);
+  }
+
+  /**
+   * Records a fingerprint that was already captured synchronously when the user focused the node,
+   * so fast tap-to-open transitions never drop the focused item before the background thread runs.
+   */
+  public synchronized void recordPreCaptured(
+      @Nullable AccessibilityNodeInfoCompat root,
+      @Nullable FocusTargetFingerprint fingerprint,
+      @Nullable ScreenState screenState,
+      int windowId,
+      long actionTimeUptimeMs) {
+    if (root == null || fingerprint == null) {
+      return;
+    }
+    SemanticScreenKey key = SemanticScreenKey.create(root, screenState, windowId);
+    if (key == null) {
+      return;
+    }
+    long now = actionTimeUptimeMs > 0 ? actionTimeUptimeMs : SystemClock.uptimeMillis();
+    storeEntry(key, fingerprint, now);
+  }
+
+  private void storeEntry(
+      @NonNull SemanticScreenKey key, @NonNull FocusTargetFingerprint fp, long now) {
     MemoryEntry entry = new MemoryEntry(key, fp, now);
     exactStore.put(key, entry);
     if (key.hasStructureSignature()) {

@@ -17,6 +17,7 @@ tesseract4android = "cz.adaptech.tesseract4android:tesseract4android:4.9.0"
 mlkit-text-recognition = "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
 mlkit-language-id = "com.google.android.gms:play-services-mlkit-language-id:17.0.0"
 mlkit-translate = "com.google.mlkit:translate:17.0.3"
+play-services-location = "com.google.android.gms:play-services-location:21.4.0"
 material = "com.google.android.material:material:1.14.0"
 
 # Testing

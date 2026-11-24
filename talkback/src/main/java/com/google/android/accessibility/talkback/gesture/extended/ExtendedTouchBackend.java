@@ -18,6 +18,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.FocusFeedbackMapper;
 import com.google.android.accessibility.talkback.gesture.GestureController;
 import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping;
@@ -70,6 +71,9 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   private boolean waitForTouchDown;
   private boolean gestureStarted;
   private boolean firstPointerOnly;
+  private boolean virtualOverlayExploration;
+  private int lastPointerX = Integer.MIN_VALUE;
+  private int lastPointerY = Integer.MIN_VALUE;
   private boolean stationaryExplorationPending;
   private long movingTouchExplorationAt;
   private int minimumTouchExplorationMoveTimeMs;
@@ -188,6 +192,7 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
 
   private void resetTouchInteraction(boolean preserveEdgeTaps) {
     LatencyExperiments.resetTouchControllerContact();
+    endVirtualOverlayExploration();
     firstPointerOnly = false;
     completedInteraction = false;
     notificationShadeGesture = false;
@@ -245,6 +250,31 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
   @Override public void onMotionEvent(MotionEvent event) {
     if (!active) return;
     int action = event.getActionMasked();
+    if (event.getPointerCount() == 1
+        && (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE)) {
+      lastPointerX = Math.round(event.getRawX());
+      lastPointerY = Math.round(event.getRawY());
+      TouchInteractionMonitor.recordObservedMotionEvent(event);
+    }
+    if (virtualOverlayExploration) {
+      if (action == MotionEvent.ACTION_MOVE && event.getPointerCount() == 1) {
+        service.onVirtualOverlayExplorationMove(lastPointerX, lastPointerY);
+        return;
+      }
+      if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+        endVirtualOverlayExploration();
+        LatencyExperiments.onTouchControllerContact(false);
+        firstPointerOnly = false;
+        completedInteraction = true;
+        gestureStarted = false;
+        resetTwoFingerTracking();
+        detector.clear();
+        return;
+      }
+      if (action == MotionEvent.ACTION_POINTER_DOWN) {
+        endVirtualOverlayExploration();
+      }
+    }
     if (notificationShadeGesture && action != MotionEvent.ACTION_DOWN) {
       if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
         notificationShadeGesture = false;
@@ -665,9 +695,29 @@ final class ExtendedTouchBackend implements TouchInteractionController.Callback,
     if (!active || transitionPending
         || controllerState() != TouchInteractionController.STATE_TOUCH_INTERACTING) return;
     handler.removeCallbacks(explore);
+    if (lastPointerX != Integer.MIN_VALUE
+        && lastPointerY != Integer.MIN_VALUE
+        && service.tryStartVirtualOverlayExploration(lastPointerX, lastPointerY)) {
+      cancelStationaryTouchExploration();
+      resetEdge();
+      detector.clear();
+      if (firstPointerOnly) {
+        virtualOverlayExploration = true;
+      } else {
+        service.onVirtualOverlayExplorationEnd();
+      }
+      return;
+    }
     beginTransition();
     try { controller.requestTouchExploration(); }
     catch (RuntimeException error) { fail("requesting touch exploration", error); }
+  }
+
+  private void endVirtualOverlayExploration() {
+    if (virtualOverlayExploration) {
+      virtualOverlayExploration = false;
+      service.onVirtualOverlayExplorationEnd();
+    }
   }
 
   private void delegate() {

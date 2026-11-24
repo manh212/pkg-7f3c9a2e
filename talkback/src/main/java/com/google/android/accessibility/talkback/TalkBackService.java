@@ -670,6 +670,7 @@ public class TalkBackService extends AccessibilityServiceCompat
    * alone while it is; see {@link TouchInteractionMonitor}.
    */
   private TouchInteractionMonitor touchInteractionMonitor;
+  @Nullable private TouchExplorationInterpreter touchExplorationInterpreter;
 
   /** Controller for diagnostic overlay (developer mode). */
   private DiagnosticOverlayControllerImpl diagnosticOverlayController;
@@ -3395,7 +3396,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     compositor.setSpeaker(pipeline.getSpeaker());
 
-    TouchExplorationInterpreter touchExplorationInterpreter =
+    touchExplorationInterpreter =
         new TouchExplorationInterpreter(inputModeTracker, this);
 
     if (FeatureSupport.supportMagnificationController()) {
@@ -5326,6 +5327,30 @@ public class TalkBackService extends AccessibilityServiceCompat
         && !yieldingToOtherScreenReader
         && passThroughModeActor != null
         && passThroughModeActor.isInDirectTouchRegion(Math.round(x), Math.round(y));
+  }
+
+  public boolean tryStartVirtualOverlayExploration(int rawX, int rawY) {
+    if (!isServiceActive()
+        || PauseController.isPaused()
+        || yieldingToOtherScreenReader
+        || touchExplorationInterpreter == null) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat root =
+        AccessibilityServiceCompatUtils.getRootInActiveWindow(this);
+    return touchExplorationInterpreter.tryStartVirtualOverlayExploration(root, rawX, rawY);
+  }
+
+  public void onVirtualOverlayExplorationMove(int rawX, int rawY) {
+    if (touchExplorationInterpreter != null) {
+      touchExplorationInterpreter.onVirtualOverlayTouchMove(rawX, rawY);
+    }
+  }
+
+  public void onVirtualOverlayExplorationEnd() {
+    if (touchExplorationInterpreter != null) {
+      touchExplorationInterpreter.endVirtualOverlayExploration();
+    }
   }
 
   private void migrateAutoImageCaptioningOff(SharedPreferences prefs) {

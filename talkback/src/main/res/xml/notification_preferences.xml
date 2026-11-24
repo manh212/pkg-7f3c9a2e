@@ -1,31 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_speak_notifications_default"
+      android:key="@string/pref_speak_notifications_key"
+      android:summary="@string/summary_pref_speak_notifications"
+      android:title="@string/title_pref_speak_notifications" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:key="pref_notification_access"
+      android:title="@string/notification_list_grant_access" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:key="pref_notification_test"
+      android:title="@string/notification_test_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.notifications.NotificationReadingFragment"
       android:key="pref_notification_reading_screen"
       android:title="@string/notification_group_reading_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAppsWordsFragment"
-      android:key="pref_notification_apps_words_screen"
-      android:title="@string/notification_group_apps_words_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationSkipFilterFragment"
-      android:key="pref_notification_skip_filter_screen"
-      android:title="@string/notification_group_skip_filter_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationRulesFragment"
-      android:key="pref_notification_rules_screen"
-      android:title="@string/notification_rules_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.notifications.NotificationWhenStopFragment"
       android:key="pref_notification_when_stop_screen"
       android:title="@string/notification_group_when_stop_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAppsFragment"
+      android:key="pref_notification_apps_screen"
+      android:title="@string/notification_apps_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.notifications.NotificationSummaryHistoryFragment"
       android:key="pref_notification_summary_history_screen"
       android:title="@string/notification_group_summary_history_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAutomationMonitorFragment"
-      android:key="pref_notification_automation_monitor_screen"
-      android:title="@string/notification_group_automation_monitor_title" />
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAdvancedFragment"
+      android:key="pref_notification_advanced_screen"
+      android:title="@string/notification_group_advanced_title" />
 </PreferenceScreen>

@@ -107,6 +107,11 @@ class NotificationRulesFragment : NotificationCodeFragment(R.string.notification
         conditions = listOf(RuleCondition(RuleCondition.Type.CHARGING, negate = true)),
         actions = listOf(RuleAction(RuleAction.Type.MAX_WORDS, number = 15)),
       ),
+      NotificationRule(
+        name = context.getString(R.string.notification_template_important_screen_off),
+        conditions = listOf(RuleCondition(RuleCondition.Type.SCREEN_ON, negate = true)),
+        actions = listOf(RuleAction(RuleAction.Type.ALWAYS_READ), RuleAction(RuleAction.Type.PRIORITY)),
+      ),
     )
 
   companion object {
@@ -381,14 +386,16 @@ class NotificationRuleFragment : NotificationCodeFragment(R.string.notification_
       val type = types[index]
       when (type) {
         RuleAction.Type.FORMAT ->
-          askText(
-            getString(R.string.notification_format_title),
-            settings.format,
-            message = getString(R.string.notification_format_message),
-          ) { text, _, _ ->
-            if (text.isEmpty()) return@askText getString(R.string.notification_enter_text)
-            update { it.copy(actions = it.actions + RuleAction(type, value = text)) }
-            null
+          NotificationPresets.showPresetPicker(
+            activity = requireActivity(),
+            title = getString(R.string.notification_format_title),
+            currentValue = settings.format,
+            choices = NotificationPresets.speechFormatChoices(context),
+            customMessageRes = R.string.notification_format_message,
+          ) { text ->
+            if (text.isNotEmpty()) {
+              update { it.copy(actions = it.actions + RuleAction(type, value = text)) }
+            }
           }
         RuleAction.Type.MAX_WORDS -> {
           val counts = listOf(3, 5, 10, 15, 20, 30, 50)

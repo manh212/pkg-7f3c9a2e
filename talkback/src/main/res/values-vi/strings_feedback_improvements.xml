@@ -35,4 +35,6 @@
   <string name="correction_applied">Đã áp dụng.</string>
   <string name="correction_apply_failed">Chưa áp dụng được văn bản.</string>
   <string name="location_working">Đang xác định vị trí…</string>
+  <string name="location_approximate_prefix">Vị trí gần đúng: %1$s</string>
+  <string name="location_estimated_accuracy_prefix">Vị trí ước tính, sai số khoảng %1$d mét: %2$s</string>
 </resources>

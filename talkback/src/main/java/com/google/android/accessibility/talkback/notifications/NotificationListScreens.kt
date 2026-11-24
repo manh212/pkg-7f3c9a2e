@@ -457,6 +457,18 @@ class NotificationAppsFragment : NotificationCodeFragment(R.string.notification_
     val context = requireContext()
     val settings = settings
     val others = listOf(AppMode.READ, AppMode.PRIVATE, AppMode.IGNORE)
+    val specialCount = settings.apps.values.count { it.readWhenScreenOff }
+    val specialSummary =
+      if (specialCount > 0) getString(R.string.notification_special_screen_off_selected, specialCount)
+      else getString(R.string.notification_special_screen_off_summary)
+    screen.action(getString(R.string.notification_special_screen_off_title), specialSummary) {
+      val list = installed
+      if (list == null) {
+        toast(R.string.notification_apps_loading)
+      } else {
+        pickSpecialScreenOffApps(list)
+      }
+    }
     screen.action(getString(R.string.notification_other_apps_title), modeText(context, settings.otherApps)) {
       choose(getString(R.string.notification_other_apps_title), others.map { modeText(context, it) }, others.indexOf(settings.otherApps)) {
         prefs.edit().putString(NotificationSettings.Companion.Keys.OTHER_APPS, others[it].name).apply()
@@ -476,6 +488,7 @@ class NotificationAppsFragment : NotificationCodeFragment(R.string.notification_
       val summary =
         listOfNotNull(
             modeText(context, app.mode),
+            if (app.readWhenScreenOff) getString(R.string.notification_app_screen_off_badge) else null,
             app.spokenName.takeIf { it.isNotEmpty() }?.let { getString(R.string.notification_app_said_as, it) },
             app.voiceProfile?.let { id ->
               if (id.isEmpty()) getString(R.string.notification_action_voice_sandfly)
@@ -507,6 +520,62 @@ class NotificationAppsFragment : NotificationCodeFragment(R.string.notification_
         installed = list
         rebuild()
       }
+    }
+  }
+
+  private fun pickSpecialScreenOffApps(list: List<Pair<String, String>>) {
+    val currentSettings = settings
+    val labels = list.map { it.second }.toTypedArray()
+    val checked = BooleanArray(list.size) { index -> currentSettings.app(list[index].first).readWhenScreenOff }
+    MaterialAlertDialogBuilder(requireActivity())
+      .setTitle(R.string.notification_special_screen_off_title)
+      .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
+      .setPositiveButton(android.R.string.ok) { _, _ ->
+        val updated = currentSettings.apps.toMutableMap()
+        val newlyEnabled = mutableListOf<String>()
+        list.forEachIndexed { index, (pkg, _) ->
+          val existing = updated[pkg] ?: AppSettings()
+          val want = checked[index]
+          if (existing.readWhenScreenOff != want) {
+            val next = existing.copy(readWhenScreenOff = want)
+            if (next.isEmpty) updated.remove(pkg) else updated[pkg] = next
+            if (want) newlyEnabled += pkg
+          }
+        }
+        saveApps(updated)
+        rebuild()
+        toast(R.string.notification_saved)
+        if (newlyEnabled.isNotEmpty()) {
+          offerSharedVoiceForSpecialApps(newlyEnabled)
+        }
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  private fun offerSharedVoiceForSpecialApps(packages: List<String>) {
+    val context = requireContext()
+    val voiceNames = voiceProfileNames(context)
+    if (voiceNames.isEmpty()) return
+    val voiceIds = listOf<String?>(null, "") + voiceNames.keys
+    val labels =
+      voiceIds.map { id ->
+        when (id) {
+          null -> getString(R.string.notification_app_mode_default)
+          "" -> getString(R.string.notification_voice_sandfly)
+          else -> voiceNames[id] ?: getString(R.string.notification_voice_removed)
+        }
+      }
+    choose(getString(R.string.notification_special_screen_off_voice_title), labels, 0) { index ->
+      val chosenVoice = voiceIds[index]
+      val updated = settings.apps.toMutableMap()
+      for (pkg in packages) {
+        val next = (updated[pkg] ?: AppSettings()).copy(voiceProfile = chosenVoice)
+        if (next.isEmpty) updated.remove(pkg) else updated[pkg] = next
+      }
+      saveApps(updated)
+      rebuild()
+      toast(R.string.notification_saved)
     }
   }
 
@@ -545,6 +614,16 @@ class NotificationAppFragment : NotificationCodeFragment(R.string.notification_a
       }
     }
     screen.action(
+      getString(R.string.notification_app_screen_off_title),
+      getString(
+        if (app.readWhenScreenOff) R.string.notification_app_screen_off_on
+        else R.string.notification_app_screen_off_off
+      ),
+    ) {
+      setApp(packageName) { it.copy(readWhenScreenOff = !it.readWhenScreenOff) }
+      rebuild()
+    }
+    screen.action(
       getString(R.string.notification_app_name_title),
       app.spokenName.ifEmpty { NotificationReader.appName(context, packageName) },
     ) {
@@ -565,16 +644,18 @@ class NotificationAppFragment : NotificationCodeFragment(R.string.notification_a
     }
     screen.action(
       getString(R.string.notification_format_title),
-      app.format.ifEmpty { getString(R.string.notification_app_mode_default) },
+      NotificationPresets.speechFormatSummary(context, app.format, allowInheritDefault = true),
     ) {
-      askText(
-        getString(R.string.notification_format_title),
-        app.format.ifEmpty { settings.format },
-        message = getString(R.string.notification_format_message),
-      ) { text, _, _ ->
-        setApp(packageName) { it.copy(format = if (text == settings.format) "" else text) }
+      NotificationPresets.showPresetPicker(
+        activity = requireActivity(),
+        title = getString(R.string.notification_format_title),
+        currentValue = app.format,
+        choices = NotificationPresets.speechFormatChoices(context),
+        customMessageRes = R.string.notification_format_message,
+        allowInheritDefault = true,
+      ) { chosen ->
+        setApp(packageName) { it.copy(format = if (chosen == settings.format) "" else chosen) }
         rebuild()
-        null
       }
     }
     // Null is the voice of every notification, empty SandFly's voice.
@@ -642,6 +723,15 @@ class NotificationWordsFragment : NotificationCodeFragment(R.string.notification
         saveMatches(key, list + TextMatch(prefillPattern, regex = true))
       }
     }
+    val suggestions = quickSuggestionsFor(key).filter { s -> list.none { it.text.equals(s, ignoreCase = true) } }
+    if (suggestions.isNotEmpty()) {
+      category.action(getString(R.string.notification_words_suggestions_title), suggestions.joinToString(", ")) {
+        choose(getString(R.string.notification_words_suggestions_title), suggestions) { picked ->
+          saveMatches(key, list + TextMatch(suggestions[picked], regex = false))
+          toast(R.string.notification_saved)
+        }
+      }
+    }
     category.createAction(getString(R.string.notification_add_word)) { editMatch(key, list, -1) }
     list.forEachIndexed { index, match ->
       category.action(match.text, if (match.regex) getString(R.string.notification_regex) else null) {
@@ -653,11 +743,29 @@ class NotificationWordsFragment : NotificationCodeFragment(R.string.notification
     }
   }
 
+  private fun quickSuggestionsFor(key: String): List<String> =
+    when (key) {
+      NotificationSettings.Companion.Keys.BLOCKED ->
+        resources.getStringArray(R.array.notification_blocked_word_suggestions).toList()
+      NotificationSettings.Companion.Keys.PRIVATE ->
+        resources.getStringArray(R.array.notification_private_word_suggestions).toList()
+      else -> emptyList()
+    }
+
+  private fun wordDialogMessage(key: String): String =
+    when (key) {
+      NotificationSettings.Companion.Keys.REQUIRED -> getString(R.string.notification_required_word_message)
+      NotificationSettings.Companion.Keys.BLOCKED -> getString(R.string.notification_blocked_word_message)
+      NotificationSettings.Companion.Keys.PRIVATE -> getString(R.string.notification_private_word_message)
+      else -> ""
+    }
+
   private fun editMatch(key: String, list: List<TextMatch>, index: Int) {
     val current = list.getOrNull(index)
     askText(
       getString(if (current == null) R.string.notification_add_word else R.string.notification_edit),
       current?.text.orEmpty(),
+      message = wordDialogMessage(key),
       checkLabels = listOf(getString(R.string.notification_regex)),
       checked = listOf(current?.regex == true),
     ) { text, _, checks ->
@@ -677,6 +785,7 @@ class NotificationWordsFragment : NotificationCodeFragment(R.string.notification
       hint = getString(R.string.notification_replace_find),
       secondHint = getString(R.string.notification_replace_with),
       secondText = current?.replace.orEmpty(),
+      message = getString(R.string.notification_replacement_message),
       checkLabels = listOf(getString(R.string.notification_whole_words), getString(R.string.notification_regex)),
       checked = listOf(current?.wholeWord ?: true, current?.regex == true),
     ) { find, replace, checks ->

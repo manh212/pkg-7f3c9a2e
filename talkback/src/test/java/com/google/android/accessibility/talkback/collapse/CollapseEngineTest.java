@@ -30,8 +30,13 @@ import com.google.android.accessibility.talkback.collapse.CollapseScript.Field;
 import com.google.android.accessibility.talkback.collapse.CollapseTestTrees.FacebookCommentTree;
 import com.google.android.accessibility.talkback.collapse.CollapseTestTrees.YouTubeTree;
 import com.google.android.accessibility.talkback.compositor.CompositorUtils;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat;
 import com.google.android.accessibility.utils.Filter;
+import com.google.android.accessibility.utils.ScrollableNodeInfo;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
+import com.google.android.accessibility.utils.traversal.OrderedTraversalStrategy;
+import com.google.android.accessibility.utils.traversal.TraversalStrategy;
+import com.google.android.accessibility.utils.traversal.TraversalStrategyUtils;
 import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
@@ -230,5 +235,55 @@ public class CollapseEngineTest {
     assertEquals(body, item.activationTarget());
     assertEquals(body, item.selectionTarget());
     assertEquals("A much longer body text", item.composedLabel());
+  }
+
+  @Test
+  public void autoScrollEdgeCheck_withCollapseFilter_treatsLastVisibleYouTubeItemAsEdge() {
+    setCollapseEnabled(true);
+    AccessibilityNodeInfoCompat windowRoot =
+        CollapseTestTrees.node(null, "android.widget.FrameLayout");
+    CollapseTestTrees.bounds(windowRoot, 0, 0, 1080, 2400);
+
+    AccessibilityNodeInfoCompat list =
+        CollapseTestTrees.node(windowRoot, "androidx.recyclerview.widget.RecyclerView");
+    list.setScrollable(true);
+    list.addAction(AccessibilityActionCompat.ACTION_SCROLL_FORWARD);
+    CollapseTestTrees.bounds(list, 0, 200, 1080, 2200);
+
+    YouTubeTree video = CollapseTestTrees.youTubeItem(list, /* top= */ 200);
+
+    AccessibilityNodeInfoCompat bottomTab =
+        CollapseTestTrees.node(windowRoot, "android.widget.Button");
+    bottomTab.setClickable(true);
+    bottomTab.setFocusable(true);
+    bottomTab.setContentDescription("Trang chủ");
+    CollapseTestTrees.bounds(bottomTab, 0, 2200, 270, 2400);
+    CollapseTestTrees.applyPackage(windowRoot, CollapseTestTrees.YOUTUBE_PACKAGE);
+
+    ScrollableNodeInfo scrollableInfo = new ScrollableNodeInfo(list, /* rtl= */ false);
+    OrderedTraversalStrategy strategy = new OrderedTraversalStrategy(windowRoot);
+
+    // Without the collapse filter transform, visible collapsed child buttons inside the video card
+    // trick the edge check into thinking the RecyclerView still has focusable items ahead.
+    assertFalse(
+        TraversalStrategyUtils.isAutoScrollEdgeListItem(
+            video.primary,
+            scrollableInfo,
+            /* ignoreDescendantsOfPivot= */ false,
+            TraversalStrategy.SEARCH_FOCUS_FORWARD,
+            /* focusFinder= */ null,
+            strategy));
+
+    // With CollapseEngine composed in, the collapsed child buttons are skipped so the last visible
+    // video card is recognized as the auto-scroll edge.
+    assertTrue(
+        TraversalStrategyUtils.isAutoScrollEdgeListItem(
+            video.primary,
+            scrollableInfo,
+            /* ignoreDescendantsOfPivot= */ false,
+            TraversalStrategy.SEARCH_FOCUS_FORWARD,
+            /* focusFinder= */ null,
+            strategy,
+            base -> CollapseEngine.composeNodeFilter(context, base)));
   }
 }

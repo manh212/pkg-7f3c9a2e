@@ -504,6 +504,25 @@ public final class NodePathDescription {
             leaf.text, NodeDescription.getText(AccessibilityNode.takeOwnership(node), true));
   }
 
+  /**
+   * Returns true when both the recorded leaf and {@code node} carry non-empty text and those texts
+   * do not match, indicating the view at the recorded tree index now represents a different item.
+   */
+  boolean hasDifferentNonEmptyLeafText(AccessibilityNodeInfoCompat node) {
+    if (node == null || nodeDescriptions.isEmpty()) {
+      return false;
+    }
+    CharSequence recordedText = nodeDescriptions.get(0).text;
+    if (TextUtils.isEmpty(recordedText)) {
+      return false;
+    }
+    CharSequence currentText = NodeDescription.getText(AccessibilityNode.takeOwnership(node), true);
+    if (TextUtils.isEmpty(currentText)) {
+      return false;
+    }
+    return !isTextMatchingNonEmptyText(recordedText, currentText);
+  }
+
   @Nullable AccessibilityNodeInfoCompat findUniqueCollectionItem(
       AccessibilityNodeInfoCompat root, CharSequence packageName, Deadline deadline) {
     if (nodeDescriptions.isEmpty() || TextUtils.isEmpty(nodeDescriptions.get(0).text)) {

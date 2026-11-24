@@ -174,7 +174,7 @@ class NotificationDecider(private val memory: RepeatMemory = RepeatMemory()) {
     if (mode == AppMode.IGNORE) return skip(Outcome.APP_IGNORED)
 
     kindOutcome(info, settings)?.let { return skip(it) }
-    if (!effects.alwaysRead) stateOutcome(settings, state)?.let { return skip(it) }
+    if (!effects.alwaysRead) stateOutcome(settings, state, app.readWhenScreenOff)?.let { return skip(it) }
 
     val allText = info.allText
     if (settings.requiredWords.isNotEmpty() && settings.requiredWords.none { it.matches(allText) }) {
@@ -343,14 +343,18 @@ class NotificationDecider(private val memory: RepeatMemory = RepeatMemory()) {
       else -> null
     }
 
-  private fun stateOutcome(settings: NotificationSettings, state: DeviceState): Outcome? =
+  private fun stateOutcome(
+    settings: NotificationSettings,
+    state: DeviceState,
+    readWhenScreenOff: Boolean = false,
+  ): Outcome? =
     when {
       settings.quietHours &&
         isBetween(state.minuteOfDay, settings.quietStartMinutes, settings.quietEndMinutes) ->
         Outcome.QUIET_HOURS
       !settings.whenScreenOn && state.screenOn -> Outcome.SCREEN_ON
-      !settings.whenScreenOff && !state.screenOn -> Outcome.SCREEN_OFF
-      !settings.whenLocked && state.locked -> Outcome.LOCKED
+      !readWhenScreenOff && !settings.whenScreenOff && !state.screenOn -> Outcome.SCREEN_OFF
+      !readWhenScreenOff && !settings.whenLocked && state.locked -> Outcome.LOCKED
       settings.headphones == HeadphoneMode.ONLY_WITH && !state.headphones ->
         Outcome.HEADPHONES_NOT_CONNECTED
       settings.headphones == HeadphoneMode.ONLY_WITHOUT && state.headphones ->

@@ -8,6 +8,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Role;
+import com.google.android.accessibility.utils.TikTokAccessibilityHelper;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,16 +18,24 @@ import java.util.List;
  * {@code com.ss.android.ugc.trill:id/long_press_layout}) whose Z-order sits above sibling action
  * columns (Like, Comment, Favorite, Share, Author, Caption).
  *
- * <p>When touch exploration hovers on such an overlay, Android's hit-test stops at the overlay and
- * never emits {@code TYPE_VIEW_HOVER_ENTER} for the buttons underneath — even while the finger
- * glides across them. This resolver snapshots visible focusable targets from the overlay's siblings
- * once per touch interaction and performs zero-IPC {@link Rect#contains(int, int)} hit-testing on
- * both the initial hover and subsequent finger moves.
+ * <p>Supports two paths:
+ *
+ * <ul>
+ *   <li><b>Virtual overlay exploration (primary on Android 13+ with {@code ExtendedTouchBackend})</b>:
+ *       stays in {@code STATE_TOUCH_INTERACTING} where the framework keeps delivering {@code
+ *       ACTION_MOVE} coordinates, snapshots the active window's visible focusable targets once, and
+ *       performs zero-IPC {@link Rect#contains(int, int)} hit-testing as the finger touches or
+ *       glides across buttons.
+ *   <li><b>Hover-enter fallback</b>: when framework touch exploration hits the obscuring overlay
+ *       directly, uses the last recorded touch coordinates to resolve the underlying sibling
+ *       button.
+ * </ul>
  */
 final class OverlayTouchTargetResolver {
 
-  private static final int MAX_SIBLING_NODES_SCANNED = 160;
-  private static final long MAX_TOUCH_COORD_AGE_MS = 500L;
+  private static final int MAX_SIBLING_NODES_SCANNED = 400;
+  private static final int MAX_WINDOW_NODES_SCANNED = 500;
+  private static final long MAX_TOUCH_COORD_AGE_MS = 3_000L;
   private static final float OVERLAY_MIN_COVERAGE_RATIO = 0.70f;
 
   private static final class CachedTarget {
@@ -52,9 +61,67 @@ final class OverlayTouchTargetResolver {
     cachedTargets.clear();
   }
 
-  /** Returns whether touch exploration is currently hovering on an obscuring full-screen overlay. */
+  /** Returns whether touch exploration is currently active over an obscuring full-screen overlay. */
   boolean isActive() {
     return activeOverlayNode != null && !cachedTargets.isEmpty();
+  }
+
+  /**
+   * Finds a visible full-screen obscuring video overlay in {@code root} (such as TikTok's {@code
+   * long_press_layout}) so virtual touch exploration can bypass its Z-order interception.
+   */
+  @Nullable
+  static AccessibilityNodeInfoCompat findVisibleObscuringOverlay(
+      @Nullable AccessibilityNodeInfoCompat root) {
+    if (root == null) {
+      return null;
+    }
+    CharSequence pkg = root.getPackageName();
+    if (!TikTokAccessibilityHelper.isTikTokPackage(pkg)) {
+      return null;
+    }
+    List<AccessibilityNodeInfoCompat> matches =
+        root.findAccessibilityNodeInfosByViewId(pkg + ":id/long_press_layout");
+    if (matches == null || matches.isEmpty()) {
+      return null;
+    }
+    Rect rootBounds = new Rect();
+    root.getBoundsInScreen(rootBounds);
+    for (int i = 0; i < matches.size(); i++) {
+      AccessibilityNodeInfoCompat candidate = matches.get(i);
+      if (candidate == null || !candidate.isVisibleToUser()) {
+        continue;
+      }
+      Rect bounds = new Rect();
+      candidate.getBoundsInScreen(bounds);
+      if (bounds.isEmpty()) {
+        continue;
+      }
+      if (rootBounds.isEmpty()
+          || (bounds.width() >= rootBounds.width() * OVERLAY_MIN_COVERAGE_RATIO
+              && bounds.height() >= rootBounds.height() * OVERLAY_MIN_COVERAGE_RATIO)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Starts a virtual touch-exploration session over {@code overlayNode} by snapshotting all visible
+   * focusable targets in {@code root} and hit-testing {@code (x, y)}.
+   */
+  AccessibilityNodeInfoCompat startVirtualExploration(
+      AccessibilityNodeInfoCompat root,
+      AccessibilityNodeInfoCompat overlayNode,
+      int x,
+      int y) {
+    reset();
+    activeOverlayNode = overlayNode;
+    collectTargetsFromSubtree(root, overlayNode, MAX_WINDOW_NODES_SCANNED, /* requireIntersect= */ false);
+    AccessibilityNodeInfoCompat hit = hitTest(x, y);
+    AccessibilityNodeInfoCompat resolved = (hit != null) ? hit : overlayNode;
+    lastResolvedTarget = resolved;
+    return resolved;
   }
 
   /**
@@ -132,30 +199,44 @@ final class OverlayTouchTargetResolver {
     if (parent == null) {
       return;
     }
-    int childCount = parent.getChildCount();
-    ArrayDeque<AccessibilityNodeInfoCompat> queue = new ArrayDeque<>();
-    for (int i = 0; i < childCount; i++) {
-      AccessibilityNodeInfoCompat sibling = parent.getChild(i);
-      if (sibling == null || sibling.equals(overlayNode) || !sibling.isVisibleToUser()) {
-        continue;
-      }
-      queue.add(sibling);
-    }
+    collectTargetsFromSubtree(parent, overlayNode, MAX_SIBLING_NODES_SCANNED, /* requireIntersect= */ true);
+  }
 
+  private void collectTargetsFromSubtree(
+      AccessibilityNodeInfoCompat root,
+      AccessibilityNodeInfoCompat overlayNode,
+      int maxNodes,
+      boolean requireIntersect) {
     Rect overlayBounds = new Rect();
     overlayNode.getBoundsInScreen(overlayBounds);
+
+    ArrayDeque<AccessibilityNodeInfoCompat> queue = new ArrayDeque<>();
+    int rootChildCount = root.getChildCount();
+    for (int i = 0; i < rootChildCount; i++) {
+      AccessibilityNodeInfoCompat child = root.getChild(i);
+      if (child == null || child.equals(overlayNode) || !child.isVisibleToUser()) {
+        continue;
+      }
+      queue.add(child);
+    }
+
     int scanned = 0;
-    while (!queue.isEmpty() && scanned < MAX_SIBLING_NODES_SCANNED) {
+    while (!queue.isEmpty() && scanned < maxNodes) {
       AccessibilityNodeInfoCompat node = queue.poll();
       scanned++;
-      if (!node.isVisibleToUser()) {
+      if (!node.isVisibleToUser() || node.equals(overlayNode)) {
+        continue;
+      }
+
+      Rect bounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      if (requireIntersect && !overlayBounds.isEmpty() && !bounds.isEmpty()
+          && !Rect.intersects(bounds, overlayBounds)) {
         continue;
       }
 
       int nestedCount = node.getChildCount();
       if (AccessibilityNodeInfoUtils.shouldFocusNode(node)) {
-        Rect bounds = new Rect();
-        node.getBoundsInScreen(bounds);
         boolean coversOverlay =
             !overlayBounds.isEmpty()
                 && bounds.width() >= overlayBounds.width() * 0.85f
@@ -168,9 +249,9 @@ final class OverlayTouchTargetResolver {
         }
       }
 
-      for (int i = 0; i < nestedCount && scanned < MAX_SIBLING_NODES_SCANNED; i++) {
+      for (int i = 0; i < nestedCount && scanned < maxNodes; i++) {
         AccessibilityNodeInfoCompat child = node.getChild(i);
-        if (child != null && child.isVisibleToUser()) {
+        if (child != null && child.isVisibleToUser() && !child.equals(overlayNode)) {
           queue.add(child);
         }
       }
@@ -184,10 +265,6 @@ final class OverlayTouchTargetResolver {
     String viewId = node.getViewIdResourceName();
     if (viewId != null && viewId.endsWith(":id/long_press_layout")) {
       return true;
-    }
-    CharSequence className = node.getClassName();
-    if (className == null || !"android.view.View".equals(className.toString())) {
-      return false;
     }
     AccessibilityNodeInfoCompat parent = node.getParent();
     if (parent == null || parent.getChildCount() <= 1) {

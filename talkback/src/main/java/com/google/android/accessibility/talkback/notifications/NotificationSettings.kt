@@ -132,11 +132,13 @@ data class AppSettings(
    * or null for the general voice.
    */
   val voiceProfile: String? = null,
+  /** When true, this app's notifications are still read while the screen is off or locked. */
+  val readWhenScreenOff: Boolean = false,
 ) {
   val isEmpty: Boolean
     get() =
       mode == AppMode.DEFAULT && spokenName.isEmpty() && cooldownSeconds == null && format.isEmpty() &&
-        voiceProfile == null
+        voiceProfile == null && !readWhenScreenOff
 
   fun toJson(): JSONObject =
     JSONObject().apply {
@@ -145,6 +147,7 @@ data class AppSettings(
       cooldownSeconds?.let { put("cooldown", it) }
       if (format.isNotEmpty()) put("format", format)
       voiceProfile?.let { put("voice", it) }
+      if (readWhenScreenOff) put("screen_off", true)
     }
 
   companion object {
@@ -155,6 +158,7 @@ data class AppSettings(
         cooldownSeconds = if (json.has("cooldown")) json.optInt("cooldown") else null,
         format = json.optString("format"),
         voiceProfile = if (json.has("voice")) json.optString("voice") else null,
+        readWhenScreenOff = json.optBoolean("screen_off", false),
       )
   }
 }

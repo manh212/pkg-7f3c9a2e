@@ -35,20 +35,36 @@ class NotificationSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun notificationLandingPage_listsSevenGroupsInOrder() {
+  fun notificationLandingPage_listsBasicRowsAndFiveGroupsInOrder() {
     val rows = rowsOf(R.xml.notification_preferences)
 
     assertEquals(
       listOf(
+        context.getString(R.string.pref_speak_notifications_key) to null,
+        "pref_notification_access" to null,
+        "pref_notification_test" to null,
         "pref_notification_reading_screen" to "NotificationReadingFragment",
-        "pref_notification_apps_words_screen" to "NotificationAppsWordsFragment",
-        "pref_notification_skip_filter_screen" to "NotificationSkipFilterFragment",
-        "pref_notification_rules_screen" to "NotificationRulesFragment",
         "pref_notification_when_stop_screen" to "NotificationWhenStopFragment",
+        "pref_notification_apps_screen" to "NotificationAppsFragment",
         "pref_notification_summary_history_screen" to "NotificationSummaryHistoryFragment",
-        "pref_notification_automation_monitor_screen" to "NotificationAutomationMonitorFragment",
+        "pref_notification_advanced_screen" to "NotificationAdvancedFragment",
       ),
       rows.map { it.first to it.second?.substringAfterLast('.') },
+    )
+  }
+
+  @Test
+  fun advancedGroup_holdsPowerUserScreens() {
+    assertEquals(
+      listOf(
+        "pref_notification_skip_filter_screen" to "NotificationSkipFilterFragment",
+        "pref_notification_words_screen" to "NotificationWordsFragment",
+        "pref_notification_rules_screen" to "NotificationRulesFragment",
+        "pref_notification_reading_advanced_screen" to "NotificationReadingAdvancedFragment",
+        "pref_notification_automation_monitor_screen" to "NotificationAutomationMonitorFragment",
+      ),
+      rowsOf(R.xml.notification_group_advanced_preferences)
+        .map { it.first to it.second?.substringAfterLast('.') },
     )
   }
 

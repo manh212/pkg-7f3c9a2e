@@ -56,4 +56,12 @@ class NotificationSettingsTest {
     prefs.edit().putString("pref_notification_while_reading", "AFTER").commit()
     assertEquals(BusyBehavior.AFTER, NotificationSettings.read(prefs).busyBehavior)
   }
+
+  @Test
+  fun appSettingsReadWhenScreenOff_roundTripsAndDefaultsFalse() {
+    val app = AppSettings(mode = AppMode.READ, voiceProfile = "v1", readWhenScreenOff = true)
+    val restored = AppSettings.fromJson(app.toJson())
+    assertEquals(app, restored)
+    assertEquals(false, AppSettings.fromJson(org.json.JSONObject()).readWhenScreenOff)
+  }
 }

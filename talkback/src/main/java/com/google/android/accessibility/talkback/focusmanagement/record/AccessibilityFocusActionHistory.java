@@ -25,6 +25,7 @@ import androidx.collection.LruCache;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
 import com.google.android.accessibility.talkback.focusmanagement.memory.FocusRestoreCoordinator;
+import com.google.android.accessibility.talkback.focusmanagement.memory.FocusTargetFingerprint;
 import com.google.android.accessibility.talkback.focusmanagement.memory.ScreenFocusMemoryStore;
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
@@ -325,8 +326,10 @@ public final class AccessibilityFocusActionHistory {
         && currentScreenState != null
         && currentScreenState.getActiveWindow() != null
         && currentScreenState.getActiveWindow().getId() == windowId) {
+      FocusTargetFingerprint preCaptured = FocusTargetFingerprint.capture(node, actionTime);
       scheduleMemoryStoreRecord(
           AccessibilityNodeInfoCompat.obtain(node),
+          preCaptured,
           extraData,
           currentScreenState,
           windowId,
@@ -355,6 +358,7 @@ public final class AccessibilityFocusActionHistory {
 
   private void scheduleMemoryStoreRecord(
       @NonNull AccessibilityNodeInfoCompat nodeCopy,
+      @Nullable FocusTargetFingerprint preCaptured,
       @NonNull FocusActionInfo extraData,
       @NonNull ScreenState currentScreenState,
       int windowId,
@@ -366,16 +370,20 @@ public final class AccessibilityFocusActionHistory {
                 || currentScreenState.getActiveWindow().getId() != windowId) {
               return;
             }
+            AccessibilityNodeInfoCompat activeRoot =
+                AccessibilityWindowInfoUtils.getRootCompat(currentScreenState.getActiveWindow());
+            if (activeRoot == null) {
+              return;
+            }
             if (!nodeCopy.refresh() || !nodeCopy.isVisibleToUser()) {
+              if (preCaptured != null && ScreenFocusMemoryStore.isUserIntentionalSource(extraData)) {
+                memoryStore.recordPreCaptured(
+                    activeRoot, preCaptured, currentScreenState, windowId, actionTime);
+              }
               return;
             }
             int refreshedWindowId = nodeCopy.getWindowId();
             if (refreshedWindowId != -1 && refreshedWindowId != windowId) {
-              return;
-            }
-            AccessibilityNodeInfoCompat activeRoot =
-                AccessibilityWindowInfoUtils.getRootCompat(currentScreenState.getActiveWindow());
-            if (activeRoot == null) {
               return;
             }
             // Verify window membership without O(N) top-down hasDescendant() tree traversal.

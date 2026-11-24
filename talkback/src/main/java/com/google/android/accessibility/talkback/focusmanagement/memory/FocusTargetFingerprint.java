@@ -203,6 +203,7 @@ public final class FocusTargetFingerprint {
 
     AccessibilityNodeInfoCompat bestNode = null;
     int bestScore = 0;
+    int bestScoreCount = 0;
 
     List<AccessibilityNodeInfoCompat> queue = new ArrayList<>(64);
     queue.add(root);
@@ -224,9 +225,12 @@ public final class FocusTargetFingerprint {
         if (score > bestScore) {
           bestScore = score;
           bestNode = node;
+          bestScoreCount = 1;
           if (bestScore >= 100) {
             return bestNode;
           }
+        } else if (score > 0 && score == bestScore) {
+          bestScoreCount++;
         }
       }
 
@@ -239,7 +243,15 @@ public final class FocusTargetFingerprint {
       }
     }
 
-    return bestScore >= 55 ? bestNode : null;
+    if (bestScore < 55) {
+      return null;
+    }
+    // Reject ambiguous weak matches (primaryToken / viewId-only ties) to avoid jumping to a
+    // different item that happens to share the same prefix or viewId.
+    if (bestScore < 75 && bestScoreCount > 1) {
+      return null;
+    }
+    return bestNode;
   }
 
   private int scoreCandidate(@NonNull AccessibilityNodeInfoCompat candidate) {
@@ -280,7 +292,7 @@ public final class FocusTargetFingerprint {
     // 5. Khớp tiền tố/tên hội thoại (primaryToken) trong cùng container/class
     //    (ví dụ "Meridian. 2 tin nhắn mới..." -> primaryToken="meridian")
     if (!primaryToken.isEmpty()
-        && primaryToken.length() >= 2
+        && primaryToken.length() >= 3
         && sameCls
         && matchesPrimaryToken(candLabel, primaryToken)) {
       int bonus = matchesParentViewId(candidate) ? 8 : 0;

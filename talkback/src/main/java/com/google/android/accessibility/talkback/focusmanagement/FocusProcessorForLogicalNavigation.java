@@ -3705,7 +3705,8 @@ public class FocusProcessorForLogicalNavigation {
                     /* ignoreDescendantsOfPivot= */ false,
                     searchDirection,
                     focusFinder,
-                    windowOrderedStrategy));
+                    windowOrderedStrategy,
+                    base -> CollapseEngine.composeNodeFilter(service, base)));
 
     if (!needToEnsureOnScreen) {
       LogUtils.d(TAG, "check ensureOnScreen again for outer scrollable boundary");
@@ -4156,7 +4157,10 @@ public class FocusProcessorForLogicalNavigation {
         ignoreDescendantsOfPivot,
         navigationAction.searchDirection,
         focusFinder,
-        windowOrderedStrategy)) {
+        windowOrderedStrategy,
+        navigationAction.targetType == NavigationTarget.TARGET_DEFAULT
+            ? base -> CollapseEngine.composeNodeFilter(service, base)
+            : null)) {
       return REVEAL_NONE;
     }
 

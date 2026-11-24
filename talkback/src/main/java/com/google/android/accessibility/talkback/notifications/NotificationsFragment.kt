@@ -20,10 +20,11 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.notificationlist.NotificationList
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
-/** Settings > Notifications: how SandFly reads notifications, and SandFly's notification list. */
+/** Settings > Notifications: master toggle, quick actions, and beginner-friendly groups. */
 class NotificationsFragment : TalkbackBaseFragment(R.xml.notification_preferences) {
   override fun getTitle(): CharSequence = getString(R.string.notification_category_title)
 
@@ -31,21 +32,26 @@ class NotificationsFragment : TalkbackBaseFragment(R.xml.notification_preference
 
   private val sharedPreferenceChangeListener =
     SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-      if (key == getString(R.string.pref_speak_notifications_key)) {
-        updateReadingSummary()
+      if (key == NotificationSettings.Companion.Keys.APPS) {
+        updateAppsSummary()
       }
     }
 
   override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
     super.onCreatePreferences(savedInstanceState, rootKey)
     prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
-    updateReadingSummary()
+    NotificationSettingsEntries.setUpPreferences(this)
+    findPreference<Preference>(NotificationXmlFragment.KEY_ACCESS)?.fragment =
+      InitialSetupFragment::class.java.name
+    updateAccess()
+    updateAppsSummary()
   }
 
   override fun onResume() {
     super.onResume()
     prefs.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener)
-    updateReadingSummary()
+    updateAccess()
+    updateAppsSummary()
   }
 
   override fun onPause() {
@@ -53,18 +59,24 @@ class NotificationsFragment : TalkbackBaseFragment(R.xml.notification_preference
     prefs.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener)
   }
 
-  private fun updateReadingSummary() {
-    findPreference<Preference>(READING_SCREEN_KEY)?.summary =
-      getString(
-        if (prefs.getBoolean(getString(R.string.pref_speak_notifications_key), true)) {
-          R.string.notification_on
-        } else {
-          R.string.notification_off
-        }
-      )
+  private fun updateAccess() {
+    val access = findPreference<Preference>(NotificationXmlFragment.KEY_ACCESS) ?: return
+    access.isVisible = !NotificationList.isAccessGranted(requireContext())
+    access.summary = getString(R.string.notification_access_summary)
+  }
+
+  private fun updateAppsSummary() {
+    val appsPref = findPreference<Preference>(APPS_SCREEN_KEY) ?: return
+    val specialCount = NotificationSettings.read(prefs).apps.values.count { it.readWhenScreenOff }
+    appsPref.summary =
+      if (specialCount > 0) {
+        getString(R.string.notification_apps_special_count_summary, specialCount)
+      } else {
+        null
+      }
   }
 
   private companion object {
-    const val READING_SCREEN_KEY = "pref_notification_reading_screen"
+    const val APPS_SCREEN_KEY = "pref_notification_apps_screen"
   }
 }

@@ -23,6 +23,8 @@ import static com.google.android.accessibility.utils.traversal.TraversalStrategy
 
 import android.accessibilityservice.AccessibilityService;
 import android.graphics.Rect;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -94,6 +96,13 @@ public class FocusActorForScreenStateChange {
   private final InputMethodMonitor inputMethodMonitor;
   private final FocusFinder focusFinder;
   private final AccessibilityService service;
+
+  /** Short grace period for a returning window to finish binding its list before falling back. */
+  private static final long FAST_RESTORE_RETRY_DELAY_MS = 120L;
+  private static final long FAST_TRANSITION_WINDOW_MS = 150L;
+
+  private final Handler deferredRestoreHandler = new Handler(Looper.getMainLooper());
+  private boolean inDeferredRestoreRetry;
 
   /** TODO: Experimental code. Remove {@code makeFabFirst} when experiment is done. */
   private final boolean makeFabFirst;
@@ -266,8 +275,20 @@ public class FocusActorForScreenStateChange {
       nodeToRestoreFocus = history.getMemoryStore().findRestoreNode(root, screenState, windowId);
     }
     if (nodeToRestoreFocus == null) {
+      long nowMs = SystemClock.uptimeMillis();
       SemanticScreenKey screenKey = SemanticScreenKey.create(root, screenState, windowId);
-      history.getRestoreCoordinator().armPendingRestore(screenKey, SystemClock.uptimeMillis());
+      boolean armed = history.getRestoreCoordinator().armPendingRestore(screenKey, nowMs);
+      if (armed
+          && !inDeferredRestoreRetry
+          && (nowMs - screenState.getScreenTransitionStartTime()) < FAST_TRANSITION_WINDOW_MS) {
+        // Give the returning screen a brief chance to finish binding its items instead of
+        // immediately jumping focus to the first element on screen at 0 ms.
+        deferredRestoreHandler.removeCallbacksAndMessages(null);
+        deferredRestoreHandler.postDelayed(
+            () -> runDeferredRestoreOrFallback(screenState, eventId),
+            FAST_RESTORE_RETRY_DELAY_MS);
+        return true;
+      }
       return false;
     }
 
@@ -311,7 +332,29 @@ public class FocusActorForScreenStateChange {
           TimerAction.INITIAL_FOCUS_RESTORE, startTime, primesController.getTime());
     }
 
+    if (success) {
+      deferredRestoreHandler.removeCallbacksAndMessages(null);
+    }
     return success;
+  }
+
+  private void runDeferredRestoreOrFallback(ScreenState screenState, EventId eventId) {
+    if (!actorState.getFocusHistory().getRestoreCoordinator().hasPendingRestore(SystemClock.uptimeMillis())) {
+      // User already interacted or focus was already restored by a subtree event.
+      return;
+    }
+    inDeferredRestoreRetry = true;
+    try {
+      if (restoreLastFocusedNode(screenState, eventId)) {
+        return;
+      }
+      if (syncAccessibilityFocusAndInputFocus(screenState, eventId)) {
+        return;
+      }
+      focusOnRequestInitialNodeOrFirstFocusableNonTitleNode(screenState, eventId);
+    } finally {
+      inDeferredRestoreRetry = false;
+    }
   }
 
   /**

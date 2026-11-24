@@ -3,6 +3,7 @@ package com.google.android.accessibility.talkback.status
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -12,18 +13,25 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.output.SpeechController
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
 import java.util.function.Consumer
 
 class CurrentLocationActivity : AppCompatActivity() {
   private var reader: CurrentLocationReader? = null
   private var started = false
+  private var requestedFineUpgrade = false
+  private var awaitingSettingsResolution = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -45,22 +53,93 @@ class CurrentLocationActivity : AppCompatActivity() {
       insets
     }
     setContentView(content)
-    if (permitted()) start()
-    else requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION), 1)
+    ensurePermissionsAndStart()
   }
 
-  private fun permitted() = arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
-    .any { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
+  private fun hasFinePermission() =
+    ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+      PackageManager.PERMISSION_GRANTED
 
-  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    if (requestCode == 1) {
-      if (permitted()) start() else complete(getString(R.string.location_permission_needed))
+  private fun hasCoarsePermission() =
+    ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+      PackageManager.PERMISSION_GRANTED
+
+  private fun ensurePermissionsAndStart() {
+    when {
+      hasFinePermission() -> checkHighAccuracySettingsThenStart()
+      hasCoarsePermission() && !requestedFineUpgrade -> {
+        requestedFineUpgrade = true
+        requestPermissions(
+          arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+          REQUEST_LOCATION_PERMISSION,
+        )
+      }
+      hasCoarsePermission() -> checkHighAccuracySettingsThenStart()
+      else -> {
+        requestedFineUpgrade = true
+        requestPermissions(
+          arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+          REQUEST_LOCATION_PERMISSION,
+        )
+      }
     }
   }
 
-  private fun start() {
-    if (started) return
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (requestCode == REQUEST_LOCATION_PERMISSION) {
+      if (hasFinePermission() || hasCoarsePermission()) {
+        checkHighAccuracySettingsThenStart()
+      } else {
+        complete(getString(R.string.location_permission_needed))
+      }
+    }
+  }
+
+  private fun checkHighAccuracySettingsThenStart() {
+    val fineGranted = hasFinePermission()
+    val gmsAvailable = runCatching {
+      GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS
+    }.getOrDefault(false)
+    if (!gmsAvailable) {
+      startReader()
+      return
+    }
+
+    val settingsRequest = LocationSettingsRequest.Builder()
+      .addLocationRequest(CurrentLocationReader.buildHighAccuracyGmsRequest(fineGranted))
+      .setAlwaysShow(true)
+      .build()
+
+    LocationServices.getSettingsClient(this)
+      .checkLocationSettings(settingsRequest)
+      .addOnSuccessListener(this) { startReader() }
+      .addOnFailureListener(this) { exception ->
+        if (exception is ResolvableApiException && !awaitingSettingsResolution) {
+          try {
+            awaitingSettingsResolution = true
+            exception.startResolutionForResult(this, REQUEST_LOCATION_SETTINGS)
+          } catch (_: IntentSender.SendIntentException) {
+            awaitingSettingsResolution = false
+            startReader()
+          }
+        } else {
+          startReader()
+        }
+      }
+  }
+
+  @Deprecated("Deprecated in Java")
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    super.onActivityResult(requestCode, resultCode, data)
+    if (requestCode == REQUEST_LOCATION_SETTINGS) {
+      awaitingSettingsResolution = false
+      startReader()
+    }
+  }
+
+  private fun startReader() {
+    if (started || isFinishing || isDestroyed) return
     started = true
     reader = CurrentLocationReader(this, Consumer(::complete)).also { it.read() }
   }
@@ -78,8 +157,10 @@ class CurrentLocationActivity : AppCompatActivity() {
   }
 
   override fun onStop() {
-    reader?.cancel()
-    if (started && !isFinishing) finish()
+    if (!awaitingSettingsResolution) {
+      reader?.cancel()
+      if (started && !isFinishing) finish()
+    }
     super.onStop()
   }
 
@@ -89,6 +170,9 @@ class CurrentLocationActivity : AppCompatActivity() {
   }
 
   companion object {
+    private const val REQUEST_LOCATION_PERMISSION = 1
+    private const val REQUEST_LOCATION_SETTINGS = 2
+
     @JvmStatic fun open(context: Context): Boolean {
       context.startActivity(Intent(context, CurrentLocationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
       return true
