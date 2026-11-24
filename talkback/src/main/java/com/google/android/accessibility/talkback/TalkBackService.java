@@ -90,6 +90,7 @@ import android.view.Display;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -3821,6 +3822,12 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (BuildVersionUtils.isAtLeastQ()) {
       info.setInteractiveUiTimeoutMillis(DEFAULT_INTERACTIVE_UI_TIMEOUT_MILLIS);
     }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      info.setMotionEventSources(
+          (info.flags & AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE) != 0
+              ? InputDevice.SOURCE_TOUCHSCREEN
+              : 0);
+    }
     LogUtils.v(TAG, "Accessibility Service flag set: 0x%X", info.flags);
     setServiceInfo(info);
     forgetTouchInteraction("service flags set");
@@ -5349,6 +5356,14 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     extendedGesturesController.update(
         isServiceActive() && !PauseController.isPaused() && !yieldingToOtherScreenReader);
+  }
+
+  @Override
+  public void onMotionEvent(@NonNull MotionEvent event) {
+    super.onMotionEvent(event);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      TouchInteractionMonitor.recordObservedMotionEvent(event);
+    }
   }
 
   /**

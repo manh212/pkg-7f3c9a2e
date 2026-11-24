@@ -3,7 +3,6 @@ package com.google.android.accessibility.talkback.focusmanagement.interpreter;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.SystemClock;
-import android.text.TextUtils;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.TouchInteractionMonitor;
@@ -143,6 +142,8 @@ final class OverlayTouchTargetResolver {
       queue.add(sibling);
     }
 
+    Rect overlayBounds = new Rect();
+    overlayNode.getBoundsInScreen(overlayBounds);
     int scanned = 0;
     while (!queue.isEmpty() && scanned < MAX_SIBLING_NODES_SCANNED) {
       AccessibilityNodeInfoCompat node = queue.poll();
@@ -151,17 +152,17 @@ final class OverlayTouchTargetResolver {
         continue;
       }
 
-      boolean hasLabel =
-          !TextUtils.isEmpty(node.getContentDescription()) || !TextUtils.isEmpty(node.getText());
       int nestedCount = node.getChildCount();
-      if (hasLabel && AccessibilityNodeInfoUtils.shouldFocusNode(node)) {
+      if (AccessibilityNodeInfoUtils.shouldFocusNode(node)) {
         Rect bounds = new Rect();
         node.getBoundsInScreen(bounds);
-        if (!bounds.isEmpty()) {
+        boolean coversOverlay =
+            !overlayBounds.isEmpty()
+                && bounds.width() >= overlayBounds.width() * 0.85f
+                && bounds.height() >= overlayBounds.height() * 0.85f;
+        if (!bounds.isEmpty() && !coversOverlay) {
           cachedTargets.add(new CachedTarget(node, bounds));
         }
-        // Still descend only if this is a container that might hold distinct labeled buttons
-        // (e.g. a layout with clickable children).
         if (nestedCount == 0) {
           continue;
         }

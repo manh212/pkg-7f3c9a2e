@@ -95,6 +95,37 @@ public class TouchInteractionMonitor implements TouchInteractionController.Callb
   }
 
   /**
+   * Records pointer coordinates passively observed via {@link
+   * AccessibilityService#onMotionEvent(MotionEvent)} (API 34+), which fires during normal touch
+   * exploration even when {@code FLAG_SEND_MOTION_EVENTS} is off.
+   */
+  public static void recordObservedMotionEvent(MotionEvent event) {
+    if (event == null || touchPassedToApp || event.getPointerCount() != 1) {
+      return;
+    }
+    int action = event.getActionMasked();
+    boolean isPositionEvent =
+        action == MotionEvent.ACTION_DOWN
+            || action == MotionEvent.ACTION_MOVE
+            || action == MotionEvent.ACTION_HOVER_ENTER
+            || action == MotionEvent.ACTION_HOVER_MOVE;
+    if (!isPositionEvent) {
+      return;
+    }
+    int x = Math.round(event.getRawX());
+    int y = Math.round(event.getRawY());
+    long now = SystemClock.uptimeMillis();
+    lastTouchX = x;
+    lastTouchY = y;
+    lastTouchUptimeMs = now;
+    TouchMoveListener listener = touchMoveListener;
+    if ((action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_HOVER_MOVE)
+        && listener != null) {
+      listener.onTouchMove(x, y, now);
+    }
+  }
+
+  /**
    * Returns whether a touch is passed to the app now, such as the hold of a double-tap and hold.
    */
   public static boolean isTouchPassedToApp() {
