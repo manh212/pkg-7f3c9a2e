@@ -22,11 +22,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
 
 /** Kiểm thử đơn vị cho {@link UniversalAccessibilityHelper}. */
-@RunWith(RobolectricTestRunner.class)
 public final class UniversalAccessibilityHelperTest {
 
   @After
