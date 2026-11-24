@@ -37,6 +37,7 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
+import com.google.android.accessibility.talkback.gesture.SyntheticTouches;
 import com.google.android.accessibility.utils.ZaloAccessibilityHelper;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.ArrayList;
@@ -160,7 +161,7 @@ public final class ZaloReactionMenu implements NodeMenu {
                 x,
                 y,
                 bounds);
-            return tap(x, y);
+            return tap(x, y, slotIndex < REACTION_LABELS.length - 1 ? REACTION_LABELS[slotIndex] : null);
           });
       items.add(item);
     }
@@ -171,18 +172,19 @@ public final class ZaloReactionMenu implements NodeMenu {
     return Math.round(bounds.left + bounds.width() * ((slotIndex + 0.5f) / slotCount));
   }
 
-  private boolean tap(int x, int y) {
+  private boolean tap(int x, int y, @Nullable String reactionLabel) {
     @Nullable AccessibilityService service = TalkBackService.getInstance();
     if (service == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
       return false;
     }
+    long tapDurationMs = ViewConfiguration.getTapTimeout();
     Path path = new Path();
     path.moveTo(x, y);
     GestureDescription gesture =
         new GestureDescription.Builder()
             .addStroke(
                 new GestureDescription.StrokeDescription(
-                    path, /* startTime= */ 0, ViewConfiguration.getTapTimeout()))
+                    path, /* startTime= */ 0, tapDurationMs))
             .build();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       DisplayMetrics metrics = service.getResources().getDisplayMetrics();
@@ -191,11 +193,29 @@ public final class ZaloReactionMenu implements NodeMenu {
           Feedback.passThroughMode(
               LOCK_PASS_THROUGH, new Region(0, 0, metrics.widthPixels, metrics.heightPixels)));
     }
+    Runnable finishSuccess =
+        () -> {
+          release();
+          if (reactionLabel != null) {
+            pipeline.returnFeedback(
+                EVENT_ID_UNTRACKED, Feedback.speech("Đã gửi cảm xúc " + reactionLabel));
+          }
+        };
+    if (SyntheticTouches.isAvailable()) {
+      handler.postDelayed(
+          () -> {
+            if (!SyntheticTouches.dispatch(service, gesture, tapDurationMs, finishSuccess)) {
+              release();
+            }
+          },
+          PASS_THROUGH_WAIT_MS);
+      return true;
+    }
     AccessibilityService.GestureResultCallback ended =
         new AccessibilityService.GestureResultCallback() {
           @Override
           public void onCompleted(GestureDescription description) {
-            release();
+            finishSuccess.run();
           }
 
           @Override
