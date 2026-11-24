@@ -72,6 +72,7 @@ class NavigationSettingsStructureTest {
         "pref_fix_stuck_touch_exploration",
         "pref_speak_nav_bar_buttons",
         "pref_touch_stops_speech_key",
+        "pref_focus_content_filter_key",
       ),
       rows.map { it.first },
     )
