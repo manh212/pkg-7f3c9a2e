@@ -162,7 +162,7 @@ public final class ShopeeAccessibilityHelper {
       return Role.ROLE_CHECK_BOX;
     }
     if (isBottomTab(node)) {
-      return Role.ROLE_TAB;
+      return Role.ROLE_TAB_BAR;
     }
     return null;
   }
