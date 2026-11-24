@@ -215,9 +215,12 @@ public class AccessibilityNodeFeedbackUtils {
   /** Returns the node content description. */
   public static CharSequence getNodeContentDescription(
       AccessibilityNodeInfoCompat node, Context context, GlobalVariables globalVariables) {
+    CharSequence filteredDescription =
+        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.filterContentDescription(
+            node, node.getContentDescription());
     return prepareSpans(
         LauncherPositionDescriptionFilter.filter(
-            node.getContentDescription(), node.getPackageName(), context),
+            filteredDescription, node.getPackageName(), context),
         node,
         context,
         globalVariables.getPreferredLocaleByNode(node),
@@ -244,9 +247,12 @@ public class AccessibilityNodeFeedbackUtils {
   /** Returns the node content and supplemental description. */
   public static CharSequence getNodeContentAndSupplementalDescription(
       AccessibilityNodeInfoCompat node, Context context, GlobalVariables globalVariables) {
+    CharSequence rawContentDescription =
+        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.filterContentDescription(
+            node, node.getContentDescription());
     CharSequence contentDescription =
         LauncherPositionDescriptionFilter.filter(
-            node.getContentDescription(), node.getPackageName(), context);
+            rawContentDescription, node.getPackageName(), context);
     CharSequence supplementalDescription =
         LauncherPositionDescriptionFilter.filter(
             getSupplementalDescription(node), node.getPackageName(), context);

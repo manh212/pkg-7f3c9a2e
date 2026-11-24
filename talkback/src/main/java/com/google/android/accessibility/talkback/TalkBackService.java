@@ -1401,7 +1401,12 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (ShizukuClipboard.isReadToast(event)) {
       return;
     }
-    if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+    int eventType = event.getEventType();
+    if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        || eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED) {
+      updatePackageSpecificServiceFlags(event.getPackageName());
+    }
+    if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
       FocusProcessorForLogicalNavigation.onScrollEventReceived(event);
     }
     ScrollAhead.onAccessibilityEvent(event);
@@ -3808,6 +3813,11 @@ public class TalkBackService extends AccessibilityServiceCompat
         && shouldHandleDoubleTap()) {
       info.flags |= FLAG_SERVICE_HANDLES_DOUBLE_TAP;
     }
+    if (includeNotImportantViewsForPackage) {
+      info.flags |= AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+    } else {
+      info.flags &= ~AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+    }
     info.notificationTimeout = 0;
     if (BuildVersionUtils.isAtLeastQ()) {
       info.setInteractiveUiTimeoutMillis(DEFAULT_INTERACTIVE_UI_TIMEOUT_MILLIS);
@@ -3820,6 +3830,50 @@ public class TalkBackService extends AccessibilityServiceCompat
   private static boolean shouldSendGestureMotionEvents() {
     return GestureReporter.ENABLED
         || (BuildVersionUtils.isAtLeastS() && Performance.getInstance().isMeasuringNavigation());
+  }
+
+  private boolean includeNotImportantViewsForPackage = false;
+
+  /**
+   * Bật động {@link AccessibilityServiceInfo#FLAG_INCLUDE_NOT_IMPORTANT_VIEWS} chỉ khi người dùng
+   * đang ở trong Shopee để các thành phần đầu trang bị đánh dấu không quan trọng (thanh Tìm kiếm,
+   * Giỏ hàng, Tin nhắn) xuất hiện lại trong thứ tự vuốt trái/phải bình thường mà không làm nặng
+   * cây trợ năng của các ứng dụng khác.
+   */
+  private void updatePackageSpecificServiceFlags(@Nullable CharSequence packageName) {
+    if (packageName == null
+        || packageName.length() == 0
+        || !isServiceActive()
+        || yieldingToOtherScreenReader) {
+      return;
+    }
+    String pkg = packageName.toString();
+    if ("com.android.systemui".equals(pkg)
+        || "miui.systemui.plugin".equals(pkg)
+        || getPackageName().equals(pkg)) {
+      return;
+    }
+    boolean wantIncludeNotImportant =
+        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.isShopeePackage(pkg);
+    if (wantIncludeNotImportant == includeNotImportantViewsForPackage) {
+      return;
+    }
+    AccessibilityServiceInfo info = getServiceInfo();
+    if (info == null) {
+      return;
+    }
+    includeNotImportantViewsForPackage = wantIncludeNotImportant;
+    int flag = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+    int updatedFlags = wantIncludeNotImportant ? (info.flags | flag) : (info.flags & ~flag);
+    if (updatedFlags != info.flags) {
+      info.flags = updatedFlags;
+      setServiceInfo(info);
+      LogUtils.d(
+          TAG,
+          "Updated FLAG_INCLUDE_NOT_IMPORTANT_VIEWS=%s for %s",
+          wantIncludeNotImportant,
+          pkg);
+    }
   }
 
   public void updateNavigationMotionReporting() {

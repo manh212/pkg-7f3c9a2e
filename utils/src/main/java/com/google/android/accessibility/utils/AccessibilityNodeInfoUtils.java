@@ -105,7 +105,7 @@ public class AccessibilityNodeInfoUtils {
 
   /** Returns text from an accessibility-node, including spans. */
   public static @Nullable CharSequence getText(@Nullable AccessibilityNodeInfoCompat node) {
-    return (node == null) ? null : node.getText();
+    return (node == null) ? null : ShopeeAccessibilityHelper.filterText(node, node.getText());
   }
 
   @FormatMethod
@@ -574,7 +574,8 @@ public class AccessibilityNodeInfoUtils {
 
     // Prefer content description over text.
     // TODO: Why are we checking the trimmed length?
-    final CharSequence contentDescription = node.getContentDescription();
+    final CharSequence contentDescription =
+        ShopeeAccessibilityHelper.filterContentDescription(node, node.getContentDescription());
     if (!TextUtils.isEmpty(contentDescription)
         && (TextUtils.getTrimmedLength(contentDescription) > 0)) {
       return contentDescription;
@@ -600,6 +601,9 @@ public class AccessibilityNodeInfoUtils {
     }
 
     @Nullable CharSequence overridden = NodeOverrides.state(node);
+    if (overridden == null) {
+      overridden = ShopeeAccessibilityHelper.getStateOverride(node);
+    }
     final CharSequence state = overridden != null ? overridden : node.getStateDescription();
     if (!TextUtils.isEmpty(state) && (TextUtils.getTrimmedLength(state) > 0)) {
       return state;
@@ -913,15 +917,15 @@ public class AccessibilityNodeInfoUtils {
       LogUtils.v(TAG, "Don't focus, node=null");
       return false;
     }
-    if (NodeOverrides.hidden(node)) {
-      LogUtils.v(TAG, "Don't focus, a script hides it");
+    if (NodeOverrides.hidden(node) || ShopeeAccessibilityHelper.shouldHideNode(node)) {
+      LogUtils.v(TAG, "Don't focus, hidden by override/app rule");
       return false;
     }
     if (TelegramReplyQuote.isReplyQuote(node)) {
       LogUtils.v(TAG, "Don't focus, a Telegram reply quote is read with its message");
       return false;
     }
-    if (NodeOverrides.grouped(node)) {
+    if (NodeOverrides.grouped(node) || ShopeeAccessibilityHelper.isGroupedCard(node)) {
       return isVisible(node);
     }
     // Inside views that support web navigation, we delegate focus to the view itself and
@@ -1183,6 +1187,7 @@ public class AccessibilityNodeInfoUtils {
           || !isVisible(child)
           || isFocusableOrClickable(child)
           || NodeOverrides.hidden(child)
+          || ShopeeAccessibilityHelper.shouldHideNode(child)
           || WebInterfaceUtils.supportsWebActions(child)) {
         continue;
       }
@@ -1203,7 +1208,8 @@ public class AccessibilityNodeInfoUtils {
         new Filter<AccessibilityNodeInfoCompat>() {
           @Override
           public boolean accept(AccessibilityNodeInfoCompat ancestor) {
-            return NodeOverrides.grouped(ancestor);
+            return NodeOverrides.grouped(ancestor)
+                || ShopeeAccessibilityHelper.isGroupedCard(ancestor);
           }
         });
   }
@@ -2165,7 +2171,9 @@ public class AccessibilityNodeInfoUtils {
     return node != null
         && node.getCollectionInfo() == null
         && (!TextUtils.isEmpty(AccessibilityNodeInfoUtils.getText(node))
-            || !TextUtils.isEmpty(node.getContentDescription())
+            || !TextUtils.isEmpty(
+                ShopeeAccessibilityHelper.filterContentDescription(
+                    node, node.getContentDescription()))
             || !TextUtils.isEmpty(node.getHintText()));
   }
 
@@ -2189,6 +2197,7 @@ public class AccessibilityNodeInfoUtils {
   public static boolean takesFocusWhenVisible(@NonNull AccessibilityNodeInfoCompat node) {
     return node.isScreenReaderFocusable()
         || NodeOverrides.grouped(node)
+        || ShopeeAccessibilityHelper.isGroupedCard(node)
         || isActionableForAccessibility(node)
         || isAdjustableSlider(node);
   }
@@ -2206,6 +2215,7 @@ public class AccessibilityNodeInfoUtils {
         && isVisible(node)
         && (node.isScreenReaderFocusable()
             || NodeOverrides.grouped(node)
+            || ShopeeAccessibilityHelper.isGroupedCard(node)
             || isActionableForAccessibility(node)
             || isAdjustableSlider(node));
   }

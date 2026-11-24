@@ -774,7 +774,14 @@ public class Role {
       return ROLE_NONE;
     }
     @Nullable Integer overridden = NodeOverrides.role(node);
-    return overridden != null ? overridden : getAppRole(node);
+    if (overridden != null) {
+      return overridden;
+    }
+    @Nullable Integer shopeeRole = ShopeeAccessibilityHelper.getRoleOverride(node);
+    if (shopeeRole != null) {
+      return shopeeRole;
+    }
+    return getAppRole(node);
   }
 
   @RoleName
