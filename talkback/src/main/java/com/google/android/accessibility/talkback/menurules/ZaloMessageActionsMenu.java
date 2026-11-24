@@ -22,6 +22,8 @@ import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRAC
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.Region;
@@ -40,7 +42,9 @@ import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.talkback.gesture.SyntheticTouches;
+import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.ZaloAccessibilityHelper;
+import com.google.android.accessibility.utils.screencapture.ScreenshotCapture;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,6 +64,7 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
 
   private static final int ACTION_ID_BASE = 0x5f000000;
   private static final int REACTION_ID_BASE = 0x5f100000;
+  private static final int SEE_MORE_ACTION_ID = 0x5f200000;
   private static final long INITIAL_POLL_DELAY_MS = 1050L;
   private static final long POLL_INTERVAL_MS = 180L;
   private static final long REACTION_TAP_WAIT_MS = 140L;
@@ -153,6 +158,19 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
       return items;
     }
     String lower = collectLowerText(node);
+    if (hasSeeMoreTruncation(lower)) {
+      Rect capturedBounds = new Rect();
+      node.getBoundsInScreen(capturedBounds);
+      ContextMenuItem seeMoreItem =
+          ContextMenu.createMenuItem(
+              context, Menu.NONE, SEE_MORE_ACTION_ID, Menu.NONE, "Xem thêm");
+      seeMoreItem.setOnMenuItemClickListener(
+          menuItem -> {
+            triggerSeeMoreTap(node, capturedBounds, lower);
+            return true;
+          });
+      items.add(seeMoreItem);
+    }
     boolean callCard = isCallCard(lower);
     String[] labels = resolveContextualActions(node, lower, callCard);
     for (int i = 0; i < labels.length; i++) {
@@ -189,6 +207,105 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
       }
     }
     return items;
+  }
+
+  private static boolean hasSeeMoreTruncation(String lower) {
+    String trimmed = lower.trim();
+    return trimmed.endsWith("xem thêm")
+        || trimmed.contains("… xem thêm")
+        || trimmed.contains("... xem thêm")
+        || trimmed.contains("\nxem thêm");
+  }
+
+  private void triggerSeeMoreTap(
+      AccessibilityNodeInfoCompat node, Rect capturedBounds, String lowerText) {
+    cancelPendingPoll();
+    @Nullable AccessibilityService service = TalkBackService.getInstance();
+    if (service == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      return;
+    }
+    Rect bounds = new Rect(capturedBounds);
+    if (node.refresh()) {
+      Rect refreshed = new Rect();
+      node.getBoundsInScreen(refreshed);
+      if (!refreshed.isEmpty()) {
+        bounds.set(refreshed);
+      }
+    }
+    if (bounds.isEmpty()) {
+      return;
+    }
+    DisplayMetrics metrics = service.getResources().getDisplayMetrics();
+    int fallbackX =
+        isOutgoingHint(lowerText)
+            ? bounds.left + (int) (bounds.width() * 0.72f)
+            : bounds.left + (int) (bounds.width() * 0.30f);
+    int fallbackY = Math.max(bounds.top + 8, bounds.bottom - Math.round(28f * metrics.density));
+
+    if (FeatureSupport.canTakeScreenShotByAccessibilityService()) {
+      ScreenshotCapture.takeScreenshot(
+          service,
+          (screenCapture, isFormatSupported) -> {
+            int[] pt = findSeeMoreLinkPoint(screenCapture, bounds, fallbackX, fallbackY, metrics.density);
+            if (screenCapture != null && !screenCapture.isRecycled()) {
+              screenCapture.recycle();
+            }
+            tapRawPoint(service, pt[0], pt[1], /* spokenConfirmation= */ null);
+          });
+      return;
+    }
+    tapRawPoint(service, fallbackX, fallbackY, /* spokenConfirmation= */ null);
+  }
+
+  /**
+   * Tìm chính xác tọa độ cụm chữ xanh "Xem thêm" ở phần đáy của bong bóng tin nhắn dài trên Zalo.
+   * Nếu không thấy chữ xanh (ví dụ đổi giao diện), tự động chạm vùng đáy bong bóng.
+   */
+  private static int[] findSeeMoreLinkPoint(
+      @Nullable Bitmap bitmap, Rect bounds, int fallbackX, int fallbackY, float density) {
+    if (bitmap == null || bitmap.isRecycled()) {
+      return new int[] {fallbackX, fallbackY};
+    }
+    int bmpW = bitmap.getWidth();
+    int bmpH = bitmap.getHeight();
+    int left = Math.max(0, Math.min(bounds.left, bmpW - 1));
+    int right = Math.max(left + 1, Math.min(bounds.right, bmpW));
+    int top = Math.max(0, Math.min(bounds.top, bmpH - 1));
+    int bottom = Math.max(top + 1, Math.min(bounds.bottom, bmpH));
+    int width = right - left;
+    int height = bottom - top;
+    if (width < 40 || height < 40) {
+      return new int[] {fallbackX, fallbackY};
+    }
+
+    // Quét 30% phía dưới của khung tin nhắn để tìm cụm chữ xanh "Xem thêm" (xanh dương Zalo)
+    int scanTop = top + (int) (height * 0.70f);
+    int scanBottom = Math.max(scanTop + 1, bottom - Math.round(6f * density));
+    int scanLeft = left + (int) (width * 0.10f);
+    int scanRight = right - Math.round(8f * density);
+
+    long sumX = 0;
+    long sumY = 0;
+    int blueCount = 0;
+    int step = Math.max(1, Math.round(density));
+    for (int y = scanTop; y < scanBottom; y += step) {
+      for (int x = scanLeft; x < scanRight; x += step) {
+        int px = bitmap.getPixel(x, y);
+        int r = Color.red(px);
+        int g = Color.green(px);
+        int b = Color.blue(px);
+        // Chữ link xanh Zalo: kênh Blue nổi trội rõ so với Red (tránh nền xanh nhạt của tin nhắn đi)
+        if (b >= 145 && (b - r) >= 55 && (b - g) >= 15) {
+          sumX += x;
+          sumY += y;
+          blueCount++;
+        }
+      }
+    }
+    if (blueCount >= 8) {
+      return new int[] {(int) (sumX / blueCount), (int) (sumY / blueCount)};
+    }
+    return new int[] {fallbackX, fallbackY};
   }
 
   private void triggerLongPressAndSelect(String targetLabel) {
@@ -243,7 +360,7 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
             if (!bounds.isEmpty()) {
               int x = ZaloReactionMenu.computeSlotCenterX(bounds, slotIndex, REACTION_SLOT_COUNT);
               int y = bounds.centerY();
-              tapReactionPoint(service, x, y, reactionName);
+              tapRawPoint(service, x, y, "Đã gửi cảm xúc " + reactionName);
               return;
             }
           }
@@ -258,8 +375,8 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
     handler.postDelayed(task, delayMs);
   }
 
-  private void tapReactionPoint(
-      AccessibilityService service, int x, int y, String reactionName) {
+  private void tapRawPoint(
+      AccessibilityService service, int x, int y, @Nullable String spokenConfirmation) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
       return;
     }
@@ -284,8 +401,10 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
     Runnable finishSuccess =
         () -> {
           releasePassThrough();
-          pipeline.returnFeedback(
-              EVENT_ID_UNTRACKED, Feedback.speech("Đã gửi cảm xúc " + reactionName));
+          if (spokenConfirmation != null) {
+            pipeline.returnFeedback(
+                EVENT_ID_UNTRACKED, Feedback.speech(spokenConfirmation));
+          }
         };
     Runnable finishCancel = this::releasePassThrough;
     if (SyntheticTouches.isAvailable()) {
@@ -538,6 +657,7 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
         if (lp.contains("main_chat_view")
             || lp.contains("chat_drawer_layout")
             || lp.contains("chat_list")
+            || lp.contains("chatlinelist")
             || lp.contains("chat_content")) {
           hasChatAncestor = true;
         }

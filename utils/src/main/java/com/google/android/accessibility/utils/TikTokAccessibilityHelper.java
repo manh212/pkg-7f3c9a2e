@@ -18,11 +18,16 @@ package com.google.android.accessibility.utils;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,9 +53,33 @@ public final class TikTokAccessibilityHelper {
   private static final Pattern COUNTDOWN_TIME_PATTERN = Pattern.compile("^\\d{1,2}:\\d{2}:\\d{2}$");
   private static final Pattern COUNTDOWN_PART_PATTERN = Pattern.compile("^(:|\\d{1,2})$");
 
+  private static final long LYNX_SNAPSHOT_TTL_MS = 400L;
+  private static final int MAX_LYNX_SNAPSHOT_CACHE = 8;
+
   private static final ConcurrentHashMap<String, String> RESOLVED_RES_CACHE =
       new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<Integer, LynxParentSnapshot> LYNX_SNAPSHOT_CACHE =
+      new ConcurrentHashMap<>();
   @Nullable private static volatile Context appContext;
+
+  /**
+   * Ảnh chụp ngắn hạn (400ms) danh sách con của một khung Lynx lớn để tránh quét O(N²)
+   * {@code parent.getChild(i)} hàng chục nghìn lần mỗi lần vuốt trên TikTok Shop.
+   */
+  private static final class LynxParentSnapshot {
+    final long expiresAtMs;
+    final int childCount;
+    final Map<AccessibilityNodeInfoCompat, Integer> indexByNode = new HashMap<>();
+    final Set<String> clickableLowerLabels = new HashSet<>();
+    final Map<String, Integer> firstIndexByLowerLabel = new HashMap<>();
+    final Set<String> priceLowerLabels = new HashSet<>();
+    boolean hasCountdownTime;
+
+    LynxParentSnapshot(long expiresAtMs, int childCount) {
+      this.expiresAtMs = expiresAtMs;
+      this.childCount = childCount;
+    }
+  }
 
   private TikTokAccessibilityHelper() {}
 
@@ -244,7 +273,7 @@ public final class TikTokAccessibilityHelper {
    * Ẩn các node rác, khung bọc rỗng, icon trang trí và văn bản Lynx lặp trên TikTok để vuốt gọn.
    */
   public static boolean shouldHideNode(@Nullable AccessibilityNodeInfoCompat node) {
-    if (!isTikTokNode(node)) {
+    if (!isTikTokNode(node) || !node.isVisibleToUser()) {
       return false;
     }
     CharSequence desc = node.getContentDescription();
@@ -732,8 +761,53 @@ public final class TikTokAccessibilityHelper {
   private static boolean isEmptyLynxDecorativeNode(@NonNull AccessibilityNodeInfoCompat node) {
     return node.getChildCount() == 0
         && isEmptyTrimmed(node.getText())
-        && isEmptyTrimmed(node.getContentDescription())
-        && !node.isScrollable();
+        && isEmptyTrimmed(node.getContentDescription());
+  }
+
+  @Nullable
+  private static LynxParentSnapshot getOrBuildLynxSnapshot(
+      @NonNull AccessibilityNodeInfoCompat parent) {
+    int count = parent.getChildCount();
+    if (count <= 1) {
+      return null;
+    }
+    long now = SystemClock.uptimeMillis();
+    int key = parent.hashCode();
+    LynxParentSnapshot cached = LYNX_SNAPSHOT_CACHE.get(key);
+    if (cached != null && cached.childCount == count && now <= cached.expiresAtMs) {
+      return cached;
+    }
+    if (LYNX_SNAPSHOT_CACHE.size() >= MAX_LYNX_SNAPSHOT_CACHE) {
+      LYNX_SNAPSHOT_CACHE.clear();
+    }
+    LynxParentSnapshot snap = new LynxParentSnapshot(now + LYNX_SNAPSHOT_TTL_MS, count);
+    int limit = Math.min(count, 160);
+    for (int i = 0; i < limit; i++) {
+      AccessibilityNodeInfoCompat child = parent.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      snap.indexByNode.put(child, i);
+      String label = extractTrimmedLabel(child);
+      if (label.isEmpty()) {
+        continue;
+      }
+      String lower = label.toLowerCase(Locale.ROOT);
+      if (child.isClickable()) {
+        snap.clickableLowerLabels.add(lower);
+      }
+      if (!snap.firstIndexByLowerLabel.containsKey(lower)) {
+        snap.firstIndexByLowerLabel.put(lower, i);
+      }
+      if (lower.contains("₫") && lower.length() > 1) {
+        snap.priceLowerLabels.add(lower);
+      }
+      if (!snap.hasCountdownTime && COUNTDOWN_TIME_PATTERN.matcher(label).matches()) {
+        snap.hasCountdownTime = true;
+      }
+    }
+    LYNX_SNAPSHOT_CACHE.put(key, snap);
+    return snap;
   }
 
   private static boolean isDuplicateLynxSibling(@NonNull AccessibilityNodeInfoCompat node) {
@@ -748,30 +822,34 @@ public final class TikTokAccessibilityHelper {
     if (parent == null) {
       return false;
     }
-    int idx = indexInParent(parent, node);
-    if (idx < 0) {
+    LynxParentSnapshot snap = getOrBuildLynxSnapshot(parent);
+    if (snap == null) {
       return false;
     }
-    int count = Math.min(parent.getChildCount(), 140);
-    for (int i = 0; i < count; i++) {
-      if (i == idx) {
-        continue;
+    Integer idxObj = snap.indexByNode.get(node);
+    int idx = idxObj != null ? idxObj : -1;
+    String ownLower = own.toLowerCase(Locale.ROOT);
+
+    if (snap.clickableLowerLabels.contains(ownLower)) {
+      return true;
+    }
+    Integer firstIdx = snap.firstIndexByLowerLabel.get(ownLower);
+    if (firstIdx != null && idx >= 0 && firstIdx < idx) {
+      return true;
+    }
+    // Ẩn mảnh chữ ngắn nằm trong một nút clickable hoặc nhãn giá đầy đủ (ví dụ "Trả sau" trong
+    // "Trả sau-99%", "-99%" trong "Trả sau-99%", "810K" và "₫" trong "810K₫")
+    for (String clickLabel : snap.clickableLowerLabels) {
+      if (clickLabel.length() > ownLower.length()
+          && (clickLabel.startsWith(ownLower) || clickLabel.endsWith(ownLower))) {
+        return true;
       }
-      AccessibilityNodeInfoCompat sibling = parent.getChild(i);
-      if (sibling == null) {
-        continue;
-      }
-      String sibLabel = extractTrimmedLabel(sibling);
-      if (sibLabel.isEmpty()) {
-        continue;
-      }
-      if (sibLabel.equalsIgnoreCase(own)) {
-        // Nếu có anh em bấm được cùng chữ, hoặc anh em không bấm được xuất hiện trước cùng chữ -> ẩn bản lặp này
-        if (sibling.isClickable() || i < idx) {
-          return true;
-        }
-      } else if (sibling.isClickable() && sibLabel.toLowerCase(Locale.ROOT).startsWith(own.toLowerCase(Locale.ROOT))) {
-        // Ví dụ UIView clickable "Trả sau-99%" / "TikTok Pay100K" và FlattenUIText "Trả sau" / "TikTok Pay"
+    }
+    if ("₫".equals(ownLower) && !snap.priceLowerLabels.isEmpty()) {
+      return true;
+    }
+    for (String priceLabel : snap.priceLowerLabels) {
+      if (priceLabel.length() > ownLower.length() && priceLabel.startsWith(ownLower)) {
         return true;
       }
     }
@@ -790,19 +868,8 @@ public final class TikTokAccessibilityHelper {
     if (parent == null) {
       return false;
     }
-    int idx = indexInParent(parent, node);
-    int start = Math.max(0, idx - 6);
-    int end = Math.min(parent.getChildCount(), idx + 6);
-    for (int i = start; i < end; i++) {
-      if (i == idx) {
-        continue;
-      }
-      AccessibilityNodeInfoCompat sibling = parent.getChild(i);
-      if (sibling != null && COUNTDOWN_TIME_PATTERN.matcher(extractTrimmedLabel(sibling)).matches()) {
-        return true;
-      }
-    }
-    return false;
+    LynxParentSnapshot snap = getOrBuildLynxSnapshot(parent);
+    return snap != null && snap.hasCountdownTime;
   }
 
   private static boolean isEmptyDecorativeImageInsideLabeledParent(
