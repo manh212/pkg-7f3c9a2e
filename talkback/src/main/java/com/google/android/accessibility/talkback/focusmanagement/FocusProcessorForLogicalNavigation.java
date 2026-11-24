@@ -1392,27 +1392,15 @@ public class FocusProcessorForLogicalNavigation {
           NavigationAction.Builder.copy(navigationAction).setShouldScroll(false).build(),
           eventId);
     } else {
-      // Grab exposes its genuine transportBookButton without an accessible label.
-      // When normal swipe navigation would skip that nested native control, focus the original
-      // Android view itself from the preceding booking controls. No overlay or click is created.
-      if (!ignoreDescendantsOfPivot
-          && navigationAction.targetType == NavigationTarget.TARGET_DEFAULT
-          && TraversalStrategyUtils.getLogicalDirection(
-                  navigationAction.searchDirection, WindowUtils.isScreenLayoutRTL(service))
-              == TraversalStrategy.SEARCH_FOCUS_FORWARD
-          && com.google.android.accessibility.utils.RideAppAccessibility
-              .precedesGrabBookingButton(pivot)) {
-        AccessibilityNodeInfoCompat root = TraversalTreeCache.rootFor(pivot);
-        if (root == null) {
-          root = AccessibilityNodeInfoUtils.getRoot(pivot);
-        }
-        AccessibilityNodeInfoCompat bookingButton =
-            com.google.android.accessibility.utils.RideAppAccessibility
-                .findGrabBookingButton(root);
-        if (bookingButton != null && !bookingButton.equals(pivot)
-            && setAccessibilityFocusInternal(bookingButton, navigationAction, eventId)) {
-          return true;
-        }
+      int logicalDir =
+          TraversalStrategyUtils.getLogicalDirection(
+              navigationAction.searchDirection, WindowUtils.isScreenLayoutRTL(service));
+      AccessibilityNodeInfoCompat hookTarget =
+          AppNavigationHook.Registry.findOverrideTarget(
+              pivot, ignoreDescendantsOfPivot, navigationAction, logicalDir);
+      if (hookTarget != null
+          && setAccessibilityFocusInternal(hookTarget, navigationAction, eventId)) {
+        return true;
       }
       return navigateToDefaultOrMacroGranularityTarget(
           pivot, ignoreDescendantsOfPivot, navigationAction, eventId);
@@ -4196,8 +4184,15 @@ public class FocusProcessorForLogicalNavigation {
       LogUtils.d(TAG, "autoScrollAtEdge: a carousel showing one page; not turning it.");
       return REVEAL_NONE;
     }
-    return autoScroll(scrollableNodeInfo, pivot, navigationAction, eventId)
-        ? REVEAL_MOVED : REVEAL_NONE;
+    boolean scrolled = autoScroll(scrollableNodeInfo, pivot, navigationAction, eventId);
+    if (!scrolled) {
+      LogUtils.i(
+          TAG,
+          "scrollAtEdge: autoScroll refused by %s (id=%s)",
+          scrollableNode.getClassName(),
+          scrollableNode.getViewIdResourceName());
+    }
+    return scrolled ? REVEAL_MOVED : REVEAL_NONE;
   }
 
   /**
@@ -7598,48 +7593,4 @@ public class FocusProcessorForLogicalNavigation {
     pageHeights.remove(list);
   }
 
-  private static class WindowNavigationFilter extends Filter<AccessibilityWindowInfo> {
-    final Context context;
-    final UniversalSearchActor.State searchState;
-
-    WindowNavigationFilter(Context context, UniversalSearchActor.State searchState) {
-      this.context = context;
-      this.searchState = searchState;
-    }
-
-    @Override
-    public boolean accept(AccessibilityWindowInfo window) {
-      if (window == null) {
-        return false;
-      }
-
-      int type = AccessibilityWindowInfoUtils.getType(window);
-      if (searchState.isUiVisible()) {
-        return isSearchOverlay(context, window)
-            || (type == AccessibilityWindowInfo.TYPE_INPUT_METHOD)
-            || (type == AccessibilityWindowInfo.TYPE_SYSTEM)
-            || (type == AccessibilityWindowInfo.TYPE_MAGNIFICATION_OVERLAY)
-            || (Role.getRole(window.getRoot()) == ROLE_FLOATING_ACTION_BUTTON);
-      } else {
-        return (type == AccessibilityWindowInfo.TYPE_APPLICATION)
-            || (type == AccessibilityWindowInfo.TYPE_INPUT_METHOD)
-            || (type == AccessibilityWindowInfo.TYPE_SYSTEM)
-            || (type == AccessibilityWindowInfo.TYPE_MAGNIFICATION_OVERLAY)
-            || isScreenElementWindow(window)
-            || (Role.getRole(window.getRoot()) == ROLE_FLOATING_ACTION_BUTTON);
-      }
-    }
-  }
-
-  private static boolean isSearchOverlay(Context context, AccessibilityWindowInfo window) {
-    return (AccessibilityWindowInfoUtils.getType(window)
-            == AccessibilityWindowInfoCompat.TYPE_ACCESSIBILITY_OVERLAY)
-        && TextUtils.equals(window.getTitle(), context.getString(R.string.title_screen_search));
-  }
-
-  private static boolean isScreenElementWindow(AccessibilityWindowInfo window) {
-    return (AccessibilityWindowInfoUtils.getType(window)
-            == AccessibilityWindowInfoCompat.TYPE_ACCESSIBILITY_OVERLAY)
-        && ScreenElements.isElementWindow(window.getId());
-  }
 }

@@ -189,7 +189,7 @@ public class TouchOnlyKeyboardNavigationTest {
   @Test
   public void crossingWindows_skipsTheWholeKeyboardWindow() {
     Filter<AccessibilityWindowInfo> filter =
-        new FocusProcessorForLogicalNavigation.DirectionalNavigationWindowFilter(
+        new DirectionalNavigationWindowFilter(
             service, null, Collections.emptySet());
 
     assertFalse(filter.accept(window(AccessibilityWindowInfo.TYPE_INPUT_METHOD, 2)));

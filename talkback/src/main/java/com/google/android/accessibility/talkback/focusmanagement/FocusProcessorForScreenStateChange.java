@@ -36,6 +36,7 @@ import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter;
+import com.google.android.accessibility.utils.input.WindowTransitionPolicy;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 /** The event-interpreter for window-events affecting focus. */

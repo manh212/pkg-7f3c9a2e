@@ -183,7 +183,21 @@ public final class SupportActivity extends Activity {
     inboxPage = pageNumber;
     page(history ? "Toàn bộ lịch sử phản hồi" : "Hộp thư hỗ trợ"); screen = 0;
     button("Gửi góp ý hoặc báo lỗi", () -> compose(false, null, null, null));
-    button("Gửi nhật ký mới nhất", () -> compose(true, null, null, null));
+    button("Gửi nhật ký mới nhất", () -> {
+      if (com.google.android.accessibility.talkback.preference.base.DiagnosticsPreferenceActions
+          .wasLogClearedRecently()) {
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Nhật ký vừa được xóa")
+            .setMessage(
+                "Bạn vừa xóa nhật ký cách đây chưa đầy 30 giây. Nếu gửi ngay bây giờ, tệp nhật ký"
+                    + " có thể không chứa dữ liệu lỗi vừa xảy ra. Bạn vẫn muốn gửi chứ?")
+            .setPositiveButton("Vẫn gửi", (d, w) -> compose(true, null, null, null))
+            .setNegativeButton("Để sau", null)
+            .show();
+      } else {
+        compose(true, null, null, null);
+      }
+    });
     button("Hàng chờ gửi", this::queue);
     if (!SupportNotifications.enabled(this)) {
       text("Thông báo hỗ trợ đang bị tắt trong Android.");

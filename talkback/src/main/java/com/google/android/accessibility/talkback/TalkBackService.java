@@ -4450,52 +4450,11 @@ public class TalkBackService extends AccessibilityServiceCompat
         getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default),
         key);
 
-    // Preference to turn off animations, so that windows are announced sooner.
-    boolean reduceDelayPref =
-        getBooleanPref(
-            R.string.pref_reduce_window_delay_key, R.bool.pref_reduce_window_delay_default);
-    if (windowEventInterpreter != null) {
-      enableAnimation(!reduceDelayPref);
-    }
-    WindowEventInterpreter.setReduceWindowDelay(reduceDelayPref);
-    String windowNames = WindowNamesSetting.read(prefs, res);
-    ScreenFeedbackManager.setWindowNames(windowNames);
-
-    AutomaticTranslation.update(this);
-    FocusProcessorForLogicalNavigation.setWrapAround(
-        getBooleanPref(R.string.pref_wrap_around_key, R.bool.pref_wrap_around_default));
-    FocusProcessorForLogicalNavigation.setAutoSwitchPage(
-        getBooleanPref(
-            R.string.pref_auto_switch_page_key, R.bool.pref_auto_switch_page_default));
-    SpeechDictionary.load(this, prefs);
-    AppGestures.load(prefs);
-    GestureProfiles.load(prefs);
-    FocusFeedbackMapper.setTouchStopsSpeech(
-        getBooleanPref(
-            R.string.pref_touch_stops_speech_key, R.bool.pref_touch_stops_speech_default));
-    // TV navigation relies on focus following input focus, so the switch is hidden there.
-    FocusProcessorForScreenStateChange.setFocusNewWindows(
-        FormFactorUtils.isAndroidTv()
-            || getBooleanPref(
-                R.string.pref_focus_new_windows_key, R.bool.pref_focus_new_windows_default));
-    EventFilter.setSpeakItemsBeforeScroll(
-        getBooleanPref(
-            R.string.pref_speak_items_before_scroll_key,
-            R.bool.pref_speak_items_before_scroll_default));
-    AccessibilityNodeInfoUtils.setFocusTextInsideItems(FocusTextInsideItems.isOn(this));
-    com.google.android.accessibility.utils.UniversalAccessibilityHelper.init(this);
-    boolean focusContentFilterEnabled =
-        getBooleanPref(
-            R.string.pref_focus_content_filter_key, R.bool.pref_focus_content_filter_default);
-    if (com.google.android.accessibility.utils.UniversalAccessibilityHelper.isFocusFilterEnabled()
-        != focusContentFilterEnabled) {
-      com.google.android.accessibility.utils.UniversalAccessibilityHelper.setFocusFilterEnabled(
-          focusContentFilterEnabled);
-      TraversalTreeCache.clear("focus_content_filter_changed");
-    } else {
-      com.google.android.accessibility.utils.UniversalAccessibilityHelper.setFocusFilterEnabled(
-          focusContentFilterEnabled);
-    }
+    MeridianNavigationPreferencesRouter.apply(
+        this,
+        prefs,
+        res,
+        windowEventInterpreter != null ? this::enableAnimation : null);
     latencyExtrasEnabled =
         !getBooleanPref(
             R.string.pref_disable_latency_extras_key,

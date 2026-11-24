@@ -21,6 +21,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.widget.Toast;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -33,7 +34,7 @@ import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-final class DiagnosticsPreferenceActions {
+public final class DiagnosticsPreferenceActions {
   private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
   private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 

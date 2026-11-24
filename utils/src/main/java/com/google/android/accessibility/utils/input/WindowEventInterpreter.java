@@ -917,6 +917,7 @@ public class WindowEventInterpreter implements WindowsDelegate, DisplayStateChan
 
   public static void setReduceWindowDelay(boolean reduce) {
     reduceWindowDelay = reduce;
+    WindowTransitionPolicy.setReduceWindowDelay(reduce);
   }
 
   /**
