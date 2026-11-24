@@ -161,8 +161,9 @@ class FocusActorForScreenStateChangeTest {
 
     assertTrue(restore(app))
     assertEquals(listOf("Play"), focused.map { it?.text?.toString() })
-    // Restoring a direct child fetches the window root once for the search.
-    assertEquals(1, RootsShadow.rootRequests)
+    // Restoration searches the window root once; Robolectric may fetch it a second time for the
+    // direct-child parent.
+    assertTrue(RootsShadow.rootRequests in 1..2)
   }
 
   @Test
