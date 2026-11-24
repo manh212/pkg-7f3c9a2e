@@ -316,6 +316,14 @@ public class ScrollEventInterpreter implements AccessibilityEventListener {
 
     @Nullable ScrollActionRecord autoScrollRecord = getAutoScrollRecordIfAvailable(event);
     if (autoScrollRecord == null) {
+      // Ignore duplicate, non-scrolling SUBTREE content changes (e.g. 1-second live countdown
+      // timers inside RecyclerView) instead of misclassifying them as manual scrolls.
+      if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+          && scrollDirection == TraversalStrategy.SEARCH_FOCUS_UNKNOWN
+          && hasValidIndex(event)
+          && isDuplicateEvent(sourceNodeIdentifier, event)) {
+        return null;
+      }
       scrollInstanceId = SCROLL_INSTANCE_ID_UNDEFINED;
       // Note that TYPE_WINDOW_CONTENT_CHANGED events can also be interpreted as manual scroll
       // action. TYPE_VIEW_SCROLLED events are filed at very coarse granularity. If we rely only on

@@ -93,6 +93,9 @@ public class FocusActor implements UserInputEventListener {
   private static final long MIN_DIRECT_LONG_PRESS_MS = 700L;
   private static final long LONG_PRESS_EXTRA_MARGIN_MS = 250L;
   private static final int DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS = 48;
+  private static final long SYNTHETIC_TAP_STROKE_MS = 40L;
+  private static final long FALLBACK_CLICK_COOLDOWN_MS = 350L;
+  private long lastFallbackClickUptimeMs = 0L;
 
   /** The only class in TalkBack which has direct access to accessibility focus from framework. */
   private final FocusManagerInternal focusManagerInternal;
@@ -843,8 +846,35 @@ public class FocusActor implements UserInputEventListener {
       AccessibilityService accessibilityService, AccessibilityNodeInfoCompat node, EventId eventId) {
     Rect rect = new Rect();
     node.getBoundsInScreen(rect);
+    if (rect.isEmpty()) {
+      return false;
+    }
+    long now = SystemClock.uptimeMillis();
+    if (fromDoubleTap(eventId) && (now - lastFallbackClickUptimeMs) < FALLBACK_CLICK_COOLDOWN_MS) {
+      return false;
+    }
+    lastFallbackClickUptimeMs = now;
+    // On API 33+ with TouchInteractionMonitor, send a single short synthetic tap directly to the
+    // app via SyntheticTouches so TouchExplorer delegates it straight through instead of feeding a
+    // 2-stroke double-tap back into GestureController in an infinite ~145ms loop (e.g. Lynx UIView
+    // and LynxFlattenUI nodes that set clickable=true without ACTION_CLICK). A 40ms tap activates
+    // OnClick without crossing the long-press threshold.
+    if (SyntheticTouches.isAvailable()
+        && SyntheticTouches.dispatch(
+            accessibilityService, buildSingleTapGesture(rect), SYNTHETIC_TAP_STROKE_MS)) {
+      return true;
+    }
     return accessibilityService.dispatchGesture(
         buildFallbackClickGesture(rect, eventId), /* callback= */ null, /* handler= */ null);
+  }
+
+  @VisibleForTesting
+  static GestureDescription buildSingleTapGesture(Rect rect) {
+    Path path = new Path();
+    path.moveTo(rect.centerX(), rect.centerY());
+    return new GestureDescription.Builder()
+        .addStroke(new StrokeDescription(path, /* startTime= */ 0L, SYNTHETIC_TAP_STROKE_MS))
+        .build();
   }
 
   @VisibleForTesting

@@ -87,6 +87,19 @@ public final class FocusRestoreCoordinator {
     LogUtils.d(TAG, "Armed pending restore for %s (window=%dms)", screenKey, retryWindowMs);
   }
 
+  /** Trả về true nếu đang có yêu cầu khôi phục tiêu điểm chưa hết hạn. */
+  public synchronized boolean hasPendingRestore(long nowUptimeMs) {
+    if (pendingRestore == null) {
+      return false;
+    }
+    long now = resolveNow(nowUptimeMs);
+    if (now > pendingRestore.deadlineUptimeMs) {
+      pendingRestore = null;
+      return false;
+    }
+    return true;
+  }
+
   /**
    * Hủy ngay yêu cầu đang chờ và tắt cửa sổ chặn đồng bộ input khi người dùng chạm tay hoặc vuốt.
    */

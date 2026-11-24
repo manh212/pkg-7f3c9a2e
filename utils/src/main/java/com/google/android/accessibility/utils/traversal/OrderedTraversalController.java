@@ -125,6 +125,13 @@ public class OrderedTraversalController {
       return null;
     }
 
+    // Prune offscreen ViewPager pages and invisible scrollable containers (e.g. 23 offscreen
+    // RecyclerView tabs or offscreen profile pages) before recursing into hundreds of invisible
+    // descendants and burning Binder IPC on every OrderCache build.
+    if (parent != null && isOffscreenContainerToPrune(rootNode, parent.getNode())) {
+      return null;
+    }
+
     WorkingTree tree = new WorkingTree(rootNode, parent);
     nodeTreeMap.put(rootNode, tree);
 
@@ -149,6 +156,33 @@ public class OrderedTraversalController {
       }
     }
     return tree;
+  }
+
+  private static boolean isOffscreenContainerToPrune(
+      @NonNull AccessibilityNodeInfoCompat node, @Nullable AccessibilityNodeInfoCompat parentNode) {
+    if (node.isVisibleToUser() || node.isAccessibilityFocused()) {
+      return false;
+    }
+    if (parentNode != null && isPagerContainer(parentNode)) {
+      return true;
+    }
+    int role = Role.getRole(node);
+    return role == Role.ROLE_LIST
+        || role == Role.ROLE_GRID
+        || role == Role.ROLE_PAGER
+        || node.isScrollable();
+  }
+
+  private static boolean isPagerContainer(@NonNull AccessibilityNodeInfoCompat node) {
+    if (Role.getRole(node) == Role.ROLE_PAGER) {
+      return true;
+    }
+    CharSequence className = node.getClassName();
+    if (className != null && className.toString().contains("ViewPager")) {
+      return true;
+    }
+    String viewId = node.getViewIdResourceName();
+    return viewId != null && viewId.endsWith(":id/viewpager");
   }
 
   public boolean missesChildren() {

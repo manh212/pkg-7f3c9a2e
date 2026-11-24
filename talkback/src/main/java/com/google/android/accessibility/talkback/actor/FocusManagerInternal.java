@@ -677,6 +677,10 @@ public class FocusManagerInternal {
    *
    * @return true if focus was restored to the pane record
    */
+  private static final long SAME_PANE_CHECK_THROTTLE_MS = 1200L;
+  private long lastSamePaneCheckUptimeMs;
+  @Nullable private AccessibilityNodeInfoCompat lastPaneCheckedFocus;
+
   private boolean maybeRestorePaneRecordAfterPaneChange(
       ScreenState state, AccessibilityNodeInfoCompat currentFocus, EventId eventId) {
     if (!FocusProcessorForScreenStateChange.focusesNewWindows()) {
@@ -692,6 +696,19 @@ public class FocusManagerInternal {
     if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
       return false;
     }
+    WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
+    long nowMs = SystemClock.uptimeMillis();
+    boolean hasPendingSemanticRestore = history.getRestoreCoordinator().hasPendingRestore(nowMs);
+    // Avoid calling root.refresh() + full-tree SemanticScreenKey.create() on every 1-second timer
+    // SUBTREE_CHANGED tick while focus has not moved off the same node in the same pane.
+    if (!hasPendingSemanticRestore
+        && currentPane.equals(paneIdentifierLastCheckedForRestore)
+        && currentFocus.equals(lastPaneCheckedFocus)
+        && (nowMs - lastSamePaneCheckUptimeMs) < SAME_PANE_CHECK_THROTTLE_MS) {
+      return false;
+    }
+    lastSamePaneCheckUptimeMs = nowMs;
+    lastPaneCheckedFocus = currentFocus;
     AccessibilityNodeInfoCompat root =
         AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
     if (root == null || !root.refresh()) {
@@ -701,14 +718,13 @@ public class FocusManagerInternal {
         history
             .getRestoreCoordinator()
             .tryResolvePendingOrPaneChange(
-                root, currentFocus, state, activeWindow.getId(), SystemClock.uptimeMillis());
+                root, currentFocus, state, activeWindow.getId(), nowMs);
     if (semanticTarget != null) {
       skipRefocus = true;
       return focusNodeFoundFromRecord(
           semanticTarget, FocusActionInfo.RESTORED_LAST_FOCUS, state, eventId);
     }
 
-    WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
     if (currentPane.equals(paneIdentifierLastCheckedForRestore)) {
       return false;
     }

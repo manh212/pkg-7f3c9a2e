@@ -118,6 +118,8 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
    * would be spoken. Each repeat starts the time over, so a steady stream stays quiet.
    */
   @VisibleForTesting static final long REPEATED_SELECTED_MS = 1000;
+  private static final long DELAY_LYNX_SELECTED_AFTER_A11Y_FOCUS_MS = 250;
+  private static final String LYNX_CLASS_PREFIX = "com.lynx.tasm.";
 
   /**
    * Delay (ms) to wait for the state to catch up before processing events that match the mask
@@ -166,6 +168,8 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
 
   private long lastWindowStateChanged;
   private AccessibilityEvent lastFocusedEvent;
+  private long lastA11yFocusedTimeMs = 0L;
+  @Nullable private CharSequence lastA11yFocusedPackage;
   private @Nullable String lastSelectedSignature;
   private @Nullable AccessibilityNodeInfo lastSelectedSource;
   private long lastSelectedTime;
@@ -280,6 +284,9 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
     // We need to save the last focused event so that we can filter out related selected events.
     if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
       lastFocusedEvent = AccessibilityEvent.obtain(event);
+    } else if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED) {
+      lastA11yFocusedTimeMs = event.getEventTime();
+      lastA11yFocusedPackage = event.getPackageName();
     }
 
     if (AccessibilityEventUtils.eventMatchesAnyType(event, MASK_DELAYED_EVENT_TYPES)) {
@@ -594,7 +601,25 @@ public class AccessibilityEventProcessor implements DisplayStateChangedListener 
         + event.isChecked();
   }
 
+  private boolean isSpuriousLynxSelectedAfterA11yFocus(final AccessibilityEvent event) {
+    long deltaMs = event.getEventTime() - lastA11yFocusedTimeMs;
+    if (deltaMs < 0 || deltaMs > DELAY_LYNX_SELECTED_AFTER_A11Y_FOCUS_MS) {
+      return false;
+    }
+    if (!TextUtils.equals(event.getPackageName(), lastA11yFocusedPackage)) {
+      return false;
+    }
+    if (event.getAction() == AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS) {
+      return true;
+    }
+    CharSequence className = event.getClassName();
+    return className != null && className.toString().startsWith(LYNX_CLASS_PREFIX);
+  }
+
   private boolean shouldKeepViewSelectedEvent(final AccessibilityEvent event) {
+    if (isSpuriousLynxSelectedAfterA11yFocus(event)) {
+      return false;
+    }
     if (lastFocusedEvent == null) {
       return true;
     }
