@@ -16,7 +16,9 @@
 
 package com.google.android.accessibility.utils;
 
-import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
 import org.junit.Test;
@@ -35,44 +37,40 @@ public final class UniversalAccessibilityHelperTest {
 
   @Test
   public void focusFilterToggle_defaultsOnAndCanBeDisabled() {
-    assertThat(UniversalAccessibilityHelper.isFocusFilterEnabled()).isTrue();
+    assertTrue(UniversalAccessibilityHelper.isFocusFilterEnabled());
     UniversalAccessibilityHelper.setFocusFilterEnabled(false);
-    assertThat(UniversalAccessibilityHelper.isFocusFilterEnabled()).isFalse();
-    assertThat(UniversalAccessibilityHelper.shouldHideNode(null)).isFalse();
+    assertFalse(UniversalAccessibilityHelper.isFocusFilterEnabled());
+    assertFalse(UniversalAccessibilityHelper.shouldHideNode(null));
   }
 
   @Test
   public void isRawResourceIdDescription_detectsOnlyAndroidIds() {
-    assertThat(UniversalAccessibilityHelper.isRawResourceIdDescription("@2131829637")).isTrue();
-    assertThat(UniversalAccessibilityHelper.isRawResourceIdDescription(" @2131843423 ")).isTrue();
-    assertThat(UniversalAccessibilityHelper.isRawResourceIdDescription("@manhmanh414")).isFalse();
-    assertThat(UniversalAccessibilityHelper.isRawResourceIdDescription("Tìm kiếm")).isFalse();
-    assertThat(UniversalAccessibilityHelper.isRawResourceIdDescription(null)).isFalse();
+    assertTrue(UniversalAccessibilityHelper.isRawResourceIdDescription("@2131829637"));
+    assertTrue(UniversalAccessibilityHelper.isRawResourceIdDescription(" @2131843423 "));
+    assertFalse(UniversalAccessibilityHelper.isRawResourceIdDescription("@manhmanh414"));
+    assertFalse(UniversalAccessibilityHelper.isRawResourceIdDescription("Tìm kiếm"));
+    assertFalse(UniversalAccessibilityHelper.isRawResourceIdDescription(null));
   }
 
   @Test
   public void isTechnicalSnakeCaseDescription_detectsInternalTestIdsOnly() {
-    assertThat(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("dd_module_item"))
-        .isTrue();
-    assertThat(
-            UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("wallet_bar_cell_left"))
-        .isTrue();
-    assertThat(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("popup_banner_image"))
-        .isTrue();
-    assertThat(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("Mua ngay")).isFalse();
-    assertThat(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("Giỏ hàng"))
-        .isFalse();
-    assertThat(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("two_parts"))
-        .isFalse();
+    assertTrue(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("dd_module_item"));
+    assertTrue(
+        UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("wallet_bar_cell_left"));
+    assertTrue(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("popup_banner_image"));
+    assertFalse(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("Mua ngay"));
+    assertFalse(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("Giỏ hàng"));
+    assertFalse(UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription("two_parts"));
   }
 
   @Test
   public void cleanControlAndPlaceholderChars_stripsObjectReplacementAndNull() {
-    assertThat(
-            UniversalAccessibilityHelper.cleanControlAndPlaceholderChars(
-                "\uFFFC  Áo khoác\u0000  mùa đông \uFFFC"))
-        .isEqualTo("Áo khoác mùa đông");
-    assertThat(UniversalAccessibilityHelper.cleanControlAndPlaceholderChars("Bình thường"))
-        .isEqualTo("Bình thường");
+    assertEquals(
+        "Áo khoác mùa đông",
+        UniversalAccessibilityHelper.cleanControlAndPlaceholderChars(
+            "\uFFFC  Áo khoác\u0000  mùa đông \uFFFC"));
+    assertEquals(
+        "Bình thường",
+        UniversalAccessibilityHelper.cleanControlAndPlaceholderChars("Bình thường"));
   }
 }
