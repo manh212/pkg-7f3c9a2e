@@ -4450,7 +4450,7 @@ public class TalkBackService extends AccessibilityServiceCompat
         getBooleanPref(R.string.pref_debug_log_key, R.bool.pref_debug_log_default),
         key);
 
-    MeridianNavigationPreferencesRouter.apply(
+    String windowNames = MeridianNavigationPreferencesRouter.apply(
         this,
         prefs,
         res,

@@ -42,7 +42,7 @@ object MeridianNavigationPreferencesRouter {
     prefs: SharedPreferences,
     res: Resources,
     animationToggle: AnimationToggle?,
-  ) {
+  ): String {
     // Preference to turn off animations, so that windows are announced sooner.
     val reduceDelayPref =
       SharedPreferencesUtils.getBooleanPref(
@@ -118,5 +118,6 @@ object MeridianNavigationPreferencesRouter {
     } else {
       UniversalAccessibilityHelper.setFocusFilterEnabled(focusContentFilterEnabled)
     }
+    return windowNames
   }
 }
