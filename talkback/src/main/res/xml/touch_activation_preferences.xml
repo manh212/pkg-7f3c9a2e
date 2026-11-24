@@ -26,4 +26,9 @@
       android:defaultValue="@bool/pref_touch_stops_speech_default"
       android:key="@string/pref_touch_stops_speech_key"
       android:title="@string/title_pref_touch_stops_speech" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="@bool/pref_focus_content_filter_default"
+      android:key="@string/pref_focus_content_filter_key"
+      android:summary="@string/summary_pref_focus_content_filter"
+      android:title="@string/title_pref_focus_content_filter" />
 </PreferenceScreen>

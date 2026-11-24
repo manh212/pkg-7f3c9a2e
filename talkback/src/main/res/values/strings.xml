@@ -2775,6 +2775,10 @@
     <string name="title_pref_collapse_list_item_actions">Use the Actions list for supported apps</string>
     <!-- Summary of the list item collapse setting. [CHAR LIMIT=NONE]-->
     <string name="summary_pref_collapse_list_item_actions">In supported apps, each list item is one stop, and its buttons move to the Actions reading control.</string>
+    <!-- Title of the navigation setting that filters non-essential focus stops across apps. [CHAR LIMIT=NONE]-->
+    <string name="title_pref_focus_content_filter">Filter focus content</string>
+    <!-- Summary of the focus content filter navigation setting. [CHAR LIMIT=NONE]-->
+    <string name="summary_pref_focus_content_filter">Keep only essential elements</string>
     <!-- Title of a synthesized action that long-presses a button inside a collapsed list item. [CHAR LIMIT=NONE]-->
     <string name="title_collapse_action_long_press">%1$s, long press</string>
     <!-- Spoken state of a settings quick action toggle: on. [CHAR LIMIT=NONE]-->

@@ -215,14 +215,20 @@ public class AccessibilityNodeFeedbackUtils {
   /** Returns the node content description. */
   public static CharSequence getNodeContentDescription(
       AccessibilityNodeInfoCompat node, Context context, GlobalVariables globalVariables) {
-    com.google.android.accessibility.utils.TikTokAccessibilityHelper.init(context);
+    com.google.android.accessibility.utils.UniversalAccessibilityHelper.init(context);
     CharSequence filteredDescription =
-        com.google.android.accessibility.utils.TikTokAccessibilityHelper.filterContentDescription(
-            node,
-            com.google.android.accessibility.utils.ZaloAccessibilityHelper.filterContentDescription(
+        com.google.android.accessibility.utils.UniversalAccessibilityHelper
+            .filterContentDescription(
                 node,
-                com.google.android.accessibility.utils.ShopeeAccessibilityHelper
-                    .filterContentDescription(node, node.getContentDescription())));
+                com.google.android.accessibility.utils.TikTokAccessibilityHelper
+                    .filterContentDescription(
+                        node,
+                        com.google.android.accessibility.utils.ZaloAccessibilityHelper
+                            .filterContentDescription(
+                                node,
+                                com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                    .filterContentDescription(
+                                        node, node.getContentDescription()))));
     return prepareSpans(
         LauncherPositionDescriptionFilter.filter(
             filteredDescription, node.getPackageName(), context),
@@ -252,14 +258,20 @@ public class AccessibilityNodeFeedbackUtils {
   /** Returns the node content and supplemental description. */
   public static CharSequence getNodeContentAndSupplementalDescription(
       AccessibilityNodeInfoCompat node, Context context, GlobalVariables globalVariables) {
-    com.google.android.accessibility.utils.TikTokAccessibilityHelper.init(context);
+    com.google.android.accessibility.utils.UniversalAccessibilityHelper.init(context);
     CharSequence rawContentDescription =
-        com.google.android.accessibility.utils.TikTokAccessibilityHelper.filterContentDescription(
-            node,
-            com.google.android.accessibility.utils.ZaloAccessibilityHelper.filterContentDescription(
+        com.google.android.accessibility.utils.UniversalAccessibilityHelper
+            .filterContentDescription(
                 node,
-                com.google.android.accessibility.utils.ShopeeAccessibilityHelper
-                    .filterContentDescription(node, node.getContentDescription())));
+                com.google.android.accessibility.utils.TikTokAccessibilityHelper
+                    .filterContentDescription(
+                        node,
+                        com.google.android.accessibility.utils.ZaloAccessibilityHelper
+                            .filterContentDescription(
+                                node,
+                                com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                    .filterContentDescription(
+                                        node, node.getContentDescription()))));
     CharSequence contentDescription =
         LauncherPositionDescriptionFilter.filter(
             rawContentDescription, node.getPackageName(), context);

@@ -17,19 +17,11 @@
 package com.google.android.accessibility.utils;
 
 import android.content.Context;
-import android.content.res.Resources;
-import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -48,46 +40,13 @@ public final class TikTokAccessibilityHelper {
   private static final String PKG_MUSICALLY = "com.zhiliaoapp.musically";
   private static final String PKG_AWEME = "com.ss.android.ugc.aweme";
 
-  private static final Pattern RAW_RES_ID_PATTERN = Pattern.compile("^@(\\d{8,10})$");
   private static final Pattern DIGITS_ONLY_PATTERN = Pattern.compile("^\\d+$");
-  private static final Pattern COUNTDOWN_TIME_PATTERN = Pattern.compile("^\\d{1,2}:\\d{2}:\\d{2}$");
-  private static final Pattern COUNTDOWN_PART_PATTERN = Pattern.compile("^(:|\\d{1,2})$");
-
-  private static final long LYNX_SNAPSHOT_TTL_MS = 400L;
-  private static final int MAX_LYNX_SNAPSHOT_CACHE = 8;
-
-  private static final ConcurrentHashMap<String, String> RESOLVED_RES_CACHE =
-      new ConcurrentHashMap<>();
-  private static final ConcurrentHashMap<Integer, LynxParentSnapshot> LYNX_SNAPSHOT_CACHE =
-      new ConcurrentHashMap<>();
-  @Nullable private static volatile Context appContext;
-
-  /**
-   * Ảnh chụp ngắn hạn (400ms) danh sách con của một khung Lynx lớn để tránh quét O(N²)
-   * {@code parent.getChild(i)} hàng chục nghìn lần mỗi lần vuốt trên TikTok Shop.
-   */
-  private static final class LynxParentSnapshot {
-    final long expiresAtMs;
-    final int childCount;
-    final Map<AccessibilityNodeInfoCompat, Integer> indexByNode = new HashMap<>();
-    final Set<String> clickableLowerLabels = new HashSet<>();
-    final Map<String, Integer> firstIndexByLowerLabel = new HashMap<>();
-    final Set<String> priceLowerLabels = new HashSet<>();
-    boolean hasCountdownTime;
-
-    LynxParentSnapshot(long expiresAtMs, int childCount) {
-      this.expiresAtMs = expiresAtMs;
-      this.childCount = childCount;
-    }
-  }
 
   private TikTokAccessibilityHelper() {}
 
-  /** Lưu {@link Context} ứng dụng để tự động giải mã các chuỗi tài nguyên thô {@code @21318...}. */
+  /** Chuyển tiếp {@link Context} sang {@link UniversalAccessibilityHelper} để giải mã {@code @21318...}. */
   public static void init(@Nullable Context context) {
-    if (context != null && appContext == null) {
-      appContext = context.getApplicationContext();
-    }
+    UniversalAccessibilityHelper.init(context);
   }
 
   public static boolean isTikTokPackage(@Nullable CharSequence packageName) {
@@ -113,30 +72,19 @@ public final class TikTokAccessibilityHelper {
 
   /** Kiểm tra xem chuỗi có phải mã tài nguyên Android thô dạng {@code @2131829637} hay không. */
   public static boolean isRawResourceIdDescription(@Nullable CharSequence description) {
-    if (description == null || description.length() < 9) {
-      return false;
-    }
-    return RAW_RES_ID_PATTERN.matcher(description.toString().trim()).matches();
+    return UniversalAccessibilityHelper.isRawResourceIdDescription(description);
   }
 
-  /** Làm sạch ký tự giữ chỗ {@code \uFFFC} (￼) và khoảng trắng thừa trong văn bản TikTok. */
+  /** Chuyển tiếp lọc văn bản sang {@link UniversalAccessibilityHelper} (tránh xử lý trùng lặp). */
   @Nullable
   public static CharSequence filterText(
       @Nullable AccessibilityNodeInfoCompat node, @Nullable CharSequence text) {
-    if (!isTikTokNode(node) || text == null || text.length() == 0) {
-      return text;
-    }
-    return cleanTikTokText(text);
+    return text;
   }
 
   @NonNull
   static CharSequence cleanTikTokText(@NonNull CharSequence text) {
-    String raw = text.toString();
-    if (raw.indexOf('\uFFFC') < 0) {
-      return text;
-    }
-    String cleaned = raw.replace('\uFFFC', ' ').replaceAll("\\s{2,}", " ").trim();
-    return cleaned;
+    return UniversalAccessibilityHelper.cleanControlAndPlaceholderChars(text);
   }
 
   /** Sửa các trạng thái lỗi/thô trên TikTok (ví dụ {@code layoutOff} và câu ghép lỗi 0 lượt lưu). */
@@ -207,14 +155,15 @@ public final class TikTokAccessibilityHelper {
       return "";
     }
 
-    // 4. Tự động giải mã nhãn tài nguyên thô @21318... (ví dụ @2131829637, @2131823528...)
-    if (isRawResourceIdDescription(description)) {
-      // Nếu node đã có sẵn chữ thật (ví dụ tiêu đề "Hộp thư" bị dính @2131823528) thì bỏ desc lỗi
+    // 4. Giải mã @21318... dùng chung qua UniversalAccessibilityHelper; giữ fallback riêng TikTok
+    if (UniversalAccessibilityHelper.isRawResourceIdDescription(description)) {
       CharSequence ownText = node.getText();
       if (ownText != null && ownText.toString().trim().length() > 0) {
         return "";
       }
-      String resolved = resolveRawResourceId(node.getPackageName(), description.toString().trim());
+      String resolved =
+          UniversalAccessibilityHelper.resolveRawResourceId(
+              node.getPackageName(), description.toString().trim());
       if (resolved != null && !resolved.isEmpty()) {
         return resolved;
       }
@@ -222,11 +171,7 @@ public final class TikTokAccessibilityHelper {
       return fallback != null ? fallback : "";
     }
 
-    // 5. Làm sạch \uFFFC trong mô tả nếu có
     if (description != null && description.length() > 0) {
-      if (description.toString().indexOf('\uFFFC') >= 0) {
-        return cleanTikTokText(description);
-      }
       return description;
     }
 
@@ -252,7 +197,7 @@ public final class TikTokAccessibilityHelper {
 
   /** Gom gọn các thẻ/tab có nhiều con phụ thành 1 điểm dừng duy nhất. */
   public static boolean isGroupedCard(@Nullable AccessibilityNodeInfoCompat node) {
-    if (!isTikTokNode(node)) {
+    if (!UniversalAccessibilityHelper.isFocusFilterEnabled() || !isTikTokNode(node)) {
       return false;
     }
     String idName = shortViewId(node);
@@ -270,10 +215,13 @@ public final class TikTokAccessibilityHelper {
   }
 
   /**
-   * Ẩn các node rác, khung bọc rỗng, icon trang trí và văn bản Lynx lặp trên TikTok để vuốt gọn.
+   * Ẩn các node rác đặc thù của TikTok (các quy tắc Lynx, ảnh rỗng, nút khoảng trắng và lặp chữ
+   * cha đã được chuyển sang {@link UniversalAccessibilityHelper}).
    */
   public static boolean shouldHideNode(@Nullable AccessibilityNodeInfoCompat node) {
-    if (!isTikTokNode(node) || !node.isVisibleToUser()) {
+    if (!UniversalAccessibilityHelper.isFocusFilterEnabled()
+        || !isTikTokNode(node)
+        || !node.isVisibleToUser()) {
       return false;
     }
     CharSequence desc = node.getContentDescription();
@@ -283,34 +231,6 @@ public final class TikTokAccessibilityHelper {
 
     String idName = shortViewId(node);
     if ("user_avatar_border".equals(idName)) {
-      return true;
-    }
-
-    // Ẩn nút chỉ có khoảng trắng (ví dụ nút t_7 cạnh "Thêm tên" trong Hồ sơ)
-    CharSequence text = node.getText();
-    if (text != null
-        && text.length() > 0
-        && text.toString().trim().isEmpty()
-        && isEmptyTrimmed(desc)
-        && node.getChildCount() == 0) {
-      return true;
-    }
-
-    // Ẩn các node Lynx rỗng hoặc lặp chữ trong TikTok Shop / LIVE / Hộp thoại thoát thanh toán
-    if (isLynxClass(node)) {
-      if (isEmptyLynxDecorativeNode(node)) {
-        return true;
-      }
-      if (isDuplicateLynxSibling(node)) {
-        return true;
-      }
-      if (isSplitCountdownSibling(node)) {
-        return true;
-      }
-    }
-
-    // Ẩn các ImageView rỗng nằm bên trong nút cha đã có nhãn (6 nút Camera: Lật, Flash...)
-    if (isEmptyDecorativeImageInsideLabeledParent(node)) {
       return true;
     }
 
@@ -329,13 +249,12 @@ public final class TikTokAccessibilityHelper {
       return true;
     }
 
-    // Ẩn View con có description lặp y hệt text của TextView cha (ví dụ "Nhận vào 26 tháng 11")
-    if (isDuplicateChildOfTextParent(node)) {
+    // Ẩn icon rỗng thừa nằm ngay sau nút "Ghé cửa hàng" trong danh sách Đã follow / Follower
+    if (isEmptyIconAfterVisitShopButton(node)) {
       return true;
     }
 
-    // Ẩn khung bọc rỗng (không có nhãn riêng, không thuộc nút có nhãn tổng hợp) chỉ bọc ngoài con
-    // có nhãn hoặc hoàn toàn rỗng (như lkp, eyv, ibm, ia4, wg9, v4m, g5_, v2h, n5a, erb, pr9, n1b)
+    // Ẩn khung bọc rỗng đặc thù của TikTok
     if (isRedundantEmptyWrapper(node, idName)) {
       return true;
     }
@@ -374,8 +293,11 @@ public final class TikTokAccessibilityHelper {
       return null;
     }
 
-    // 3. Màn hình Tìm kiếm & Kết quả tìm kiếm: ImageView rỗng ngay trước EditText -> Quay lại
-    if (node.isClickable() && isImageViewClass(cls) && isImmediatelyBeforeEditText(node)) {
+    // 3. Màn hình Tìm kiếm, Kết quả tìm kiếm & Danh sách Đã follow/Follower: nút ImageView rỗng
+    // ở góc trên bên trái ngay trước EditText hoặc tiêu đề trang -> Quay lại
+    if (node.isClickable()
+        && isImageViewClass(cls)
+        && (isImmediatelyBeforeEditText(node) || isTopLeftHeaderBackButton(node))) {
       return "Quay lại";
     }
 
@@ -446,38 +368,6 @@ public final class TikTokAccessibilityHelper {
     return null;
   }
 
-  @Nullable
-  private static String resolveRawResourceId(
-      @Nullable CharSequence packageName, @NonNull String rawDesc) {
-    Matcher m = RAW_RES_ID_PATTERN.matcher(rawDesc);
-    if (!m.matches() || packageName == null) {
-      return null;
-    }
-    String pkg = packageName.toString();
-    String cacheKey = pkg + ":" + rawDesc;
-    String cached = RESOLVED_RES_CACHE.get(cacheKey);
-    if (cached != null) {
-      return cached.isEmpty() ? null : cached;
-    }
-    Context ctx = appContext;
-    if (ctx == null) {
-      return null;
-    }
-    try {
-      int resId = Integer.parseInt(m.group(1));
-      Resources res = ctx.getPackageManager().getResourcesForApplication(pkg);
-      String value = res.getString(resId);
-      if (value != null && !value.trim().isEmpty() && !isRawResourceIdDescription(value)) {
-        String clean = cleanTikTokText(value).toString().trim();
-        RESOLVED_RES_CACHE.put(cacheKey, clean);
-        return clean;
-      }
-    } catch (Exception ignored) {
-      // Tài nguyên không tồn tại hoặc không đọc được trên thiết bị này.
-    }
-    RESOLVED_RES_CACHE.put(cacheKey, "");
-    return null;
-  }
 
   @Nullable
   private static String resolveRawResourceFallback(@NonNull AccessibilityNodeInfoCompat node) {
@@ -503,6 +393,46 @@ public final class TikTokAccessibilityHelper {
     String prev = findFirstDescendantLabel(parent.getChild(idx - 1));
     String next = findFirstDescendantLabel(parent.getChild(idx + 1));
     return "Chia sẻ".equalsIgnoreCase(prev) && "Khác".equalsIgnoreCase(next);
+  }
+
+  private static boolean isTopLeftHeaderBackButton(@NonNull AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null || parent.getChildCount() < 3) {
+      return false;
+    }
+    if (!node.equals(parent.getChild(0))) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat second = parent.getChild(1);
+    AccessibilityNodeInfoCompat third = parent.getChild(2);
+    return second != null
+        && isTextViewClass(second.getClassName())
+        && !isEmptyTrimmed(second.getText())
+        && third != null
+        && isImageViewClass(third.getClassName())
+        && !isEmptyTrimmed(third.getContentDescription());
+  }
+
+  private static boolean isEmptyIconAfterVisitShopButton(
+      @NonNull AccessibilityNodeInfoCompat node) {
+    if (!isImageViewClass(node.getClassName())
+        || node.getChildCount() > 0
+        || !isEmptyTrimmed(node.getText())
+        || !isEmptyTrimmed(node.getContentDescription())) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null) {
+      return false;
+    }
+    int idx = indexInParent(parent, node);
+    if (idx <= 0) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat prev = parent.getChild(idx - 1);
+    return prev != null
+        && isButtonClass(prev.getClassName())
+        && "Ghé cửa hàng".equalsIgnoreCase(extractTrimmedLabel(prev));
   }
 
   private static boolean isImmediatelyBeforeEditText(@NonNull AccessibilityNodeInfoCompat node) {
@@ -739,154 +669,6 @@ public final class TikTokAccessibilityHelper {
     return false;
   }
 
-  private static boolean isLynxClass(@NonNull AccessibilityNodeInfoCompat node) {
-    CharSequence cls = node.getClassName();
-    if (cls == null) {
-      return false;
-    }
-    String c = cls.toString();
-    return c.contains("Lynx")
-        || c.endsWith("FlattenUIText")
-        || c.endsWith("FlattenUIImage")
-        || c.endsWith("EcomFlattenUIImage")
-        || c.endsWith("EcomUIImage")
-        || c.endsWith("UIView")
-        || c.endsWith("UIText")
-        || c.endsWith("UISvg")
-        || c.endsWith("UIComponent")
-        || c.endsWith("UICanvas")
-        || c.endsWith("XSwiperUI");
-  }
-
-  private static boolean isEmptyLynxDecorativeNode(@NonNull AccessibilityNodeInfoCompat node) {
-    return node.getChildCount() == 0
-        && isEmptyTrimmed(node.getText())
-        && isEmptyTrimmed(node.getContentDescription());
-  }
-
-  @Nullable
-  private static LynxParentSnapshot getOrBuildLynxSnapshot(
-      @NonNull AccessibilityNodeInfoCompat parent) {
-    int count = parent.getChildCount();
-    if (count <= 1) {
-      return null;
-    }
-    long now = SystemClock.uptimeMillis();
-    int key = parent.hashCode();
-    LynxParentSnapshot cached = LYNX_SNAPSHOT_CACHE.get(key);
-    if (cached != null && cached.childCount == count && now <= cached.expiresAtMs) {
-      return cached;
-    }
-    if (LYNX_SNAPSHOT_CACHE.size() >= MAX_LYNX_SNAPSHOT_CACHE) {
-      LYNX_SNAPSHOT_CACHE.clear();
-    }
-    LynxParentSnapshot snap = new LynxParentSnapshot(now + LYNX_SNAPSHOT_TTL_MS, count);
-    int limit = Math.min(count, 160);
-    for (int i = 0; i < limit; i++) {
-      AccessibilityNodeInfoCompat child = parent.getChild(i);
-      if (child == null) {
-        continue;
-      }
-      snap.indexByNode.put(child, i);
-      String label = extractTrimmedLabel(child);
-      if (label.isEmpty()) {
-        continue;
-      }
-      String lower = label.toLowerCase(Locale.ROOT);
-      if (child.isClickable()) {
-        snap.clickableLowerLabels.add(lower);
-      }
-      if (!snap.firstIndexByLowerLabel.containsKey(lower)) {
-        snap.firstIndexByLowerLabel.put(lower, i);
-      }
-      if (lower.contains("₫") && lower.length() > 1) {
-        snap.priceLowerLabels.add(lower);
-      }
-      if (!snap.hasCountdownTime && COUNTDOWN_TIME_PATTERN.matcher(label).matches()) {
-        snap.hasCountdownTime = true;
-      }
-    }
-    LYNX_SNAPSHOT_CACHE.put(key, snap);
-    return snap;
-  }
-
-  private static boolean isDuplicateLynxSibling(@NonNull AccessibilityNodeInfoCompat node) {
-    if (node.isClickable()) {
-      return false;
-    }
-    String own = extractTrimmedLabel(node);
-    if (own.isEmpty()) {
-      return false;
-    }
-    AccessibilityNodeInfoCompat parent = node.getParent();
-    if (parent == null) {
-      return false;
-    }
-    LynxParentSnapshot snap = getOrBuildLynxSnapshot(parent);
-    if (snap == null) {
-      return false;
-    }
-    Integer idxObj = snap.indexByNode.get(node);
-    int idx = idxObj != null ? idxObj : -1;
-    String ownLower = own.toLowerCase(Locale.ROOT);
-
-    if (snap.clickableLowerLabels.contains(ownLower)) {
-      return true;
-    }
-    Integer firstIdx = snap.firstIndexByLowerLabel.get(ownLower);
-    if (firstIdx != null && idx >= 0 && firstIdx < idx) {
-      return true;
-    }
-    // Ẩn mảnh chữ ngắn nằm trong một nút clickable hoặc nhãn giá đầy đủ (ví dụ "Trả sau" trong
-    // "Trả sau-99%", "-99%" trong "Trả sau-99%", "810K" và "₫" trong "810K₫")
-    for (String clickLabel : snap.clickableLowerLabels) {
-      if (clickLabel.length() > ownLower.length()
-          && (clickLabel.startsWith(ownLower) || clickLabel.endsWith(ownLower))) {
-        return true;
-      }
-    }
-    if ("₫".equals(ownLower) && !snap.priceLowerLabels.isEmpty()) {
-      return true;
-    }
-    for (String priceLabel : snap.priceLowerLabels) {
-      if (priceLabel.length() > ownLower.length() && priceLabel.startsWith(ownLower)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean isSplitCountdownSibling(@NonNull AccessibilityNodeInfoCompat node) {
-    if (node.isClickable()) {
-      return false;
-    }
-    String own = extractTrimmedLabel(node);
-    if (!COUNTDOWN_PART_PATTERN.matcher(own).matches()) {
-      return false;
-    }
-    AccessibilityNodeInfoCompat parent = node.getParent();
-    if (parent == null) {
-      return false;
-    }
-    LynxParentSnapshot snap = getOrBuildLynxSnapshot(parent);
-    return snap != null && snap.hasCountdownTime;
-  }
-
-  private static boolean isEmptyDecorativeImageInsideLabeledParent(
-      @NonNull AccessibilityNodeInfoCompat node) {
-    if (!isImageViewClass(node.getClassName())
-        || node.getChildCount() > 0
-        || !isEmptyTrimmed(node.getText())
-        || !isEmptyTrimmed(node.getContentDescription())) {
-      return false;
-    }
-    AccessibilityNodeInfoCompat parent = node.getParent();
-    if (parent == null) {
-      return false;
-    }
-    return !isEmptyTrimmed(parent.getContentDescription()) || !isEmptyTrimmed(parent.getText());
-  }
-
   private static boolean isEmptyLiveChatAvatar(@NonNull AccessibilityNodeInfoCompat node) {
     if (!isImageViewClass(node.getClassName())
         || node.getChildCount() > 0
@@ -956,17 +738,6 @@ public final class TikTokAccessibilityHelper {
     return false;
   }
 
-  private static boolean isDuplicateChildOfTextParent(@NonNull AccessibilityNodeInfoCompat node) {
-    String own = extractTrimmedLabel(node);
-    if (own.isEmpty()) {
-      return false;
-    }
-    AccessibilityNodeInfoCompat parent = node.getParent();
-    if (parent == null || !isTextViewClass(parent.getClassName())) {
-      return false;
-    }
-    return own.equals(extractTrimmedLabel(parent));
-  }
 
   private static boolean isRedundantEmptyWrapper(
       @NonNull AccessibilityNodeInfoCompat node, @NonNull String idName) {
@@ -999,25 +770,35 @@ public final class TikTokAccessibilityHelper {
     if (!isContainer) {
       return false;
     }
-    // Không ẩn các nút rỗng có nhãn ngữ cảnh hợp lệ (Thêm vào giỏ hàng, Xóa lịch sử, Phân loại...)
+    // Không ẩn các nút bấm rỗng có nhãn ngữ cảnh hợp lệ (Thêm vào giỏ hàng, Xóa lịch sử, Phân loại...)
     if (node.getChildCount() == 0) {
-      if (isBetweenChatAndBuyNow(node)
-          || findPrecedingSearchHistoryKeyword(node) != null
-          || findProductVariantIndex(node) >= 0) {
+      if (node.isClickable()
+          && (isBetweenChatAndBuyNow(node)
+              || findPrecedingSearchHistoryKeyword(node) != null
+              || findProductVariantIndex(node) >= 0)) {
         return false;
       }
       // Ẩn mọi khung bọc hoàn toàn rỗng (0 con, 0 chữ, 0 mô tả) như j7e, erb, pr9, n1b, y8u
       return true;
     }
     // Nếu khung bọc rỗng có con đã tự clickable/focusable (lkp, eyv, ibm, ia4, wg9, v4m, g5_, v2h...)
-    // thì ẩn lớp vỏ bọc ngoài để không tạo điểm dừng thừa.
-    for (int i = 0; i < node.getChildCount(); i++) {
+    // thì ẩn lớp vỏ bọc ngoài để không tạo điểm dừng thừa — NHƯNG tuyệt đối không ẩn nếu nó đang
+    // chứa trực tiếp chữ không bấm được (như txt_user_name / q3f trong danh sách Đã follow / Follower),
+    // nếu không sẽ làm mất tên người dùng và chỉ còn lại nút "Đã follow" / "LIVE" / "Ghé cửa hàng".
+    boolean hasClickableOrFocusableChild = false;
+    int limit = Math.min(node.getChildCount(), 8);
+    for (int i = 0; i < limit; i++) {
       AccessibilityNodeInfoCompat child = node.getChild(i);
-      if (child != null && (child.isClickable() || child.isFocusable())) {
-        return true;
+      if (child == null) {
+        continue;
+      }
+      if (child.isClickable() || child.isFocusable()) {
+        hasClickableOrFocusableChild = true;
+      } else if (!extractTrimmedLabel(child).isEmpty()) {
+        return false;
       }
     }
-    return false;
+    return hasClickableOrFocusableChild;
   }
 
   @NonNull

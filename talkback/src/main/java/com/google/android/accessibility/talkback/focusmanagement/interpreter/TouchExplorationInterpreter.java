@@ -79,6 +79,7 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
   private final PostDelayHandler postDelayHandler;
 
   private AccessibilityNodeInfoCompat lastTouchedNode;
+  @Nullable private AccessibilityNodeInfoCompat lastTouchedFocusableNode;
 
   /**
    * How late a hover must be to be set aside rather than handled. Normal exploring keeps up, so it
@@ -186,6 +187,7 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
     pendingHover = null;
     postDelayHandler.executePendingTouchEndAction();
     setLastTouchedNode(/*touchedNode= */ null);
+    lastTouchedFocusableNode = null;
     postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ false);
     LogUtils.v(
         TAG,
@@ -202,6 +204,7 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
     // The node under the finger as it lifted is handled before the touch ends.
     handlePendingHover();
     setLastTouchedNode(/*touchedNode= */ null);
+    lastTouchedFocusableNode = null;
     // Dispatch pending empty touch action immediately.
     postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ true);
     LogUtils.v(
@@ -232,6 +235,7 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
     final AccessibilityNodeInfoCompat touchedFocusableNode =
         CollapseEngine.touchTarget(
             context, AccessibilityNodeInfoUtils.findFocusFromHover(touchedNode));
+    lastTouchedFocusableNode = touchedFocusableNode;
     LogUtils.v(
         TAG,
         "handleHoverEnterEvent: touchedNode=%s, touchedFocusableNode=%s",
@@ -273,13 +277,22 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
       // Invalid event.
       return false;
     }
+    final AccessibilityNodeInfoCompat touchedFocusableNode;
+    if (touchedNode.equals(lastTouchedNode)) {
+      // Reuse the focusable target already resolved during HOVER_ENTER (zero IPC).
+      touchedFocusableNode = lastTouchedFocusableNode;
+    } else if (SystemClock.uptimeMillis() - event.getEventTime() > LATE_HOVER_MS) {
+      // Finger already moved past this older node; skip expensive hover tree climb.
+      return false;
+    } else {
+      touchedFocusableNode =
+          CollapseEngine.touchTarget(
+              context, AccessibilityNodeInfoUtils.findFocusFromHover(touchedNode));
+    }
     // Unlike hover enter, the exit is never set aside: it is the only signal that arrives as the
     // finger lifts, instead of one double-tap timeout later like the touch interaction end.
     return dispatchTouchExplorationAction(
-        new TouchExplorationAction(
-            TouchExplorationAction.HOVER_EXIT,
-            CollapseEngine.touchTarget(
-                context, AccessibilityNodeInfoUtils.findFocusFromHover(touchedNode))),
+        new TouchExplorationAction(TouchExplorationAction.HOVER_EXIT, touchedFocusableNode),
         eventId);
   }
 

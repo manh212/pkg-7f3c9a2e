@@ -64,17 +64,11 @@ public final class ShopeeAccessibilityHelper {
     if (head.isEmpty()) {
       return false;
     }
-    return head.startsWith("dd_module_")
-        || head.startsWith("home_square_icon_")
-        || head.startsWith("tab_bar_button_")
-        || head.startsWith("mini_live_streaming_")
-        || head.startsWith("mini_video_")
-        || head.startsWith("wallet_bar_cell_")
-        || head.equals("shopee_live_see_more")
-        || head.equals("shopee_video_see_more")
-        || head.equals("img-overlay")
-        || head.equals("popup_banner_image");
+    return head.equals("img-overlay")
+        || UniversalAccessibilityHelper.isTechnicalSnakeCaseDescription(head);
   }
+
+  /**
 
   /**
    * Làm sạch dấu chấm than giữ chỗ ({@code "!!!!4.9!27,7k đánh giá!"}, {@code "!!!!Combo..."})
@@ -191,7 +185,10 @@ public final class ShopeeAccessibilityHelper {
    * Ẩn các node rác / trang trí / trùng lặp trên Shopee để vuốt trái/phải gọn gàng.
    */
   public static boolean shouldHideNode(@Nullable AccessibilityNodeInfoCompat node) {
-    if (node == null || !isShopeePackage(node.getPackageName())) {
+    if (!UniversalAccessibilityHelper.isFocusFilterEnabled()
+        || node == null
+        || !isShopeePackage(node.getPackageName())
+        || !node.isVisibleToUser()) {
       return false;
     }
     CharSequence desc = node.getContentDescription();
@@ -227,7 +224,9 @@ public final class ShopeeAccessibilityHelper {
    * Gom mỗi thẻ sản phẩm (Trang chủ & Kết quả tìm kiếm), thẻ Live và thẻ Video thành 1 điểm dừng.
    */
   public static boolean isGroupedCard(@Nullable AccessibilityNodeInfoCompat node) {
-    if (node == null || !isShopeePackage(node.getPackageName())) {
+    if (!UniversalAccessibilityHelper.isFocusFilterEnabled()
+        || node == null
+        || !isShopeePackage(node.getPackageName())) {
       return false;
     }
     CharSequence desc = node.getContentDescription();

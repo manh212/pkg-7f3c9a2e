@@ -1598,6 +1598,8 @@
     <string name="summary_pref_auto_switch_page">Khi bật, vuốt qua mục cuối cùng trên một trang sẽ chuyển sang trang kế tiếp. Khi tắt, điều hướng ở lại trong trang hiện tại.</string>
     <string name="title_pref_collapse_list_item_actions">Sử dụng danh sách thao tác cho các ứng dụng được hỗ trợ</string>
     <string name="summary_pref_collapse_list_item_actions">Trong các ứng dụng được hỗ trợ, mỗi mục danh sách chỉ còn một điểm dừng, và các nút của mục chuyển vào chế độ điều khiển Thao tác.</string>
+    <string name="title_pref_focus_content_filter">Lọc nội dung tiêu điểm</string>
+    <string name="summary_pref_focus_content_filter">Chỉ giữ lại các thành phần thiết yếu</string>
     <string name="title_collapse_action_long_press">%1$s, nhấn giữ</string>
     <!-- Spoken state of a settings quick action toggle: on. [CHAR LIMIT=NONE]-->
     <string name="quick_action_state_on">đang bật</string>

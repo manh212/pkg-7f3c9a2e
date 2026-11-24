@@ -189,7 +189,9 @@ public final class ZaloAccessibilityHelper {
    * gọi và các khung bọc ngoài không nên dừng tiêu điểm trong Zalo.
    */
   public static boolean shouldHideNode(@Nullable AccessibilityNodeInfoCompat node) {
-    if (!isZaloNode(node)) {
+    if (!UniversalAccessibilityHelper.isFocusFilterEnabled()
+        || !isZaloNode(node)
+        || !node.isVisibleToUser()) {
       return false;
     }
     String id = node.getViewIdResourceName();
@@ -239,7 +241,7 @@ public final class ZaloAccessibilityHelper {
    * khối tiêu điểm duy nhất để không bị lọt vào view con bên trong.
    */
   public static boolean isGroupedCard(@Nullable AccessibilityNodeInfoCompat node) {
-    if (!isZaloNode(node)) {
+    if (!UniversalAccessibilityHelper.isFocusFilterEnabled() || !isZaloNode(node)) {
       return false;
     }
     String id = node.getViewIdResourceName();

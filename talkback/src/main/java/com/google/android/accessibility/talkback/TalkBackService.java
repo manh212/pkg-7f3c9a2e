@@ -4475,6 +4475,19 @@ public class TalkBackService extends AccessibilityServiceCompat
             R.string.pref_speak_items_before_scroll_key,
             R.bool.pref_speak_items_before_scroll_default));
     AccessibilityNodeInfoUtils.setFocusTextInsideItems(FocusTextInsideItems.isOn(this));
+    com.google.android.accessibility.utils.UniversalAccessibilityHelper.init(this);
+    boolean focusContentFilterEnabled =
+        getBooleanPref(
+            R.string.pref_focus_content_filter_key, R.bool.pref_focus_content_filter_default);
+    if (com.google.android.accessibility.utils.UniversalAccessibilityHelper.isFocusFilterEnabled()
+        != focusContentFilterEnabled) {
+      com.google.android.accessibility.utils.UniversalAccessibilityHelper.setFocusFilterEnabled(
+          focusContentFilterEnabled);
+      TraversalTreeCache.clear("focus_content_filter_changed");
+    } else {
+      com.google.android.accessibility.utils.UniversalAccessibilityHelper.setFocusFilterEnabled(
+          focusContentFilterEnabled);
+    }
     latencyExtrasEnabled =
         !getBooleanPref(
             R.string.pref_disable_latency_extras_key,
