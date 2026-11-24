@@ -242,6 +242,7 @@ public class CollapseEngineTest {
     setCollapseEnabled(true);
     AccessibilityNodeInfoCompat windowRoot =
         CollapseTestTrees.node(null, "android.widget.FrameLayout");
+    windowRoot.setPackageName(CollapseTestTrees.YOUTUBE_PACKAGE);
     CollapseTestTrees.bounds(windowRoot, 0, 0, 1080, 2400);
 
     AccessibilityNodeInfoCompat list =

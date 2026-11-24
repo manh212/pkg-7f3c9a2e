@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
 import android.view.View;
@@ -13,8 +14,8 @@ import android.widget.FrameLayout;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
@@ -109,7 +110,8 @@ public class OverlayTouchTargetResolverTest {
   @Test
   public void virtualExplorationHitsCommentLikeAndEmptyVideoSpace() {
     String pkg = "com.ss.android.ugc.trill";
-    Context context = RuntimeEnvironment.getApplication();
+    Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+    Context context = activity;
 
     TestFrame rootView =
         new TestFrame(
@@ -160,6 +162,7 @@ public class OverlayTouchTargetResolverTest {
     pagerView.addView(likeView);
     pagerView.addView(commentView);
     pagerView.addView(overlayView);
+    activity.setContentView(rootView);
     rootView.layout(0, 0, 1080, 2400);
     pagerView.layout(0, 0, 1080, 2250);
     likeView.layout(930, 1100, 1060, 1240);
