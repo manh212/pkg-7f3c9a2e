@@ -25,8 +25,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Cải thiện khả năng tiếp cận toàn diện cho 5 màn hình chính của Shopee ({@code com.shopee.*}):
- * Trang chủ, Kết quả tìm kiếm, Chi tiết sản phẩm, Trang đánh giá và Giỏ hàng.
+ * Cải thiện khả năng tiếp cận toàn diện cho các màn hình chính của Shopee ({@code com.shopee.*}):
+ * Trang chủ, Kết quả tìm kiếm, Chi tiết sản phẩm, Trang đánh giá, Giỏ hàng và Trò chuyện.
  */
 public final class ShopeeAccessibilityHelper {
 
@@ -69,6 +69,7 @@ public final class ShopeeAccessibilityHelper {
         || head.startsWith("tab_bar_button_")
         || head.startsWith("mini_live_streaming_")
         || head.startsWith("mini_video_")
+        || head.startsWith("wallet_bar_cell_")
         || head.equals("shopee_live_see_more")
         || head.equals("shopee_video_see_more")
         || head.equals("img-overlay")
@@ -88,7 +89,26 @@ public final class ShopeeAccessibilityHelper {
         || !isShopeePackage(node.getPackageName())) {
       return text;
     }
-    return cleanPlaceholderBangs(text);
+    CharSequence cleaned = cleanPlaceholderBangs(text);
+    if ("labelProductPageProductName".equals(shortViewId(node))) {
+      cleaned = cleanLeadingBadgeZero(cleaned);
+    }
+    return cleaned;
+  }
+
+  /**
+   * Loại bỏ ký tự {@code '0'} giữ chỗ cho biểu tượng Mall/Yêu thích đứng ngay trước chữ cái đầu
+   * tiên của tên sản phẩm Shopee (ví dụ {@code "0Điện thoại..."} → {@code "Điện thoại..."}).
+   */
+  @NonNull
+  static CharSequence cleanLeadingBadgeZero(@NonNull CharSequence text) {
+    if (text.length() >= 2 && text.charAt(0) == '0') {
+      char second = text.charAt(1);
+      if (Character.isLetter(second) || second == '[') {
+        return text.subSequence(1, text.length());
+      }
+    }
+    return text;
   }
 
   @NonNull
@@ -254,21 +274,16 @@ public final class ShopeeAccessibilityHelper {
   private static String resolveSyntheticLabel(@NonNull AccessibilityNodeInfoCompat node) {
     String idName = shortViewId(node);
 
-    // 1. Nhãn theo ID rõ ràng trên Chi tiết sản phẩm, Đánh giá, Tìm kiếm, Giỏ hàng
-    if (POPUP_BANNER_VIEW_ID_SUFFIX.equals(idName)) {
-      return "Biểu ngữ nổi";
+    // 1. Nhãn theo ID rõ ràng trên Chi tiết sản phẩm, Đánh giá, Tìm kiếm, Giỏ hàng, Trò chuyện
+    String directLabel = resolveDirectIdLabel(idName);
+    if (directLabel != null) {
+      return directLabel;
     }
-    if ("buttonItemLike".equals(idName)) {
-      return "Yêu thích";
-    }
-    if ("buttonSearchBarImageSearch".equals(idName)) {
-      return "Tìm kiếm bằng hình ảnh";
-    }
-    if ("imageProductOfficialShopLabel".equals(idName) || "imageOfficialShopLabel".equals(idName)) {
-      return "Shopee Mall";
-    }
-    if (idName.startsWith("imageProduct_")) {
-      return "Ảnh sản phẩm";
+    if ("action".equals(idName)) {
+      String chatActionLabel = resolveChatHeaderActionLabel(node);
+      if (chatActionLabel != null) {
+        return chatActionLabel;
+      }
     }
     if ("buttonSearchBar".equals(idName)) {
       String hint = findFirstChildText(node);
@@ -341,8 +356,115 @@ public final class ShopeeAccessibilityHelper {
       if (isHelpfulIconAfterLabel(node)) {
         return "Đánh dấu hữu ích";
       }
+      if (isWalletBarScanSibling(node)) {
+        return "Quét mã QR";
+      }
     }
     return null;
+  }
+
+  /**
+   * Trả về nhãn tiếng Việt cho các nút có {@code viewIdResName} cố định của Shopee.
+   */
+  @Nullable
+  static String resolveDirectIdLabel(@NonNull String idName) {
+    if (idName.isEmpty()) {
+      return null;
+    }
+    if (POPUP_BANNER_VIEW_ID_SUFFIX.equals(idName)) {
+      return "Biểu ngữ nổi";
+    }
+    if ("buttonProductChatNow".equals(idName)) {
+      return "Chat ngay";
+    }
+    if ("buttonProductAddCart".equals(idName) || "new_atc_btn".equals(idName)) {
+      return "Thêm vào giỏ hàng";
+    }
+    if ("buttonItemLike".equals(idName)) {
+      return "Yêu thích";
+    }
+    if ("buttonSearchBarImageSearch".equals(idName)) {
+      return "Tìm kiếm bằng hình ảnh";
+    }
+    if ("imageProductOfficialShopLabel".equals(idName) || "imageOfficialShopLabel".equals(idName)) {
+      return "Shopee Mall";
+    }
+    if (idName.startsWith("imageProduct_")) {
+      return "Ảnh sản phẩm";
+    }
+    if (idName.startsWith("imageCover_")) {
+      return "Ảnh bìa sản phẩm";
+    }
+    if ("viewPDPVideoPlayer".equals(idName)) {
+      return "Video sản phẩm";
+    }
+    if ("LiveStreamingVideoPlayerView.Touchable".equals(idName)) {
+      return "Video trực tiếp";
+    }
+    if ("home_btn".equals(idName)) {
+      return "Quay lại";
+    }
+    if ("chat_action_bar_avatar".equals(idName)) {
+      return "Ảnh đại diện cửa hàng";
+    }
+    if ("more_btn".equals(idName)) {
+      return "Thêm tiện ích";
+    }
+    if ("product_selection_btn".equals(idName)) {
+      return "Chọn sản phẩm";
+    }
+    if ("sticker_btn".equals(idName)) {
+      return "Biểu tượng cảm xúc và nhãn dán";
+    }
+    if ("send_btn".equals(idName) || "chat_send_btn".equals(idName)) {
+      return "Gửi tin nhắn";
+    }
+    return null;
+  }
+
+  @Nullable
+  private static String resolveChatHeaderActionLabel(@NonNull AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null) {
+      return null;
+    }
+    boolean inChatHeader = false;
+    int count = parent.getChildCount();
+    for (int i = 0; i < count; i++) {
+      String sid = shortViewId(parent.getChild(i));
+      if ("title_text_container".equals(sid) || "chat_action_bar_avatar".equals(sid)) {
+        inChatHeader = true;
+        break;
+      }
+    }
+    if (!inChatHeader) {
+      return null;
+    }
+    int idx = indexInParent(parent, node);
+    if (idx < 0) {
+      return null;
+    }
+    return idx == count - 1 ? "Tùy chọn khác" : "Xem cửa hàng";
+  }
+
+  private static boolean isWalletBarScanSibling(@NonNull AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null) {
+      return false;
+    }
+    int idx = indexInParent(parent, node);
+    if (idx < 0 || idx + 1 >= parent.getChildCount()) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat next = parent.getChild(idx + 1);
+    if (next == null || next.getContentDescription() == null) {
+      return false;
+    }
+    return next.getContentDescription()
+        .toString()
+        .trim()
+        .toLowerCase(Locale.ROOT)
+        .startsWith("wallet_bar_cell_");
   }
 
   @NonNull
