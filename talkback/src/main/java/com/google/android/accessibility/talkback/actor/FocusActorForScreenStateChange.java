@@ -37,6 +37,7 @@ import com.google.android.accessibility.talkback.flags.FeatureFlagReader;
 import com.google.android.accessibility.talkback.focusmanagement.NavigationTarget;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
 import com.google.android.accessibility.talkback.focusmanagement.memory.SemanticScreenKey;
+import com.google.android.accessibility.talkback.focusmanagement.memory.WindowFocusRestoreOrchestrator;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory.WindowIdentifier;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
@@ -272,15 +273,12 @@ public class FocusActorForScreenStateChange {
       long nowMs = SystemClock.uptimeMillis();
       SemanticScreenKey screenKey = SemanticScreenKey.create(root, screenState, windowId);
       boolean armed = history.getRestoreCoordinator().armPendingRestore(screenKey, nowMs);
-      if (armed
-          && !inDeferredRestoreRetry
-          && (nowMs - screenState.getScreenTransitionStartTime()) < FAST_TRANSITION_WINDOW_MS) {
-        // Give the returning screen a brief chance to finish binding its items instead of
-        // immediately jumping focus to the first element on screen at 0 ms.
-        deferredRestoreHandler.removeCallbacksAndMessages(null);
-        deferredRestoreHandler.postDelayed(
-            () -> runDeferredRestoreOrFallback(screenState, eventId),
-            FAST_RESTORE_RETRY_DELAY_MS);
+      if (restoreOrchestrator.scheduleFastRestoreRetry(
+          armed,
+          screenState.getScreenTransitionStartTime(),
+          nowMs,
+          history.getRestoreCoordinator(),
+          () -> runDeferredRestoreOrFallback(screenState, eventId))) {
         return true;
       }
       return false;
@@ -555,6 +553,11 @@ public class FocusActorForScreenStateChange {
       screenState.consumeInterpretFirstTimeWhenWakeUp();
     }
     if (success) {
+      LogUtils.i(
+          TAG,
+          "WindowChange fallback -> INITIAL_FOCUS_FIRST_CONTENT (win=%d, pkg=%s)",
+          currentActiveWindow.getId(),
+          root.getPackageName());
       primesController.recordDuration(
           TimerAction.INITIAL_FOCUS_FIRST_CONTENT, startTime, primesController.getTime());
     }

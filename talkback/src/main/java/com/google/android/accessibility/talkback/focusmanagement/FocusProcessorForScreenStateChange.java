@@ -69,14 +69,12 @@ public class FocusProcessorForScreenStateChange {
    * including when a Backtalk menu or dialog opens or closes. Focus left in a window that is no
    * longer active is cleared, so that the next swipe starts in the new window.
    */
-  private static volatile boolean focusNewWindows = true;
-
   public static void setFocusNewWindows(boolean focus) {
-    focusNewWindows = focus;
+    WindowTransitionPolicy.setFocusNewWindows(focus);
   }
 
   public static boolean focusesNewWindows() {
-    return focusNewWindows;
+    return WindowTransitionPolicy.focusesNewWindows();
   }
 
   public FocusProcessorForScreenStateChange(AccessibilityFocusMonitor accessibilityFocusMonitor) {

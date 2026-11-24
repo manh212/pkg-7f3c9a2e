@@ -136,10 +136,27 @@ public final class DiagnosticsPreferenceActions {
         + text.substring(text.length() - tailChars);
   }
 
+  private static final long RECENT_LOG_CLEAR_WINDOW_MS = 30_000L;
+  private static volatile long lastLogClearedUptimeMs = 0L;
+
+  /** Returns true if debug logs were cleared within the last 30 seconds. */
+  public static boolean wasLogClearedRecently() {
+    long cleared = lastLogClearedUptimeMs;
+    return cleared > 0L && (SystemClock.uptimeMillis() - cleared) < RECENT_LOG_CLEAR_WINDOW_MS;
+  }
+
+  /** Exposed for unit testing. */
+  public static void setLastLogClearedUptimeMsForTesting(long uptimeMs) {
+    lastLogClearedUptimeMs = uptimeMs;
+  }
+
   private static void deleteDebugLog(Context context) {
     EXECUTOR.execute(
         () -> {
           boolean deleted = LogUtils.clearLogFiles();
+          if (deleted) {
+            lastLogClearedUptimeMs = SystemClock.uptimeMillis();
+          }
           if (SharedPreferencesUtils.getSharedPreferences(context)
               .getBoolean(LatencyExperiments.Feature.RESET_SESSION.key, false)) {
             MAIN_HANDLER.post(LatencyMeasurementSession::reset);

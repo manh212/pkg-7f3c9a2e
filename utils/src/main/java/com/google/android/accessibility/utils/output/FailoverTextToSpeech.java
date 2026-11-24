@@ -4216,28 +4216,7 @@ public class FailoverTextToSpeech {
         }
       };
 
-  /** {@link BroadcastReceiver} for detecting media mount and unmount. */
-  private class MediaMountStateMonitor extends SameThreadBroadcastReceiver {
-    private final IntentFilter mMediaIntentFilter;
 
-    public MediaMountStateMonitor() {
-      mMediaIntentFilter = new IntentFilter();
-      mMediaIntentFilter.addAction(Intent.ACTION_MEDIA_MOUNTED);
-      mMediaIntentFilter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
-      mMediaIntentFilter.addDataScheme("file");
-    }
-
-    public IntentFilter getFilter() {
-      return mMediaIntentFilter;
-    }
-
-    @Override
-    public void onReceiveIntent(Intent intent) {
-      final String action = intent.getAction();
-
-      mHandler.onMediaStateChanged(action);
-    }
-  }
 
   /** Handler used to return to the main thread from the TTS thread. */
   private static class SpeechHandler extends WeakReferenceHandler<FailoverTextToSpeech> {

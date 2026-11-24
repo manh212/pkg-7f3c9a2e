@@ -2202,109 +2202,51 @@ public class FocusProcessorForLogicalNavigation {
     return reread;
   }
 
-  /** The app node whose recognised screen elements a swipe has just left, going forward. */
-  private @Nullable AccessibilityNodeInfoCompat leavingScreenElementsOf;
-  /**
-   * Moves through recognised screen elements, which sit in the reading order after the app node
-   * each is anchored to. Returns null when the swipe is the app's own.
-   */
+  private @Nullable ScreenElementsNavigator screenElementsNavigator;
+
+  private ScreenElementsNavigator screenElementsNavigator() {
+    if (screenElementsNavigator == null) {
+      screenElementsNavigator = new ScreenElementsNavigator(service, focusFinder);
+    }
+    return screenElementsNavigator;
+  }
+
   private @Nullable Boolean navigateAroundScreenElements(
       AccessibilityNodeInfoCompat pivot,
       boolean ignoreDescendantsOfPivot,
       NavigationAction navigationAction,
       @SearchDirection int logicalDirection,
       EventId eventId) {
-    if (ScreenElements.getNeedsOrder()) {
-      orderScreenElements();
-    }
-    boolean forward = logicalDirection == TraversalStrategy.SEARCH_FOCUS_FORWARD;
-    int index = ScreenElements.indexOf(pivot);
-    if (index >= 0) {
-      @Nullable AccessibilityNodeInfoCompat next = ScreenElements.neighbour(index, forward);
-      if (next != null) {
-        return setAccessibilityFocusInternal(next, navigationAction, eventId);
-      }
-      @Nullable AccessibilityNodeInfoCompat anchor = ScreenElements.anchor(index);
-      if (anchor != null && ScreenElements.isCoveredHost(anchor)) {
-        // A view the elements cover is passed over, also a WebView, which would otherwise take the
-        // swipe into its own web navigation.
-        @Nullable AccessibilityNodeInfoCompat past = ScreenElements.pastCoveredHost(anchor, forward);
-        // At the window's edge, the swipe goes on as SandFly's own: to the next window, or around.
-        return past == null ? null : setAccessibilityFocusInternal(past, navigationAction, eventId);
-      }
-      if (!forward) {
-        return anchor != null && setAccessibilityFocusInternal(anchor, navigationAction, eventId);
-      }
-      if (anchor == null) {
-        @Nullable AccessibilityNodeInfoCompat first = ScreenElements.firstAppNodeOrNull();
-        return first != null && setAccessibilityFocusInternal(first, navigationAction, eventId);
-      }
-      // Carry on from the anchor as if the swipe had started there.
-      leavingScreenElementsOf = anchor;
-      try {
-        return navigateToDefaultOrMacroGranularityTarget(
-            anchor, ignoreDescendantsOfPivot, navigationAction, eventId);
-      } finally {
-        leavingScreenElementsOf = null;
-      }
-    }
-    if (pivot.getWindowId() != ScreenElements.getHostWindow()) {
-      return null;
-    }
-    if (forward) {
-      if (pivot.equals(leavingScreenElementsOf)) {
-        return null;
-      }
-      @Nullable AccessibilityNodeInfoCompat element = ScreenElements.firstAfter(pivot);
-      return element == null ? null : setAccessibilityFocusInternal(element, navigationAction, eventId);
-    }
-    if (ScreenElements.isFirstAppNode(pivot)) {
-      @Nullable AccessibilityNodeInfoCompat element = ScreenElements.lastBefore(null);
-      if (element != null) {
-        return setAccessibilityFocusInternal(element, navigationAction, eventId);
-      }
-    }
-    return null;
+    return screenElementsNavigator()
+        .navigateAroundScreenElements(
+            pivot,
+            ignoreDescendantsOfPivot,
+            navigationAction,
+            logicalDirection,
+            eventId,
+            new ScreenElementsNavigator.Callback() {
+              @Override
+              public boolean focusNode(
+                  AccessibilityNodeInfoCompat target,
+                  NavigationAction action,
+                  EventId id) {
+                return setAccessibilityFocusInternal(target, action, id);
+              }
+
+              @Override
+              public boolean continueFromAnchor(
+                  AccessibilityNodeInfoCompat anchor,
+                  boolean ignoreDesc,
+                  NavigationAction action,
+                  EventId id) {
+                return navigateToDefaultOrMacroGranularityTarget(anchor, ignoreDesc, action, id);
+              }
+            });
   }
 
-  /** Gives each recognised screen element its anchor among the host window's nodes. */
   private void orderScreenElements() {
-    List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
-    @Nullable AccessibilityWindowInfo host = null;
-    for (AccessibilityWindowInfo window : AccessibilityServiceCompatUtils.getWindows(service)) {
-      if (window.getId() == ScreenElements.getHostWindow()) {
-        host = window;
-        break;
-      }
-    }
-    @Nullable AccessibilityNodeInfoCompat root =
-        host == null ? null : AccessibilityWindowInfoUtils.getRootCompat(host);
-    if (root != null) {
-      TraversalStrategy strategy =
-          TraversalStrategyUtils.getTraversalStrategy(
-              root, focusFinder, TraversalStrategy.SEARCH_FOCUS_FORWARD);
-      Filter<AccessibilityNodeInfoCompat> filter =
-          NavigationTarget.createNodeFilter(
-              NavigationTarget.TARGET_DEFAULT, strategy.getSpeakingNodesCache());
-      @Nullable AccessibilityNodeInfoCompat node =
-          filter.accept(root)
-              ? root
-              : TraversalStrategyUtils.searchFocus(
-                  strategy, root, TraversalStrategy.SEARCH_FOCUS_FORWARD, filter);
-      while (node != null && nodes.size() < MAX_ORDERED_NODES) {
-        if (nodes.contains(node)) {
-          break;
-        }
-        nodes.add(node);
-        node =
-            TraversalStrategyUtils.searchFocus(
-                strategy, node, TraversalStrategy.SEARCH_FOCUS_FORWARD, filter);
-      }
-    }
-    ScreenElements.setOrder(nodes);
+    screenElementsNavigator().orderScreenElements();
   }
-
-  private static final int MAX_ORDERED_NODES = 2000;
   private boolean navigateToDefaultOrMacroGranularityTarget(
       @NonNull AccessibilityNodeInfoCompat pivot,
       boolean ignoreDescendantsOfPivot,
@@ -7277,182 +7219,6 @@ public class FocusProcessorForLogicalNavigation {
     /** Clears assumeScrollSuccess */
     private void clear() {
       assumeScrollSuccess = false;
-    }
-  }
-
-  /** A data class to represent the navigation result of logical navigation. */
-  private static class NavigationResult {
-    /** The type of the navigation result. */
-    public enum Type {
-      EMPTY, // No element found.
-      NATIVE_ELEMENT, // A native element found, calls #getNode to return the native element node.
-      WEB_ELEMENT, // A web element found, it should skip the navigation and return success.
-      EXISTING_FOCUS, // An existing focus found, it should skip the navigation and return success.
-      REACH_EDGE, // An edge found, it should skip the navigation and return failure.
-      EXCEPTION, // General exception cases, it should skip the navigation and return failure.
-    }
-
-    private Type type;
-    private AccessibilityNodeInfoCompat node;
-    private int linkIndex;
-
-    private NavigationResult(Type type, AccessibilityNodeInfoCompat node) {
-      this.type = type;
-      this.node = node;
-      this.linkIndex = -1;
-    }
-
-    /** Convenient method to create an instance for the certain type without the node. */
-    public static NavigationResult create(Type type) {
-      if (type == Type.NATIVE_ELEMENT) {
-        throw new IllegalArgumentException("create native type without node");
-      }
-      return new NavigationResult(type, null);
-    }
-
-    /**
-     * Convenient method to create an instance for the native element, return empty if null node.
-     */
-    public static NavigationResult create(AccessibilityNodeInfoCompat node) {
-      return new NavigationResult((node == null ? Type.EMPTY : Type.NATIVE_ELEMENT), node);
-    }
-
-    /** Gets the native element node. */
-    public @Nullable AccessibilityNodeInfoCompat getNode() {
-      if (shouldSkipNavigation()) {
-        throw new IllegalStateException("getNode for skipped type: " + type);
-      }
-      return node;
-    }
-
-    public boolean isEmpty() {
-      return Type.EMPTY.equals(type);
-    }
-
-    public boolean isWebElement() {
-      return Type.WEB_ELEMENT.equals(type);
-    }
-
-    public boolean isFocusAvailable() {
-      return Type.NATIVE_ELEMENT.equals(type) || isWebElement() || Type.EXISTING_FOCUS.equals(type);
-    }
-
-    /** Returns true if it should skip the navigation immediately. */
-    public boolean shouldSkipNavigation() {
-      return Type.EXISTING_FOCUS.equals(type)
-          || isWebElement()
-          || Type.REACH_EDGE.equals(type)
-          || Type.EXCEPTION.equals(type);
-    }
-
-    public void setLinkIndex(int linkIndex) {
-      this.linkIndex = linkIndex;
-    }
-
-    public int getLinkIndex() {
-      return linkIndex;
-    }
-  }
-
-  /**
-   * Filters nodes which are smaller than the temporary scrollable node. The accumulator will update
-   * the temporary scrollable node once it finds a bigger scrollable node. Finally it can get the
-   * node with maximum area in the node tree.
-   */
-  private static class MaxSizeNodeAccumulator extends Filter<AccessibilityNodeInfoCompat> {
-    final Filter<AccessibilityNodeInfoCompat> scrollableFilter;
-    AccessibilityNodeInfoCompat maximumScrollableNode;
-    int maximumSize;
-
-    /**
-     * @param node Initial node of the max size check.
-     */
-    MaxSizeNodeAccumulator(
-        @Nullable AccessibilityNodeInfoCompat node,
-        Filter<AccessibilityNodeInfoCompat> scrollableFilter) {
-      this.scrollableFilter = scrollableFilter;
-      if (node == null) {
-        maximumSize = 0;
-      } else {
-        maximumScrollableNode = node;
-        Rect nodeBounds = new Rect();
-        maximumScrollableNode.getBoundsInScreen(nodeBounds);
-        maximumSize = nodeBounds.width() * nodeBounds.height();
-      }
-    }
-
-    @Override
-    public boolean accept(AccessibilityNodeInfoCompat node) {
-      if (node == null) {
-        return true;
-      }
-
-      Rect nodeBounds = new Rect();
-      node.getBoundsInScreen(nodeBounds);
-      int nodeSize = nodeBounds.width() * nodeBounds.height();
-      if (nodeSize <= maximumSize) {
-        return true;
-      } else {
-        // Update maximum scrollable node if the node is scrollable.
-        if (scrollableFilter.accept(node)) {
-          maximumScrollableNode = node;
-          maximumSize = nodeSize;
-        }
-      }
-
-      return false;
-    }
-  }
-
-  /** Filters target window when performing directional navigation across windows. */
-  @VisibleForTesting
-  static class DirectionalNavigationWindowFilter extends Filter<AccessibilityWindowInfo> {
-    final Context context;
-    final UniversalSearchActor.State searchState;
-    final Set<Integer> pictureInPictureOverlayIds;
-
-    DirectionalNavigationWindowFilter(
-        Context context,
-        UniversalSearchActor.State searchState,
-        Set<Integer> pictureInPictureOverlayIds) {
-      this.context = context;
-      this.searchState = searchState;
-      this.pictureInPictureOverlayIds = pictureInPictureOverlayIds;
-    }
-
-    @Override
-    public boolean accept(AccessibilityWindowInfo window) {
-      if (window == null || pictureInPictureOverlayIds.contains(window.getId())) {
-        return false;
-      }
-      int type = AccessibilityWindowInfoUtils.getType(window);
-      if (type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
-        return false;
-      }
-      if (searchState.isUiVisible()) {
-        return (isSearchOverlay(context, window)
-            || (type == AccessibilityWindowInfo.TYPE_SYSTEM
-                && (!WindowUtils.isSystemBar(context, window)
-                    || !SettingsUtils.allowLinksOutOfSettings(
-                        context))) // System bar in SUW is navigable.
-            || (type == AccessibilityWindowInfo.TYPE_MAGNIFICATION_OVERLAY)
-            || (Role.getRole(window.getRoot()) == ROLE_FLOATING_ACTION_BUTTON));
-      } else {
-        boolean focusContainedInApplicationWindow =
-            FormFactorUtils.isAndroidPc()
-                && FeatureFlagReader.focusContainedInApplicationWindow(context);
-        // When the focus should be contained in the application window,
-        // application window type is filtered out.
-        return ((!focusContainedInApplicationWindow
-                && type == AccessibilityWindowInfo.TYPE_APPLICATION)
-            || (type == AccessibilityWindowInfo.TYPE_SPLIT_SCREEN_DIVIDER)
-            || (type == AccessibilityWindowInfo.TYPE_SYSTEM
-                && (!WindowUtils.isSystemBar(context, window)
-                    || !SettingsUtils.allowLinksOutOfSettings(
-                        context))) // System bar in SUW is navigable.
-            || (type == AccessibilityWindowInfo.TYPE_MAGNIFICATION_OVERLAY)
-            || (Role.getRole(window.getRoot()) == ROLE_FLOATING_ACTION_BUTTON));
-      }
     }
   }
 
