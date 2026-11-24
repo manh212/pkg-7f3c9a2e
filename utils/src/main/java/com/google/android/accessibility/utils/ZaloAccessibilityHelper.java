@@ -440,11 +440,17 @@ public final class ZaloAccessibilityHelper {
     if (ID_CHAT_LEFT_RICH_MESSAGE_MC_ROW.equals(parentId) || ID_CHATLINELIST.equals(parentId)) {
       return true;
     }
-    // Các thẻ tự vẽ không nhãn trong ScrollView (ví dụ Tab Cá nhân hoặc bài viết Tường nhà).
+    // Các thẻ/mục tự vẽ không nhãn trong Tab Cá nhân, Tường nhà hoặc danh sách Zalo.
     CharSequence parentClass = parent.getClassName();
-    return parentClass != null
-        && parentClass.toString().endsWith("ScrollView")
-        && node.isLongClickable();
+    if (parentClass != null) {
+      String pCls = parentClass.toString();
+      if (pCls.endsWith("ScrollView")
+          || pCls.endsWith("RecyclerView")
+          || pCls.endsWith("LinearLayout")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ===== Pure logic helpers (dễ kiểm thử unit test) =====
