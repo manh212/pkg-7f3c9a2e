@@ -107,8 +107,10 @@ public class AccessibilityNodeInfoUtils {
   public static @Nullable CharSequence getText(@Nullable AccessibilityNodeInfoCompat node) {
     return (node == null)
         ? null
-        : ZaloAccessibilityHelper.filterText(
-            node, ShopeeAccessibilityHelper.filterText(node, node.getText()));
+        : TikTokAccessibilityHelper.filterText(
+            node,
+            ZaloAccessibilityHelper.filterText(
+                node, ShopeeAccessibilityHelper.filterText(node, node.getText())));
   }
 
   @FormatMethod
@@ -578,10 +580,12 @@ public class AccessibilityNodeInfoUtils {
     // Prefer content description over text.
     // TODO: Why are we checking the trimmed length?
     final CharSequence contentDescription =
-        ZaloAccessibilityHelper.filterContentDescription(
+        TikTokAccessibilityHelper.filterContentDescription(
             node,
-            ShopeeAccessibilityHelper.filterContentDescription(
-                node, node.getContentDescription()));
+            ZaloAccessibilityHelper.filterContentDescription(
+                node,
+                ShopeeAccessibilityHelper.filterContentDescription(
+                    node, node.getContentDescription())));
     if (!TextUtils.isEmpty(contentDescription)
         && (TextUtils.getTrimmedLength(contentDescription) > 0)) {
       return contentDescription;
@@ -612,6 +616,9 @@ public class AccessibilityNodeInfoUtils {
     }
     if (overridden == null) {
       overridden = ZaloAccessibilityHelper.getStateOverride(node);
+    }
+    if (overridden == null) {
+      overridden = TikTokAccessibilityHelper.getStateOverride(node);
     }
     final CharSequence state = overridden != null ? overridden : node.getStateDescription();
     if (!TextUtils.isEmpty(state) && (TextUtils.getTrimmedLength(state) > 0)) {
@@ -928,7 +935,8 @@ public class AccessibilityNodeInfoUtils {
     }
     if (NodeOverrides.hidden(node)
         || ShopeeAccessibilityHelper.shouldHideNode(node)
-        || ZaloAccessibilityHelper.shouldHideNode(node)) {
+        || ZaloAccessibilityHelper.shouldHideNode(node)
+        || TikTokAccessibilityHelper.shouldHideNode(node)) {
       LogUtils.v(TAG, "Don't focus, hidden by override/app rule");
       return false;
     }
@@ -938,7 +946,8 @@ public class AccessibilityNodeInfoUtils {
     }
     if (NodeOverrides.grouped(node)
         || ShopeeAccessibilityHelper.isGroupedCard(node)
-        || ZaloAccessibilityHelper.isGroupedCard(node)) {
+        || ZaloAccessibilityHelper.isGroupedCard(node)
+        || TikTokAccessibilityHelper.isGroupedCard(node)) {
       return isVisible(node);
     }
     // Inside views that support web navigation, we delegate focus to the view itself and
@@ -1202,6 +1211,7 @@ public class AccessibilityNodeInfoUtils {
           || NodeOverrides.hidden(child)
           || ShopeeAccessibilityHelper.shouldHideNode(child)
           || ZaloAccessibilityHelper.shouldHideNode(child)
+          || TikTokAccessibilityHelper.shouldHideNode(child)
           || WebInterfaceUtils.supportsWebActions(child)) {
         continue;
       }
@@ -1224,7 +1234,8 @@ public class AccessibilityNodeInfoUtils {
           public boolean accept(AccessibilityNodeInfoCompat ancestor) {
             return NodeOverrides.grouped(ancestor)
                 || ShopeeAccessibilityHelper.isGroupedCard(ancestor)
-                || ZaloAccessibilityHelper.isGroupedCard(ancestor);
+                || ZaloAccessibilityHelper.isGroupedCard(ancestor)
+                || TikTokAccessibilityHelper.isGroupedCard(ancestor);
           }
         });
   }
@@ -2187,10 +2198,12 @@ public class AccessibilityNodeInfoUtils {
         && node.getCollectionInfo() == null
         && (!TextUtils.isEmpty(AccessibilityNodeInfoUtils.getText(node))
             || !TextUtils.isEmpty(
-                ZaloAccessibilityHelper.filterContentDescription(
+                TikTokAccessibilityHelper.filterContentDescription(
                     node,
-                    ShopeeAccessibilityHelper.filterContentDescription(
-                        node, node.getContentDescription())))
+                    ZaloAccessibilityHelper.filterContentDescription(
+                        node,
+                        ShopeeAccessibilityHelper.filterContentDescription(
+                            node, node.getContentDescription()))))
             || !TextUtils.isEmpty(node.getHintText()));
   }
 
@@ -2216,6 +2229,7 @@ public class AccessibilityNodeInfoUtils {
         || NodeOverrides.grouped(node)
         || ShopeeAccessibilityHelper.isGroupedCard(node)
         || ZaloAccessibilityHelper.isGroupedCard(node)
+        || TikTokAccessibilityHelper.isGroupedCard(node)
         || isActionableForAccessibility(node)
         || isAdjustableSlider(node);
   }
@@ -2235,6 +2249,7 @@ public class AccessibilityNodeInfoUtils {
             || NodeOverrides.grouped(node)
             || ShopeeAccessibilityHelper.isGroupedCard(node)
             || ZaloAccessibilityHelper.isGroupedCard(node)
+            || TikTokAccessibilityHelper.isGroupedCard(node)
             || isActionableForAccessibility(node)
             || isAdjustableSlider(node));
   }

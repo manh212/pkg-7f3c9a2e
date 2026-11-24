@@ -785,6 +785,10 @@ public class Role {
     if (zaloRole != null) {
       return zaloRole;
     }
+    @Nullable Integer tiktokRole = TikTokAccessibilityHelper.getRoleOverride(node);
+    if (tiktokRole != null) {
+      return tiktokRole;
+    }
     return getAppRole(node);
   }
 
