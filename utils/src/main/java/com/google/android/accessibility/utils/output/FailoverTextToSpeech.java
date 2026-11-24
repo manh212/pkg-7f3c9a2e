@@ -299,7 +299,7 @@ public class FailoverTextToSpeech {
    * {@link BroadcastReceiver} for determining changes in the media state used for switching the TTS
    * engine.
    */
-  private final MediaMountStateMonitor mediaStateMonitor = new MediaMountStateMonitor(action -> mHandler.onMediaStateChanged(action));
+  private final MediaMountStateMonitor mediaStateMonitor = new MediaMountStateMonitor(action -> this.mHandler.onMediaStateChanged(action));
 
   /** A list of installed TTS engines. */
   private final LinkedList<String> installedTtsEngines = new LinkedList<>();
