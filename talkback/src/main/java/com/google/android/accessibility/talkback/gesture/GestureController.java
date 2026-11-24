@@ -590,6 +590,10 @@ public class GestureController {
       result = SubmitText.submit(service, findEditorTarget());
     } else if (action.equals(service.getString(R.string.shortcut_value_direct_tap))) {
       result = pipeline.returnFeedback(eventId, Feedback.focus(Feedback.Focus.Action.TOUCH_CLICK_CURRENT));
+    } else if (action.equals(service.getString(R.string.shortcut_value_direct_long_press))) {
+      result =
+          pipeline.returnFeedback(
+              eventId, Feedback.focus(Feedback.Focus.Action.DIRECT_LONG_PRESS_CURRENT));
     } else if (action.equals(service.getString(R.string.shortcut_value_take_screenshot))) {
       result = true;
       ScreenshotActions.takeFullScreenshot(

@@ -1749,6 +1749,7 @@ public abstract class Feedback {
       TOUCH_CLICK_CURRENT,
       DOUBLE_CLICK_CURRENT,
       LONG_CLICK_CURRENT,
+      DIRECT_LONG_PRESS_CURRENT,
       CLICK_ANCESTOR,
       SEARCH_FROM_TOP, // Requires searchKeyword.
       SEARCH_AGAIN,

@@ -1329,6 +1329,7 @@
   <string name="shortcut_value_copy_focused" translatable="false">COPY_FOCUSED</string>
   <string name="shortcut_value_clear_all_text" translatable="false">CLEAR_ALL_TEXT</string>
   <string name="shortcut_value_direct_tap" translatable="false">DIRECT_TAP</string>
+  <string name="shortcut_value_direct_long_press" translatable="false">DIRECT_LONG_PRESS</string>
   <string name="shortcut_value_take_screenshot" translatable="false">TAKE_SCREENSHOT</string>
   <string name="shortcut_value_answer_call" translatable="false">ANSWER_CALL</string>
   <string name="shortcut_value_toggle_touch_exploration" translatable="false">TOGGLE_TOUCH_EXPLORATION</string>

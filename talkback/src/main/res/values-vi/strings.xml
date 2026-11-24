@@ -434,6 +434,7 @@
   <string name="shortcut_copy_focused">Sao chép tiêu điểm hiện tại</string>
   <string name="shortcut_clear_all_text">Xóa tất cả nội dung trong ô nhập liệu</string>
   <string name="shortcut_direct_tap">Nhấn trực tiếp</string>
+    <string name="shortcut_direct_long_press">Nhấn giữ trực tiếp</string>
   <string name="shortcut_take_screenshot">Chụp màn hình</string>
   <string name="shortcut_answer_call">Trả lời cuộc gọi</string>
   <string name="answer_call_no_call">Không có cuộc gọi đến</string>

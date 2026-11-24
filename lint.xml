@@ -46,6 +46,7 @@
         <ignore regexp="shortcut_copy_focused" />
         <ignore regexp="shortcut_clear_all_text" />
         <ignore regexp="shortcut_direct_tap" />
+        <ignore regexp="shortcut_direct_long_press" />
         <ignore regexp="shortcut_take_screenshot" />
         <ignore regexp="shortcut_toggle_touch_exploration" />
         <ignore regexp="copy_focused_nothing_to_copy" />

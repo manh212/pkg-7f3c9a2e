@@ -2118,6 +2118,7 @@
     <string name="shortcut_copy_focused">Copy focused item</string>
     <string name="shortcut_clear_all_text">Clear all text</string>
     <string name="shortcut_direct_tap">Direct tap</string>
+  <string name="shortcut_direct_long_press">Direct long press</string>
     <string name="shortcut_take_screenshot">Take screenshot</string>
     <!-- Label for the shortcut that answers the incoming phone call that is ringing. [CHAR_LIMIT=40] -->
     <string name="shortcut_answer_call">Answer call</string>

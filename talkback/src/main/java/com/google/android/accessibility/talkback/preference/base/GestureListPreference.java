@@ -613,6 +613,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         R.string.shortcut_value_toggle_focus_text_inside_items,
         R.string.shortcut_value_toggle_arrow_key_nav,
         R.string.shortcut_value_direct_tap,
+        R.string.shortcut_value_direct_long_press,
         R.string.shortcut_value_toggle_touch_exploration,
         R.string.shortcut_value_monitor_focus,
         R.string.shortcut_value_pass_through_next_gesture,
@@ -1068,6 +1069,12 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
         new ActionItem(
             resources.getString(R.string.shortcut_direct_tap),
             resources.getString(R.string.shortcut_value_direct_tap),
+            TYPE_ACTION_ITEM));
+
+    builder.add(
+        new ActionItem(
+            resources.getString(R.string.shortcut_direct_long_press),
+            resources.getString(R.string.shortcut_value_direct_long_press),
             TYPE_ACTION_ITEM));
 
     builder.add(

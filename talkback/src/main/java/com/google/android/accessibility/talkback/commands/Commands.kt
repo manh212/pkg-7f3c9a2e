@@ -526,6 +526,7 @@ object Commands {
         )
         keyboard(Key.TOGGLE_KEY_COMBO_PASS_THROUGH_ONCE)
         gesture(R.string.shortcut_value_direct_tap, R.string.shortcut_direct_tap)
+        gesture(R.string.shortcut_value_direct_long_press, R.string.shortcut_direct_long_press)
         gesture(R.string.shortcut_value_toggle_touch_exploration, R.string.shortcut_toggle_touch_exploration)
         gesture(R.string.shortcut_value_tap_text_add, R.string.tap_text_add)
         readingControlPair(Setting.ACTIONS, R.string.command_rc_actions)

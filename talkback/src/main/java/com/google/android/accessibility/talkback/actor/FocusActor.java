@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.actor;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK;
 import static com.google.android.accessibility.talkback.Feedback.EditText.Action.SELECT_SEGMENT;
+import static com.google.android.accessibility.talkback.Feedback.PassThroughMode.Action.LOCK_PASS_THROUGH;
 import static com.google.android.accessibility.talkback.contextmenu.ListMenuManager.MenuId.CUSTOM_ACTION;
 import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
 
@@ -27,7 +28,11 @@ import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.GestureDescription.StrokeDescription;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.Region;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
+import android.util.DisplayMetrics;
 import android.text.style.URLSpan;
 import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -54,6 +59,7 @@ import com.google.android.accessibility.talkback.focusmanagement.interpreter.Scr
 import com.google.android.accessibility.talkback.focusmanagement.record.AccessibilityFocusActionHistory;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionRecord;
+import com.google.android.accessibility.talkback.gesture.SyntheticTouches;
 import com.google.android.accessibility.talkback.scripting.Scripts;
 import com.google.android.accessibility.talkback.utils.LinkUtils;
 import com.google.android.accessibility.talkback.utils.LinkUtils.LinkSpan;
@@ -65,6 +71,7 @@ import com.google.android.accessibility.utils.PerformActionUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
+import com.google.android.accessibility.utils.ZaloAccessibilityHelper;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -77,6 +84,10 @@ public class FocusActor implements UserInputEventListener {
   private static final String TAG = "FocusActor";
   private static final int STROKE_TIME_GAP_MS = 40;
   private static final int FAST_TAP_STROKE_MS = 40;
+  private static final long DIRECT_LONG_PRESS_DELAY_MS = 120L;
+  private static final long MIN_DIRECT_LONG_PRESS_MS = 700L;
+  private static final long LONG_PRESS_EXTRA_MARGIN_MS = 250L;
+  private static final int DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS = 48;
 
   /** The only class in TalkBack which has direct access to accessibility focus from framework. */
   private final FocusManagerInternal focusManagerInternal;
@@ -249,8 +260,100 @@ public class FocusActor implements UserInputEventListener {
     }
     node = Scripts.actionTarget(node, true);
     AccessibilityNodeInfoCompat item = itemOfTextInside(node, ACTION_LONG_CLICK.getId());
-    return pipeline.returnFeedback(
-        eventId, Feedback.nodeAction(item != null ? item : node, ACTION_LONG_CLICK.getId()));
+    AccessibilityNodeInfoCompat target = item != null ? item : node;
+    boolean inZalo = ZaloAccessibilityHelper.isZaloPackage(target.getPackageName());
+    if (inZalo && !PerformActionUtils.isNodeSupportAction(target, ACTION_LONG_CLICK.getId())) {
+      return directLongPressNode(target, eventId);
+    }
+    boolean performed =
+        pipeline.returnFeedback(eventId, Feedback.nodeAction(target, ACTION_LONG_CLICK.getId()));
+    if (!performed && inZalo) {
+      return directLongPressNode(target, eventId);
+    }
+    return performed;
+  }
+
+  public boolean directLongPressCurrentFocus(EventId eventId) {
+    AccessibilityNodeInfoCompat currentFocus =
+        accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ false);
+    return directLongPressNode(currentFocus, eventId);
+  }
+
+  /**
+   * Sends a raw physical long-press directly to the screen center of {@code node}, bypassing
+   * Android's {@code ACTION_LONG_CLICK} and touch exploration so apps that handle long-press via
+   * raw touch listeners (such as Zalo chat messages) still respond.
+   */
+  public boolean directLongPressNode(
+      @Nullable AccessibilityNodeInfoCompat node, EventId eventId) {
+    if (node == null || pipeline == null || service == null) {
+      return false;
+    }
+    node.refresh();
+    Rect bounds = new Rect();
+    node.getBoundsInScreen(bounds);
+    if (bounds.isEmpty()) {
+      return false;
+    }
+    DisplayMetrics metrics = service.getResources().getDisplayMetrics();
+    int maxX = Math.max(1, metrics.widthPixels - 2);
+    int maxY = Math.max(1, metrics.heightPixels - 2);
+    int x = Math.max(1, Math.min(bounds.centerX(), maxX));
+    int y = Math.max(1, Math.min(bounds.centerY(), maxY));
+
+    long durationMs =
+        Math.max(
+            ViewConfiguration.getLongPressTimeout() + LONG_PRESS_EXTRA_MARGIN_MS,
+            MIN_DIRECT_LONG_PRESS_MS);
+    Path path = new Path();
+    path.moveTo(x, y);
+    GestureDescription gesture =
+        new GestureDescription.Builder()
+            .addStroke(new StrokeDescription(path, /* startTime= */ 0, durationMs))
+            .build();
+
+    pipeline.returnFeedback(eventId, Feedback.part().setInterruptGentle(true));
+    Handler mainHandler = new Handler(Looper.getMainLooper());
+    if (SyntheticTouches.isAvailable()) {
+      mainHandler.postDelayed(
+          () -> SyntheticTouches.dispatch(service, gesture, durationMs, /* onEnd= */ null),
+          DIRECT_LONG_PRESS_DELAY_MS);
+      return true;
+    }
+
+    Region passThroughRegion =
+        new Region(
+            Math.max(0, x - DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
+            Math.max(0, y - DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
+            Math.min(metrics.widthPixels, x + DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS),
+            Math.min(metrics.heightPixels, y + DIRECT_LONG_PRESS_PASS_THROUGH_RADIUS));
+    pipeline.returnFeedback(
+        eventId, Feedback.passThroughMode(LOCK_PASS_THROUGH, passThroughRegion));
+    Runnable unlockPassThrough =
+        () ->
+            pipeline.returnFeedback(
+                EVENT_ID_UNTRACKED,
+                Feedback.passThroughMode(LOCK_PASS_THROUGH, /* region= */ null));
+    AccessibilityService.GestureResultCallback callback =
+        new AccessibilityService.GestureResultCallback() {
+          @Override
+          public void onCompleted(GestureDescription description) {
+            unlockPassThrough.run();
+          }
+
+          @Override
+          public void onCancelled(GestureDescription description) {
+            unlockPassThrough.run();
+          }
+        };
+    mainHandler.postDelayed(
+        () -> {
+          if (!service.dispatchGesture(gesture, callback, mainHandler)) {
+            unlockPassThrough.run();
+          }
+        },
+        DIRECT_LONG_PRESS_DELAY_MS);
+    return true;
   }
 
   /**

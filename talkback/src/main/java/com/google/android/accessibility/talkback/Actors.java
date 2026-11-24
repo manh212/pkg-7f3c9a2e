@@ -596,6 +596,8 @@ class Actors {
         case TOUCH_CLICK_CURRENT -> success &= focuser.touchClickCurrentFocus(eventId);
         case DOUBLE_CLICK_CURRENT -> success &= focuser.doubleClickCurrentFocus(eventId);
         case LONG_CLICK_CURRENT -> success &= focuser.longClickCurrentFocus(eventId);
+        case DIRECT_LONG_PRESS_CURRENT ->
+            success &= focuser.directLongPressCurrentFocus(eventId);
         case CLICK_ANCESTOR -> success &= focuser.clickCurrentHierarchical(eventId);
         case SEARCH_FROM_TOP -> {
           if (focus.searchKeyword() != null) {
