@@ -1419,7 +1419,6 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     Performance perf = Performance.getInstance();
     EventId eventId = perf.onEventReceived(event, receivedAt);
-    int eventType = event.getEventType();
     if (eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
         && SettingsProfiles.watchesFocus()) {
       SettingsProfiles.onFocused(AccessibilityEventUtils.sourceCompat(event));
