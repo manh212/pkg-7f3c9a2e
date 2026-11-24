@@ -144,7 +144,7 @@ public final class ZaloAccessibilityHelper {
   private ZaloAccessibilityHelper() {}
 
   public static boolean isZaloPackage(@Nullable CharSequence packageName) {
-    return packageName != null && TextUtils.equals(ZALO_PACKAGE, packageName);
+    return packageName != null && ZALO_PACKAGE.contentEquals(packageName);
   }
 
   public static boolean isZaloNode(@Nullable AccessibilityNodeInfoCompat node) {
@@ -413,7 +413,7 @@ public final class ZaloAccessibilityHelper {
 
   public static String formatMainTabLabel(
       String tabName, boolean hasBadgeDot, @Nullable String notificationText) {
-    if (!TextUtils.isEmpty(notificationText)) {
+    if (notificationText != null && !notificationText.isEmpty()) {
       String trimmed = notificationText.trim();
       if ("N".equalsIgnoreCase(trimmed)) {
         return tabName + ", có tin mới";
@@ -427,7 +427,7 @@ public final class ZaloAccessibilityHelper {
   }
 
   public static String formatNotificationButtonLabel(@Nullable String countText) {
-    if (TextUtils.isEmpty(countText)) {
+    if (countText == null || countText.isEmpty()) {
       return "Thông báo";
     }
     return "Thông báo, " + countText.trim() + " thông báo mới";
@@ -435,7 +435,7 @@ public final class ZaloAccessibilityHelper {
 
   public static String formatCallActionLabel(
       @Nullable String englishDescription, @Nullable String nextSiblingText) {
-    if (TextUtils.isEmpty(englishDescription)) {
+    if (englishDescription == null || englishDescription.isEmpty()) {
       return null;
     }
     String lower = englishDescription.trim().toLowerCase(Locale.ROOT);
