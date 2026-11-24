@@ -1,0 +1,643 @@
+/*
+ * Copyright (C) 2012 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.android.accessibility.utils;
+
+import android.text.TextUtils;
+import androidx.annotation.Nullable;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import com.google.android.accessibility.utils.Role.RoleName;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+
+/**
+ * Hỗ trợ cải thiện khả năng tiếp cận cho ứng dụng Zalo ({@code com.zing.zalo}).
+ *
+ * <p>Xử lý đồng bộ các vấn đề thực tế trên toàn bộ các màn hình Zalo:
+ *
+ * <ul>
+ *   <li>Gắn nhãn tiếng Việt cho các nút mất nhãn trên thanh công cụ (Quét mã QR, Thêm, Nhóm, Thêm
+ *       bạn, Đăng bài mới, Thông báo, Cài đặt) và chặn dừng tiêu điểm kép vào icon con.
+ *   <li>Gắn đủ tên, vai trò Thẻ và trạng thái Đã chọn cho 5 tab điều hướng dưới cùng (Tin nhắn,
+ *       Danh bạ, Khám phá, Tường nhà, Cá nhân), đồng thời gộp chấm thông báo {@code badge_dot} /
+ *       {@code numnotification} vào nhãn tab.
+ *   <li>Gắn nhãn các nút bị thiếu trên Tường nhà (Bình luận, X lượt thích, Trang cá nhân), bảng
+ *       biểu tượng cảm xúc / nhãn dán và thanh bày tỏ cảm xúc khi nhấn giữ tin nhắn.
+ *   <li>Việt hóa và gom gọn màn hình cuộc gọi / cuộc gọi đến (bỏ qua logo/ảnh trang trí và chữ lặp
+ *       bên dưới nút).
+ *   <li>Lọc ký tự rỗng {@code NUL} trong danh sách tin nhắn và cho phép OCR tự động đọc các thẻ
+ *       tin nhắn OA tự vẽ kích thước lớn ({@code chat_left_rich_message_mc_row}).
+ * </ul>
+ */
+public final class ZaloAccessibilityHelper {
+
+  public static final String ZALO_PACKAGE = "com.zing.zalo";
+
+  private static final String ID_PREFIX = ZALO_PACKAGE + ":id/";
+
+  private static final String ID_ACTION_BAR_SEARCH_BTN = ID_PREFIX + "action_bar_search_btn";
+  private static final String ID_ACTION_BAR_QRCODE = ID_PREFIX + "action_bar_qrcode";
+  private static final String ID_ACTION_BAR_PLUS_BTN = ID_PREFIX + "action_bar_plus_btn";
+  private static final String ID_ACTION_BAR_GROUP_TAB_BTN = ID_PREFIX + "action_bar_group_tab_btn";
+  private static final String ID_ACTION_BAR_ADD_FRIEND_BTN =
+      ID_PREFIX + "action_bar_add_friend_btn";
+  private static final String ID_ACTION_BAR_NEW_POST_BTN = ID_PREFIX + "action_bar_new_post_btn";
+  private static final String ID_ACTION_BAR_SETTING_BTN = ID_PREFIX + "action_bar_setting_btn";
+  private static final String ID_IMG_NEW_NOTIFICATION_LIST =
+      ID_PREFIX + "imgButtonNewNotificationList";
+  private static final String ID_IC_NEW_NOTIFY_FEED = ID_PREFIX + "ic_newNotifyFeed";
+
+  private static final String ID_MAINTAB_MESSAGE = ID_PREFIX + "maintab_message";
+  private static final String ID_MAINTAB_CONTACT = ID_PREFIX + "maintab_contact";
+  private static final String ID_MAINTAB_DISCOVERY = ID_PREFIX + "maintab_discovery";
+  private static final String ID_MAINTAB_TIMELINE = ID_PREFIX + "maintab_timeline";
+  private static final String ID_MAINTAB_METAB = ID_PREFIX + "maintab_metab";
+  private static final String ID_BADGE_DOT = ID_PREFIX + "badge_dot";
+  private static final String ID_NUM_NOTIFICATION = ID_PREFIX + "numnotification";
+
+  private static final String ID_TAB_RECYCLER_VIEW = ID_PREFIX + "tab_recycler_view";
+  private static final String ID_CHIP_TABS_CONTAINER = ID_PREFIX + "chip_tabs_container";
+  private static final String ID_CHIP_TAB_ALL = ID_PREFIX + "chip_tab_all";
+  private static final String ID_CHIP_TAB_FRIEND = ID_PREFIX + "chip_tab_friend";
+  private static final String ID_CHIP_TAB_OA = ID_PREFIX + "chip_tab_oa";
+  private static final String ID_FIRST_TAB_ITEM = ID_PREFIX + "first_tab_item";
+  private static final String ID_SECOND_TAB_ITEM = ID_PREFIX + "second_tab_item";
+
+  private static final String ID_POST_TRIGGERING = ID_PREFIX + "post_triggering";
+  private static final String ID_AVATAR = ID_PREFIX + "avatar";
+  private static final String ID_BTN_LIKE = ID_PREFIX + "btn_like";
+  private static final String ID_REACTION_INFO = ID_PREFIX + "reaction_info";
+  private static final String ID_TOTAL_LIKE = ID_PREFIX + "total_like";
+  private static final String ID_COMMENT_COMPONENT = ID_PREFIX + "comment_component";
+
+  private static final String ID_ZDS_ACTION_BAR = ID_PREFIX + "zds_action_bar";
+  private static final String ID_ACTIONBAR_TRAILING_CONTAINER =
+      ID_PREFIX + "actionbar_trailing_container";
+  private static final String ID_HIGHLIGHT_FRAME_LAYOUT = ID_PREFIX + "highlight_frame_layout";
+  private static final String ID_POPUP_CONTENT_CONTAINER = ID_PREFIX + "popup_content_container";
+  private static final String ID_REACTION_CONTAINER_VIEW = ID_PREFIX + "reaction_container_view";
+  private static final String ID_CHAT_LEFT_RICH_MESSAGE_MC_ROW =
+      ID_PREFIX + "chat_left_rich_message_mc_row";
+  private static final String ID_CHATLINELIST = ID_PREFIX + "chatlinelist";
+
+  private static final String ID_BLC_INPUT_EMOJI_TAB = ID_PREFIX + "blc_input_emoji_tab";
+  private static final String ID_GOTO_STORE_BTN = ID_PREFIX + "goto_store_btn";
+  private static final String ID_DELETE_EMOJI_BUTTON = ID_PREFIX + "delete_emoji_button";
+  private static final String ID_MORE_CONTAINER = ID_PREFIX + "moreContainer";
+  private static final String ID_STICKER_LIST_INDICATOR = ID_PREFIX + "sticker_list_indicator";
+
+  private static final String ID_CALL_MINIMIZE_BTN = ID_PREFIX + "call_minimizeBtn";
+  private static final String ID_CALL_WATERMASK_ZALO = ID_PREFIX + "call_waterMaskZalo";
+  private static final String ID_CALL_HD_LABEL = ID_PREFIX + "call_hd_label";
+  private static final String ID_CALL_SWITCH_VIDEO_BTN = ID_PREFIX + "call_switchVideoBtn";
+  private static final String ID_CALL_AVATAR_VIEW = ID_PREFIX + "call_avatarView";
+
+  private static final Set<String> ACTION_BAR_ICON_PARENTS =
+      new HashSet<>(
+          Arrays.asList(
+              ID_ACTION_BAR_QRCODE,
+              ID_ACTION_BAR_PLUS_BTN,
+              ID_ACTION_BAR_GROUP_TAB_BTN,
+              ID_ACTION_BAR_ADD_FRIEND_BTN,
+              ID_ACTION_BAR_NEW_POST_BTN,
+              ID_ACTION_BAR_SETTING_BTN));
+
+  private static final Set<String> MAIN_TABS =
+      new HashSet<>(
+          Arrays.asList(
+              ID_MAINTAB_MESSAGE,
+              ID_MAINTAB_CONTACT,
+              ID_MAINTAB_DISCOVERY,
+              ID_MAINTAB_TIMELINE,
+              ID_MAINTAB_METAB));
+
+  private static final Set<String> HIDDEN_WRAPPER_IDS =
+      new HashSet<>(
+          Arrays.asList(
+              ID_ZDS_ACTION_BAR,
+              ID_ACTIONBAR_TRAILING_CONTAINER,
+              ID_CHIP_TABS_CONTAINER,
+              ID_HIGHLIGHT_FRAME_LAYOUT,
+              ID_POPUP_CONTENT_CONTAINER));
+
+  private static final Set<String> CALL_ACTION_ENGLISH_LABELS =
+      new HashSet<>(Arrays.asList("change speaker", "end call", "mute record", "accept call"));
+
+  private static final Set<String> CALL_DUPLICATE_TEXT_LABELS =
+      new HashSet<>(Arrays.asList("loa", "kết thúc", "mic", "từ chối", "trả lời"));
+
+  private ZaloAccessibilityHelper() {}
+
+  public static boolean isZaloPackage(@Nullable CharSequence packageName) {
+    return packageName != null && TextUtils.equals(ZALO_PACKAGE, packageName);
+  }
+
+  public static boolean isZaloNode(@Nullable AccessibilityNodeInfoCompat node) {
+    return node != null && isZaloPackage(node.getPackageName());
+  }
+
+  /**
+   * Ẩn các icon trang trí, icon con bị trùng tiêu điểm, chấm thông báo thừa, chữ lặp dưới nút cuộc
+   * gọi và các khung bọc ngoài không nên dừng tiêu điểm trong Zalo.
+   */
+  public static boolean shouldHideNode(@Nullable AccessibilityNodeInfoCompat node) {
+    if (!isZaloNode(node)) {
+      return false;
+    }
+    String id = node.getViewIdResourceName();
+    if (ID_ACTION_BAR_SEARCH_BTN.equals(id)
+        || ID_IMG_NEW_NOTIFICATION_LIST.equals(id)
+        || ID_IC_NEW_NOTIFY_FEED.equals(id)
+        || ID_BADGE_DOT.equals(id)
+        || ID_NUM_NOTIFICATION.equals(id)
+        || ID_CALL_WATERMASK_ZALO.equals(id)
+        || ID_CALL_HD_LABEL.equals(id)
+        || ID_CALL_AVATAR_VIEW.equals(id)) {
+      return true;
+    }
+    if (id != null && HIDDEN_WRAPPER_IDS.contains(id) && node.getChildCount() > 0) {
+      return true;
+    }
+
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent != null) {
+      String parentId = parent.getViewIdResourceName();
+      if (parentId != null
+          && ACTION_BAR_ICON_PARENTS.contains(parentId)
+          && isImageViewClass(node.getClassName())) {
+        return true;
+      }
+      if (isDuplicateCallLabelText(node, parent)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Gom các nút thanh công cụ, 5 tab điều hướng dưới cùng, nút thông báo và nút lượt thích thành 1
+   * khối tiêu điểm duy nhất để không bị lọt vào view con bên trong.
+   */
+  public static boolean isGroupedCard(@Nullable AccessibilityNodeInfoCompat node) {
+    if (!isZaloNode(node)) {
+      return false;
+    }
+    String id = node.getViewIdResourceName();
+    if (id != null
+        && (MAIN_TABS.contains(id)
+            || ACTION_BAR_ICON_PARENTS.contains(id)
+            || ID_REACTION_INFO.equals(id)
+            || ID_BTN_LIKE.equals(id))) {
+      return true;
+    }
+    return isNotificationFeedButton(node);
+  }
+
+  /**
+   * Lọc ký tự rỗng {@code NUL} và khoảng trắng thừa trong văn bản tin nhắn / danh sách hội thoại
+   * Zalo.
+   */
+  @Nullable
+  public static CharSequence filterText(
+      @Nullable AccessibilityNodeInfoCompat node, @Nullable CharSequence rawText) {
+    if (rawText == null || !isZaloNode(node)) {
+      return rawText;
+    }
+    String text = rawText.toString();
+    boolean hasNull = text.indexOf(0) >= 0;
+    boolean hasEdgeNewline =
+        !text.isEmpty() && (text.charAt(0) == '\n' || text.charAt(text.length() - 1) == '\n');
+    if (!hasNull && !hasEdgeNewline) {
+      return rawText;
+    }
+    return sanitizeZaloText(text);
+  }
+
+  /** Gắn nhãn tiếng Việt sạch cho các nút mất nhãn, tab điều hướng và màn hình cuộc gọi Zalo. */
+  @Nullable
+  public static CharSequence filterContentDescription(
+      @Nullable AccessibilityNodeInfoCompat node, @Nullable CharSequence rawDescription) {
+    if (!isZaloNode(node)) {
+      return rawDescription;
+    }
+    String id = node.getViewIdResourceName();
+    if (id != null) {
+      switch (id) {
+        case ID_ACTION_BAR_QRCODE:
+          return "Quét mã QR";
+        case ID_ACTION_BAR_PLUS_BTN:
+          return "Thêm";
+        case ID_ACTION_BAR_GROUP_TAB_BTN:
+          return "Nhóm";
+        case ID_ACTION_BAR_ADD_FRIEND_BTN:
+          return "Thêm bạn";
+        case ID_ACTION_BAR_NEW_POST_BTN:
+          return "Đăng bài mới";
+        case ID_ACTION_BAR_SETTING_BTN:
+          return "Cài đặt";
+        case ID_MAINTAB_MESSAGE:
+          return buildMainTabLabel("Tin nhắn", node);
+        case ID_MAINTAB_CONTACT:
+          return buildMainTabLabel("Danh bạ", node);
+        case ID_MAINTAB_DISCOVERY:
+          return buildMainTabLabel("Khám phá", node);
+        case ID_MAINTAB_TIMELINE:
+          return buildMainTabLabel("Tường nhà", node);
+        case ID_MAINTAB_METAB:
+          return buildMainTabLabel("Cá nhân", node);
+        case ID_COMMENT_COMPONENT:
+          return buildCommentLabel(node);
+        case ID_REACTION_INFO:
+          return buildReactionInfoLabel(node);
+        case ID_BLC_INPUT_EMOJI_TAB:
+          return "Biểu tượng cảm xúc";
+        case ID_GOTO_STORE_BTN:
+          return "Cửa hàng nhãn dán";
+        case ID_DELETE_EMOJI_BUTTON:
+          return "Xóa";
+        case ID_MORE_CONTAINER:
+          return "Tùy chọn bộ nhãn dán";
+        case ID_REACTION_CONTAINER_VIEW:
+          if (node.getChildCount() == 0 && TextUtils.isEmpty(rawDescription)) {
+            return "Bày tỏ cảm xúc";
+          }
+          break;
+        case ID_CALL_MINIMIZE_BTN:
+          return "Thu nhỏ cuộc gọi";
+        case ID_CALL_SWITCH_VIDEO_BTN:
+          return "Chuyển sang gọi video";
+        case ID_AVATAR:
+          AccessibilityNodeInfoCompat parent = node.getParent();
+          if (parent != null && ID_POST_TRIGGERING.equals(parent.getViewIdResourceName())) {
+            return "Trang cá nhân";
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (isNotificationFeedButton(node)) {
+      return buildNotificationButtonLabel(node);
+    }
+
+    CharSequence stickerTabLabel = resolveStickerIndicatorTabLabel(node);
+    if (stickerTabLabel != null) {
+      return stickerTabLabel;
+    }
+
+    CharSequence callActionLabel = resolveCallActionLabel(node, rawDescription);
+    if (callActionLabel != null) {
+      return callActionLabel;
+    }
+
+    return rawDescription;
+  }
+
+  /**
+   * Trả về trạng thái {@code "Đã chọn"} cho tab đang mở ở thanh điều hướng 5 tab dưới cùng (Zalo
+   * chỉ hiển thị TextView tên tab cho đúng tab đang được chọn).
+   */
+  @Nullable
+  public static CharSequence getStateOverride(@Nullable AccessibilityNodeInfoCompat node) {
+    if (!isZaloNode(node)) {
+      return null;
+    }
+    String id = node.getViewIdResourceName();
+    if (id != null && MAIN_TABS.contains(id) && !node.isSelected() && hasActiveTabTitleText(node)) {
+      return "Đã chọn";
+    }
+    return null;
+  }
+
+  /** Chuẩn hóa vai trò Nút / Thẻ cho các thành phần tương tác trong Zalo. */
+  @Nullable
+  @RoleName
+  public static Integer getRoleOverride(@Nullable AccessibilityNodeInfoCompat node) {
+    if (!isZaloNode(node)) {
+      return null;
+    }
+    String id = node.getViewIdResourceName();
+    if (id != null) {
+      if (MAIN_TABS.contains(id)
+          || ID_CHIP_TAB_ALL.equals(id)
+          || ID_CHIP_TAB_FRIEND.equals(id)
+          || ID_CHIP_TAB_OA.equals(id)
+          || ID_FIRST_TAB_ITEM.equals(id)
+          || ID_SECOND_TAB_ITEM.equals(id)
+          || ID_BLC_INPUT_EMOJI_TAB.equals(id)) {
+        return Role.ROLE_TAB_BAR;
+      }
+      if (ACTION_BAR_ICON_PARENTS.contains(id)
+          || ID_BTN_LIKE.equals(id)
+          || ID_REACTION_INFO.equals(id)
+          || ID_COMMENT_COMPONENT.equals(id)
+          || ID_GOTO_STORE_BTN.equals(id)
+          || ID_DELETE_EMOJI_BUTTON.equals(id)
+          || ID_MORE_CONTAINER.equals(id)
+          || ID_REACTION_CONTAINER_VIEW.equals(id)
+          || ID_CALL_MINIMIZE_BTN.equals(id)
+          || ID_CALL_SWITCH_VIDEO_BTN.equals(id)) {
+        return Role.ROLE_BUTTON;
+      }
+    }
+    if (isNotificationFeedButton(node)) {
+      return Role.ROLE_BUTTON;
+    }
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent != null) {
+      String parentId = parent.getViewIdResourceName();
+      if (ID_TAB_RECYCLER_VIEW.equals(parentId) || ID_STICKER_LIST_INDICATOR.equals(parentId)) {
+        return Role.ROLE_TAB_BAR;
+      }
+    }
+    if (resolveCallActionLabel(node, node.getContentDescription()) != null) {
+      return Role.ROLE_BUTTON;
+    }
+    return null;
+  }
+
+  /**
+   * Cho phép OCR tự động của Meridian chạy trên các thẻ tin nhắn OA / thẻ nội dung tự vẽ kích thước
+   * lớn không có chữ trong Zalo (ví dụ con của {@code chat_left_rich_message_mc_row}).
+   */
+  public static boolean shouldAllowAutoOcr(@Nullable AccessibilityNodeInfoCompat node) {
+    if (!isZaloNode(node) || node.getChildCount() != 0) {
+      return false;
+    }
+    if (!TextUtils.isEmpty(node.getText()) || !TextUtils.isEmpty(node.getContentDescription())) {
+      return false;
+    }
+    if (!node.isClickable() && !node.isFocusable()) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null) {
+      return false;
+    }
+    String parentId = parent.getViewIdResourceName();
+    if (ID_CHAT_LEFT_RICH_MESSAGE_MC_ROW.equals(parentId) || ID_CHATLINELIST.equals(parentId)) {
+      return true;
+    }
+    // Các thẻ tự vẽ không nhãn trong ScrollView (ví dụ Tab Cá nhân hoặc bài viết Tường nhà).
+    CharSequence parentClass = parent.getClassName();
+    return parentClass != null
+        && parentClass.toString().endsWith("ScrollView")
+        && node.isLongClickable();
+  }
+
+  // ===== Pure logic helpers (dễ kiểm thử unit test) =====
+
+  public static String sanitizeZaloText(String raw) {
+    if (raw == null) {
+      return "";
+    }
+    String cleaned = raw.replace("\0", "").trim();
+    return cleaned;
+  }
+
+  public static String formatMainTabLabel(
+      String tabName, boolean hasBadgeDot, @Nullable String notificationText) {
+    if (!TextUtils.isEmpty(notificationText)) {
+      String trimmed = notificationText.trim();
+      if ("N".equalsIgnoreCase(trimmed)) {
+        return tabName + ", có tin mới";
+      }
+      return tabName + ", " + trimmed + " thông báo mới";
+    }
+    if (hasBadgeDot) {
+      return tabName + ", có thông báo mới";
+    }
+    return tabName;
+  }
+
+  public static String formatNotificationButtonLabel(@Nullable String countText) {
+    if (TextUtils.isEmpty(countText)) {
+      return "Thông báo";
+    }
+    return "Thông báo, " + countText.trim() + " thông báo mới";
+  }
+
+  public static String formatCallActionLabel(
+      @Nullable String englishDescription, @Nullable String nextSiblingText) {
+    if (TextUtils.isEmpty(englishDescription)) {
+      return null;
+    }
+    String lower = englishDescription.trim().toLowerCase(Locale.ROOT);
+    switch (lower) {
+      case "change speaker":
+        return "Loa ngoài";
+      case "mute record":
+        return "Bật hoặc tắt mic";
+      case "accept call":
+        return "Trả lời cuộc gọi";
+      case "end call":
+        if (nextSiblingText != null
+            && nextSiblingText.trim().equalsIgnoreCase("Từ chối")) {
+          return "Từ chối cuộc gọi";
+        }
+        return "Kết thúc cuộc gọi";
+      default:
+        return null;
+    }
+  }
+
+  // ===== Internal node inspection helpers =====
+
+  private static boolean isImageViewClass(@Nullable CharSequence className) {
+    if (className == null) {
+      return false;
+    }
+    String name = className.toString();
+    return name.endsWith("ImageView") || name.endsWith("ImageButton");
+  }
+
+  private static boolean isNotificationFeedButton(AccessibilityNodeInfoCompat node) {
+    if (!node.isClickable() || node.getChildCount() == 0) {
+      return false;
+    }
+    for (int i = 0; i < node.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child != null && ID_IMG_NEW_NOTIFICATION_LIST.equals(child.getViewIdResourceName())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String buildNotificationButtonLabel(AccessibilityNodeInfoCompat node) {
+    String count = null;
+    for (int i = 0; i < node.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child != null && ID_IC_NEW_NOTIFY_FEED.equals(child.getViewIdResourceName())) {
+        CharSequence t = child.getText();
+        if (!TextUtils.isEmpty(t)) {
+          count = t.toString();
+          break;
+        }
+      }
+    }
+    return formatNotificationButtonLabel(count);
+  }
+
+  private static String buildMainTabLabel(String tabName, AccessibilityNodeInfoCompat node) {
+    boolean hasBadgeDot = false;
+    String notifyText = null;
+    for (int i = 0; i < node.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      String childId = child.getViewIdResourceName();
+      if (ID_BADGE_DOT.equals(childId)) {
+        hasBadgeDot = true;
+      } else if (ID_NUM_NOTIFICATION.equals(childId) && !TextUtils.isEmpty(child.getText())) {
+        notifyText = child.getText().toString();
+      }
+    }
+    return formatMainTabLabel(tabName, hasBadgeDot, notifyText);
+  }
+
+  private static boolean hasActiveTabTitleText(AccessibilityNodeInfoCompat tabNode) {
+    for (int i = 0; i < tabNode.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = tabNode.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      String childId = child.getViewIdResourceName();
+      if (ID_NUM_NOTIFICATION.equals(childId) || ID_BADGE_DOT.equals(childId)) {
+        continue;
+      }
+      CharSequence t = child.getText();
+      if (!TextUtils.isEmpty(t) && t.toString().trim().length() > 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String buildCommentLabel(AccessibilityNodeInfoCompat node) {
+    for (int i = 0; i < node.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child != null && !TextUtils.isEmpty(child.getText())) {
+        String count = child.getText().toString().trim();
+        if (!count.isEmpty()) {
+          return count + " bình luận";
+        }
+      }
+    }
+    return "Bình luận";
+  }
+
+  private static String buildReactionInfoLabel(AccessibilityNodeInfoCompat node) {
+    for (int i = 0; i < node.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (child != null
+          && ID_TOTAL_LIKE.equals(child.getViewIdResourceName())
+          && !TextUtils.isEmpty(child.getText())) {
+        return child.getText().toString().trim() + " lượt thích";
+      }
+    }
+    return "Lượt thích";
+  }
+
+  @Nullable
+  private static CharSequence resolveStickerIndicatorTabLabel(AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent == null || !ID_STICKER_LIST_INDICATOR.equals(parent.getViewIdResourceName())) {
+      return null;
+    }
+    if (!TextUtils.isEmpty(node.getText()) || !TextUtils.isEmpty(node.getContentDescription())) {
+      return null;
+    }
+    int index = -1;
+    int emojiTabIndex = -1;
+    for (int i = 0; i < parent.getChildCount(); i++) {
+      AccessibilityNodeInfoCompat child = parent.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      if (ID_BLC_INPUT_EMOJI_TAB.equals(child.getViewIdResourceName())) {
+        emojiTabIndex = i;
+      }
+      if (child.equals(node)) {
+        index = i;
+      }
+    }
+    if (index < 0) {
+      return null;
+    }
+    if (index == 0) {
+      return "Tìm kiếm nhãn dán";
+    }
+    int stickerNumber = (emojiTabIndex >= 0 && index > emojiTabIndex) ? (index - emojiTabIndex) : index;
+    return "Bộ nhãn dán " + stickerNumber;
+  }
+
+  @Nullable
+  private static CharSequence resolveCallActionLabel(
+      AccessibilityNodeInfoCompat node, @Nullable CharSequence rawDescription) {
+    if (TextUtils.isEmpty(rawDescription) || !isImageViewClass(node.getClassName())) {
+      return null;
+    }
+    String desc = rawDescription.toString();
+    if (!CALL_ACTION_ENGLISH_LABELS.contains(desc.trim().toLowerCase(Locale.ROOT))) {
+      return null;
+    }
+    String nextSiblingText = null;
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    if (parent != null) {
+      int count = parent.getChildCount();
+      for (int i = 0; i < count - 1; i++) {
+        AccessibilityNodeInfoCompat child = parent.getChild(i);
+        if (child != null && child.equals(node)) {
+          AccessibilityNodeInfoCompat next = parent.getChild(i + 1);
+          if (next != null && !TextUtils.isEmpty(next.getText())) {
+            nextSiblingText = next.getText().toString();
+          }
+          break;
+        }
+      }
+    }
+    return formatCallActionLabel(desc, nextSiblingText);
+  }
+
+  private static boolean isDuplicateCallLabelText(
+      AccessibilityNodeInfoCompat node, AccessibilityNodeInfoCompat parent) {
+    CharSequence text = node.getText();
+    if (TextUtils.isEmpty(text)) {
+      return false;
+    }
+    if (!CALL_DUPLICATE_TEXT_LABELS.contains(text.toString().trim().toLowerCase(Locale.ROOT))) {
+      return false;
+    }
+    int count = parent.getChildCount();
+    for (int i = 1; i < count; i++) {
+      AccessibilityNodeInfoCompat child = parent.getChild(i);
+      if (child != null && child.equals(node)) {
+        AccessibilityNodeInfoCompat prev = parent.getChild(i - 1);
+        if (prev != null && !TextUtils.isEmpty(prev.getContentDescription())) {
+          String prevDesc = prev.getContentDescription().toString().trim().toLowerCase(Locale.ROOT);
+          return CALL_ACTION_ENGLISH_LABELS.contains(prevDesc);
+        }
+        break;
+      }
+    }
+    return false;
+  }
+}

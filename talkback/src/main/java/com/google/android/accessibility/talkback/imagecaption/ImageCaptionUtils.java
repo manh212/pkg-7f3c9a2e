@@ -227,7 +227,9 @@ public class ImageCaptionUtils {
     }
     // Checks if a view in WebView is an image by the AccessibilityNodeInfo.hasImage attribute
     // instead of a11y class name.
-    if (isImageOrImageButton(role) || WebInterfaceUtils.containsImage(node)) {
+    if (isImageOrImageButton(role)
+        || WebInterfaceUtils.containsImage(node)
+        || com.google.android.accessibility.utils.ZaloAccessibilityHelper.shouldAllowAutoOcr(node)) {
       return true;
     } else if (ENABLE_CAPTION_FOR_LEAF_VIEW
         && (node.getChildCount() == 0

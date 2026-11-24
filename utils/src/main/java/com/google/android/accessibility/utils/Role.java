@@ -781,6 +781,10 @@ public class Role {
     if (shopeeRole != null) {
       return shopeeRole;
     }
+    @Nullable Integer zaloRole = ZaloAccessibilityHelper.getRoleOverride(node);
+    if (zaloRole != null) {
+      return zaloRole;
+    }
     return getAppRole(node);
   }
 

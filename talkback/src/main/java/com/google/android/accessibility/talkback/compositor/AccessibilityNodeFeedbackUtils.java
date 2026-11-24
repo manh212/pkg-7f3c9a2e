@@ -216,8 +216,10 @@ public class AccessibilityNodeFeedbackUtils {
   public static CharSequence getNodeContentDescription(
       AccessibilityNodeInfoCompat node, Context context, GlobalVariables globalVariables) {
     CharSequence filteredDescription =
-        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.filterContentDescription(
-            node, node.getContentDescription());
+        com.google.android.accessibility.utils.ZaloAccessibilityHelper.filterContentDescription(
+            node,
+            com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                .filterContentDescription(node, node.getContentDescription()));
     return prepareSpans(
         LauncherPositionDescriptionFilter.filter(
             filteredDescription, node.getPackageName(), context),
@@ -248,8 +250,10 @@ public class AccessibilityNodeFeedbackUtils {
   public static CharSequence getNodeContentAndSupplementalDescription(
       AccessibilityNodeInfoCompat node, Context context, GlobalVariables globalVariables) {
     CharSequence rawContentDescription =
-        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.filterContentDescription(
-            node, node.getContentDescription());
+        com.google.android.accessibility.utils.ZaloAccessibilityHelper.filterContentDescription(
+            node,
+            com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                .filterContentDescription(node, node.getContentDescription()));
     CharSequence contentDescription =
         LauncherPositionDescriptionFilter.filter(
             rawContentDescription, node.getPackageName(), context);
@@ -416,6 +420,12 @@ public class AccessibilityNodeFeedbackUtils {
         && TextUtils.isEmpty(nodeTextOrLabelId)
         && TextUtils.isEmpty(nodeHintText)
         && TextUtils.isEmpty(nodeDescriptionFromLabelNode)) {
+      if (hasVisibleDescendantText(node)) {
+        LogUtils.v(
+            TAG,
+            " getUnlabelledNodeDescription suppressed because node has readable descendant text");
+        return "";
+      }
       LogUtils.v(
           TAG, " getUnlabelledNodeDescription return Unlabelled/nodeRole because no text info");
       return TextUtils.isEmpty(nodeDescription)
@@ -423,6 +433,53 @@ public class AccessibilityNodeFeedbackUtils {
           : nodeDescription;
     }
     return "";
+  }
+
+  /**
+   * Checks whether {@code node} has any visible descendant with readable text or content
+   * description, so containers (such as Shopee product cards or buttons wrapping TextViews) are not
+   * announced as "Unlabelled" or "Button" before their child text.
+   */
+  public static boolean hasVisibleDescendantText(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null || node.getChildCount() == 0) {
+      return false;
+    }
+    return hasVisibleDescendantTextInternal(node, 0, new int[] {0});
+  }
+
+  private static boolean hasVisibleDescendantTextInternal(
+      AccessibilityNodeInfoCompat parent, int depth, int[] visitedCount) {
+    if (depth > 8 || visitedCount[0] >= 40) {
+      return false;
+    }
+    int count = parent.getChildCount();
+    for (int i = 0; i < count && visitedCount[0] < 40; i++) {
+      AccessibilityNodeInfoCompat child = parent.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      visitedCount[0]++;
+      if (!child.isVisibleToUser()) {
+        continue;
+      }
+      CharSequence text = AccessibilityNodeInfoUtils.getText(child);
+      if (!TextUtils.isEmpty(text) && TextUtils.getTrimmedLength(text) > 0) {
+        return true;
+      }
+      CharSequence desc =
+          com.google.android.accessibility.utils.ZaloAccessibilityHelper.filterContentDescription(
+              child,
+              com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                  .filterContentDescription(child, child.getContentDescription()));
+      if (!TextUtils.isEmpty(desc) && TextUtils.getTrimmedLength(desc) > 0) {
+        return true;
+      }
+      if (child.getChildCount() > 0
+          && hasVisibleDescendantTextInternal(child, depth + 1, visitedCount)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

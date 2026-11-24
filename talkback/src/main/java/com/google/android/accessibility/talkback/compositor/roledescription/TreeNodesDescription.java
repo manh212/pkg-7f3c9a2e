@@ -404,6 +404,9 @@ public class TreeNodesDescription {
                       || !TextUtils.isEmpty(AccessibilityNodeInfoUtils.getChromeRole(childNode)))) {
                 continue;
               }
+              if (isUnlabelledDecorativeChildInLabelledContainer(node, childNode)) {
+                continue;
+              }
               // Join the tree description of child node.
               CharSequence description =
                   getAppendedTreeDescription(
@@ -456,6 +459,38 @@ public class TreeNodesDescription {
         && !TextUtils.isEmpty(AccessibilityNodeInfoUtils.getChromeRole(node))
         && !AccessibilityNodeInfoUtils.isChromeRoleLink(node)
         && (role == Role.ROLE_NONE || role == Role.ROLE_VIEW_GROUP);
+  }
+
+  /**
+   * Skips unlabelled non-text children (such as product thumbnail ImageViews or empty icon
+   * ViewGroups) inside a container that already has readable text from other descendants, so
+   * "Unlabelled" / "Button" is never spoken ahead of the item's actual label.
+   */
+  private boolean isUnlabelledDecorativeChildInLabelledContainer(
+      AccessibilityNodeInfoCompat container, AccessibilityNodeInfoCompat child) {
+    int childRole = Role.getRole(child);
+    if (childRole != Role.ROLE_IMAGE
+        && childRole != Role.ROLE_IMAGE_BUTTON
+        && childRole != Role.ROLE_BUTTON
+        && childRole != Role.ROLE_VIEW_GROUP
+        && childRole != Role.ROLE_NONE) {
+      return false;
+    }
+    if (child.isCheckable()) {
+      return false;
+    }
+    if (!TextUtils.isEmpty(AccessibilityNodeInfoUtils.getText(child))
+        || !TextUtils.isEmpty(
+            AccessibilityNodeFeedbackUtils.getNodeContentDescription(
+                child, context, globalVariables))
+        || !TextUtils.isEmpty(
+            AccessibilityNodeFeedbackUtils.getNodeStateDescription(
+                child, context, globalVariables))
+        || !TextUtils.isEmpty(AccessibilityNodeFeedbackUtils.getNodeHint(child))
+        || AccessibilityNodeFeedbackUtils.hasVisibleDescendantText(child)) {
+      return false;
+    }
+    return AccessibilityNodeFeedbackUtils.hasVisibleDescendantText(container);
   }
 
   static boolean isWhiteSpaceText(AccessibilityNodeInfoCompat node) {

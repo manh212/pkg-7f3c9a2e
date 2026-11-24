@@ -3853,7 +3853,8 @@ public class TalkBackService extends AccessibilityServiceCompat
       return;
     }
     boolean wantIncludeNotImportant =
-        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.isShopeePackage(pkg);
+        com.google.android.accessibility.utils.ShopeeAccessibilityHelper.isShopeePackage(pkg)
+            || com.google.android.accessibility.utils.ZaloAccessibilityHelper.isZaloPackage(pkg);
     if (wantIncludeNotImportant == includeNotImportantViewsForPackage) {
       return;
     }

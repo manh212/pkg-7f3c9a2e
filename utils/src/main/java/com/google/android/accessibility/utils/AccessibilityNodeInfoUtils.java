@@ -105,7 +105,10 @@ public class AccessibilityNodeInfoUtils {
 
   /** Returns text from an accessibility-node, including spans. */
   public static @Nullable CharSequence getText(@Nullable AccessibilityNodeInfoCompat node) {
-    return (node == null) ? null : ShopeeAccessibilityHelper.filterText(node, node.getText());
+    return (node == null)
+        ? null
+        : ZaloAccessibilityHelper.filterText(
+            node, ShopeeAccessibilityHelper.filterText(node, node.getText()));
   }
 
   @FormatMethod
@@ -575,7 +578,10 @@ public class AccessibilityNodeInfoUtils {
     // Prefer content description over text.
     // TODO: Why are we checking the trimmed length?
     final CharSequence contentDescription =
-        ShopeeAccessibilityHelper.filterContentDescription(node, node.getContentDescription());
+        ZaloAccessibilityHelper.filterContentDescription(
+            node,
+            ShopeeAccessibilityHelper.filterContentDescription(
+                node, node.getContentDescription()));
     if (!TextUtils.isEmpty(contentDescription)
         && (TextUtils.getTrimmedLength(contentDescription) > 0)) {
       return contentDescription;
@@ -603,6 +609,9 @@ public class AccessibilityNodeInfoUtils {
     @Nullable CharSequence overridden = NodeOverrides.state(node);
     if (overridden == null) {
       overridden = ShopeeAccessibilityHelper.getStateOverride(node);
+    }
+    if (overridden == null) {
+      overridden = ZaloAccessibilityHelper.getStateOverride(node);
     }
     final CharSequence state = overridden != null ? overridden : node.getStateDescription();
     if (!TextUtils.isEmpty(state) && (TextUtils.getTrimmedLength(state) > 0)) {
@@ -917,7 +926,9 @@ public class AccessibilityNodeInfoUtils {
       LogUtils.v(TAG, "Don't focus, node=null");
       return false;
     }
-    if (NodeOverrides.hidden(node) || ShopeeAccessibilityHelper.shouldHideNode(node)) {
+    if (NodeOverrides.hidden(node)
+        || ShopeeAccessibilityHelper.shouldHideNode(node)
+        || ZaloAccessibilityHelper.shouldHideNode(node)) {
       LogUtils.v(TAG, "Don't focus, hidden by override/app rule");
       return false;
     }
@@ -925,7 +936,9 @@ public class AccessibilityNodeInfoUtils {
       LogUtils.v(TAG, "Don't focus, a Telegram reply quote is read with its message");
       return false;
     }
-    if (NodeOverrides.grouped(node) || ShopeeAccessibilityHelper.isGroupedCard(node)) {
+    if (NodeOverrides.grouped(node)
+        || ShopeeAccessibilityHelper.isGroupedCard(node)
+        || ZaloAccessibilityHelper.isGroupedCard(node)) {
       return isVisible(node);
     }
     // Inside views that support web navigation, we delegate focus to the view itself and
@@ -1188,6 +1201,7 @@ public class AccessibilityNodeInfoUtils {
           || isFocusableOrClickable(child)
           || NodeOverrides.hidden(child)
           || ShopeeAccessibilityHelper.shouldHideNode(child)
+          || ZaloAccessibilityHelper.shouldHideNode(child)
           || WebInterfaceUtils.supportsWebActions(child)) {
         continue;
       }
@@ -1209,7 +1223,8 @@ public class AccessibilityNodeInfoUtils {
           @Override
           public boolean accept(AccessibilityNodeInfoCompat ancestor) {
             return NodeOverrides.grouped(ancestor)
-                || ShopeeAccessibilityHelper.isGroupedCard(ancestor);
+                || ShopeeAccessibilityHelper.isGroupedCard(ancestor)
+                || ZaloAccessibilityHelper.isGroupedCard(ancestor);
           }
         });
   }
@@ -2172,8 +2187,10 @@ public class AccessibilityNodeInfoUtils {
         && node.getCollectionInfo() == null
         && (!TextUtils.isEmpty(AccessibilityNodeInfoUtils.getText(node))
             || !TextUtils.isEmpty(
-                ShopeeAccessibilityHelper.filterContentDescription(
-                    node, node.getContentDescription()))
+                ZaloAccessibilityHelper.filterContentDescription(
+                    node,
+                    ShopeeAccessibilityHelper.filterContentDescription(
+                        node, node.getContentDescription())))
             || !TextUtils.isEmpty(node.getHintText()));
   }
 
@@ -2198,6 +2215,7 @@ public class AccessibilityNodeInfoUtils {
     return node.isScreenReaderFocusable()
         || NodeOverrides.grouped(node)
         || ShopeeAccessibilityHelper.isGroupedCard(node)
+        || ZaloAccessibilityHelper.isGroupedCard(node)
         || isActionableForAccessibility(node)
         || isAdjustableSlider(node);
   }
@@ -2216,6 +2234,7 @@ public class AccessibilityNodeInfoUtils {
         && (node.isScreenReaderFocusable()
             || NodeOverrides.grouped(node)
             || ShopeeAccessibilityHelper.isGroupedCard(node)
+            || ZaloAccessibilityHelper.isGroupedCard(node)
             || isActionableForAccessibility(node)
             || isAdjustableSlider(node));
   }
