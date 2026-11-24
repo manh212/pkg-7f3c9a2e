@@ -6,7 +6,7 @@ import android.content.Context;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.core.view.accessibility.AccessibilityWindowInfoCompat;
 import com.google.android.accessibility.talkback.actor.search.UniversalSearchActor;
-import com.google.android.accessibility.talkback.recognition.ScreenElements;
+import com.google.android.accessibility.talkback.screenelements.ScreenElements;
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.Role;

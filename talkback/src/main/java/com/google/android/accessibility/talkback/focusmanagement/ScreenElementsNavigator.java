@@ -4,7 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityWindowInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.action.NavigationAction;
-import com.google.android.accessibility.talkback.recognition.ScreenElements;
+import com.google.android.accessibility.talkback.screenelements.ScreenElements;
 import com.google.android.accessibility.utils.AccessibilityServiceCompatUtils;
 import com.google.android.accessibility.utils.AccessibilityWindowInfoUtils;
 import com.google.android.accessibility.utils.Filter;
