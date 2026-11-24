@@ -11,6 +11,7 @@ import android.text.SpannableString
 import android.text.style.LocaleSpan
 import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.OrientationEventListener
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -81,6 +82,8 @@ class VietnameseKeyboardService : InputMethodService() {
   private var echo = TextEventFilter.PREF_ECHO_NONE
   private var method = 0
   private var layout = VietnameseKeyboardView.LAYOUT_AUTO
+  private var sensorLandscape = false
+  private var orientationListener: OrientationEventListener? = null
   private var timing = VietnameseKeyboardTiming()
   private var ownVoice = false
   private var sizePortraitPercent = 100
@@ -179,6 +182,8 @@ class VietnameseKeyboardService : InputMethodService() {
     inputGeneration++
     prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
     windowShown = false
+    updateOrientationSensor()
+    orientationListener = null
     observeReaderSpeech(null)
     reportKeyboardBounds()
     endTouchSession()
@@ -315,6 +320,7 @@ class VietnameseKeyboardService : InputMethodService() {
   override fun onWindowShown() {
     super.onWindowShown()
     windowShown = true
+    updateOrientationSensor()
     showInputView()
     reportKeyboardBounds()
     if (ownVoice) {
@@ -325,6 +331,7 @@ class VietnameseKeyboardService : InputMethodService() {
 
   override fun onWindowHidden() {
     windowShown = false
+    updateOrientationSensor()
     observeReaderSpeech(null)
     endTouchSession()
     super.onWindowHidden()
@@ -543,8 +550,32 @@ class VietnameseKeyboardService : InputMethodService() {
         warmUpKeyboardVoice()
       }
     }
+    updateOrientationSensor()
     configureView()
     updateLayout()
+  }
+
+  private fun updateOrientationSensor() {
+    val needed = windowShown && layout == VietnameseKeyboardView.LAYOUT_AUTO
+    if (!needed) {
+      orientationListener?.disable()
+      if (sensorLandscape) {
+        sensorLandscape = false
+        keyboard?.sensorLandscape = false
+      }
+      return
+    }
+    val listener = orientationListener ?: object : OrientationEventListener(this) {
+      override fun onOrientationChanged(orientation: Int) {
+        val next = resolveSensorLandscape(orientation, sensorLandscape)
+        if (next == sensorLandscape) return
+        sensorLandscape = next
+        keyboard?.sensorLandscape = next
+      }
+    }.also { orientationListener = it }
+    if (listener.canDetectOrientation()) {
+      listener.enable()
+    }
   }
 
   private fun configureView() {
@@ -556,6 +587,7 @@ class VietnameseKeyboardService : InputMethodService() {
         ownVoice && method != DIRECT_SILENT_TYPING && method != SINGLE_TAP_TO_TYPE
       hasCommitAnnouncement = ::hasCommitAnnouncement
       layoutSetting = layout
+      sensorLandscape = this@VietnameseKeyboardService.sensorLandscape
       sizePortraitPercent = this@VietnameseKeyboardService.sizePortraitPercent
       sizeLandscapePercent = this@VietnameseKeyboardService.sizeLandscapePercent
       micEnabled = isMicVisible()
@@ -1492,6 +1524,16 @@ class VietnameseKeyboardService : InputMethodService() {
     private val WORD_BEFORE_CURSOR = Regex("""$WORD_CHARACTERS\z""")
     private val WORD_BEFORE_WHITESPACE = Regex("""$WORD_CHARACTERS\s*\z""")
     private val WORD_AFTER_CURSOR = Regex("""\A$WORD_CHARACTERS""")
+
+    internal fun resolveSensorLandscape(orientation: Int, currentLandscape: Boolean): Boolean {
+      if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return currentLandscape
+      val angle = ((orientation % 360) + 360) % 360
+      return when {
+        angle in 60..120 || angle in 240..300 -> true
+        angle <= 30 || angle >= 330 || angle in 150..210 -> false
+        else -> currentLandscape
+      }
+    }
 
     internal fun editorAction(info: EditorInfo?): Int? {
       if (info == null || info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) return null

@@ -161,6 +161,15 @@ internal class VietnameseKeyboardView(
       field = value
       rebuildRows()
     }
+  var sensorLandscape = false
+    set(value) {
+      if (field == value) return
+      field = value
+      if (layoutSetting == LAYOUT_AUTO) {
+        cancelInput()
+        rebuildRows()
+      }
+    }
   var sizePortraitPercent = 100
     set(value) {
       val percent = value.coerceIn(50, 150)
@@ -484,7 +493,8 @@ internal class VietnameseKeyboardView(
   }
 
   private fun isLandscape(): Boolean =
-    resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
+      (layoutSetting == LAYOUT_AUTO && sensorLandscape)
 
   private fun isPcLayout(): Boolean =
     layoutSetting == LAYOUT_PC || (layoutSetting == LAYOUT_AUTO && isLandscape())

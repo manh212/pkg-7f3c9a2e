@@ -5,6 +5,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.focusmanagement.interpreter.ScreenState;
+import com.google.android.accessibility.utils.Role;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 
 /**
@@ -224,6 +225,13 @@ public final class FocusRestoreCoordinator {
         pendingRestore == null
             && !currentKey.equals(lastCompletedScreenKey)
             && entry != null;
+    if (pendingRestore == null
+        && isPaneTransition
+        && currentFocus != null
+        && Role.getRole(currentFocus) == Role.ROLE_TEXT_ENTRY_KEY) {
+      markRestored(currentKey, windowId, now);
+      return null;
+    }
     boolean storedTargetEditable = entry != null && entry.fingerprint.isEditable();
     if (pendingRestore == null
         && (!isPaneTransition || storedTargetEditable)

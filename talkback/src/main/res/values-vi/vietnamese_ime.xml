@@ -82,7 +82,7 @@
     <string name="vietnamese_ime_shortcut_duplicate">Mã gõ tắt này đã có.</string>
     <string name="vietnamese_ime_shortcut_required_text">Hãy nhập nội dung thay thế.</string>
     <string name="vietnamese_ime_t9_double_tap">Chạm 2 lần để nhập số trên bàn phím T9</string>
-    <string name="vietnamese_ime_t9_double_tap_summary">Chạm để nghe phím số rồi nhấp 2 lần để nhập, bất kể chế độ gõ chữ đang dùng</string>
+    <string name="vietnamese_ime_t9_double_tap_summary">Chạm để nghe phím số rồi nhấp 2 lần để nhập trên bàn phím T9 và các bàn phím số trong ứng dụng (quay số, mã PIN), bất kể chế độ gõ chữ đang dùng</string>
     <string name="vietnamese_ime_voice_profile">Hồ sơ giọng nói riêng của bàn phím</string>
     <string name="vietnamese_ime_voice_profile_system_default">Giọng mặc định của hệ thống</string>
     <string name="vietnamese_ime_auto_switch_letters_on_space">Tự chuyển về bàn phím chữ khi nhấn dấu cách</string>

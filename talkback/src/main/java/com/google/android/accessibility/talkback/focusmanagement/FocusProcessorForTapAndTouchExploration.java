@@ -445,21 +445,37 @@ public class FocusProcessorForTapAndTouchExploration {
                 node.getPackageName(), node.getViewIdResourceName()));
   }
 
+  /**
+   * Returns {@code true} when the user enabled T9 double-tap confirmation, which requires double
+   * tap on embedded numeric/dialer keypads ({@code ROLE_TEXT_ENTRY_KEY} outside IME windows)
+   * regardless of the global typing mode.
+   */
+  private boolean isT9DoubleTapEnabled() {
+    return SharedPreferencesUtils.getSharedPreferences(context)
+        .getBoolean(
+            context.getString(R.string.pref_vietnamese_keyboard_t9_double_tap_key), false);
+  }
+
   /** @return {@code true} if the role of node support lift-to-type functionality. */
   private boolean supportsLiftToType(AccessibilityNodeInfoCompat accessibilityNodeInfoCompat) {
     if (typingMethod == LIFT_TO_TYPE_EXCEPT_ACTION_KEY
         && !liftsToType(typingMethod, accessibilityNodeInfoCompat)) {
       return false;
     }
+    AccessibilityWindowInfoCompat window =
+        AccessibilityNodeInfoUtils.getWindow(accessibilityNodeInfoCompat);
+    boolean isImeWindow =
+        AccessibilityWindowInfoUtils.getType(window) == TYPE_INPUT_METHOD;
     if (Role.getRole(accessibilityNodeInfoCompat) == Role.ROLE_TEXT_ENTRY_KEY) {
+      if (!isImeWindow && isT9DoubleTapEnabled()) {
+        return false;
+      }
       return true;
     } else if (!liftsToTypeAnyKey(typingMethod)) {
       return false;
     }
 
-    AccessibilityWindowInfoCompat window =
-        AccessibilityNodeInfoUtils.getWindow(accessibilityNodeInfoCompat);
-    return (AccessibilityWindowInfoUtils.getType(window) == TYPE_INPUT_METHOD);
+    return isImeWindow;
   }
 
   /** @return {@code true} if successfully performs an accessibility action. */
@@ -485,7 +501,8 @@ public class FocusProcessorForTapAndTouchExploration {
   private boolean handleHoverExitNode(@Nullable AccessibilityNodeInfoCompat touchedFocusableNode) {
     if (typingMethod == SINGLE_TAP_TO_TYPE
         && touchedFocusableNode != null
-        && touchedFocusableNode.equals(lastFocusableNodeBeingTouched)) {
+        && touchedFocusableNode.equals(lastFocusableNodeBeingTouched)
+        && supportsLiftToType(touchedFocusableNode)) {
       postDelayHandler.earlyTouchEndAfterTimeout(SINGLE_TAP_EARLY_END_DELAY_MS);
     }
     return false;
