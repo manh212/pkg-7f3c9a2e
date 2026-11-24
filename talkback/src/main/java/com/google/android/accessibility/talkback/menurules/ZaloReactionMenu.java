@@ -68,6 +68,20 @@ public final class ZaloReactionMenu implements NodeMenu {
         "Thêm biểu tượng cảm xúc",
       };
 
+  private static final String[] ME_TAB_MENU_LABELS =
+      new String[] {
+        "zCloud",
+        "zStyle – Nổi bật trên Zalo",
+        "My Documents",
+        "Dữ liệu trên máy",
+        "Ví QR",
+        "Tài khoản và bảo mật",
+        "Quyền riêng tư",
+      };
+
+  private static final float[] ME_TAB_MENU_Y_RATIOS =
+      new float[] {0.075f, 0.226f, 0.390f, 0.539f, 0.691f, 0.836f, 0.945f};
+
   private final Pipeline.FeedbackReturner pipeline;
   private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -77,27 +91,45 @@ public final class ZaloReactionMenu implements NodeMenu {
 
   @Override
   public boolean accept(Context context, AccessibilityNodeInfoCompat node) {
-    return ZaloAccessibilityHelper.isReactionBarNode(node);
+    return ZaloAccessibilityHelper.isReactionBarNode(node)
+        || ZaloAccessibilityHelper.getMeTabCardIndex(node) == 1
+        || ZaloAccessibilityHelper.getChatInfoQuickActionLabels(node) != null;
   }
 
   @Override
   public List<ContextMenuItem> getMenuItemsForNode(
       Context context, AccessibilityNodeInfoCompat node, boolean includeAncestors) {
-    List<ContextMenuItem> items = new ArrayList<>(REACTION_LABELS.length);
-    if (!ZaloAccessibilityHelper.isReactionBarNode(node)) {
-      return items;
+    boolean vertical = false;
+    String[] labels = null;
+    float[] yRatios = null;
+    if (ZaloAccessibilityHelper.isReactionBarNode(node)) {
+      labels = REACTION_LABELS;
+    } else if (ZaloAccessibilityHelper.getMeTabCardIndex(node) == 1) {
+      vertical = true;
+      labels = ME_TAB_MENU_LABELS;
+      yRatios = ME_TAB_MENU_Y_RATIOS;
+    } else {
+      labels = ZaloAccessibilityHelper.getChatInfoQuickActionLabels(node);
     }
+    if (labels == null || labels.length == 0) {
+      return new ArrayList<>();
+    }
+    List<ContextMenuItem> items = new ArrayList<>(labels.length);
     Rect capturedBounds = new Rect();
     node.getBoundsInScreen(capturedBounds);
-    for (int i = 0; i < REACTION_LABELS.length; i++) {
+    final int slotCount = labels.length;
+    final boolean isVertical = vertical;
+    final float[] ratios = yRatios;
+    for (int i = 0; i < slotCount; i++) {
       final int slotIndex = i;
+      final String label = labels[i];
       ContextMenuItem item =
           ContextMenu.createMenuItem(
               context,
               Menu.NONE,
               ACTION_ID_BASE + slotIndex,
               Menu.NONE,
-              REACTION_LABELS[slotIndex]);
+              label);
       item.setOnMenuItemClickListener(
           menuItem -> {
             Rect bounds = new Rect(capturedBounds);
@@ -111,13 +143,20 @@ public final class ZaloReactionMenu implements NodeMenu {
             if (bounds.isEmpty()) {
               return false;
             }
-            int x = computeSlotCenterX(bounds, slotIndex, REACTION_LABELS.length);
-            int y = bounds.centerY();
+            int x =
+                isVertical
+                    ? bounds.centerX()
+                    : computeSlotCenterX(bounds, slotIndex, slotCount);
+            int y =
+                isVertical && ratios != null
+                    ? Math.round(bounds.top + bounds.height() * ratios[slotIndex])
+                    : bounds.centerY();
             LogUtils.d(
                 TAG,
-                "Tapping Zalo reaction slot %d (%s) at (%d, %d) in %s",
+                "Tapping Zalo slot %d/%d (%s) at (%d, %d) in %s",
                 slotIndex,
-                REACTION_LABELS[slotIndex],
+                slotCount,
+                label,
                 x,
                 y,
                 bounds);
