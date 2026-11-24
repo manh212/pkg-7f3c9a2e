@@ -26,6 +26,8 @@ import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRAC
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.GestureDescription.StrokeDescription;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.Region;
@@ -64,6 +66,7 @@ import com.google.android.accessibility.talkback.scripting.Scripts;
 import com.google.android.accessibility.talkback.utils.LinkUtils;
 import com.google.android.accessibility.talkback.utils.LinkUtils.LinkSpan;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.FocusFinder;
 import com.google.android.accessibility.utils.LatencyExperiments;
@@ -72,8 +75,10 @@ import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.accessibility.utils.ZaloAccessibilityHelper;
+import com.google.android.accessibility.utils.screencapture.ScreenshotCapture;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.List;
+import java.util.Locale;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -292,14 +297,42 @@ public class FocusActor implements UserInputEventListener {
     node.refresh();
     Rect bounds = new Rect();
     node.getBoundsInScreen(bounds);
+    DisplayMetrics metrics = service.getResources().getDisplayMetrics();
     if (bounds.isEmpty()) {
       return false;
     }
-    DisplayMetrics metrics = service.getResources().getDisplayMetrics();
+    pipeline.returnFeedback(eventId, Feedback.part().setInterruptGentle(true));
+
+    // Wide full-row containers (such as Zalo chat message canvases where incoming bubbles sit on
+    // the left and outgoing bubbles sit on the right) have empty background at bounds.centerX().
+    // Sample the rendered pixels inside the row to land directly on the visible bubble.
+    if (bounds.width() > metrics.widthPixels * 0.65f
+        && FeatureSupport.canTakeScreenShotByAccessibilityService()) {
+      int fallbackX = resolveFallbackBubbleX(node, bounds);
+      int fallbackY = bounds.centerY();
+      ScreenshotCapture.takeScreenshot(
+          service,
+          (screenCapture, isFormatSupported) -> {
+            int[] point =
+                findVisibleBubblePoint(screenCapture, bounds, fallbackX, fallbackY);
+            if (screenCapture != null && !screenCapture.isRecycled()) {
+              screenCapture.recycle();
+            }
+            dispatchRawLongPressAt(point[0], point[1], metrics, eventId);
+          });
+      return true;
+    }
+
+    int targetX = resolveFallbackBubbleX(node, bounds);
+    return dispatchRawLongPressAt(targetX, bounds.centerY(), metrics, eventId);
+  }
+
+  private boolean dispatchRawLongPressAt(
+      int rawX, int rawY, DisplayMetrics metrics, EventId eventId) {
     int maxX = Math.max(1, metrics.widthPixels - 2);
     int maxY = Math.max(1, metrics.heightPixels - 2);
-    int x = Math.max(1, Math.min(bounds.centerX(), maxX));
-    int y = Math.max(1, Math.min(bounds.centerY(), maxY));
+    int x = Math.max(1, Math.min(rawX, maxX));
+    int y = Math.max(1, Math.min(rawY, maxY));
 
     long durationMs =
         Math.max(
@@ -312,7 +345,6 @@ public class FocusActor implements UserInputEventListener {
             .addStroke(new StrokeDescription(path, /* startTime= */ 0, durationMs))
             .build();
 
-    pipeline.returnFeedback(eventId, Feedback.part().setInterruptGentle(true));
     Handler mainHandler = new Handler(Looper.getMainLooper());
     if (SyntheticTouches.isAvailable()) {
       mainHandler.postDelayed(
@@ -356,6 +388,130 @@ public class FocusActor implements UserInputEventListener {
     return true;
   }
 
+
+  /**
+   * Scans horizontal lines inside {@code bounds} on {@code bitmap} to find the widest non-background
+   * visual bubble (ignoring the far-left avatar margin), returning {@code [x, y]} in screen
+   * coordinates. Falls back to {@code [fallbackX, fallbackY]} when no clear bubble is detected.
+   */
+  private static int[] findVisibleBubblePoint(
+      @Nullable Bitmap bitmap, Rect bounds, int fallbackX, int fallbackY) {
+    if (bitmap == null || bitmap.isRecycled()) {
+      return new int[] {fallbackX, fallbackY};
+    }
+    int bmpW = bitmap.getWidth();
+    int bmpH = bitmap.getHeight();
+    int left = Math.max(0, Math.min(bounds.left, bmpW - 1));
+    int right = Math.max(left + 1, Math.min(bounds.right, bmpW));
+    int top = Math.max(0, Math.min(bounds.top, bmpH - 1));
+    int bottom = Math.max(top + 1, Math.min(bounds.bottom, bmpH));
+    int width = right - left;
+    int height = bottom - top;
+    if (width < 40 || height < 20) {
+      return new int[] {fallbackX, fallbackY};
+    }
+
+    int edgeInset = Math.min(12, Math.max(4, width / 40));
+    int sampleTopY = Math.min(bottom - 1, top + Math.min(10, Math.max(4, height / 6)));
+    int midY = top + height / 2;
+    int[] bgSamples =
+        new int[] {
+          bitmap.getPixel(left + edgeInset, midY),
+          bitmap.getPixel(right - 1 - edgeInset, midY),
+          bitmap.getPixel(left + edgeInset, sampleTopY),
+          bitmap.getPixel(right - 1 - edgeInset, sampleTopY),
+        };
+    int bgR = median4(Color.red(bgSamples[0]), Color.red(bgSamples[1]), Color.red(bgSamples[2]), Color.red(bgSamples[3]));
+    int bgG = median4(Color.green(bgSamples[0]), Color.green(bgSamples[1]), Color.green(bgSamples[2]), Color.green(bgSamples[3]));
+    int bgB = median4(Color.blue(bgSamples[0]), Color.blue(bgSamples[1]), Color.blue(bgSamples[2]), Color.blue(bgSamples[3]));
+
+    // Skip far-left avatar zone (first ~9% of row width) and focus border inset on right.
+    int scanStartX = left + Math.max(edgeInset, (int) (width * 0.09f));
+    int scanEndX = right - edgeInset;
+    int[] scanYs =
+        new int[] {
+          top + (int) (height * 0.35f),
+          midY,
+          top + (int) (height * 0.65f),
+        };
+
+    int bestLen = 0;
+    int bestX = fallbackX;
+    int bestY = fallbackY;
+    int minRunPx = Math.max(24, width / 18);
+
+    for (int y : scanYs) {
+      if (y < top || y >= bottom) {
+        continue;
+      }
+      int curStart = -1;
+      for (int x = scanStartX; x < scanEndX; x++) {
+        int px = bitmap.getPixel(x, y);
+        int diff =
+            Math.abs(Color.red(px) - bgR)
+                + Math.abs(Color.green(px) - bgG)
+                + Math.abs(Color.blue(px) - bgB);
+        if (diff > 20) {
+          if (curStart < 0) {
+            curStart = x;
+          }
+        } else if (curStart >= 0) {
+          int runLen = x - curStart;
+          if (runLen > bestLen) {
+            bestLen = runLen;
+            bestX = (curStart + x) / 2;
+            bestY = y;
+          }
+          curStart = -1;
+        }
+      }
+      if (curStart >= 0) {
+        int runLen = scanEndX - curStart;
+        if (runLen > bestLen) {
+          bestLen = runLen;
+          bestX = (curStart + scanEndX) / 2;
+          bestY = y;
+        }
+      }
+    }
+    return bestLen >= minRunPx ? new int[] {bestX, bestY} : new int[] {fallbackX, fallbackY};
+  }
+
+  private static int median4(int a, int b, int c, int d) {
+    int[] v = new int[] {a, b, c, d};
+    java.util.Arrays.sort(v);
+    return (v[1] + v[2]) / 2;
+  }
+
+  private static int resolveFallbackBubbleX(
+      AccessibilityNodeInfoCompat node, Rect bounds) {
+    if (!ZaloAccessibilityHelper.isZaloPackage(node.getPackageName())) {
+      return bounds.centerX();
+    }
+    StringBuilder sb = new StringBuilder();
+    if (node.getText() != null) {
+      sb.append(node.getText()).append(' ');
+    }
+    if (node.getContentDescription() != null) {
+      sb.append(node.getContentDescription());
+    }
+    String lower = sb.toString().toLowerCase(Locale.ROOT);
+    if (lower.contains("đã gửi")
+        || lower.contains("đã nhận")
+        || lower.contains("đã xem")
+        || lower.contains("đang gửi")
+        || lower.contains("cuộc gọi thoại đi")
+        || lower.contains("cuộc gọi video đi")
+        || lower.contains("bạn đã hủy")) {
+      return bounds.left + (int) (bounds.width() * 0.82f);
+    }
+    if (lower.contains("cuộc gọi thoại đến")
+        || lower.contains("cuộc gọi video đến")
+        || lower.contains("bạn đã từ chối")) {
+      return bounds.left + (int) (bounds.width() * 0.28f);
+    }
+    return bounds.centerX();
+  }
   /**
    * With Focus text inside items separately on, returns the nearest ancestor of focused text that
    * supports {@code action} when the text itself isn't actionable, so that activating the text
