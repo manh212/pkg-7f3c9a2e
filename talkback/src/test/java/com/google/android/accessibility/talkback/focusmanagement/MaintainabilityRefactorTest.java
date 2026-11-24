@@ -7,6 +7,7 @@ import static org.junit.Assert.fail;
 
 import android.os.SystemClock;
 import com.google.android.accessibility.talkback.focusmanagement.memory.FocusRestoreCoordinator;
+import com.google.android.accessibility.talkback.focusmanagement.memory.ScreenFocusMemoryStore;
 import com.google.android.accessibility.talkback.focusmanagement.memory.WindowFocusRestoreOrchestrator;
 import com.google.android.accessibility.talkback.preference.base.DiagnosticsPreferenceActions;
 import com.google.android.accessibility.utils.input.WindowEventInterpreter;
@@ -50,7 +51,7 @@ public class MaintainabilityRefactorTest {
   @Test
   public void windowFocusRestoreOrchestrator_respectsArmedAndFastWindowGuards() {
     WindowFocusRestoreOrchestrator orchestrator = new WindowFocusRestoreOrchestrator();
-    FocusRestoreCoordinator coordinator = new FocusRestoreCoordinator();
+    FocusRestoreCoordinator coordinator = new FocusRestoreCoordinator(new ScreenFocusMemoryStore());
     AtomicInteger runs = new AtomicInteger(0);
 
     // Not armed -> never schedules.
