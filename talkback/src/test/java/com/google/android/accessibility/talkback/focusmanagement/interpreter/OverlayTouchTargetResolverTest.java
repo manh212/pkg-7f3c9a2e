@@ -4,8 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.robolectric.Shadows.shadowOf;
 
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
 import android.view.View;
@@ -14,8 +14,8 @@ import android.widget.FrameLayout;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
@@ -110,8 +110,7 @@ public class OverlayTouchTargetResolverTest {
   @Test
   public void virtualExplorationHitsCommentLikeAndEmptyVideoSpace() {
     String pkg = "com.ss.android.ugc.trill";
-    Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
-    Context context = activity;
+    Context context = RuntimeEnvironment.getApplication();
 
     TestFrame rootView =
         new TestFrame(
@@ -162,7 +161,6 @@ public class OverlayTouchTargetResolverTest {
     pagerView.addView(likeView);
     pagerView.addView(commentView);
     pagerView.addView(overlayView);
-    activity.setContentView(rootView);
     rootView.layout(0, 0, 1080, 2400);
     pagerView.layout(0, 0, 1080, 2250);
     likeView.layout(930, 1100, 1060, 1240);
@@ -171,6 +169,21 @@ public class OverlayTouchTargetResolverTest {
 
     AccessibilityNodeInfoCompat root =
         AccessibilityNodeInfoCompat.wrap(rootView.createAccessibilityNodeInfo());
+    AccessibilityNodeInfoCompat pagerNode =
+        AccessibilityNodeInfoCompat.wrap(pagerView.createAccessibilityNodeInfo());
+    AccessibilityNodeInfoCompat likeNode =
+        AccessibilityNodeInfoCompat.wrap(likeView.createAccessibilityNodeInfo());
+    AccessibilityNodeInfoCompat commentNode =
+        AccessibilityNodeInfoCompat.wrap(commentView.createAccessibilityNodeInfo());
+    AccessibilityNodeInfoCompat overlayNode =
+        AccessibilityNodeInfoCompat.wrap(overlayView.createAccessibilityNodeInfo());
+
+    // Link the individual view nodes explicitly; Robolectric does not populate child links here.
+    shadowOf(root.unwrap()).addChild(pagerNode.unwrap());
+    shadowOf(pagerNode.unwrap()).addChild(likeNode.unwrap());
+    shadowOf(pagerNode.unwrap()).addChild(commentNode.unwrap());
+    shadowOf(pagerNode.unwrap()).addChild(overlayNode.unwrap());
+
     AccessibilityNodeInfoCompat pager = root.getChild(0);
     assertNotNull(pager);
     AccessibilityNodeInfoCompat likeBtn = pager.getChild(0);
