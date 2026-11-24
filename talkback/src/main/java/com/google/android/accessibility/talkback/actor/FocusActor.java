@@ -861,7 +861,10 @@ public class FocusActor implements UserInputEventListener {
     // OnClick without crossing the long-press threshold.
     if (SyntheticTouches.isAvailable()
         && SyntheticTouches.dispatch(
-            accessibilityService, buildSingleTapGesture(rect), SYNTHETIC_TAP_STROKE_MS)) {
+            accessibilityService,
+            buildSingleTapGesture(rect),
+            SYNTHETIC_TAP_STROKE_MS,
+            /* onEnd= */ null)) {
       return true;
     }
     return accessibilityService.dispatchGesture(
