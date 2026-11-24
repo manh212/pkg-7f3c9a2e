@@ -456,6 +456,18 @@ public class FocusProcessorForTapAndTouchExploration {
             context.getString(R.string.pref_vietnamese_keyboard_t9_double_tap_key), false);
   }
 
+  /** Returns whether the preference requires double-tap input for an embedded numeric key. */
+  private boolean requiresDoubleTapForEmbeddedKey(
+      AccessibilityNodeInfoCompat accessibilityNodeInfoCompat) {
+    if (!isT9DoubleTapEnabled()
+        || Role.getRole(accessibilityNodeInfoCompat) != Role.ROLE_TEXT_ENTRY_KEY) {
+      return false;
+    }
+    AccessibilityWindowInfoCompat window =
+        AccessibilityNodeInfoUtils.getWindow(accessibilityNodeInfoCompat);
+    return AccessibilityWindowInfoUtils.getType(window) != TYPE_INPUT_METHOD;
+  }
+
   /** @return {@code true} if the role of node support lift-to-type functionality. */
   private boolean supportsLiftToType(AccessibilityNodeInfoCompat accessibilityNodeInfoCompat) {
     if (typingMethod == LIFT_TO_TYPE_EXCEPT_ACTION_KEY
@@ -502,7 +514,7 @@ public class FocusProcessorForTapAndTouchExploration {
     if (typingMethod == SINGLE_TAP_TO_TYPE
         && touchedFocusableNode != null
         && touchedFocusableNode.equals(lastFocusableNodeBeingTouched)
-        && supportsLiftToType(touchedFocusableNode)) {
+        && !requiresDoubleTapForEmbeddedKey(touchedFocusableNode)) {
       postDelayHandler.earlyTouchEndAfterTimeout(SINGLE_TAP_EARLY_END_DELAY_MS);
     }
     return false;
