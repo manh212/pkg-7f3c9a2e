@@ -3,7 +3,9 @@ package com.google.android.accessibility.talkback;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.TouchInteractionController;
 import android.os.Build;
+import android.os.SystemClock;
 import android.view.Display;
+import androidx.annotation.Nullable;
 import android.view.MotionEvent;
 import androidx.annotation.RequiresApi;
 import com.google.android.accessibility.talkback.gesture.SyntheticTouches;
@@ -33,8 +35,19 @@ import com.google.android.accessibility.talkback.gesture.SyntheticTouches;
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 public class TouchInteractionMonitor implements TouchInteractionController.Callback {
 
+  /** Listener notified as the finger moves during single-finger touch exploration. */
+  public interface TouchMoveListener {
+    void onTouchMove(int rawX, int rawY, long uptimeMs);
+  }
+
   /** Whether a touch is passed to the app, such as the hold of a double-tap and hold. */
   private static volatile boolean touchPassedToApp;
+
+  private static volatile int lastTouchX = Integer.MIN_VALUE;
+  private static volatile int lastTouchY = Integer.MIN_VALUE;
+  private static volatile long lastTouchUptimeMs = 0L;
+  private static volatile boolean exploringTouch = false;
+  @Nullable private static volatile TouchMoveListener touchMoveListener;
 
   /** Whether the touch in progress is one Meridian sent, which goes to the app as it is. */
   private volatile boolean passingSyntheticTouch;
@@ -62,6 +75,23 @@ public class TouchInteractionMonitor implements TouchInteractionController.Callb
     }
     passingSyntheticTouch = false;
     touchPassedToApp = false;
+    exploringTouch = false;
+  }
+
+  public static int getLastTouchX() {
+    return lastTouchX;
+  }
+
+  public static int getLastTouchY() {
+    return lastTouchY;
+  }
+
+  public static long getLastTouchUptimeMs() {
+    return lastTouchUptimeMs;
+  }
+
+  public static void setTouchMoveListener(@Nullable TouchMoveListener listener) {
+    touchMoveListener = listener;
   }
 
   /**
@@ -74,6 +104,7 @@ public class TouchInteractionMonitor implements TouchInteractionController.Callb
   @Override
   public void onStateChanged(int state) {
     touchPassedToApp = state == TouchInteractionController.STATE_DELEGATING;
+    exploringTouch = state == TouchInteractionController.STATE_TOUCH_EXPLORING;
   }
 
   @Override
@@ -97,6 +128,22 @@ public class TouchInteractionMonitor implements TouchInteractionController.Callb
         passingSyntheticTouch = false;
       }
       return;
+    }
+    int action = event.getActionMasked();
+    if (event.getPointerCount() == 1
+        && (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE)) {
+      int x = Math.round(event.getRawX());
+      int y = Math.round(event.getRawY());
+      long now = SystemClock.uptimeMillis();
+      lastTouchX = x;
+      lastTouchY = y;
+      lastTouchUptimeMs = now;
+      TouchMoveListener listener = touchMoveListener;
+      if (action == MotionEvent.ACTION_MOVE && exploringTouch && listener != null) {
+        listener.onTouchMove(x, y, now);
+      }
+    } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+      exploringTouch = false;
     }
   }
 }

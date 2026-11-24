@@ -26,6 +26,10 @@ import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import static com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED;
+
+import android.os.Build;
+import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.talkback.collapse.CollapseEngine;
 import com.google.android.accessibility.talkback.focusmanagement.HomeScreenPages;
 import com.google.android.accessibility.talkback.focusmanagement.action.TouchExplorationAction;
@@ -105,12 +109,40 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
         handlePendingHover();
       };
 
+  private static final long OVERLAY_MOVE_THROTTLE_MS = 35L;
+  private final OverlayTouchTargetResolver overlayResolver = new OverlayTouchTargetResolver();
+  private long lastOverlayMoveCheckMs = 0L;
+
   private final List<TouchExplorationActionListener> listeners = new ArrayList<>();
 
   public TouchExplorationInterpreter(InputModeTracker inputModeTracker, Context context) {
     this.context = context;
     this.inputModeTracker = inputModeTracker;
     postDelayHandler = new PostDelayHandler(this);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      TouchInteractionMonitor.setTouchMoveListener(
+          (rawX, rawY, uptimeMs) -> {
+            if (!overlayResolver.isActive()
+                || (uptimeMs - lastOverlayMoveCheckMs) < OVERLAY_MOVE_THROTTLE_MS) {
+              return;
+            }
+            lastOverlayMoveCheckMs = uptimeMs;
+            mainHandler.post(() -> handleOverlayTouchMove(rawX, rawY));
+          });
+    }
+  }
+
+  private void handleOverlayTouchMove(int rawX, int rawY) {
+    AccessibilityNodeInfoCompat resolved = overlayResolver.resolveOnTouchMove(rawX, rawY);
+    if (resolved == null) {
+      return;
+    }
+    postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ false);
+    if (dispatchTouchExplorationAction(
+        new TouchExplorationAction(TouchExplorationAction.HOVER_ENTER, resolved),
+        EVENT_ID_UNTRACKED)) {
+      setInputTouchMode();
+    }
   }
 
   public void addTouchExplorationActionListener(TouchExplorationActionListener listener) {
@@ -259,11 +291,13 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
       // from other node before timeout, we cancel this post-delayed action.
       postDelayHandler.postDelayEmptyTouchAction(eventId);
     } else {
+      AccessibilityNodeInfoCompat resolvedNode =
+          overlayResolver.resolveOnHoverEnter(touchedFocusableNode);
       postDelayHandler.cancelPendingEmptyTouchAction(/* dispatchPendingActionImmediately= */ false);
       LogUtils.v(
-          TAG, "handleHoverEnterEvent: HOVER_ENTER, touchedFocusableNode=%s", touchedFocusableNode);
+          TAG, "handleHoverEnterEvent: HOVER_ENTER, touchedFocusableNode=%s", resolvedNode);
       return dispatchTouchExplorationAction(
-          new TouchExplorationAction(TouchExplorationAction.HOVER_ENTER, touchedFocusableNode),
+          new TouchExplorationAction(TouchExplorationAction.HOVER_ENTER, resolvedNode),
           eventId);
     }
     return false;
@@ -312,6 +346,9 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
   /** Saves the last touched node. */
   private void setLastTouchedNode(@Nullable AccessibilityNodeInfoCompat touchedNode) {
     lastTouchedNode = touchedNode;
+    if (touchedNode == null) {
+      overlayResolver.reset();
+    }
   }
 
   /**
