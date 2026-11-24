@@ -137,11 +137,8 @@ public final class ZaloAccessibilityHelper {
   private static final Set<String> HIDDEN_WRAPPER_IDS =
       new HashSet<>(
           Arrays.asList(
-              ID_ZDS_ACTION_BAR,
               ID_ACTIONBAR_TRAILING_CONTAINER,
               ID_CHIP_TABS_CONTAINER,
-              ID_HIGHLIGHT_FRAME_LAYOUT,
-              ID_POPUP_CONTENT_CONTAINER,
               ID_LAYOUT_SOCIAL_FEED));
 
   private static final Set<String> CALL_ACTION_ENGLISH_LABELS =
