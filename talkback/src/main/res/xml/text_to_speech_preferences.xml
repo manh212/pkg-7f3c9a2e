@@ -2,11 +2,8 @@
 <PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_voice_key">
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.VoiceEngineFragment"
-        android:key="@string/pref_voice_engine_stream_screen_key"
-        android:title="@string/title_pref_voice_engine_stream" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="@string/pref_category_group_voice_key">
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.VoiceProfilesFragment"
         android:key="@string/pref_voice_profiles_screen_key"
@@ -17,21 +14,37 @@
         android:key="@string/pref_voice_language_screen_key"
         android:title="@string/title_pref_voice_language" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.VoicePronunciationFragment"
-        android:key="@string/pref_voice_pronunciation_screen_key"
-        android:title="@string/title_pref_voice_pronunciation" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.speechdictionary.SpeechDictionaryFragment"
         android:key="pref_speech_dictionary_screen"
         android:persistent="false"
         android:title="@string/title_pref_speech_dictionary" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="pref_speech_adjustment_screen"
-        android:persistent="false"
-        android:title="@string/title_pref_speech_adjustment" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.VoiceFeatureVoicesFragment"
         android:key="@string/pref_voice_feature_voices_screen_key"
         android:title="@string/title_pref_voice_feature_voices" />
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="pref_category_voice_general_key"
+      android:title="@string/title_pref_voice_general_options">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:key="@string/pref_speech_stream_key"
+        android:title="@string/title_pref_speech_stream"
+        android:entries="@array/pref_speech_stream_entries"
+        android:entryValues="@array/pref_speech_stream_values"
+        android:summary="%s" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_intonation_default"
+        android:key="@string/pref_intonation_key"
+        android:summary="@string/summary_pref_intonation"
+        android:title="@string/title_pref_intonation" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="true"
+        android:key="@string/pref_keep_screen_on_while_speaking_key"
+        android:title="@string/title_pref_keep_screen_on_while_speaking" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="@string/pref_system_tts_settings_key"
+        android:title="@string/title_pref_system_tts_settings"
+        android:summary="@string/summary_tts_settings" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

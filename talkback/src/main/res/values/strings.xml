@@ -4707,4 +4707,11 @@
     <string name="keyboard_editing_active" tools:ignore="MissingTranslation">Đang chỉnh sửa</string>
   <string name="editor_action_correct_text" tools:ignore="MissingTranslation">Hiệu chỉnh văn bản</string>
     <string name="editor_action_choose_input_method">Choose input method</string>
+  <string name="title_pref_voice_general_options">General reading options</string>
+  <string name="voice_switch_engine_title">TTS engine for voice switching list</string>
+  <string name="dictation_zipformer_auto_downloading">Offline voice input model is not installed yet. Downloading automatically…</string>
+  <string name="dictation_zipformer_downloading_progress">Downloading offline voice input model, %1$d%%</string>
+  <string name="dictation_zipformer_download_ready">Offline voice input model downloaded. You can start speaking now.</string>
+  <string name="dictation_zipformer_download_low_space">Not enough storage space to download the offline voice input model.</string>
+  <string name="dictation_zipformer_download_failed">Could not download the offline voice input model. Check your connection and try again.</string>
 </resources>

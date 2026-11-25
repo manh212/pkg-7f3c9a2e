@@ -123,6 +123,8 @@ class AiDictation(
   private var offlineTask = false
   private var keyboardDictation = false
 
+  private val zipformerAutoDownloader = ZipformerAutoDownloader.create(service, ::speak)
+
   init {
     SandflyDictation.instance = this
   }
@@ -195,8 +197,12 @@ class AiDictation(
       PermissionUtils.requestPermissions(service, Manifest.permission.RECORD_AUDIO)
       return false
     }
+    val engine = DictationSettings.effectiveRecognition(service, prefs, skip(target))
+    if (engine == Recognition.ZIPFORMER && !zipformerAutoDownloader.ensureInstalledOrDownload()) {
+      return false
+    }
     translateMode = translating
-    if (!startRecording(DictationSettings.effectiveRecognition(service, prefs, skip(target)))) {
+    if (!startRecording(engine)) {
       handler.removeCallbacks(autoStop)
       translateMode = false
       speak(service.getString(R.string.dictation_unavailable))
@@ -252,6 +258,13 @@ class AiDictation(
     offlineTask = task
     keyboardDictation = keyboard
     val engine = if (task) Recognition.ZIPFORMER else DictationSettings.effectiveRecognition(service, prefs)
+    if (engine == Recognition.ZIPFORMER && !zipformerAutoDownloader.ensureInstalledOrDownload()) {
+      onText = null
+      offlineTask = false
+      keyboardDictation = false
+      callback(null)
+      return false
+    }
     if (!startRecording(engine)) {
       onText = null
       offlineTask = false
@@ -668,6 +681,7 @@ class AiDictation(
   }
 
   fun shutdown() {
+    zipformerAutoDownloader.detach()
     generation++
     giveUp?.let { handler.removeCallbacks(it) }
     continuous?.cancel()

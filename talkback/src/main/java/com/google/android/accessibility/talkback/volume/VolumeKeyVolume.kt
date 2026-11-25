@@ -25,6 +25,7 @@ import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import androidx.annotation.VisibleForTesting
@@ -44,6 +45,43 @@ class VolumeKeyVolume(private val context: Context) {
 
   /** The active stream locked on initial press, reused while the key is held. */
   private var lockedActiveStream: Int? = null
+
+  /** Stream adjusted on the most recent non-held press, kept sticky across rapid taps. */
+  private var recentAdjustedStream: Int? = null
+
+  /** Uptime (ms) of the most recent volume adjustment for sticky rapid-tap locking. */
+  private var recentAdjustUptimeMs: Long = Long.MIN_VALUE
+
+  /** Clears rapid-tap sticky state (e.g., when switching to touch-held accessibility volume). */
+  fun clearStickyStream() {
+    recentAdjustedStream = null
+    recentAdjustUptimeMs = Long.MIN_VALUE
+  }
+
+  /**
+   * Resolves the contextual stream for a press at [nowMs], keeping rapid consecutive presses
+   * locked on the same stream within [STICKY_STREAM_WINDOW_MS] unless a higher-priority
+   * call/ringtone/alarm/assistant stream starts.
+   */
+  fun resolveContextualStreamSticky(
+    fallbackStream: Int,
+    accessibilitySpeaking: Boolean,
+    nowMs: Long = SystemClock.uptimeMillis(),
+  ): Int {
+    val audio = audioManager ?: return fallbackStream
+    val detected = detectActiveStream(audio, accessibilitySpeaking)
+    val resolved =
+      applyStickyStream(
+        detected = detected,
+        fallbackStream = fallbackStream,
+        recentStream = recentAdjustedStream,
+        recentUptimeMs = recentAdjustUptimeMs,
+        nowMs = nowMs,
+      )
+    recentAdjustedStream = resolved
+    recentAdjustUptimeMs = nowMs
+    return resolved
+  }
 
   /** Overload preserving 4-arg callers with [accessibilitySpeaking] = false. */
   fun adjust(keyCode: Int, repeated: Boolean, stream: Int, showUi: Boolean) {
@@ -66,17 +104,33 @@ class VolumeKeyVolume(private val context: Context) {
     val audio = audioManager ?: return
     val direction = direction(keyCode)
     val flags = volumeFlags(repeated, showUi)
+    val nowMs = SystemClock.uptimeMillis()
     if (!repeated) {
       val detected = detectActiveStream(audio, accessibilitySpeaking)
-      lockedActiveStream = detected
+      val sticky =
+        if (
+          recentAdjustedStream != null &&
+            nowMs >= recentAdjustUptimeMs &&
+            (nowMs - recentAdjustUptimeMs) <= STICKY_STREAM_WINDOW_MS &&
+            !isInterruptingPriorityStream(detected)
+        ) {
+          recentAdjustedStream
+        } else {
+          detected
+        }
+      lockedActiveStream = sticky
       session =
-        if (detected != null || prefersStream(stream, audio)) null else volumeSession()
+        if (sticky != null || prefersStream(stream, audio)) null else volumeSession()
     }
     val activeStream = lockedActiveStream
     if (activeStream != null) {
+      recentAdjustedStream = activeStream
+      recentAdjustUptimeMs = nowMs
       audio.adjustSuggestedStreamVolume(direction, activeStream, flags)
       return
     }
+    recentAdjustedStream = stream
+    recentAdjustUptimeMs = nowMs
     val session = session
     val info = session?.playbackInfo
     if (session == null || info == null) {
@@ -121,6 +175,35 @@ class VolumeKeyVolume(private val context: Context) {
 
   companion object {
     private const val TAG = "VolumeKeyVolume"
+
+    /** Window (ms) during which rapid consecutive volume presses stay on the same stream. */
+    @VisibleForTesting internal const val STICKY_STREAM_WINDOW_MS = 1_500L
+
+    @JvmStatic
+    internal fun isInterruptingPriorityStream(stream: Int?): Boolean =
+      stream == AudioManager.STREAM_VOICE_CALL ||
+        stream == AudioManager.STREAM_RING ||
+        stream == AudioManager.STREAM_ALARM ||
+        stream == AudioManager.USE_DEFAULT_STREAM_TYPE
+
+    @JvmStatic
+    internal fun applyStickyStream(
+      detected: Int?,
+      fallbackStream: Int,
+      recentStream: Int?,
+      recentUptimeMs: Long,
+      nowMs: Long,
+    ): Int {
+      if (
+        recentStream != null &&
+          nowMs >= recentUptimeMs &&
+          (nowMs - recentUptimeMs) <= STICKY_STREAM_WINDOW_MS &&
+          !isInterruptingPriorityStream(detected)
+      ) {
+        return recentStream
+      }
+      return detected ?: fallbackStream
+    }
 
     /** AudioManager.FLAG_FROM_KEY, hidden: the change is for a hardware key press. */
     @VisibleForTesting const val FLAG_FROM_KEY = 1 shl 12
@@ -188,7 +271,7 @@ class VolumeKeyVolume(private val context: Context) {
       var bestPriority = Int.MAX_VALUE
       var bestStream: Int? = null
       for (spec in playbacks) {
-        val (priority, stream) = classifyPlayback(spec) ?: continue
+        val (priority, stream) = classifyPlayback(spec, accessibilitySpeaking) ?: continue
         if (priority < bestPriority) {
           bestPriority = priority
           bestStream = stream
@@ -202,7 +285,10 @@ class VolumeKeyVolume(private val context: Context) {
       return bestStream
     }
 
-    private fun classifyPlayback(spec: PlaybackSpec): Pair<Int, Int>? {
+    private fun classifyPlayback(
+      spec: PlaybackSpec,
+      accessibilitySpeaking: Boolean,
+    ): Pair<Int, Int>? {
       val directStream =
         spec.volumeControlStream.takeIf { it != AudioManager.USE_DEFAULT_STREAM_TYPE }
       return when (spec.usage) {
@@ -216,7 +302,13 @@ class VolumeKeyVolume(private val context: Context) {
         AudioAttributes.USAGE_ASSISTANT ->
           4 to (directStream ?: AudioManager.USE_DEFAULT_STREAM_TYPE)
         AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY ->
-          5 to (directStream ?: AudioManager.STREAM_ACCESSIBILITY)
+          // Only adjust accessibility volume when Meridian is actively reading real content
+          // (not a volume-percentage announcement or lingering audio track).
+          if (accessibilitySpeaking) {
+            5 to (directStream ?: AudioManager.STREAM_ACCESSIBILITY)
+          } else {
+            null
+          }
         AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE ->
           6 to (directStream ?: AudioManager.STREAM_MUSIC)
         AudioAttributes.USAGE_NOTIFICATION,

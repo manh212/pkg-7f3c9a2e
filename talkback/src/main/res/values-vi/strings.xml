@@ -1933,4 +1933,11 @@
   <string name="menu_item_call_number">Gọi <xliff:g id="number" example="020 7946 0018">%1$s</xliff:g></string>
   <string name="menu_item_copy_code">Sao chép mã <xliff:g id="code" example="482916">%1$s</xliff:g></string>
     <string name="editor_action_choose_input_method">Chọn phương thức nhập</string>
+  <string name="title_pref_voice_general_options">Tùy chọn chung khi đọc</string>
+  <string name="voice_switch_engine_title">Bộ máy đọc để tùy chỉnh danh sách giọng</string>
+  <string name="dictation_zipformer_auto_downloading">Chưa có mô hình nhập bằng giọng nói ngoại tuyến. Đang tự động tải về…</string>
+  <string name="dictation_zipformer_downloading_progress">Đang tải mô hình nhập bằng giọng nói ngoại tuyến, %1$d%%</string>
+  <string name="dictation_zipformer_download_ready">Đã tải xong mô hình nhập bằng giọng nói ngoại tuyến. Bạn có thể bắt đầu nói.</string>
+  <string name="dictation_zipformer_download_low_space">Không đủ bộ nhớ trống để tải mô hình nhập bằng giọng nói ngoại tuyến.</string>
+  <string name="dictation_zipformer_download_failed">Không thể tải mô hình nhập bằng giọng nói ngoại tuyến. Vui lòng kiểm tra kết nối mạng và thử lại.</string>
 </resources>

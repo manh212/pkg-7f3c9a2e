@@ -16,42 +16,41 @@
 
 package com.google.android.accessibility.talkback.preference.base;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Bundle;
 import android.text.TextUtils;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import com.google.android.accessibility.talkback.R;
+import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.speech.VoiceProfileNames;
 import com.google.android.accessibility.utils.FormFactorUtils;
+import com.google.android.accessibility.utils.PreferenceSettingsUtils;
+import com.google.android.accessibility.utils.SettingsUtils;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech;
-import com.google.android.accessibility.utils.output.SpeechCompressor;
-import com.google.android.accessibility.utils.output.SpeechEqualizer;
 import com.google.android.accessibility.utils.output.VoiceProfiles;
 import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile;
 
 /**
- * The voice settings: a landing page over the voice sub-screens. A voice's speed, pitch and
- * volume live on its own profile's page; the adjustment row opens the adjustment screen for
- * the voice profile in use.
+ * The voice settings screen. Per-voice parameters (TTS engine, language, voice, volume, speed,
+ * pitch, phrase chunking, equalizer and compressor) live inside {@link VoiceProfilesFragment},
+ * while global reading options live directly in the general section below.
  */
 public class TextToSpeechSettingsFragment extends TalkBackPreferenceFragment {
-
-  private static final String ADJUSTMENT_SCREEN_KEY = "pref_speech_adjustment_screen";
 
   private SharedPreferences prefs;
 
   private final OnSharedPreferenceChangeListener sharedPreferenceChangeListener =
       (sharedPrefs, key) -> {
         if (TextUtils.equals(key, VoiceProfiles.PREF_ACTIVE)) {
-          // Switched by a gesture, keyboard shortcut or the Backtalk menu.
-          setUpAdjustmentRow();
+          // Switched by a gesture, keyboard shortcut or the Meridian menu.
           updateVoiceProfileSummary();
-        } else if (SpeechEqualizer.isKey(key)
-            || SpeechCompressor.isKey(key)
-            || TextUtils.equals(key, FailoverTextToSpeech.PREF_LOW_LATENCY_AUDIO_KEY)) {
-          updateAdjustmentSummary();
+        } else if (TextUtils.equals(key, FailoverTextToSpeech.PREF_SPEECH_STREAM_KEY)) {
+          // Switched by the reading control.
+          updateSpeechStreamValue();
         }
       };
 
@@ -68,17 +67,17 @@ public class TextToSpeechSettingsFragment extends TalkBackPreferenceFragment {
   public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
     super.onCreatePreferences(savedInstanceState, rootKey);
     prefs = SharedPreferencesUtils.getSharedPreferences(requireContext());
-    setUpAdjustmentRow();
+    setUpSystemTtsSettingsPreference();
     updateVoiceProfileSummary();
+    updateSpeechStreamValue();
   }
 
   @Override
   public void onResume() {
     super.onResume();
     prefs.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
-    setUpAdjustmentRow();
     updateVoiceProfileSummary();
-    updateAdjustmentSummary();
+    updateSpeechStreamValue();
   }
 
   @Override
@@ -87,10 +86,6 @@ public class TextToSpeechSettingsFragment extends TalkBackPreferenceFragment {
     prefs.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
   }
 
-  /**
-   * Names the voice profile in use on the profiles row, since the rows on this screen no longer
-   * carry the settings of any one profile.
-   */
   private void updateVoiceProfileSummary() {
     Preference preference = findPreferenceByResId(R.string.pref_voice_profiles_screen_key);
     if (preference == null) {
@@ -105,30 +100,25 @@ public class TextToSpeechSettingsFragment extends TalkBackPreferenceFragment {
                 VoiceProfileNames.nameOf(requireContext(), prefs, profile.id())));
   }
 
-  /**
-   * Points the adjustment row at the voice profile in use, so the equalizer and compressor edit
-   * the voice being heard rather than Backtalk's default.
-   */
-  private void setUpAdjustmentRow() {
-    Preference preference = findPreference(ADJUSTMENT_SCREEN_KEY);
-    if (preference == null) {
-      return;
+  private void updateSpeechStreamValue() {
+    if (findPreferenceByResId(R.string.pref_speech_stream_key) instanceof ListPreference list) {
+      list.setValue(FailoverTextToSpeech.chosenSpeechStream(prefs));
     }
-    if (FormFactorUtils.isAndroidWear()) {
-      getPreferenceScreen().removePreferenceRecursively(ADJUSTMENT_SCREEN_KEY);
-      return;
-    }
-    SpeechAdjustmentFragment.setUp(preference, VoiceProfiles.activeId(prefs));
   }
 
-  private void updateAdjustmentSummary() {
-    Preference preference = findPreference(ADJUSTMENT_SCREEN_KEY);
+  private void setUpSystemTtsSettingsPreference() {
+    Preference preference = findPreferenceByResId(R.string.pref_system_tts_settings_key);
     if (preference == null) {
       return;
     }
-    preference.setSummary(
-        SpeechAdjustmentFragment.summary(
-            requireContext(), prefs, VoiceProfiles.activeId(prefs)));
+    Intent intent = new Intent(TalkBackService.INTENT_TTS_SETTINGS);
+    if (FormFactorUtils.isAndroidTv()
+        || !SettingsUtils.allowLinksOutOfSettings(requireContext())
+        || !PreferenceSettingsUtils.canHandleIntent(requireContext(), intent)) {
+      getPreferenceScreen().removePreferenceRecursively(preference.getKey());
+      return;
+    }
+    preference.setIntent(intent);
   }
 
   static int toPercent(float multiplier) {

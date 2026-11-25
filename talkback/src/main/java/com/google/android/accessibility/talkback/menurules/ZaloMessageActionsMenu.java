@@ -147,29 +147,35 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
 
   @Override
   public boolean accept(Context context, AccessibilityNodeInfoCompat node) {
-    return isZaloChatMessageNode(node);
+    return isZaloChatMessageNode(node) || isZaloTimelinePostNode(node);
   }
 
   @Override
   public List<ContextMenuItem> getMenuItemsForNode(
       Context context, AccessibilityNodeInfoCompat node, boolean includeAncestors) {
     List<ContextMenuItem> items = new ArrayList<>();
-    if (!isZaloChatMessageNode(node)) {
+    boolean isChatMessage = isZaloChatMessageNode(node);
+    boolean isTimelinePost = !isChatMessage && isZaloTimelinePostNode(node);
+    if (!isChatMessage && !isTimelinePost) {
       return items;
     }
     String lower = collectLowerText(node);
     if (hasSeeMoreTruncation(lower)) {
       Rect capturedBounds = new Rect();
       node.getBoundsInScreen(capturedBounds);
+      final boolean timelineMode = isTimelinePost;
       ContextMenuItem seeMoreItem =
           ContextMenu.createMenuItem(
               context, Menu.NONE, SEE_MORE_ACTION_ID, Menu.NONE, "Xem thêm");
       seeMoreItem.setOnMenuItemClickListener(
           menuItem -> {
-            triggerSeeMoreTap(node, capturedBounds, lower);
+            triggerSeeMoreTap(node, capturedBounds, lower, timelineMode);
             return true;
           });
       items.add(seeMoreItem);
+    }
+    if (isTimelinePost) {
+      return items;
     }
     boolean callCard = isCallCard(lower);
     String[] labels = resolveContextualActions(node, lower, callCard);
@@ -209,16 +215,21 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
     return items;
   }
 
-  private static boolean hasSeeMoreTruncation(String lower) {
+  static boolean hasSeeMoreTruncation(String lower) {
     String trimmed = lower.trim();
     return trimmed.endsWith("xem thêm")
         || trimmed.contains("… xem thêm")
         || trimmed.contains("... xem thêm")
+        || trimmed.contains("…xem thêm")
+        || trimmed.contains("...xem thêm")
         || trimmed.contains("\nxem thêm");
   }
 
   private void triggerSeeMoreTap(
-      AccessibilityNodeInfoCompat node, Rect capturedBounds, String lowerText) {
+      AccessibilityNodeInfoCompat node,
+      Rect capturedBounds,
+      String lowerText,
+      boolean isTimelinePost) {
     cancelPendingPoll();
     @Nullable AccessibilityService service = TalkBackService.getInstance();
     if (service == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
@@ -236,11 +247,19 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
       return;
     }
     DisplayMetrics metrics = service.getResources().getDisplayMetrics();
-    int fallbackX =
-        isOutgoingHint(lowerText)
-            ? bounds.left + (int) (bounds.width() * 0.72f)
-            : bounds.left + (int) (bounds.width() * 0.30f);
-    int fallbackY = Math.max(bounds.top + 8, bounds.bottom - Math.round(28f * metrics.density));
+    int fallbackX;
+    int fallbackY;
+    if (isTimelinePost) {
+      // Trên Nhật ký Zalo, cụm "...Xem thêm" nằm ở góc dưới bên phải khối văn bản bài viết.
+      fallbackX = bounds.left + (int) (bounds.width() * 0.78f);
+      fallbackY = Math.max(bounds.top + 8, bounds.bottom - Math.round(20f * metrics.density));
+    } else {
+      fallbackX =
+          isOutgoingHint(lowerText)
+              ? bounds.left + (int) (bounds.width() * 0.72f)
+              : bounds.left + (int) (bounds.width() * 0.30f);
+      fallbackY = Math.max(bounds.top + 8, bounds.bottom - Math.round(28f * metrics.density));
+    }
 
     if (FeatureSupport.canTakeScreenShotByAccessibilityService()) {
       ScreenshotCapture.takeScreenshot(
@@ -672,6 +691,53 @@ public final class ZaloMessageActionsMenu implements NodeMenu {
       cur = cur.getParent();
     }
     return hasListAncestor && hasChatAncestor;
+  }
+
+  /**
+   * Nhận diện khối bài viết bị rút gọn ("...Xem thêm") trên Nhật ký Zalo ({@code lv_media_store}
+   * / {@code layoutSocialFeed}) để chỉ thêm đúng thao tác "Xem thêm" mà không lẫn các thao tác
+   * tin nhắn.
+   */
+  static boolean isZaloTimelinePostNode(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null
+        || !ZaloAccessibilityHelper.isZaloPackage(node.getPackageName())
+        || !node.isClickable()
+        || !node.isFocusable()
+        || ZaloAccessibilityHelper.isReactionBarNode(node)) {
+      return false;
+    }
+    CharSequence cls = node.getClassName();
+    if (cls == null) {
+      return false;
+    }
+    String className = cls.toString();
+    if (!className.endsWith("FrameLayout") && !className.endsWith("ViewGroup")) {
+      return false;
+    }
+    Rect bounds = new Rect();
+    node.getBoundsInScreen(bounds);
+    if (bounds.isEmpty() || bounds.height() < 40) {
+      return false;
+    }
+    String lower = collectLowerText(node);
+    if (!hasSeeMoreTruncation(lower)) {
+      return false;
+    }
+    AccessibilityNodeInfoCompat cur = node.getParent();
+    for (int depth = 0; depth < 8 && cur != null; depth++) {
+      String pvid = cur.getViewIdResourceName();
+      if (pvid != null) {
+        if (isExcludedViewId(pvid)) {
+          return false;
+        }
+        String lp = pvid.toLowerCase(Locale.ROOT);
+        if (lp.contains("lv_media_store") || lp.contains("layoutsocialfeed")) {
+          return true;
+        }
+      }
+      cur = cur.getParent();
+    }
+    return false;
   }
 
   private static boolean isExcludedViewId(String viewId) {

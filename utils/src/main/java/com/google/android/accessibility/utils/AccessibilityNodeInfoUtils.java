@@ -109,8 +109,10 @@ public class AccessibilityNodeInfoUtils {
         ? null
         : UniversalAccessibilityHelper.filterText(
             node,
-            ZaloAccessibilityHelper.filterText(
-                node, ShopeeAccessibilityHelper.filterText(node, node.getText())));
+            MessengerAccessibilityHelper.filterText(
+                node,
+                ZaloAccessibilityHelper.filterText(
+                    node, ShopeeAccessibilityHelper.filterText(node, node.getText()))));
   }
 
   @FormatMethod
@@ -582,12 +584,14 @@ public class AccessibilityNodeInfoUtils {
     final CharSequence contentDescription =
         UniversalAccessibilityHelper.filterContentDescription(
             node,
-            TikTokAccessibilityHelper.filterContentDescription(
+            MessengerAccessibilityHelper.filterContentDescription(
                 node,
-                ZaloAccessibilityHelper.filterContentDescription(
+                TikTokAccessibilityHelper.filterContentDescription(
                     node,
-                    ShopeeAccessibilityHelper.filterContentDescription(
-                        node, node.getContentDescription()))));
+                    ZaloAccessibilityHelper.filterContentDescription(
+                        node,
+                        ShopeeAccessibilityHelper.filterContentDescription(
+                            node, node.getContentDescription())))));
     if (!TextUtils.isEmpty(contentDescription)
         && (TextUtils.getTrimmedLength(contentDescription) > 0)) {
       return contentDescription;
@@ -940,7 +944,8 @@ public class AccessibilityNodeInfoUtils {
             && (UniversalAccessibilityHelper.shouldHideNode(node)
                 || ShopeeAccessibilityHelper.shouldHideNode(node)
                 || ZaloAccessibilityHelper.shouldHideNode(node)
-                || TikTokAccessibilityHelper.shouldHideNode(node)))) {
+                || TikTokAccessibilityHelper.shouldHideNode(node)
+                || MessengerAccessibilityHelper.shouldHideNode(node)))) {
       LogUtils.v(TAG, "Don't focus, hidden by override/app rule");
       return false;
     }
@@ -952,7 +957,8 @@ public class AccessibilityNodeInfoUtils {
         || (UniversalAccessibilityHelper.isFocusFilterEnabled()
             && (ShopeeAccessibilityHelper.isGroupedCard(node)
                 || ZaloAccessibilityHelper.isGroupedCard(node)
-                || TikTokAccessibilityHelper.isGroupedCard(node)))) {
+                || TikTokAccessibilityHelper.isGroupedCard(node)
+                || MessengerAccessibilityHelper.isGroupedCard(node)))) {
       return isVisible(node);
     }
     // Inside views that support web navigation, we delegate focus to the view itself and
@@ -1218,7 +1224,8 @@ public class AccessibilityNodeInfoUtils {
               && (UniversalAccessibilityHelper.shouldHideNode(child)
                   || ShopeeAccessibilityHelper.shouldHideNode(child)
                   || ZaloAccessibilityHelper.shouldHideNode(child)
-                  || TikTokAccessibilityHelper.shouldHideNode(child)))
+                  || TikTokAccessibilityHelper.shouldHideNode(child)
+                  || MessengerAccessibilityHelper.shouldHideNode(child)))
           || WebInterfaceUtils.supportsWebActions(child)) {
         continue;
       }
@@ -1243,7 +1250,8 @@ public class AccessibilityNodeInfoUtils {
                 || (UniversalAccessibilityHelper.isFocusFilterEnabled()
                     && (ShopeeAccessibilityHelper.isGroupedCard(ancestor)
                         || ZaloAccessibilityHelper.isGroupedCard(ancestor)
-                        || TikTokAccessibilityHelper.isGroupedCard(ancestor)));
+                        || TikTokAccessibilityHelper.isGroupedCard(ancestor)
+                        || MessengerAccessibilityHelper.isGroupedCard(ancestor)));
           }
         });
   }
@@ -2208,12 +2216,14 @@ public class AccessibilityNodeInfoUtils {
             || !TextUtils.isEmpty(
                 UniversalAccessibilityHelper.filterContentDescription(
                     node,
-                    TikTokAccessibilityHelper.filterContentDescription(
+                    MessengerAccessibilityHelper.filterContentDescription(
                         node,
-                        ZaloAccessibilityHelper.filterContentDescription(
+                        TikTokAccessibilityHelper.filterContentDescription(
                             node,
-                            ShopeeAccessibilityHelper.filterContentDescription(
-                                node, node.getContentDescription())))))
+                            ZaloAccessibilityHelper.filterContentDescription(
+                                node,
+                                ShopeeAccessibilityHelper.filterContentDescription(
+                                    node, node.getContentDescription()))))))
             || !TextUtils.isEmpty(node.getHintText()));
   }
 
@@ -2240,7 +2250,8 @@ public class AccessibilityNodeInfoUtils {
         || (UniversalAccessibilityHelper.isFocusFilterEnabled()
             && (ShopeeAccessibilityHelper.isGroupedCard(node)
                 || ZaloAccessibilityHelper.isGroupedCard(node)
-                || TikTokAccessibilityHelper.isGroupedCard(node)))
+                || TikTokAccessibilityHelper.isGroupedCard(node)
+                || MessengerAccessibilityHelper.isGroupedCard(node)))
         || isActionableForAccessibility(node)
         || isAdjustableSlider(node);
   }
@@ -2261,7 +2272,8 @@ public class AccessibilityNodeInfoUtils {
             || (UniversalAccessibilityHelper.isFocusFilterEnabled()
                 && (ShopeeAccessibilityHelper.isGroupedCard(node)
                     || ZaloAccessibilityHelper.isGroupedCard(node)
-                    || TikTokAccessibilityHelper.isGroupedCard(node)))
+                    || TikTokAccessibilityHelper.isGroupedCard(node)
+                    || MessengerAccessibilityHelper.isGroupedCard(node)))
             || isActionableForAccessibility(node)
             || isAdjustableSlider(node));
   }

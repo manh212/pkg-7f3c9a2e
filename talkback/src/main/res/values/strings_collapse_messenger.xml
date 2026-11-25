@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="title_collapse_messenger_pin">Ghim hoặc bỏ ghim</string>
+  <string name="title_collapse_messenger_archive">Lưu trữ</string>
+  <string name="title_collapse_messenger_notifications">Tắt hoặc bật thông báo</string>
+  <string name="title_collapse_messenger_read">Đánh dấu đã đọc hoặc chưa đọc</string>
+  <string name="title_collapse_messenger_restrict">Hạn chế hoặc bỏ hạn chế</string>
+  <string name="title_collapse_messenger_block">Chặn hoặc bỏ chặn</string>
+  <string name="title_collapse_messenger_delete">Xóa cuộc trò chuyện</string>
+  <string name="title_collapse_messenger_reply">Trả lời</string>
+  <string name="title_collapse_messenger_copy">Sao chép</string>
+  <string name="title_collapse_messenger_remind">Đặt lời nhắc</string>
+  <string name="title_collapse_messenger_more">Khác</string>
+  <string name="title_collapse_messenger_react_heart">Thả tim</string>
+  <string name="title_collapse_messenger_react_haha">Haha</string>
+  <string name="title_collapse_messenger_react_wow">Wow</string>
+  <string name="title_collapse_messenger_react_sad">Buồn</string>
+  <string name="title_collapse_messenger_react_angry">Phẫn nộ</string>
+  <string name="title_collapse_messenger_react_like">Thích</string>
+  <string name="title_collapse_messenger_react_more">Biểu tượng cảm xúc khác</string>
+</resources>

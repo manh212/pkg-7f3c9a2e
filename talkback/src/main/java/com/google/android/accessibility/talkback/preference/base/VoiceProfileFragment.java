@@ -44,6 +44,7 @@ import com.google.android.accessibility.utils.output.SpeechCompressor;
 import com.google.android.accessibility.utils.output.SpeechEqualizer;
 import com.google.android.accessibility.utils.output.VoiceProfiles;
 import com.google.android.accessibility.utils.output.VoiceProfiles.VoiceProfile;
+import com.google.android.accessibility.utils.output.VoiceSwitching;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -87,6 +88,7 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
 
   private @Nullable ListPreference languagePref;
   private @Nullable ListPreference voicePref;
+  private String defaultEngine = "";
   private @Nullable Preference moveUp;
   private @Nullable Preference moveDown;
   private @Nullable Preference adjustment;
@@ -163,6 +165,23 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
               screen,
               VoiceProfiles.key(id, VoiceProfiles.VOICE),
               R.string.title_pref_voice_profile_voice);
+    } else {
+      voicePref =
+          addList(
+              context,
+              screen,
+              "default_profile_voice_picker",
+              R.string.title_pref_voice_profile_voice);
+      voicePref.setPersistent(false);
+      voicePref.setOnPreferenceChangeListener(
+          (preference, newValue) -> {
+            String chosen = (String) newValue;
+            if (!defaultEngine.isEmpty()) {
+              prefs.edit().putString(VoiceSwitching.selectedKey(defaultEngine), chosen).apply();
+            }
+            voicePref.setValue(chosen);
+            return false;
+          });
     }
     addSeekBar(
         new AccessibilitySeekBarPreference(context),
@@ -226,6 +245,8 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
       screen.addPreference(delete);
 
       loadVoices(profile().engine());
+    } else {
+      loadVoices(defaultEngine);
     }
   }
 
@@ -376,6 +397,7 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
       if (current == null) {
         current = "";
       }
+      defaultEngine = current;
     }
     List<CharSequence> entries = new ArrayList<>();
     List<CharSequence> values = new ArrayList<>();
@@ -393,7 +415,15 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
     enginePref.setEntryValues(values.toArray(new CharSequence[0]));
     enginePref.setSummary("%s");
     if (isDefault()) {
-      // Backtalk's default has no fixed language or voice to clear when the engine changes.
+      enginePref.setOnPreferenceChangeListener(
+          (preference, newValue) -> {
+            String engine = (String) newValue;
+            defaultEngine = engine;
+            prefs.edit().putString(settingKey(VoiceProfiles.ENGINE), engine).apply();
+            enginePref.setValue(engine);
+            loadVoices(engine);
+            return false;
+          });
       return;
     }
     enginePref.setOnPreferenceChangeListener(
@@ -603,53 +633,70 @@ public class VoiceProfileFragment extends TalkbackBaseFragment {
 
   /** Fills the language list, and the voice list with the voices in {@code language}. */
   private void updateVoiceLists(String language) {
-    if (languagePref == null || voicePref == null) {
+    if (voicePref == null) {
       return;
     }
     List<Voice> voices = this.voices;
-    languagePref.setEnabled(voices != null);
+    if (languagePref != null) {
+      languagePref.setEnabled(voices != null);
+    }
     voicePref.setEnabled(voices != null);
     if (voices == null) {
-      languagePref.setSummary(R.string.voice_profile_loading);
+      if (languagePref != null) {
+        languagePref.setSummary(R.string.voice_profile_loading);
+      }
       voicePref.setSummary(R.string.voice_profile_loading);
       return;
     }
 
-    Map<String, String> languages = new LinkedHashMap<>();
-    languages.put("", getString(R.string.voice_profile_engine_default));
-    for (Voice voice : voices) {
-      languages.put(voice.getLocale().toLanguageTag(), voice.getLocale().getDisplayName());
+    if (languagePref != null) {
+      Map<String, String> languages = new LinkedHashMap<>();
+      languages.put("", getString(R.string.voice_profile_engine_default));
+      for (Voice voice : voices) {
+        languages.put(voice.getLocale().toLanguageTag(), voice.getLocale().getDisplayName());
+      }
+      String currentLanguage = profile().language();
+      if (!languages.containsKey(currentLanguage)) {
+        languages.put(
+            currentLanguage,
+            getString(
+                R.string.voice_profile_not_installed,
+                Locale.forLanguageTag(currentLanguage).getDisplayName()));
+      }
+      setEntries(languagePref, languages);
     }
-    String currentLanguage = profile().language();
-    if (!languages.containsKey(currentLanguage)) {
-      languages.put(
-          currentLanguage,
-          getString(
-              R.string.voice_profile_not_installed,
-              Locale.forLanguageTag(currentLanguage).getDisplayName()));
-    }
-    setEntries(languagePref, languages);
 
+    String effectiveLanguage = (languagePref == null) ? "" : language;
     Map<String, String> names = new LinkedHashMap<>();
     names.put("", getString(R.string.voice_profile_engine_default));
     for (Voice voice : voices) {
       String tag = voice.getLocale().toLanguageTag();
-      if (language.isEmpty()) {
+      if (effectiveLanguage.isEmpty()) {
         names.put(
             voice.getName(),
             getString(
                 R.string.voice_profile_voice_in_language,
                 voice.getName(),
                 voice.getLocale().getDisplayName()));
-      } else if (tag.equals(language)) {
+      } else if (tag.equals(effectiveLanguage)) {
         names.put(voice.getName(), voice.getName());
       }
     }
-    String currentVoice = profile().voice();
-    if (!names.containsKey(currentVoice) && !hasVoice(language, currentVoice)) {
+    String currentVoice =
+        isDefault()
+            ? (defaultEngine.isEmpty()
+                ? ""
+                : prefs.getString(VoiceSwitching.selectedKey(defaultEngine), ""))
+            : profile().voice();
+    if (!currentVoice.isEmpty()
+        && !names.containsKey(currentVoice)
+        && !hasVoice(effectiveLanguage, currentVoice)) {
       names.put(currentVoice, getString(R.string.voice_profile_not_installed, currentVoice));
     }
     setEntries(voicePref, names);
+    if (isDefault()) {
+      voicePref.setValue(currentVoice);
+    }
   }
 
   /** Whether the engine has {@code voice}, in {@code language} unless that is empty. */

@@ -139,6 +139,14 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
    */
   public boolean tryStartVirtualOverlayExploration(
       @Nullable AccessibilityNodeInfoCompat root, int rawX, int rawY) {
+    return tryStartVirtualOverlayExploration(root, /* systemRoots= */ null, rawX, rawY);
+  }
+
+  public boolean tryStartVirtualOverlayExploration(
+      @Nullable AccessibilityNodeInfoCompat root,
+      @Nullable List<AccessibilityNodeInfoCompat> systemRoots,
+      int rawX,
+      int rawY) {
     AccessibilityNodeInfoCompat overlay =
         OverlayTouchTargetResolver.findVisibleObscuringOverlay(root);
     if (overlay == null || root == null) {
@@ -156,7 +164,7 @@ public class TouchExplorationInterpreter implements AccessibilityEventListener {
                   /* touchedFocusableNode= */ null),
               EVENT_ID_UNTRACKED);
           AccessibilityNodeInfoCompat resolved =
-              overlayResolver.startVirtualExploration(root, overlay, rawX, rawY);
+              overlayResolver.startVirtualExploration(root, overlay, systemRoots, rawX, rawY);
           lastTouchedNode = overlay;
           lastTouchedFocusableNode = resolved;
           if (dispatchTouchExplorationAction(

@@ -883,6 +883,14 @@ public class SpeechControllerImpl implements SpeechController {
       return !sourceIsVolumeControl && SpeechControllerImpl.this.isSpeakingOrSpeechQueued();
     }
 
+    /**
+     * Returns whether speech is actively playing for real content (excluding volume-control
+     * percentage announcements tagged with {@code FeedbackItem#FLAG_SOURCE_IS_VOLUME_CONTROL}).
+     */
+    public boolean isSpeakingNonVolumeControl() {
+      return !sourceIsVolumeControl && SpeechControllerImpl.this.isSpeaking();
+    }
+
     public @Nullable Set<Voice> getVoices() {
       return SpeechControllerImpl.this.getVoices();
     }

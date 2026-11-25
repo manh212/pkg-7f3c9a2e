@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import java.util.Collections;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -213,5 +214,71 @@ public class OverlayTouchTargetResolverTest {
     AccessibilityNodeInfoCompat movedToVideo = resolver.resolveOnTouchMove(400, 1000);
     assertNotNull(movedToVideo);
     assertEquals("Video", movedToVideo.getContentDescription().toString());
+  }
+
+  private static AccessibilityNodeInfoCompat makeNode(
+      String pkg,
+      String className,
+      String viewId,
+      String description,
+      Rect bounds,
+      boolean clickable,
+      boolean focusable,
+      boolean visible) {
+    AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+    info.setPackageName(pkg);
+    info.setClassName(className);
+    if (viewId != null) {
+      info.setViewIdResourceName(viewId);
+    }
+    info.setContentDescription(description);
+    info.setBoundsInScreen(new Rect(bounds));
+    info.setClickable(clickable);
+    info.setFocusable(focusable);
+    info.setEnabled(true);
+    info.setVisibleToUser(visible);
+    return AccessibilityNodeInfoCompat.wrap(info);
+  }
+
+  @Test
+  public void virtualExplorationReachesStatusBarSystemTargetsWhenGlidingUp() {
+    String pkg = "com.ss.android.ugc.trill";
+    AccessibilityNodeInfo rootInfo = AccessibilityNodeInfo.obtain();
+    rootInfo.setPackageName(pkg);
+    rootInfo.setClassName("android.widget.FrameLayout");
+    rootInfo.setBoundsInScreen(new Rect(0, 0, 1080, 2400));
+    rootInfo.setVisibleToUser(true);
+    rootInfo.setEnabled(true);
+
+    AccessibilityNodeInfoCompat overlay = makeNode(
+        pkg, "android.view.View", pkg + ":id/long_press_layout", "Video",
+        new Rect(0, 0, 1080, 2400), true, true, true);
+    shadowOf(rootInfo).addChild(overlay.unwrap());
+
+    AccessibilityNodeInfo sysRootInfo = AccessibilityNodeInfo.obtain();
+    sysRootInfo.setPackageName("com.android.systemui");
+    sysRootInfo.setClassName("android.widget.FrameLayout");
+    sysRootInfo.setBoundsInScreen(new Rect(0, 0, 1080, 100));
+    sysRootInfo.setVisibleToUser(true);
+    sysRootInfo.setEnabled(true);
+
+    AccessibilityNodeInfoCompat batteryNode = makeNode(
+        "com.android.systemui", "android.widget.ImageView", "com.android.systemui:id/battery",
+        "Pin 85 phần trăm", new Rect(900, 0, 1050, 90), false, true, true);
+    shadowOf(sysRootInfo).addChild(batteryNode.unwrap());
+
+    OverlayTouchTargetResolver resolver = new OverlayTouchTargetResolver();
+    AccessibilityNodeInfoCompat initial =
+        resolver.startVirtualExploration(
+            AccessibilityNodeInfoCompat.wrap(rootInfo),
+            overlay,
+            Collections.singletonList(AccessibilityNodeInfoCompat.wrap(sysRootInfo)),
+            500,
+            1000);
+    assertEquals("Video", initial.getContentDescription().toString());
+
+    AccessibilityNodeInfoCompat movedToBattery = resolver.resolveOnTouchMove(950, 40);
+    assertNotNull(movedToBattery);
+    assertEquals("Pin 85 phần trăm", movedToBattery.getContentDescription().toString());
   }
 }

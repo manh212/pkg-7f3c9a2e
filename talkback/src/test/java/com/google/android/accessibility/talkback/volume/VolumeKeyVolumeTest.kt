@@ -114,11 +114,32 @@ class VolumeKeyVolumeTest {
         accessibilitySpeaking = true,
       ),
     )
+    // Stale or volume-announcement accessibility playback must be ignored unless Meridian is
+    // actively reading real content.
+    assertNull(
+      selectActiveStream(
+        MODE_NORMAL,
+        listOf(PlaybackSpec(USAGE_ASSISTANCE_ACCESSIBILITY, STREAM_ACCESSIBILITY)),
+        accessibilitySpeaking = false,
+      ),
+    )
+    assertEquals(
+      STREAM_MUSIC,
+      selectActiveStream(
+        MODE_NORMAL,
+        listOf(
+          PlaybackSpec(USAGE_MEDIA, STREAM_MUSIC),
+          PlaybackSpec(USAGE_ASSISTANCE_ACCESSIBILITY, STREAM_ACCESSIBILITY),
+        ),
+        accessibilitySpeaking = false,
+      ),
+    )
     assertEquals(
       STREAM_ACCESSIBILITY,
       selectActiveStream(
         MODE_NORMAL,
         listOf(PlaybackSpec(USAGE_ASSISTANCE_ACCESSIBILITY, STREAM_ACCESSIBILITY)),
+        accessibilitySpeaking = true,
       ),
     )
     // When an assistant is actively speaking, adjust its dedicated stream.
@@ -165,5 +186,42 @@ class VolumeKeyVolumeTest {
       ),
     )
     assertNull(selectActiveStream(MODE_NORMAL, emptyList(), accessibilitySpeaking = false))
+  }
+
+  @Test
+  fun applyStickyStream_keepsMediaDuringRapidTapsUnlessCallOrAlarmInterrupts() {
+    // Rapid tap 300ms later stays on STREAM_MUSIC even if accessibility briefly starts speaking.
+    assertEquals(
+      STREAM_MUSIC,
+      VolumeKeyVolume.applyStickyStream(
+        detected = STREAM_ACCESSIBILITY,
+        fallbackStream = STREAM_MUSIC,
+        recentStream = STREAM_MUSIC,
+        recentUptimeMs = 1_000L,
+        nowMs = 1_300L,
+      ),
+    )
+    // High-priority call still overrides immediately.
+    assertEquals(
+      STREAM_VOICE_CALL,
+      VolumeKeyVolume.applyStickyStream(
+        detected = STREAM_VOICE_CALL,
+        fallbackStream = STREAM_MUSIC,
+        recentStream = STREAM_MUSIC,
+        recentUptimeMs = 1_000L,
+        nowMs = 1_300L,
+      ),
+    )
+    // After the sticky window expires, idle falls back to STREAM_MUSIC.
+    assertEquals(
+      STREAM_MUSIC,
+      VolumeKeyVolume.applyStickyStream(
+        detected = null,
+        fallbackStream = STREAM_MUSIC,
+        recentStream = STREAM_ACCESSIBILITY,
+        recentUptimeMs = 1_000L,
+        nowMs = 3_000L,
+      ),
+    )
   }
 }

@@ -2397,7 +2397,8 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (volumeKeyVolume == null) {
       volumeKeyVolume = new VolumeKeyVolume(this);
     }
-    boolean speaking = speechController != null && speechController.isSpeaking();
+    boolean speaking =
+        speechController != null && speechController.state.isSpeakingNonVolumeControl();
     volumeKeyVolume.adjust(
         increase ? KeyEvent.KEYCODE_VOLUME_UP : KeyEvent.KEYCODE_VOLUME_DOWN,
         repeating,
@@ -2412,12 +2413,20 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (audioManager == null || pipeline == null) {
       return;
     }
-    boolean speaking = speechController != null && speechController.isSpeaking();
-    int stream =
-        touching
-            ? AudioManager.STREAM_ACCESSIBILITY
-            : VolumeKeyVolume.resolveContextualStream(
-                audioManager, AudioManager.STREAM_MUSIC, speaking);
+    if (volumeKeyVolume == null) {
+      volumeKeyVolume = new VolumeKeyVolume(this);
+    }
+    boolean speaking =
+        speechController != null && speechController.state.isSpeakingNonVolumeControl();
+    int stream;
+    if (touching) {
+      volumeKeyVolume.clearStickyStream();
+      stream = AudioManager.STREAM_ACCESSIBILITY;
+    } else {
+      stream =
+          volumeKeyVolume.resolveContextualStreamSticky(
+              AudioManager.STREAM_MUSIC, speaking, SystemClock.uptimeMillis());
+    }
     if (stream == AudioManager.USE_DEFAULT_STREAM_TYPE) {
       audioManager.adjustSuggestedStreamVolume(
           increase ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER,
@@ -5309,9 +5318,30 @@ public class TalkBackService extends AccessibilityServiceCompat
         || touchExplorationInterpreter == null) {
       return false;
     }
+    List<AccessibilityNodeInfoCompat> systemRoots = new ArrayList<>();
+    List<AccessibilityWindowInfo> windows = getWindows();
+    if (windows != null) {
+      Rect winBounds = new Rect();
+      for (int i = 0; i < windows.size(); i++) {
+        AccessibilityWindowInfo win = windows.get(i);
+        if (win == null || win.getType() != AccessibilityWindowInfo.TYPE_SYSTEM) {
+          continue;
+        }
+        win.getBoundsInScreen(winBounds);
+        // Never swallow initial touches inside system bars (status bar battery/Wi-Fi or nav bar).
+        if (!winBounds.isEmpty() && winBounds.contains(rawX, rawY)) {
+          return false;
+        }
+        AccessibilityNodeInfo winRoot = win.getRoot();
+        if (winRoot != null) {
+          systemRoots.add(AccessibilityNodeInfoCompat.wrap(winRoot));
+        }
+      }
+    }
     AccessibilityNodeInfoCompat root =
         AccessibilityServiceCompatUtils.getRootInActiveWindow(this);
-    return touchExplorationInterpreter.tryStartVirtualOverlayExploration(root, rawX, rawY);
+    return touchExplorationInterpreter.tryStartVirtualOverlayExploration(
+        root, systemRoots, rawX, rawY);
   }
 
   public void onVirtualOverlayExplorationMove(int rawX, int rawY) {

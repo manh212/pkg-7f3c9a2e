@@ -61,6 +61,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public final class MenuAutomation {
   // The perform log tag: tray stages are stages of a collapsed action's perform.
   private static final String TAG = "CollapsedItemActions";
+  static final String CLASS_SELECTOR_PREFIX = "class:";
   private static final int MASTER_TIMEOUT_MS = 3000;
   private static final int SHEET_GRACE_MS = 1000;
   private static final int CLOSE_SETTLE_MS = 1200;
@@ -640,14 +641,27 @@ public final class MenuAutomation {
   // Tree inspection
   // --------------------------------------------------------------------------------------------
 
-  /** The first window root whose subtree contains a node with the given view id, or null. */
+  static boolean matchesNodeSelector(
+      AccessibilityNodeInfoCompat node, @Nullable String selector) {
+    if (selector == null) {
+      return false;
+    }
+    if (selector.startsWith(CLASS_SELECTOR_PREFIX)) {
+      String expectedClass = selector.substring(CLASS_SELECTOR_PREFIX.length());
+      CharSequence cls = node.getClassName();
+      return cls != null && expectedClass.contentEquals(cls);
+    }
+    return selector.equals(node.getViewIdResourceName());
+  }
+
+  /** The first window root whose subtree contains a node matching {@code labelViewId}, or null. */
   static @Nullable AccessibilityNodeInfoCompat findSheetRoot(
       List<AccessibilityNodeInfoCompat> roots, String labelViewId) {
     for (AccessibilityNodeInfoCompat root : roots) {
       List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
       collect(root, nodes);
       for (AccessibilityNodeInfoCompat node : nodes) {
-        if (labelViewId.equals(node.getViewIdResourceName())) {
+        if (matchesNodeSelector(node, labelViewId)) {
           return root;
         }
       }
@@ -655,13 +669,35 @@ public final class MenuAutomation {
     return null;
   }
 
-  /** The session's sheet: by view id for menus, by anchors for the tray. */
+  /** Finds a class-selected overlay sheet (e.g. Messenger message reactions + actions sheet). */
+  private static @Nullable AccessibilityNodeInfoCompat findClassSheetRoot(
+      Pending session, List<AccessibilityNodeInfoCompat> roots) {
+    for (AccessibilityNodeInfoCompat root : roots) {
+      if (resolveOriginRepresentative(root, session) != null) {
+        continue;
+      }
+      List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
+      collect(root, nodes);
+      for (AccessibilityNodeInfoCompat node : nodes) {
+        if (matchesNodeSelector(node, session.sheetLabelViewId)) {
+          return root;
+        }
+      }
+    }
+    return null;
+  }
+
+  /** The session's sheet: by view id/class for menus, by anchors for the tray. */
   private static @Nullable AccessibilityNodeInfoCompat findSheet(
       Pending session, List<AccessibilityNodeInfoCompat> roots) {
     if (session.sheetContainerViewId != null) {
       return findPopoverRoot(session, roots);
     }
     if (!session.trayMode) {
+      if (session.sheetLabelViewId != null
+          && session.sheetLabelViewId.startsWith(CLASS_SELECTOR_PREFIX)) {
+        return findClassSheetRoot(session, roots);
+      }
       return findSheetRoot(roots, session.sheetLabelViewId);
     }
     for (AccessibilityNodeInfoCompat root : roots) {
@@ -697,30 +733,33 @@ public final class MenuAutomation {
     for (AccessibilityNodeInfoCompat root : roots) {
       List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
       collect(root, nodes);
+      boolean classContainer = session.sheetContainerViewId.startsWith(CLASS_SELECTOR_PREFIX);
       for (AccessibilityNodeInfoCompat node : nodes) {
-        if (!session.sheetContainerViewId.equals(node.getViewIdResourceName())
+        if (!matchesNodeSelector(node, session.sheetContainerViewId)
             || !session.packageName.contentEquals(
                 node.getPackageName() == null ? "" : node.getPackageName())
             || !node.isVisibleToUser()) {
           continue;
         }
-        AccessibilityNodeInfoCompat parent = node.getParent();
-        if (parent == null) {
-          continue;
-        }
-        boolean originMatches = false;
-        for (int i = 0; i < parent.getChildCount(); i++) {
-          AccessibilityNodeInfoCompat sibling = parent.getChild(i);
-          if (sibling != null
-              && !sibling.equals(node)
-              && sibling.isVisibleToUser()
-              && session.originLabel.contentEquals(ItemScan.spokenLabel(sibling))) {
-            originMatches = true;
-            break;
+        if (!classContainer) {
+          AccessibilityNodeInfoCompat parent = node.getParent();
+          if (parent == null) {
+            continue;
           }
-        }
-        if (!originMatches) {
-          continue;
+          boolean originMatches = false;
+          for (int i = 0; i < parent.getChildCount(); i++) {
+            AccessibilityNodeInfoCompat sibling = parent.getChild(i);
+            if (sibling != null
+                && !sibling.equals(node)
+                && sibling.isVisibleToUser()
+                && session.originLabel.contentEquals(ItemScan.spokenLabel(sibling))) {
+              originMatches = true;
+              break;
+            }
+          }
+          if (!originMatches) {
+            continue;
+          }
         }
         if (found != null && !found.equals(node)) {
           return null;
@@ -926,7 +965,7 @@ public final class MenuAutomation {
     List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
     collect(sheetRoot, nodes);
     for (AccessibilityNodeInfoCompat node : nodes) {
-      if (!labelViewId.equals(node.getViewIdResourceName())) {
+      if (!matchesNodeSelector(node, labelViewId)) {
         continue;
       }
       CharSequence label = sheetNodeLabel(node);
@@ -988,7 +1027,7 @@ public final class MenuAutomation {
       @Nullable List<String> cores) {
     AccessibilityNodeInfoCompat found = null;
     for (AccessibilityNodeInfoCompat node : nodes) {
-      if (!labelViewId.equals(node.getViewIdResourceName())) {
+      if (!matchesNodeSelector(node, labelViewId)) {
         continue;
       }
       CharSequence rawLabel = sheetNodeLabel(node);
@@ -1045,6 +1084,10 @@ public final class MenuAutomation {
       if (current.equals(sheetRoot)) {
         break;
       }
+    }
+    if ("android.widget.Button".contentEquals(
+        labelNode.getClassName() == null ? "" : labelNode.getClassName())) {
+      return labelNode;
     }
     return null;
   }

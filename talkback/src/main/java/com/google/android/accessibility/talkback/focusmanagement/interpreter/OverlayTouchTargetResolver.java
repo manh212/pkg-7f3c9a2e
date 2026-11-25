@@ -53,17 +53,19 @@ final class OverlayTouchTargetResolver {
   @Nullable private AccessibilityNodeInfoCompat activeOverlayNode;
   @Nullable private AccessibilityNodeInfoCompat lastResolvedTarget;
   private final List<CachedTarget> cachedTargets = new ArrayList<>();
+  private final List<CachedTarget> cachedSystemTargets = new ArrayList<>();
 
   /** Clears cached overlay state at touch start/end or when hovering a normal view. */
   void reset() {
     activeOverlayNode = null;
     lastResolvedTarget = null;
     cachedTargets.clear();
+    cachedSystemTargets.clear();
   }
 
   /** Returns whether touch exploration is currently active over an obscuring full-screen overlay. */
   boolean isActive() {
-    return activeOverlayNode != null && !cachedTargets.isEmpty();
+    return activeOverlayNode != null && (!cachedTargets.isEmpty() || !cachedSystemTargets.isEmpty());
   }
 
   /**
@@ -115,9 +117,37 @@ final class OverlayTouchTargetResolver {
       AccessibilityNodeInfoCompat overlayNode,
       int x,
       int y) {
+    return startVirtualExploration(root, overlayNode, /* systemRoots= */ null, x, y);
+  }
+
+  /**
+   * Starts a virtual touch-exploration session over {@code overlayNode} by snapshotting all visible
+   * focusable targets in {@code root} plus any visible system bar windows (status bar / nav bar)
+   * so gliding to the top edge still reaches battery, Wi-Fi, mobile data, and clock indicators.
+   */
+  AccessibilityNodeInfoCompat startVirtualExploration(
+      AccessibilityNodeInfoCompat root,
+      AccessibilityNodeInfoCompat overlayNode,
+      @Nullable List<AccessibilityNodeInfoCompat> systemRoots,
+      int x,
+      int y) {
     reset();
     activeOverlayNode = overlayNode;
-    collectTargetsFromSubtree(root, overlayNode, MAX_WINDOW_NODES_SCANNED, /* requireIntersect= */ false);
+    collectTargetsFromSubtree(
+        root, overlayNode, MAX_WINDOW_NODES_SCANNED, /* requireIntersect= */ false, cachedTargets);
+    if (systemRoots != null) {
+      for (int i = 0; i < systemRoots.size(); i++) {
+        AccessibilityNodeInfoCompat sysRoot = systemRoots.get(i);
+        if (sysRoot != null) {
+          collectTargetsFromSubtree(
+              sysRoot,
+              /* overlayNode= */ null,
+              MAX_SIBLING_NODES_SCANNED,
+              /* requireIntersect= */ false,
+              cachedSystemTargets);
+        }
+      }
+    }
     AccessibilityNodeInfoCompat hit = hitTest(x, y);
     AccessibilityNodeInfoCompat resolved = (hit != null) ? hit : overlayNode;
     lastResolvedTarget = resolved;
@@ -168,7 +198,7 @@ final class OverlayTouchTargetResolver {
    */
   @Nullable
   AccessibilityNodeInfoCompat resolveOnTouchMove(int x, int y) {
-    if (activeOverlayNode == null || cachedTargets.isEmpty()) {
+    if (activeOverlayNode == null || (cachedTargets.isEmpty() && cachedSystemTargets.isEmpty())) {
       return null;
     }
     AccessibilityNodeInfoCompat hit = hitTest(x, y);
@@ -182,9 +212,19 @@ final class OverlayTouchTargetResolver {
 
   @Nullable
   private AccessibilityNodeInfoCompat hitTest(int x, int y) {
+    AccessibilityNodeInfoCompat systemHit = hitTestList(cachedSystemTargets, x, y);
+    if (systemHit != null) {
+      return systemHit;
+    }
+    return hitTestList(cachedTargets, x, y);
+  }
+
+  @Nullable
+  private static AccessibilityNodeInfoCompat hitTestList(
+      List<CachedTarget> targets, int x, int y) {
     CachedTarget best = null;
-    for (int i = 0; i < cachedTargets.size(); i++) {
-      CachedTarget candidate = cachedTargets.get(i);
+    for (int i = 0; i < targets.size(); i++) {
+      CachedTarget candidate = targets.get(i);
       if (candidate.bounds.contains(x, y)) {
         if (best == null || candidate.area < best.area) {
           best = candidate;
@@ -199,16 +239,20 @@ final class OverlayTouchTargetResolver {
     if (parent == null) {
       return;
     }
-    collectTargetsFromSubtree(parent, overlayNode, MAX_SIBLING_NODES_SCANNED, /* requireIntersect= */ true);
+    collectTargetsFromSubtree(
+        parent, overlayNode, MAX_SIBLING_NODES_SCANNED, /* requireIntersect= */ true, cachedTargets);
   }
 
   private void collectTargetsFromSubtree(
       AccessibilityNodeInfoCompat root,
-      AccessibilityNodeInfoCompat overlayNode,
+      @Nullable AccessibilityNodeInfoCompat overlayNode,
       int maxNodes,
-      boolean requireIntersect) {
+      boolean requireIntersect,
+      List<CachedTarget> outTargets) {
     Rect overlayBounds = new Rect();
-    overlayNode.getBoundsInScreen(overlayBounds);
+    if (overlayNode != null) {
+      overlayNode.getBoundsInScreen(overlayBounds);
+    }
 
     ArrayDeque<AccessibilityNodeInfoCompat> queue = new ArrayDeque<>();
     int rootChildCount = root.getChildCount();
@@ -238,11 +282,12 @@ final class OverlayTouchTargetResolver {
       int nestedCount = node.getChildCount();
       if (AccessibilityNodeInfoUtils.shouldFocusNode(node)) {
         boolean coversOverlay =
-            !overlayBounds.isEmpty()
+            overlayNode != null
+                && !overlayBounds.isEmpty()
                 && bounds.width() >= overlayBounds.width() * 0.85f
                 && bounds.height() >= overlayBounds.height() * 0.85f;
         if (!bounds.isEmpty() && !coversOverlay) {
-          cachedTargets.add(new CachedTarget(node, bounds));
+          outTargets.add(new CachedTarget(node, bounds));
         }
         if (nestedCount == 0) {
           continue;

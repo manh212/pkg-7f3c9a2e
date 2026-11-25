@@ -29,6 +29,7 @@ public final class CollapseScripts {
     register(new YouTubeCollapseScript());
     register(new FacebookCollapseScript());
     register(new ZaloCollapseScript());
+    register(new MessengerCollapseScript());
   }
 
   private CollapseScripts() {}

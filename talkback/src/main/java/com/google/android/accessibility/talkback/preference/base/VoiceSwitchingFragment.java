@@ -124,7 +124,8 @@ public class VoiceSwitchingFragment extends TalkbackBaseFragment {
     List<String> engines = FailoverTextToSpeech.getInstalledTtsEngines(requireContext().getPackageManager());
     ListPreference engineRow = new AccessibilitySuiteListPreference(requireContext());
     engineRow.setKey("voice_switch_engine");
-    engineRow.setTitle(R.string.title_pref_tts_engine);
+    engineRow.setTitle(R.string.voice_switch_engine_title);
+    engineRow.setDialogTitle(R.string.voice_switch_engine_title);
     engineRow.setPersistent(false);
     engineRow.setEntries(engines.stream().map(name ->
         FailoverTextToSpeech.getEngineDisplayName(requireContext(), name)).toArray(CharSequence[]::new));
