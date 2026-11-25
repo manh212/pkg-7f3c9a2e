@@ -127,7 +127,7 @@ public class MessengerCollapseScriptTest {
 
     AccessibilityNodeInfoCompat tabNode =
         makeNode("android.view.ViewGroup", null, "Tab Đoạn chat, whats_up", true, false);
-    assertEquals(Integer.valueOf(Role.ROLE_TAB), MessengerAccessibilityHelper.getRoleOverride(tabNode));
+    assertEquals(Integer.valueOf(Role.ROLE_ACTION_BAR_TAB), MessengerAccessibilityHelper.getRoleOverride(tabNode));
     assertEquals(
         "Đoạn chat",
         MessengerAccessibilityHelper.filterContentDescription(tabNode, tabNode.getContentDescription())

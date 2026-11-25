@@ -417,7 +417,6 @@ pref_sound_vibration_screen
 pref_soundback
 pref_soundback_volume_seekbar_int
 pref_speak_container_element_positions_key
-pref_speak_in_phrases
 pref_speak_items_before_scroll_key
 pref_speak_list_item_ordinals
 pref_speak_nav_bar_buttons
@@ -427,7 +426,6 @@ pref_speak_time_key
 pref_speak_volume_changes
 pref_speaker_devices
 pref_speakerphone_away_from_ear
-pref_speech_adjustment_screen
 pref_speech_dictionary_screen
 pref_speech_footer
 pref_speech_stream
@@ -496,7 +494,6 @@ pref_translation_speech
 pref_translation_swap_action
 pref_translation_target_voice
 pref_translation_untranslated_choice
-pref_tts_engine
 pref_tts_overlay
 pref_tts_settings
 pref_tts_voice_profiles
@@ -558,7 +555,6 @@ pref_vietnamese_keyboard_vibration_category
 pref_vietnamese_keyboard_vibration_level
 pref_vietnamese_keyboard_voice_profile
 pref_voice_commands_screen
-pref_voice_engine_stream_screen
 pref_voice_feature_alarm
 pref_voice_feature_bilingual_original
 pref_voice_feature_bilingual_translated
@@ -567,7 +563,6 @@ pref_voice_feature_notification
 pref_voice_feature_stopwatch
 pref_voice_feature_voices_screen
 pref_voice_language_screen
-pref_voice_pronunciation_screen
 pref_voice_switching_screen
 pref_volume_keys_adjust_sliders_key
 pref_volume_keys_adjust_speech_while_speaking

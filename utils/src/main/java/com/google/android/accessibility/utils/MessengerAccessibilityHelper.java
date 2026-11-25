@@ -81,7 +81,7 @@ public final class MessengerAccessibilityHelper {
     String raw = contentDescription.toString();
     String cleaned = cleanCommonText(node, raw, /* isContentDescription= */ true);
 
-    // Strip duplicate leading "Tab " on bottom navigation tabs (ROLE_TAB already speaks "Tab").
+    // Strip duplicate leading "Tab " on bottom navigation tabs (ROLE_ACTION_BAR_TAB already speaks "Tab").
     if (isBottomTabNode(node)) {
       cleaned = LEADING_TAB_PATTERN.matcher(cleaned).replaceFirst("").trim();
     }
@@ -98,14 +98,14 @@ public final class MessengerAccessibilityHelper {
     return cleaned;
   }
 
-  /** Returns {@link Role#ROLE_TAB} for Messenger bottom navigation tabs. */
+  /** Returns {@link Role#ROLE_ACTION_BAR_TAB} for Messenger bottom navigation tabs. */
   @Nullable
   public static Integer getRoleOverride(@Nullable AccessibilityNodeInfoCompat node) {
     if (node == null || !isMessengerPackage(node.getPackageName())) {
       return null;
     }
     if (isBottomTabNode(node)) {
-      return Role.ROLE_TAB;
+      return Role.ROLE_ACTION_BAR_TAB;
     }
     return null;
   }
