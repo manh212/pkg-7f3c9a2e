@@ -2,11 +2,16 @@ package com.google.android.accessibility.talkback.timer
 
 import android.content.Context
 import android.content.res.XmlResourceParser
+import android.os.Bundle
 import android.util.Xml
 import androidx.annotation.XmlRes
+import androidx.fragment.app.FragmentActivity
+import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.preference.base.VoiceProfileFragment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,41 +27,58 @@ class VoiceSettingsStructureTest {
   private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
-  fun voiceScreen_hasSubScreensInOrder() {
+  fun voiceScreen_hasLandingSectionsAndOptionsInOrder() {
     val rows = rowsOf(R.xml.text_to_speech_preferences)
     assertEquals(
       listOf(
         "pref_category_group_voice_key",
-        "pref_voice_engine_stream_screen",
         "pref_tts_voice_profiles",
         "pref_voice_language_screen",
-        "pref_voice_pronunciation_screen",
         "pref_speech_dictionary_screen",
-        "pref_speech_adjustment_screen",
         "pref_voice_feature_voices_screen",
+        "pref_category_voice_general_key",
+        "pref_speech_stream",
+        "pref_intonation",
+        "pref_keep_screen_on_while_speaking",
+        "pref_system_tts_settings",
       ),
       rows.map { it.first },
     )
     assertEquals(
       listOf(
         null,
-        "VoiceEngineFragment",
         "VoiceProfilesFragment",
         "VoiceLanguageFragment",
-        "VoicePronunciationFragment",
         "SpeechDictionaryFragment",
-        null,
         "VoiceFeatureVoicesFragment",
+        null,
+        null,
+        null,
+        null,
+        null,
       ),
       rows.map { it.second?.substringAfterLast('.') },
     )
   }
 
   @Test
-  fun engineScreen_holdsReaderStreamAndSystemSettings() {
-    assertEquals(
-      listOf("pref_tts_engine", "pref_speech_stream", "pref_system_tts_settings"),
-      rowsOf(R.xml.voice_engine_preferences).map { it.first },
+  fun profileScreen_holdsEngineAndPhraseSettings() {
+    val activity =
+      Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+    val fragment = VoiceProfileFragment()
+    fragment.arguments = Bundle().apply {
+      putString(VoiceProfileFragment.ARG_PROFILE_ID, "")
+    }
+    activity.supportFragmentManager
+      .beginTransaction()
+      .add(android.R.id.content, fragment)
+      .commitNow()
+
+    assertNotNull(
+      fragment.findPreference<Preference>(activity.getString(R.string.pref_tts_engine_key)),
+    )
+    assertNotNull(
+      fragment.findPreference<Preference>(activity.getString(R.string.pref_speak_in_phrases_key)),
     )
   }
 
@@ -71,10 +93,15 @@ class VoiceSettingsStructureTest {
   }
 
   @Test
-  fun pronunciationScreen_holdsIntonationPhrasesAndKeepScreen() {
+  fun voiceScreen_holdsGeneralReadingOptions() {
     assertEquals(
-      listOf("pref_intonation", "pref_speak_in_phrases", "pref_keep_screen_on_while_speaking"),
-      rowsOf(R.xml.voice_pronunciation_preferences).map { it.first },
+      listOf(
+        "pref_speech_stream",
+        "pref_intonation",
+        "pref_keep_screen_on_while_speaking",
+        "pref_system_tts_settings",
+      ),
+      rowsOf(R.xml.text_to_speech_preferences).map { it.first }.takeLast(4),
     )
   }
 
