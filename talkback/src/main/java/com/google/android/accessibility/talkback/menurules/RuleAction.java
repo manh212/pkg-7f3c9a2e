@@ -46,6 +46,7 @@ public class RuleAction extends NodeMenuRule {
   private final QuotedMessageMenu quotedMessageMenu;
   private final ZaloReactionMenu zaloReactionMenu;
   private final ZaloMessageActionsMenu zaloMessageActionsMenu;
+  private final MessengerMessageActionsMenu messengerMessageActionsMenu;
 
   public RuleAction(
       Pipeline.FeedbackReturner pipeline,
@@ -66,6 +67,7 @@ public class RuleAction extends NodeMenuRule {
     quotedMessageMenu = new QuotedMessageMenu(pipeline);
     zaloReactionMenu = new ZaloReactionMenu(pipeline);
     zaloMessageActionsMenu = new ZaloMessageActionsMenu(pipeline);
+    messengerMessageActionsMenu = new MessengerMessageActionsMenu(pipeline);
   }
 
   @Override
@@ -79,7 +81,8 @@ public class RuleAction extends NodeMenuRule {
         || textEntityMenu.accept(context, node)
         || quotedMessageMenu.accept(context, node)
         || zaloReactionMenu.accept(context, node)
-        || zaloMessageActionsMenu.accept(context, node);
+        || zaloMessageActionsMenu.accept(context, node)
+        || messengerMessageActionsMenu.accept(context, node);
   }
 
   @Override
@@ -129,6 +132,11 @@ public class RuleAction extends NodeMenuRule {
     if (zaloMessageActionsMenu.accept(context, node)) {
       actionItems.addAll(
           zaloMessageActionsMenu.getMenuItemsForNode(context, node, includeAncestors));
+    }
+
+    if (messengerMessageActionsMenu.accept(context, node)) {
+      actionItems.addAll(
+          messengerMessageActionsMenu.getMenuItemsForNode(context, node, includeAncestors));
     }
 
     return actionItems;

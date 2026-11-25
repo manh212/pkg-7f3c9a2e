@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.collapse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -54,14 +55,12 @@ public class MessengerCollapseScriptTest {
   }
 
   @Test
-  public void scriptRegisteredWithConversationAndMessageCatalogs() {
+  public void scriptRegisteredWithConversationCatalog() {
     CollapseScript script = CollapseScripts.forPackage(MessengerCollapseScript.PACKAGE_NAME);
     assertNotNull(script);
     assertEquals(7, script.menuCatalog().items.length);
 
-    CollapseScript fallback = script.fallbackScript();
-    assertNotNull(fallback);
-    assertEquals(11, fallback.menuCatalog().items.length);
+    assertNull(script.fallbackScript());
   }
 
   @Test
@@ -140,7 +139,7 @@ public class MessengerCollapseScriptTest {
   }
 
   @Test
-  public void nestedMessageBubbleAndCallCardMatchFallbackScripts() {
+  public void nestedMessageBubbleAndCallCardRemainOutsideListCollapse() {
     AccessibilityNodeInfo listInfo = AccessibilityNodeInfo.obtain();
     listInfo.setPackageName(MessengerCollapseScript.PACKAGE_NAME);
     listInfo.setClassName("androidx.recyclerview.widget.RecyclerView");
@@ -181,16 +180,7 @@ public class MessengerCollapseScriptTest {
     shadowOf(callRowInfo).addChild(callCard.unwrap());
     shadowOf(listInfo).addChild(callRowInfo);
 
-    CollapsedItem msgItem =
-        CollapseEngine.matchContaining(msgBubble, CollapseScripts.all());
-    assertNotNull(msgItem);
-    assertEquals(msgBubble, msgItem.representative());
-    assertEquals(11, msgItem.actions().size());
-
-    CollapsedItem callItem =
-        CollapseEngine.matchContaining(callCard, CollapseScripts.all());
-    assertNotNull(callItem);
-    assertEquals(callCard, callItem.representative());
-    assertEquals(2, callItem.actions().size());
+    assertNull(CollapseEngine.matchContaining(msgBubble, CollapseScripts.all()));
+    assertNull(CollapseEngine.matchContaining(callCard, CollapseScripts.all()));
   }
 }

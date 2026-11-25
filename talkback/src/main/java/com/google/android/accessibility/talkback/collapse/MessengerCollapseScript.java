@@ -103,8 +103,9 @@ final class MessengerCollapseScript extends CollapseScript {
   }
 
   @Override
-  public CollapseScript fallbackScript() {
-    return MESSAGE_SCRIPT;
+  public @Nullable CollapseScript fallbackScript() {
+    // In-chat messages and call cards are handled directly by MessengerMessageActionsMenu.
+    return null;
   }
 
   @Override
