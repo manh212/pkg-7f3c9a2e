@@ -23,6 +23,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.graphics.Rect;
 import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.MessengerAccessibilityHelper;
@@ -182,5 +183,24 @@ public class MessengerCollapseScriptTest {
 
     assertNull(CollapseEngine.matchContaining(msgBubble, CollapseScripts.all()));
     assertNull(CollapseEngine.matchContaining(callCard, CollapseScripts.all()));
+  }
+
+  @Test
+  public void rejectsHorizontalActivePeopleCardInCollapseScript() {
+    AccessibilityNodeInfo rail = AccessibilityNodeInfo.obtain();
+    rail.setPackageName(MessengerCollapseScript.PACKAGE_NAME);
+    rail.setClassName("androidx.recyclerview.widget.RecyclerView");
+    rail.setVisibleToUser(true);
+    rail.setScrollable(true);
+    rail.setCollectionInfo(
+        AccessibilityNodeInfo.CollectionInfo.obtain(
+            /* rowCount= */ 1, /* columnCount= */ 5, /* hierarchical= */ false));
+
+    AccessibilityNodeInfoCompat activeCard =
+        makeNode("android.view.ViewGroup", null, "Minh, Đang hoạt động", true, true);
+    activeCard.unwrap().setBoundsInScreen(new Rect(20, 200, 220, 440));
+    shadowOf(rail).addChild(activeCard.unwrap());
+
+    assertNull(CollapseEngine.matchContaining(activeCard, CollapseScripts.all()));
   }
 }

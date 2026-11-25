@@ -196,11 +196,11 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeWrit
     jlong timeoutNanos) {
   AAudioStream* stream = toStream(handle);
   if (stream == nullptr || samples == nullptr || numFrames <= 0) {
-    return AAUDIO_ERROR_INVALID_ARGUMENT;
+    return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
   }
   const jsize len = env->GetArrayLength(samples);
-  if (len < numFrames * 2) {
-    return AAUDIO_ERROR_INVALID_ARGUMENT;
+  if (numFrames > len / 2) {
+    return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
   }
   jfloat* ptr = env->GetFloatArrayElements(samples, nullptr);
   if (ptr == nullptr) {

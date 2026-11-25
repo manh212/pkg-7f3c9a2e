@@ -34,6 +34,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.Feedback;
 import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.TalkBackService;
+import com.google.android.accessibility.talkback.collapse.CollapseEngine;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenu;
 import com.google.android.accessibility.talkback.contextmenu.ContextMenuItem;
 import com.google.android.accessibility.utils.MessengerAccessibilityHelper;
@@ -57,6 +58,7 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
 
   private static final int ACTION_ID_BASE = 0x5f310000;
   private static final int REACTION_ID_BASE = 0x5f320000;
+  private static final int CONVERSATION_ID_BASE = 0x5f330000;
 
   private static final long INITIAL_POLL_DELAY_MS = 180L;
   private static final long POLL_INTERVAL_MS = 120L;
@@ -108,6 +110,33 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
         "Đặt lời nhắc", new String[] {"Đặt lời nhắc", "Lời nhắc", "Set reminder", "Remind"}, false),
   };
 
+  private static final ActionSpec[] CONVERSATION_ACTIONS = {
+    new ActionSpec("Ghim / Bỏ ghim", new String[] {"Ghim", "Bỏ ghim", "Pin", "Unpin"}, false),
+    new ActionSpec("Lưu trữ", new String[] {"Lưu trữ", "Archive"}, false),
+    new ActionSpec(
+        "Tắt / Bật thông báo",
+        new String[] {
+          "Tắt thông báo", "Bật thông báo", "Mute notifications", "Unmute notifications"
+        },
+        false),
+    new ActionSpec(
+        "Đánh dấu đã đọc / chưa đọc",
+        new String[] {
+          "Đánh dấu là chưa đọc",
+          "Đánh dấu là đã đọc",
+          "Đánh dấu chưa đọc",
+          "Đánh dấu đã đọc",
+          "Mark as unread",
+          "Mark as read"
+        },
+        false),
+    new ActionSpec(
+        "Hạn chế / Bỏ hạn chế", new String[] {"Hạn chế", "Bỏ hạn chế", "Restrict", "Unrestrict"}, false),
+    new ActionSpec("Chặn / Bỏ chặn", new String[] {"Chặn", "Bỏ chặn", "Block", "Unblock"}, false),
+    new ActionSpec(
+        "Xóa", new String[] {"Xóa", "Xóa cuộc trò chuyện", "Delete", "Delete chat"}, false),
+  };
+
   private final Pipeline.FeedbackReturner pipeline;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private @Nullable Runnable pendingPoll;
@@ -118,36 +147,55 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
 
   @Override
   public boolean accept(Context context, AccessibilityNodeInfoCompat node) {
-    return isMessengerChatItemNode(node);
+    if (isMessengerChatItemNode(node)) {
+      return true;
+    }
+    return isMessengerInboxConversationNode(node)
+        && CollapseEngine.matchRepresentative(context, node) == null;
   }
 
   @Override
   public List<ContextMenuItem> getMenuItemsForNode(
       Context context, AccessibilityNodeInfoCompat node, boolean includeAncestors) {
     List<ContextMenuItem> items = new ArrayList<>();
-    if (!isMessengerChatItemNode(node)) {
-      return items;
-    }
-    boolean callCard = isCallCardNode(node);
-    ActionSpec[] actions = callCard ? CALL_CARD_ACTIONS : MESSAGE_ACTIONS;
-    for (int i = 0; i < actions.length; i++) {
-      final ActionSpec spec = actions[i];
-      ContextMenuItem item =
-          ContextMenu.createMenuItem(
-              context, Menu.NONE, ACTION_ID_BASE + i, Menu.NONE, spec.displayLabel);
-      item.setOnMenuItemClickListener(
-          menuItem -> {
-            triggerLongPressAndSelect(spec);
-            return true;
-          });
-      items.add(item);
-    }
-    if (!callCard) {
-      for (int i = 0; i < MESSAGE_REACTIONS.length; i++) {
-        final ActionSpec spec = MESSAGE_REACTIONS[i];
+    if (isMessengerChatItemNode(node)) {
+      boolean callCard = isCallCardNode(node);
+      ActionSpec[] actions = callCard ? CALL_CARD_ACTIONS : MESSAGE_ACTIONS;
+      for (int i = 0; i < actions.length; i++) {
+        final ActionSpec spec = actions[i];
         ContextMenuItem item =
             ContextMenu.createMenuItem(
-                context, Menu.NONE, REACTION_ID_BASE + i, Menu.NONE, spec.displayLabel);
+                context, Menu.NONE, ACTION_ID_BASE + i, Menu.NONE, spec.displayLabel);
+        item.setOnMenuItemClickListener(
+            menuItem -> {
+              triggerLongPressAndSelect(spec);
+              return true;
+            });
+        items.add(item);
+      }
+      if (!callCard) {
+        for (int i = 0; i < MESSAGE_REACTIONS.length; i++) {
+          final ActionSpec spec = MESSAGE_REACTIONS[i];
+          ContextMenuItem item =
+              ContextMenu.createMenuItem(
+                  context, Menu.NONE, REACTION_ID_BASE + i, Menu.NONE, spec.displayLabel);
+          item.setOnMenuItemClickListener(
+              menuItem -> {
+                triggerLongPressAndSelect(spec);
+                return true;
+              });
+          items.add(item);
+        }
+      }
+      return items;
+    }
+    if (isMessengerInboxConversationNode(node)
+        && CollapseEngine.matchRepresentative(context, node) == null) {
+      for (int i = 0; i < CONVERSATION_ACTIONS.length; i++) {
+        final ActionSpec spec = CONVERSATION_ACTIONS[i];
+        ContextMenuItem item =
+            ContextMenu.createMenuItem(
+                context, Menu.NONE, CONVERSATION_ID_BASE + i, Menu.NONE, spec.displayLabel);
         item.setOnMenuItemClickListener(
             menuItem -> {
               triggerLongPressAndSelect(spec);
@@ -380,6 +428,118 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
       return false;
     }
     return isLongClickableOrHasLongClickableNeighbor(node);
+  }
+
+  /**
+   * Returns true when {@code node} is a conversation row in Messenger's Inbox list (below the top
+   * horizontal Active / Notes rail). Used as a direct fallback when list-item collapsing misses
+   * wrapped or multi-child conversation rows on newer Messenger builds.
+   */
+  static boolean isMessengerInboxConversationNode(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null
+        || !MessengerAccessibilityHelper.isMessengerPackage(node.getPackageName())
+        || !node.isVisibleToUser()
+        || node.isEditable()) {
+      return false;
+    }
+    if (isInsideActionSheetOrExcludedControl(node) || isNonConversationInboxItem(node)) {
+      return false;
+    }
+    if (hasMessageHintInNodeOrNeighbors(node)) {
+      return false;
+    }
+    if (hasHorizontalScrollableAncestor(node) || isNarrowTileBounds(node)) {
+      return false;
+    }
+    if (!hasScrollableListAncestor(node)) {
+      return false;
+    }
+    if (isInMessengerChatScreen(node)) {
+      return false;
+    }
+    if (collectNodeAndChildrenText(node).trim().isEmpty()) {
+      return false;
+    }
+    return isInboxRowLongClickable(node);
+  }
+
+  private static boolean isNonConversationInboxItem(AccessibilityNodeInfoCompat node) {
+    CharSequence desc = node.getContentDescription();
+    String d = desc == null ? "" : desc.toString().trim();
+    CharSequence text = node.getText();
+    String t = text == null ? "" : text.toString().trim();
+    return d.startsWith("Tạo tin")
+        || d.startsWith("Tạo ghi chú")
+        || d.equalsIgnoreCase("Meta AI")
+        || d.startsWith("Hỏi Meta AI")
+        || d.startsWith("Tìm kiếm")
+        || d.equalsIgnoreCase("Search")
+        || d.startsWith("🎵")
+        || t.startsWith("🎵");
+  }
+
+  private static boolean hasHorizontalScrollableAncestor(AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat cur = node.getParent();
+    for (int depth = 0; depth < 6 && cur != null; depth++) {
+      if (cur.isScrollable()) {
+        CharSequence cls = cur.getClassName();
+        String s = cls == null ? "" : cls.toString();
+        if (s.contains("HorizontalScrollView")) {
+          return true;
+        }
+        AccessibilityNodeInfoCompat.CollectionInfoCompat info = cur.getCollectionInfo();
+        if (info != null && info.getRowCount() == 1 && info.getColumnCount() > 1) {
+          return true;
+        }
+      }
+      cur = cur.getParent();
+    }
+    return false;
+  }
+
+  private static boolean isNarrowTileBounds(AccessibilityNodeInfoCompat node) {
+    Rect bounds = new Rect();
+    node.getBoundsInScreen(bounds);
+    if (bounds.isEmpty() || bounds.width() <= 0 || bounds.height() <= 0) {
+      return false;
+    }
+    return bounds.width() * 2 < bounds.height() * 3;
+  }
+
+  private static boolean isInboxRowLongClickable(AccessibilityNodeInfoCompat node) {
+    if (hasLongClickSupport(node)) {
+      return true;
+    }
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    for (int depth = 0; depth < 3 && parent != null; depth++) {
+      if (hasLongClickSupport(parent)) {
+        return true;
+      }
+      parent = parent.getParent();
+    }
+    int count = Math.min(node.getChildCount(), 6);
+    for (int i = 0; i < count; i++) {
+      AccessibilityNodeInfoCompat child = node.getChild(i);
+      if (hasLongClickSupport(child)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean hasLongClickSupport(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null) {
+      return false;
+    }
+    if (node.isLongClickable()) {
+      return true;
+    }
+    for (AccessibilityNodeInfoCompat.AccessibilityActionCompat action : node.getActionList()) {
+      if (action != null && action.getId() == AccessibilityNodeInfoCompat.ACTION_LONG_CLICK) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static boolean isCallCardNode(@Nullable AccessibilityNodeInfoCompat node) {

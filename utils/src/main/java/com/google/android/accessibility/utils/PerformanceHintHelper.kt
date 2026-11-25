@@ -21,6 +21,7 @@ import android.os.Build
 import android.os.PerformanceHintManager
 import android.os.Process
 import android.os.SystemClock
+import androidx.annotation.RequiresApi
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 
 /**
@@ -41,72 +42,81 @@ object PerformanceHintHelper {
   /** Minimum interval between proactive touch boosts to avoid spamming PowerHAL. */
   private const val MIN_BOOST_INTERVAL_MS = 40L
 
-  private val lock = Any()
-
-  @Volatile private var session: PerformanceHintManager.Session? = null
   @Volatile private var lastBoostUptimeMs = 0L
 
   /** Opens an ADPF hint session for the calling (main) thread. Safe no-op below API 31. */
   @JvmStatic
   fun start(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    synchronized(lock) {
-      if (session != null) return
-      try {
-        val manager = context.getSystemService(PerformanceHintManager::class.java) ?: return
-        val tid = Process.myTid()
-        session = manager.createHintSession(intArrayOf(tid), TARGET_WORK_DURATION_NANOS)
-        if (session != null) {
-          LogUtils.d(TAG, "ADPF hint session started for tid=%d", tid)
-        }
-      } catch (t: Throwable) {
-        LogUtils.w(TAG, "Unable to start ADPF hint session: %s", t)
-        session = null
-      }
-    }
+    Api31Impl.start(context)
   }
 
   /** Proactively hints PowerHAL at touch start so CPU clocks ramp before tree traversal begins. */
   @JvmStatic
   fun onTouchInteractionStart() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    val active = session ?: return
     val now = SystemClock.uptimeMillis()
     if (now - lastBoostUptimeMs < MIN_BOOST_INTERVAL_MS) return
     lastBoostUptimeMs = now
-    reportInternal(active, INTERACTION_BOOST_NANOS)
+    Api31Impl.report(INTERACTION_BOOST_NANOS)
   }
 
   /** Reports an observed work duration (e.g., TraversalTreeCache order build) in milliseconds. */
   @JvmStatic
   fun reportWorkDurationMs(durationMs: Long) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || durationMs <= 0L) return
-    val active = session ?: return
     val nanos = (durationMs * 1_000_000L).coerceIn(1_000_000L, 250_000_000L)
-    reportInternal(active, nanos)
+    Api31Impl.report(nanos)
   }
 
   /** Closes the ADPF hint session when the accessibility service is destroyed. */
   @JvmStatic
   fun close() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    synchronized(lock) {
-      val active = session ?: return
-      session = null
-      try {
-        active.close()
-      } catch (t: Throwable) {
-        LogUtils.w(TAG, "Error closing ADPF hint session: %s", t)
-      }
-    }
+    Api31Impl.close()
   }
 
-  private fun reportInternal(active: PerformanceHintManager.Session, actualNanos: Long) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    try {
-      active.reportActualWorkDuration(actualNanos)
-    } catch (_: Throwable) {
-      // Some devices reject or close hint sessions during thermal throttling or backgrounding.
+  @RequiresApi(Build.VERSION_CODES.S)
+  private object Api31Impl {
+    private val lock = Any()
+    @Volatile private var session: PerformanceHintManager.Session? = null
+
+    fun start(context: Context) {
+      synchronized(lock) {
+        if (session != null) return
+        try {
+          val manager = context.getSystemService(PerformanceHintManager::class.java) ?: return
+          val tid = Process.myTid()
+          session = manager.createHintSession(intArrayOf(tid), TARGET_WORK_DURATION_NANOS)
+          if (session != null) {
+            LogUtils.d(TAG, "ADPF hint session started for tid=%d", tid)
+          }
+        } catch (t: Throwable) {
+          LogUtils.w(TAG, "Unable to start ADPF hint session: %s", t)
+          session = null
+        }
+      }
+    }
+
+    fun report(actualNanos: Long) {
+      val active = session ?: return
+      try {
+        active.reportActualWorkDuration(actualNanos)
+      } catch (_: Throwable) {
+        // Some devices reject or close hint sessions during thermal throttling or backgrounding.
+      }
+    }
+
+    fun close() {
+      synchronized(lock) {
+        val active = session ?: return
+        session = null
+        try {
+          active.close()
+        } catch (t: Throwable) {
+          LogUtils.w(TAG, "Error closing ADPF hint session: %s", t)
+        }
+      }
     }
   }
 }

@@ -16,6 +16,7 @@
 
 package com.google.android.accessibility.talkback.collapse;
 
+import android.graphics.Rect;
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.R;
@@ -123,14 +124,71 @@ final class MessengerCollapseScript extends CollapseScript {
         || !node.isLongClickable()) {
       return false;
     }
-    if (isMessageHintPresent(node)) {
+    if (isMessageHintPresent(node) || isActiveOrNonConversationCard(node)) {
       return false;
     }
     CharSequence spoken = ItemScan.spokenLabel(node);
     if (TextUtils.isEmpty(spoken)) {
       return false;
     }
+    if (hasHorizontalScrollableAncestor(node) || isNarrowTileBounds(node)) {
+      return false;
+    }
     return hasScrollableListAncestor(node);
+  }
+
+  private static boolean isActiveOrNonConversationCard(AccessibilityNodeInfoCompat node) {
+    if (isProfileAvatarButton(node)) {
+      return true;
+    }
+    CharSequence desc = node.getContentDescription();
+    String d = desc == null ? "" : desc.toString().trim();
+    CharSequence text = node.getText();
+    String t = text == null ? "" : text.toString().trim();
+    if (d.startsWith("Tạo tin")
+        || d.startsWith("Tạo ghi chú")
+        || d.equalsIgnoreCase("Meta AI")
+        || d.startsWith("Hỏi Meta AI")
+        || d.startsWith("🎵")
+        || t.startsWith("🎵")
+        || d.equals("Tin nhắn mới")
+        || d.equals("New message")
+        || d.startsWith("Tab ")) {
+      return true;
+    }
+    return false;
+  }
+
+  private static boolean hasHorizontalScrollableAncestor(AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat cur = node.getParent();
+    for (int depth = 0; depth < 6 && cur != null; depth++) {
+      if (cur.isScrollable()) {
+        CharSequence cls = cur.getClassName();
+        String s = cls == null ? "" : cls.toString();
+        if (s.contains("HorizontalScrollView")) {
+          return true;
+        }
+        AccessibilityNodeInfoCompat.CollectionInfoCompat info = cur.getCollectionInfo();
+        if (info != null && info.getRowCount() == 1 && info.getColumnCount() > 1) {
+          return true;
+        }
+      }
+      cur = cur.getParent();
+    }
+    return false;
+  }
+
+  /**
+   * Active-people / Notes cards in the top horizontal rail are square or vertical tiles
+   * (width < height * 1.5), whereas Inbox conversation rows are full-width horizontal rows.
+   */
+  private static boolean isNarrowTileBounds(AccessibilityNodeInfoCompat node) {
+    Rect bounds = new Rect();
+    node.getBoundsInScreen(bounds);
+    if (bounds.isEmpty() || bounds.width() <= 0 || bounds.height() <= 0) {
+      return false;
+    }
+    return bounds.width() * 2 < bounds.height() * 3;
   }
 
   static boolean isMessageHintPresent(AccessibilityNodeInfoCompat node) {

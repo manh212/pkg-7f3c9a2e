@@ -12,9 +12,11 @@ target_compile_options(meridian_aaudio PRIVATE -O2 -Wall -Wextra -fvisibility=hi
 
 find_library(aaudio-lib aaudio)
 find_library(log-lib log)
+find_library(dl-lib dl)
 
 target_link_libraries(
     meridian_aaudio
     ${aaudio-lib}
     ${log-lib}
+    ${dl-lib}
 )

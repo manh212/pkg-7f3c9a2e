@@ -21,6 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.graphics.Rect;
 import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.MessengerAccessibilityHelper;
@@ -123,12 +124,12 @@ public class MessengerMessageActionsMenuTest {
         makeNode("android.view.ViewGroup", null, null, false, false);
     AccessibilityNodeInfo msgNode =
         makeNode("android.view.ViewGroup", "Alo bạn ơi", null, true, false);
-    innerHolder.addChild(msgNode);
-    rowWrapper.addChild(innerHolder);
-    scrollContainer.addChild(rowWrapper);
-    root.addChild(offscreenNewMsg);
-    root.addChild(scrollContainer);
-    root.addChild(composer);
+    shadowOf(innerHolder).addChild(msgNode);
+    shadowOf(rowWrapper).addChild(innerHolder);
+    shadowOf(scrollContainer).addChild(rowWrapper);
+    shadowOf(root).addChild(offscreenNewMsg);
+    shadowOf(root).addChild(scrollContainer);
+    shadowOf(root).addChild(composer);
 
     assertTrue(
         MessengerMessageActionsMenu.isMessengerChatItemNode(
@@ -143,7 +144,7 @@ public class MessengerMessageActionsMenuTest {
     AccessibilityNodeInfo noteCard =
         makeNode("android.view.ViewGroup", "🎵 Lạc Trôi - Sơn Tùng", null, true, false);
     noteCard.setFocusable(true);
-    outerWrapper.addChild(noteCard);
+    shadowOf(outerWrapper).addChild(noteCard);
 
     assertFalse(
         MessengerAccessibilityHelper.shouldHideNode(
@@ -157,10 +158,50 @@ public class MessengerMessageActionsMenuTest {
     hScroll.setScrollable(true);
     AccessibilityNodeInfo friendCard =
         makeNode("android.view.ViewGroup", null, "Mở trang cá nhân của Nam", true, false);
-    hScroll.addChild(friendCard);
+    shadowOf(hScroll).addChild(friendCard);
 
     assertFalse(
         MessengerAccessibilityHelper.shouldHideNode(
             AccessibilityNodeInfoCompat.wrap(friendCard)));
+  }
+
+  @Test
+  public void recognizesWrappedInboxConversationRowAndRejectsActiveRailCard() {
+    AccessibilityNodeInfo root = makeNode("android.widget.FrameLayout", null, null, false, false);
+    AccessibilityNodeInfo newMsgBtn =
+        makeNode("android.widget.Button", null, "Tin nhắn mới", true, false);
+
+    AccessibilityNodeInfo activeRail =
+        makeNode("androidx.recyclerview.widget.RecyclerView", null, null, false, false);
+    activeRail.setScrollable(true);
+    activeRail.setCollectionInfo(
+        AccessibilityNodeInfo.CollectionInfo.obtain(
+            /* rowCount= */ 1, /* columnCount= */ 6, /* hierarchical= */ false));
+    AccessibilityNodeInfo activeCard =
+        makeNode("android.view.ViewGroup", null, "Nam, Đang hoạt động", true, true);
+    activeCard.setBoundsInScreen(new Rect(16, 200, 216, 440));
+    shadowOf(activeRail).addChild(activeCard);
+
+    AccessibilityNodeInfo inboxList =
+        makeNode("androidx.recyclerview.widget.RecyclerView", null, null, false, false);
+    inboxList.setScrollable(true);
+    AccessibilityNodeInfo rowWrapper =
+        makeNode("android.view.ViewGroup", null, null, false, true);
+    AccessibilityNodeInfo convRow =
+        makeNode("android.view.ViewGroup", null, "Thanh Niên Thoan, Bạn: Alo, 19:20", true, false);
+    convRow.setBoundsInScreen(new Rect(0, 500, 1080, 680));
+    shadowOf(rowWrapper).addChild(convRow);
+    shadowOf(inboxList).addChild(rowWrapper);
+
+    shadowOf(root).addChild(newMsgBtn);
+    shadowOf(root).addChild(activeRail);
+    shadowOf(root).addChild(inboxList);
+
+    assertFalse(
+        MessengerMessageActionsMenu.isMessengerInboxConversationNode(
+            AccessibilityNodeInfoCompat.wrap(activeCard)));
+    assertTrue(
+        MessengerMessageActionsMenu.isMessengerInboxConversationNode(
+            AccessibilityNodeInfoCompat.wrap(convRow)));
   }
 }
