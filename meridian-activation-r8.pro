@@ -83,6 +83,7 @@
 }
 
 # Preserve third-party native / JNI libraries.
+-keep class com.google.android.accessibility.utils.output.NativeAAudioOutput { *; }
 -keep class ai.onnxruntime.** { *; }
 -keep class com.googlecode.tesseract.** { *; }
 -keep class com.k2fsa.sherpa.** { *; }

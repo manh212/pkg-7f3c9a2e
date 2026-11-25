@@ -110,6 +110,9 @@ class NavigationPcmCache(context: Context) {
       // drop is counted once, by its first matching cause: a closed cache or a disabled
       // feature is never counted; a passed generation beats an epoch mismatch.
       if (closed || !LatencyExperiments.preparePcm()) return@post
+      // Skip background synthesis for long chat/article utterances so they never clog the
+      // single-threaded TTS engine queue while the user is swiping rapidly.
+      if (spoken.length > MAX_PREFETCH_TEXT_CHARS) return@post
       if (generation < pendingGeneration) {
         Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_STALE_GENERATION)
         return@post
@@ -470,6 +473,8 @@ class NavigationPcmCache(context: Context) {
     // when it reaches this size, so a long session cannot grow it without limit.
     private const val MAX_EVER_QUEUED_KEYS = 8192
     private const val MAX_PENDING_AGE_MS = 1_200L
+    /** Maximum utterance length eligible for background PCM prefetch. */
+    const val MAX_PREFETCH_TEXT_CHARS = 180
     // Khởi chạy tổng hợp PCM nền sớm hơn ngay sau khi dừng ngón tay để giảm WAITING_FOR_INPUT
     // và tăng tỷ lệ trúng cache PCM (rút ngắn COMPOSED -> FIRST_PCM về ~2-5 ms khi trúng cache).
     private const val INPUT_QUIET_MS = 35L

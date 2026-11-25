@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 14913)
+Total output lines: 1600
+
 /*
  * Copyright 2026 Backtalk contributors
  *
@@ -118,7 +121,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   // Listener callbacks run here, in order, so that they never hold up the audio thread. Its thread
   // ends when there is nothing to report.
   private val callbacks = singleThreadExecutor("LowLatencyAudio callbacks")
-  @Volatile private var track: AudioTrack?
+  @Volatile private var nativeOutput: NativeAAudioOutput? = null
+  @Volatile private var track: AudioTrack? = null
   // Set when no track can be made, or the track stops taking audio and cannot be remade. Then audio
   // plays the usual way.
   @Volatile private var broken = false
@@ -169,7 +173,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     burstFrames =
       audioManager?.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull()
         ?: DEFAULT_BURST
-    track = createTrack()
+    openOutput()
   }
 
   /**
@@ -500,471 +504,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     /** How long since the engine last gave this stream anything, at [now]. */
     internal fun quietFor(now: Long): Long = now - lastActivity
 
-    /** Mixes this stream's next frames into [out], and returns whether it has more to play. */
-    internal fun mixInto(out: FloatArray, frames: Int): Boolean {
-      var written = 0
-      val traceOnset = LatencyExperiments.Feature.TRACE.enabled()
-      while (written < frames && pending.isNotEmpty()) {
-        val head = pending.peekFirst()!!
-        val available = head.size / 2 - headOffset
-        val count = minOf(available, frames - written)
-        val left = volume * minOf(1f, 1 - pan)
-        val right = volume * minOf(1f, 1 + pan)
-        for (i in 0 until count) {
-          if (traceOnset && !soundStarted &&
-            (head[(headOffset + i) * 2] * left != 0f ||
-              head[(headOffset + i) * 2 + 1] * right != 0f)) {
-            soundStarted = true
-            soundStartingStreams += this
-          }
-          out[(written + i) * 2] += head[(headOffset + i) * 2] * left
-          out[(written + i) * 2 + 1] += head[(headOffset + i) * 2 + 1] * right
-        }
-        written += count
-        headOffset += count
-        if (headOffset * 2 >= head.size) {
-          pending.removeFirst()
-          headOffset = 0
-        }
-      }
-      if (started || written > 0) {
-        recordGap(gaps.mix(written, frames, !ended, SystemClock.uptimeMillis()))
-      }
-      if (written > 0 && !started) {
-        started = true
-        startingStreams += this
-        callbacks.execute { listener.onStarted(id) }
-      }
-      framesPlayed += written
-      while (ranges.isNotEmpty() && ranges.peekFirst()!![0] <= framesPlayed) {
-        val range = ranges.removeFirst()
-        callbacks.execute { listener.onRange(id, range[1].toInt(), range[2].toInt()) }
-      }
-      if (ended && pending.isEmpty()) {
-        finish(completed = true)
-        return false
-      }
-      return true
-    }
-
-    /**
-     * Whether this stream, at the front of the queue since [now] or before, has waited [STALL_MS]
-     * without the engine giving it audio or finishing, such as after the engine was shut down or
-     * frozen.
-     */
-    internal fun isStalled(now: Long): Boolean {
-      if (headSince == 0L) headSince = now
-      return !ended && pending.isEmpty() && now - maxOf(lastActivity, headSince) > STALL_MS
-    }
-
-    /**
-     * Ends this stream for another way to play it, without reporting that it finished.
-     * [playerFailed] tells whether the player, rather than the engine, is why.
-     */
-    internal fun abandon(playerFailed: Boolean) {
-      recordGap(gaps.close(SpeechGapTracker.Kind.INTERRUPTED, SystemClock.uptimeMillis()))
-      finished = true
-      pending.clear()
-      callbacks.execute {
-        if (playerFailed) listener.onPlayerFailed(id) else listener.onStalled(id)
-      }
-    }
-
-    internal fun finish(completed: Boolean) {
-      if (finished) return
-      recordGap(gaps.close(
-        if (completed) SpeechGapTracker.Kind.TAIL else SpeechGapTracker.Kind.INTERRUPTED,
-        SystemClock.uptimeMillis()))
-      finished = true
-      pending.clear()
-      val noAudio = completed && framesWritten == 0L
-      callbacks.execute {
-        if (noAudio) listener.onNoAudio(id) else listener.onFinished(id, completed)
-      }
-    }
-
-    /** Stops this stream, whether or not it has started playing. */
-    fun stop() {
-      synchronized(lock) {
-        if (streams.remove(this)) finish(completed = false)
-      }
-    }
-
-    /** Removes this stream without reporting anything, as if it had never been opened. */
-    fun discard() {
-      synchronized(lock) {
-        recordGap(gaps.close(SpeechGapTracker.Kind.INTERRUPTED, SystemClock.uptimeMillis()))
-        streams.remove(this)
-        finished = true
-        pending.clear()
-      }
-    }
-  }
-
-  /**
-   * Opens a speech stream at [volume] from 0 to 2 and [pan] from -1, left, to 1, right. It plays
-   * once the streams before it have finished.
-   */
-  fun openStream(
-    id: String,
-    volume: Float,
-    pan: Float,
-    equalizer: IntArray?,
-    compressor: SpeechCompressor.Settings?,
-    listener: StreamListener,
-  ): SpeechStream {
-    synchronized(lock) {
-      val stream =
-        SpeechStream(
-          id,
-          if (volume.isFinite()) volume.coerceIn(0f, VoiceProfiles.MAX_VOLUME / 100f) else 0f,
-          if (pan.isFinite()) pan.coerceIn(-1f, 1f) else 0f,
-          equalizer,
-          compressor,
-          listener,
-        )
-      if (released || broken) {
-        // Shut down or given up on since it was got: said the usual way instead.
-        stream.abandon(playerFailed = true)
-        return stream
-      }
-      streams += stream
-      wake()
-      return stream
-    }
-  }
-
-  /** Stops every speech stream, which each report that they were stopped. */
-  fun stopStreams() {
-    synchronized(lock) {
-      held = false
-      while (streams.isNotEmpty()) streams.removeFirst().finish(completed = false)
-    }
-  }
-
-  /** The frames held speech has waiting, while held. */
-  private fun heldFrames(): Long = streams.sumOf { it.pendingFrames() }
-
-  /**
-   * Holds speech where it is, mid-word if need be, so that [resume] carries on from exactly there,
-   * and returns the ID of the speech stream held, or null if there is no speech to hold. The streams
-   * keep receiving the engine's audio meanwhile, up to [MAX_HELD_MS]. Sounds still play.
-   */
-  fun hold(): String? =
-    synchronized(lock) {
-      val head = streams.peekFirst() ?: return null
-      held = true
-      holdFull = false
-      head.id
-    }
-
-  /** Carries on playing held speech. */
-  fun resume() {
-    synchronized(lock) {
-      held = false
-      holdFull = false
-      wake()
-    }
-  }
-
-  /**
-   * Stops everything and releases the track. Speech streams report that they were stopped. The
-   * player cannot be used again: [get] makes a new one.
-   */
-  fun shutdown() {
-    synchronized(lock) {
-      if (released) return
-      released = true
-      held = false
-      clips.clear()
-      while (streams.isNotEmpty()) streams.removeFirst().finish(completed = false)
-      if (thread == null) {
-        track?.release()
-        track = null
-      } else {
-        // The audio thread releases the track as it ends.
-        interrupt(track)
-        lock.notifyAll()
-      }
-    }
-  }
-
-  /** The state of one player, read in one go for diagnostics. Buffer sizes are -1 with no track. */
-  data class Snapshot(
-    val usage: Int,
-    val sampleRate: Int,
-    val burstFrames: Int,
-    val broken: Boolean,
-    val released: Boolean,
-    val audioThreadRunning: Boolean,
-    val fastPath: Boolean,
-    val bufferSizeInFrames: Int,
-    val bufferCapacityInFrames: Int,
-    val underrunCount: Int,
-    val playState: Int,
-    val routedDeviceType: Int?,
-    val routedDeviceName: String?,
-    val resumedShortages: String,
-    val tailWaits: String,
-    val interruptedShortages: String,
-    val pendingShortages: Int,
-    val dspWrites: String,
-  )
-
-  /** This player's state now, for diagnostics. */
-  fun snapshot(): Snapshot =
-    synchronized(lock) {
-      val output = track
-      var bufferSize = -1
-      var bufferCapacity = -1
-      var underrunCount = -1
-      var playState = -1
-      var deviceType: Int? = null
-      var deviceName: String? = null
-      if (output != null) {
-        try {
-          bufferSize = output.bufferSizeInFrames
-          bufferCapacity = output.bufferCapacityInFrames
-          underrunCount = output.underrunCount
-          playState = output.playState
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            output.routedDevice?.let {
-              deviceType = it.type
-              deviceName = it.productName?.toString()
-            }
-          }
-        } catch (e: IllegalStateException) {
-          // Released while being read.
-        }
-      }
-      Snapshot(
-        usage = attributes.usage,
-        sampleRate = sampleRate,
-        burstFrames = burstFrames,
-        broken = broken,
-        released = released,
-        audioThreadRunning = thread != null,
-        fastPath = fastPath,
-        bufferSizeInFrames = bufferSize,
-        bufferCapacityInFrames = bufferCapacity,
-        underrunCount = underrunCount,
-        playState = playState,
-        routedDeviceType = deviceType,
-        routedDeviceName = deviceName,
-        resumedShortages = gapSummary(SpeechGapTracker.Kind.RESUMED),
-        tailWaits = gapSummary(SpeechGapTracker.Kind.TAIL),
-        interruptedShortages = gapSummary(SpeechGapTracker.Kind.INTERRUPTED),
-        pendingShortages = streams.count { it.gaps.waiting },
-        dspWrites = dspWriteSummary(),
-      )
-    }
-
-  /** Starts the audio thread and its watchdog if they are not running. Called with [lock] held. */
-  private fun wake() {
-    idleFrames = 0
-    // A thread waiting for speech carries on with it.
-    lock.notifyAll()
-    if (thread != null || released || broken) return
-    lastWrite = SystemClock.uptimeMillis()
-    remakeTrack = false
-    waking = false
-    thread = Thread(::run, "LowLatencyAudio").apply { start() }
-    // Separate from the audio thread, so that a stuck track cannot stop it.
-    watchdog =
-      WATCHDOG.scheduleWithFixedDelay(
-        ::checkForStalls,
-        WATCHDOG_MS,
-        WATCHDOG_MS,
-        TimeUnit.MILLISECONDS,
-      )
-  }
-
-  /** Makes a write blocked on [output] return, so the audio thread can go on. */
-  private fun interrupt(output: AudioTrack?) {
-    try {
-      output?.pause()
-    } catch (e: IllegalStateException) {
-      // Released already.
-    }
-  }
-
-  /**
-   * Drops a speech stream the engine stopped feeding, and gives up on the track if it stopped taking
-   * audio, so that speech never waits in silence. Abandoned speech is said the usual way.
-   */
-  private fun checkForStalls() {
-    synchronized(lock) {
-      if (thread == null) return
-      val now = SystemClock.uptimeMillis()
-      val head = if (held) null else streams.peekFirst()
-      if (head != null && head.isStalled(now)) {
-        streams.removeFirst()
-        head.abandon(playerFailed = false)
-        LogUtils.w(TAG, "Speech %s got no audio in time", head.id)
-      }
-      val stuckFor = now - lastWrite
-      val extra = if (waking) WAKE_STUCK_MS else 0L
-      if (stuckFor > TRACK_STUCK_MS + extra) {
-        LogUtils.e(TAG, "Track took no audio for %d ms", stuckFor)
-        giveUp()
-      } else if (stuckFor > WRITE_STUCK_MS + extra && !remakeTrack) {
-        // Android stopped taking audio on this track, such as after its output changed.
-        LogUtils.w(TAG, "Track took no audio for %d ms, making a new one", stuckFor)
-        remakeTrack = true
-        interrupt(track)
-      }
-    }
-  }
-
-  private fun remake() {
-    synchronized(lock) {
-      if (released || broken) return
-      if (thread != null) {
-        remakeTrack = true
-        interrupt(track)
-        return
-      }
-      track?.release()
-      primed = false
-      track = createTrack()
-      if (track == null) giveUp()
-    }
-  }
-
-  /** Stops using the low-latency track: everything waiting plays the usual way. */
-  private fun giveUp() {
-    synchronized(lock) {
-      broken = true
-      clips.clear()
-      while (streams.isNotEmpty()) streams.removeFirst().abandon(playerFailed = true)
-      if (thread == null) {
-        track?.release()
-        track = null
-      } else {
-        interrupt(track)
-        lock.notifyAll()
-      }
-    }
-  }
-
-  private fun run() {
-    Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-    val buffer = FloatArray(burstFrames * 2)
-    while (true) {
-      val output: AudioTrack
-      val starts: List<SpeechStream>
-      val soundStarts: List<SpeechStream>
-      synchronized(lock) {
-        startingStreams.clear()
-        soundStartingStreams.clear()
-        val current = track
-        val idle = clips.isEmpty() && (streams.isEmpty() || held)
-        if (released || broken || current == null || (idle && idleFrames >= idleLimit())) {
-          end(current)
-          return
-        }
-        output = current
-        if (!fastPath) {
-          // Silence queued without the fast path would delay the next sound by the whole buffer, so
-          // silence plays only until the audio before it has been heard. Then the track pauses.
-          val audible = hasAudio()
-          if (primed && !audible && silentFrames >= output.bufferSizeInFrames) pauseAndFlush(output)
-          if (!primed && !readyToStart(output)) {
-            if (idle) {
-              end(current)
-              return
-            }
-            // Speech waiting for the engine. The thread stays, so the watchdog can drop a stall.
-            lastWrite = SystemClock.uptimeMillis()
-            lock.wait(REST_MS)
-            continue
-          }
-          buffer.fill(0f)
-          mix(buffer)
-          // A stream that ended with nothing left finishes without starting the track.
-          if (!primed && !audible) continue
-          silentFrames = if (audible) 0 else silentFrames + burstFrames
-        } else {
-          buffer.fill(0f)
-          mix(buffer)
-        }
-        primed = true
-        starts = startingStreams.toList()
-        soundStarts = soundStartingStreams.toList()
-        if (idle) idleFrames += burstFrames
-      }
-      if (!remakeTrack && play(output) && write(output, buffer)) {
-        val submittedAt = SystemClock.uptimeMillis()
-        for (stream in starts) {
-          callbacks.execute { stream.reportAudioSubmitted(submittedAt) }
-        }
-        for (stream in soundStarts) {
-          callbacks.execute { Performance.getInstance().onFirstSoundSubmitted(stream.id, submittedAt) }
-        }
-        continue
-      }
-      if (released || broken) continue
-      // Android stopped taking audio on this track, such as after its output changed. Make a new
-      // one, or play the usual way from now on.
-      synchronized(lock) {
-        track = null
-        primed = false
-      }
-      output.release()
-      val fresh = createTrack()
-      synchronized(lock) {
-        remakeTrack = false
-        track = fresh
-        if (fresh == null) giveUp()
-      }
-    }
-  }
-
-  /**
-   * Ends the audio thread and its watchdog. The track is paused for the next sound, or released if
-   * it will not be used again. Called with [lock] held.
-   */
-  private fun end(output: AudioTrack?) {
-    thread = null
-    watchdog?.cancel(false)
-    watchdog = null
-    if (released || broken) {
-      track = null
-      primed = false
-      output?.release()
-      return
-    }
-    if (output != null) pauseAndFlush(output)
-  }
-
-  /** Pauses the track and drops what it has queued. Called with [lock] held. */
-  private fun pauseAndFlush(output: AudioTrack) {
-    primed = false
-    try {
-      if (output.playState == AudioTrack.PLAYSTATE_PLAYING) {
-        output.pause()
-        output.flush()
-      }
-    } catch (e: IllegalStateException) {
-      // Released already.
-    }
-  }
-
-  /** Whether the next burst has any sound or speech in it. Called with [lock] held. */
-  private fun hasAudio(): Boolean {
-    if (clips.isNotEmpty()) return true
-    val head = if (held) null else streams.peekFirst()
-    return head != null && head.pendingFrames() > 0
-  }
-
-  /**
-   * Whether there is enough to start the paused track on without the fast path, which waits for a
-   * full buffer before it plays: a sound, which is all there at once, or speech that fills the
-   * buffer, has ended, or has stopped coming for REST_MS. Called with [lock] held.
-   */
-  private fun readyToStart(output: AudioTrack): Boolean {
-    if (clips.isNotEmpty()) return true
-    if (held) return false
+    /** Mixes this stream's nex…4913 tokens truncated…return false
     val head = streams.peekFirst() ?: return false
     val pending = head.pendingFrames()
     return head.isEnded ||
@@ -1091,6 +631,13 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
    * [keepUp] until the mixer stops running short.
    */
   private fun refitBuffer() {
+    val nativeOut = nativeOutput
+    if (nativeOut != null) {
+      val burst = maxOf(nativeOut.framesPerBurst, burstFrames)
+      val target = fastBufferFrames(burst, smallBufferEnabled && !outgrewSmallBuffer, fastFrames)
+      nativeOut.setBufferSizeInFrames(target)
+      return
+    }
     val output = track ?: return
     fitBuffer(output)
   }
@@ -1203,7 +750,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private const val TAG = "LowLatencyAudio"
     private const val DEFAULT_RATE = 48_000
     private const val DEFAULT_BURST = 192
-    private const val QUEUED_BURSTS = 3
+    private const val QUEUED_BURSTS = 2
     @JvmStatic
     var smallBufferEnabled: Boolean = false
       set(value) {
@@ -1444,7 +991,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         watchRoutes(context.applicationContext)
         instances
           .getOrPut(attributes.usage) { LowLatencyAudio(context.applicationContext, attributes) }
-          .takeIf { it.track != null && !it.broken }
+          .takeIf { it.hasOutput() && !it.broken }
       }
 
     /** [volume] from 0 to 1, or 0 when it is NaN or infinite. */

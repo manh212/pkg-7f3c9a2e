@@ -157,8 +157,13 @@ public final class MessengerAccessibilityHelper {
       return true;
     }
 
-    // 3. Hide repeated "Mở trang cá nhân của ..." avatar buttons next to every chat message.
-    if (d.startsWith("Mở trang cá nhân của ") && node.isClickable()) {
+    // 3. Hide repeated "Mở trang cá nhân của ..." leaf avatar buttons next to chat messages,
+    // without hiding Friends' Active / Notes cards in the horizontal rail on Messenger Home.
+    if (d.startsWith("Mở trang cá nhân của ")
+        && node.isClickable()
+        && t.isEmpty()
+        && node.getChildCount() == 0
+        && !hasHorizontalScrollableAncestor(node)) {
       return true;
     }
 
@@ -302,9 +307,32 @@ public final class MessengerAccessibilityHelper {
     }
     AccessibilityNodeInfoCompat cur = node.getParent();
     for (int depth = 0; depth < 4 && cur != null; depth++) {
-      String label = firstNonEmpty(cur.getContentDescription(), cur.getText());
-      if (label != null && label.contains(normalizedTarget)) {
-        return true;
+      // Only treat an ancestor as a duplicate owner when it can itself receive accessibility focus;
+      // otherwise hiding the child would hide the only focusable node for a friend's Note card.
+      if (cur.isFocusable() && cur.isVisibleToUser()) {
+        String label = firstNonEmpty(cur.getContentDescription(), cur.getText());
+        if (label != null && label.contains(normalizedTarget)) {
+          return true;
+        }
+      }
+      cur = cur.getParent();
+    }
+    return false;
+  }
+
+  private static boolean hasHorizontalScrollableAncestor(AccessibilityNodeInfoCompat node) {
+    AccessibilityNodeInfoCompat cur = node.getParent();
+    for (int depth = 0; depth < 6 && cur != null; depth++) {
+      if (cur.isScrollable()) {
+        CharSequence cls = cur.getClassName();
+        String s = cls == null ? "" : cls.toString();
+        if (s.contains("HorizontalScrollView")) {
+          return true;
+        }
+        AccessibilityNodeInfoCompat.CollectionInfoCompat info = cur.getCollectionInfo();
+        if (info != null && info.getRowCount() == 1 && info.getColumnCount() > 1) {
+          return true;
+        }
       }
       cur = cur.getParent();
     }

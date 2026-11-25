@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.focusmanagement
 
 import android.os.Build
 import android.os.SystemClock
+import android.os.Process
 import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
@@ -76,7 +77,17 @@ object WindowNodePrefetcher {
   private val executor by lazy {
     val number = AtomicInteger()
     Executors.newFixedThreadPool(THREADS) { runnable ->
-      Thread(runnable, "$TAG-${number.incrementAndGet()}").apply { isDaemon = true }
+      Thread(
+        {
+          try {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_DISPLAY)
+          } catch (_: SecurityException) {
+          } catch (_: IllegalArgumentException) {
+          }
+          runnable.run()
+        },
+        "$TAG-${number.incrementAndGet()}",
+      ).apply { isDaemon = true }
     }
   }
 

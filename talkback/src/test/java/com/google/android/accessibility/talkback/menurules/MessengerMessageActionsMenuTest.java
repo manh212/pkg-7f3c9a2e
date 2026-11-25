@@ -104,4 +104,63 @@ public class MessengerMessageActionsMenuTest {
         MessengerMessageActionsMenu.isMessengerChatItemNode(
             AccessibilityNodeInfoCompat.wrap(convRow)));
   }
+
+  @Test
+  public void recognizesChatMessageWhenOffscreenInboxNewMessageExists() {
+    AccessibilityNodeInfo root = makeNode("android.widget.FrameLayout", null, null, false, false);
+    AccessibilityNodeInfo offscreenNewMsg =
+        makeNode("android.widget.Button", null, "Tin nhắn mới", true, false);
+    offscreenNewMsg.setVisibleToUser(false);
+    AccessibilityNodeInfo composer =
+        makeNode("android.widget.EditText", null, "Nhắn tin", true, false);
+    composer.setEditable(true);
+    AccessibilityNodeInfo scrollContainer =
+        makeNode("android.view.ViewGroup", null, null, false, false);
+    scrollContainer.setScrollable(true);
+    AccessibilityNodeInfo rowWrapper =
+        makeNode("android.view.ViewGroup", null, null, false, true);
+    AccessibilityNodeInfo innerHolder =
+        makeNode("android.view.ViewGroup", null, null, false, false);
+    AccessibilityNodeInfo msgNode =
+        makeNode("android.view.ViewGroup", "Alo bạn ơi", null, true, false);
+    innerHolder.addChild(msgNode);
+    rowWrapper.addChild(innerHolder);
+    scrollContainer.addChild(rowWrapper);
+    root.addChild(offscreenNewMsg);
+    root.addChild(scrollContainer);
+    root.addChild(composer);
+
+    assertTrue(
+        MessengerMessageActionsMenu.isMessengerChatItemNode(
+            AccessibilityNodeInfoCompat.wrap(msgNode)));
+  }
+
+  @Test
+  public void doesNotHideFriendNoteWhenOuterWrapperIsNotFocusable() {
+    AccessibilityNodeInfo outerWrapper =
+        makeNode("android.view.ViewGroup", null, "🎵 Lạc Trôi - Sơn Tùng", false, false);
+    outerWrapper.setFocusable(false);
+    AccessibilityNodeInfo noteCard =
+        makeNode("android.view.ViewGroup", "🎵 Lạc Trôi - Sơn Tùng", null, true, false);
+    noteCard.setFocusable(true);
+    outerWrapper.addChild(noteCard);
+
+    assertFalse(
+        MessengerAccessibilityHelper.shouldHideNode(
+            AccessibilityNodeInfoCompat.wrap(noteCard)));
+  }
+
+  @Test
+  public void doesNotHideProfileCardInsideHorizontalActiveRail() {
+    AccessibilityNodeInfo hScroll =
+        makeNode("android.widget.HorizontalScrollView", null, null, false, false);
+    hScroll.setScrollable(true);
+    AccessibilityNodeInfo friendCard =
+        makeNode("android.view.ViewGroup", null, "Mở trang cá nhân của Nam", true, false);
+    hScroll.addChild(friendCard);
+
+    assertFalse(
+        MessengerAccessibilityHelper.shouldHideNode(
+            AccessibilityNodeInfoCompat.wrap(friendCard)));
+  }
 }

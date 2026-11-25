@@ -463,7 +463,10 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
 
   private static boolean hasScrollableListAncestor(AccessibilityNodeInfoCompat node) {
     AccessibilityNodeInfoCompat cur = node.getParent();
-    for (int depth = 0; depth < 12 && cur != null; depth++) {
+    for (int depth = 0; depth < 14 && cur != null; depth++) {
+      if (cur.isScrollable()) {
+        return true;
+      }
       CharSequence cls = cur.getClassName();
       if (cls != null) {
         String s = cls.toString();
@@ -476,19 +479,38 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
     return false;
   }
 
-  private static boolean isLongClickableOrHasLongClickableNeighbor(
-      AccessibilityNodeInfoCompat node) {
+  private static boolean isNodeLongClickable(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null) {
+      return false;
+    }
     if (node.isLongClickable()) {
       return true;
     }
-    AccessibilityNodeInfoCompat parent = node.getParent();
-    if (parent != null && parent.isLongClickable()) {
+    for (AccessibilityNodeInfoCompat.AccessibilityActionCompat action : node.getActionList()) {
+      if (action != null
+          && action.getId() == AccessibilityNodeInfoCompat.ACTION_LONG_CLICK) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean isLongClickableOrHasLongClickableNeighbor(
+      AccessibilityNodeInfoCompat node) {
+    if (isNodeLongClickable(node)) {
       return true;
+    }
+    AccessibilityNodeInfoCompat parent = node.getParent();
+    for (int depth = 0; depth < 3 && parent != null; depth++) {
+      if (isNodeLongClickable(parent)) {
+        return true;
+      }
+      parent = parent.getParent();
     }
     int count = Math.min(node.getChildCount(), 6);
     for (int i = 0; i < count; i++) {
       AccessibilityNodeInfoCompat child = node.getChild(i);
-      if (child != null && child.isLongClickable()) {
+      if (isNodeLongClickable(child)) {
         return true;
       }
     }
@@ -496,9 +518,9 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
   }
 
   /**
-   * Distinguishes an open Messenger chat thread from the Inbox screen by checking the window root
-   * for chat-only chrome ("Chi tiết chuỗi bài", "Quay lại", or an EditText composer) while
-   * rejecting Inbox chrome ("Tin nhắn mới").
+   * Distinguishes an open Messenger chat thread from the Inbox screen by checking the visible
+   * window tree for chat-only chrome ("Chi tiết chuỗi bài", "Quay lại", or an EditText composer)
+   * while rejecting visible Inbox chrome ("Tin nhắn mới").
    */
   private static boolean isInMessengerChatScreen(AccessibilityNodeInfoCompat node) {
     AccessibilityNodeInfoCompat root = node;
@@ -509,10 +531,10 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
     queue.add(root);
     int scanned = 0;
     boolean hasChatChrome = false;
-    while (!queue.isEmpty() && scanned < 180) {
+    while (!queue.isEmpty() && scanned < 400) {
       AccessibilityNodeInfoCompat cur = queue.poll();
       scanned++;
-      if (cur == null) {
+      if (cur == null || !cur.isVisibleToUser()) {
         continue;
       }
       if (cur.isEditable()) {
@@ -529,9 +551,9 @@ public final class MessengerMessageActionsMenu implements NodeMenu {
         }
       }
       int count = cur.getChildCount();
-      for (int i = 0; i < count && scanned + queue.size() < 180; i++) {
+      for (int i = 0; i < count && scanned + queue.size() < 400; i++) {
         AccessibilityNodeInfoCompat child = cur.getChild(i);
-        if (child != null) {
+        if (child != null && child.isVisibleToUser()) {
           queue.add(child);
         }
       }

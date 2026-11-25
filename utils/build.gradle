@@ -14,6 +14,12 @@ dependencies {
 
 android {
     namespace = "com.google.android.accessibility.utils"
+    ndkVersion = "27.3.13750724"
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
     defaultConfig {
         buildConfigField("String", "TALKBACK_APPLICATION_ID", '"' + talkbackApplicationId + '"')
         buildConfigField("String", "IS_SYSTEM_PRELOAD", "\"False\"")
