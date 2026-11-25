@@ -683,8 +683,8 @@ object BatteryUsageTracker {
 
     val speakReqs = ttsSpeakRequests.get()
     val speakChars = ttsSpeakChars.get()
-    val liveReqs = ttsLiveRequests.get()
-    val cacheReqs = ttsCacheRequests.get()
+    val cacheReqs = max(ttsCacheRequests.get(), pcmPrefetchHits.get())
+    val liveReqs = max(0L, speakReqs - cacheReqs)
     val interruptedReqs = ttsInterrupted.get()
     val ttsErrCount = ttsErrors.get()
     val pcmBytes = ttsPcmBytes.get()

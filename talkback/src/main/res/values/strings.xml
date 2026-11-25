@@ -1592,6 +1592,8 @@
       Description: This preference saves Meridian's diagnostics as a file in Downloads.
     -->
     <string name="title_pref_export_diagnostics_to_downloads">Export log to Downloads</string>
+    <string name="title_latency_small_audio_buffer">Bộ đệm âm thanh siêu nhỏ 1-burst (~5 ms)</string>
+    <string name="summary_latency_small_audio_buffer">Giảm một nửa độ trễ bộ đệm loa trên máy chip mạnh (như Dimensity 9400+). Tự động nới rộng lại nếu bị thiếu mẫu.</string>
     <string name="title_pref_category_battery_management">Quản lý mức sử dụng pin</string>
     <string name="title_pref_battery_profiler_enabled">Bật theo dõi chi tiết mức sử dụng pin</string>
     <string name="summary_pref_battery_profiler_enabled">Mặc định tắt. Theo dõi CPU, giọng nói, âm thanh, rung, cảm biến, khóa đánh thức, mạng và sự kiện ứng dụng để chẩn đoán.</string>

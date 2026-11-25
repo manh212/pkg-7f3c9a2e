@@ -147,6 +147,11 @@
         android:defaultValue="true"
         android:key="pref_latency_audio_keep_warm"
         android:title="@string/title_latency_audio_keep_warm" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="false"
+        android:key="pref_latency_small_audio_buffer"
+        android:title="@string/title_latency_small_audio_buffer"
+        android:summary="@string/summary_latency_small_audio_buffer" />
   </PreferenceCategory>
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_tts_overlay_default"
