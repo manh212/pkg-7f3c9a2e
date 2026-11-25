@@ -32,7 +32,7 @@ import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.dialog.BaseDialog
 import com.google.android.accessibility.talkback.notifications.Replacement
-import com.google.android.accessibility.talkback.utils.CopyTextUtils
+import com.google.android.accessibility.talkback.gesture.CopyTextUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 /**
