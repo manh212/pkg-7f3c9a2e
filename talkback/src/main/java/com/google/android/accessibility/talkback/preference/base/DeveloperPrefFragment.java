@@ -92,6 +92,7 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     // Remove preferences for features that are not supported by device.
     initTouchExplorationPreference();
     initLatencyPreparationPreferences();
+    DiagnosticsPreferenceActions.bindBatteryPreferences(this);
     if (!BuildVersionUtils.isAtLeastT()) {
       getPreferenceScreen().removePreferenceRecursively(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY);
       getPreferenceScreen()

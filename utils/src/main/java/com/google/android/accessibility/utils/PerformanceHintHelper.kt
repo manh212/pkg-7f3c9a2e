@@ -109,9 +109,17 @@ object PerformanceHintHelper {
   private fun readDisplayRefreshRate(context: Context): Float {
     return try {
       val dm = context.getSystemService(DisplayManager::class.java)
-      val display = dm?.getDisplay(Display.DEFAULT_DISPLAY)
-      val rate = display?.refreshRate ?: 60f
-      if (rate.isFinite() && rate >= 30f) rate else 60f
+      val display = dm?.getDisplay(Display.DEFAULT_DISPLAY) ?: return 60f
+      var best = display.refreshRate
+      val modes = display.supportedModes
+      if (modes != null) {
+        for (mode in modes) {
+          if (mode.refreshRate.isFinite() && mode.refreshRate > best) {
+            best = mode.refreshRate
+          }
+        }
+      }
+      if (best.isFinite() && best >= 30f) best else 60f
     } catch (_: Throwable) {
       60f
     }

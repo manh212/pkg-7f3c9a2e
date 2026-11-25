@@ -17,6 +17,7 @@
 package com.google.android.accessibility.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -27,42 +28,62 @@ import org.junit.runners.JUnit4
 class BatteryUsageTrackerTest {
 
   @Test
-  fun parseProcStatExtractsCommAndUserPlusSystemJiffies() {
-    // Fields after (comm): state(0) ppid(1) pgrp(2) session(3) tty(4) tpgid(5)
-    // flags(6) minflt(7) cminflt(8) majflt(9) cmajflt(10) utime(11) stime(12)
-    val line = "12345 (LowLatencyAudio) S 1 1 1 0 -1 4194304 10 0 0 0 142 58 0 0 20 0"
+  fun parseProcStat_standardThread_extractsNameAndCpuJiffies() {
+    val line = "12345 (LowLatencyAudio) S 1 123 123 0 -1 4194368 100 0 0 0 42 18 0 0 20 0 10 0 12345"
     val sample = BatteryUsageTracker.parseProcStat(line)
     assertNotNull(sample)
     assertEquals("LowLatencyAudio", sample!!.name)
-    assertEquals(200L, sample.jiffies)
+    assertEquals(60L, sample.jiffies)
   }
 
   @Test
-  fun parseProcStatHandlesThreadNameWithSpacesAndParentheses() {
-    val line = "999 (Binder:1234 (1)) R 1 1 1 0 -1 0 0 0 0 0 30 15 0 0"
+  fun parseProcStat_threadNameWithSpacesAndParens_usesLastClosingParen() {
+    val line = "999 (pool-1 (worker)) R 1 10 10 0 -1 0 0 0 0 0 105 25 0 0 20 0 1 0 500"
     val sample = BatteryUsageTracker.parseProcStat(line)
     assertNotNull(sample)
-    assertEquals("Binder:1234 (1)", sample!!.name)
-    assertEquals(45L, sample.jiffies)
+    assertEquals("pool-1 (worker)", sample!!.name)
+    assertEquals(130L, sample.jiffies)
   }
 
   @Test
-  fun parseProcStatAcceptsRepeatedWhitespaceBetweenFields() {
+  fun parseProcStat_acceptsRepeatedWhitespaceBetweenFields() {
     val line = "42 (main) S  1 1 1 0 -1 0 0 0 0 0  90   10 0 0"
     assertEquals(100L, BatteryUsageTracker.parseProcStat(line)!!.jiffies)
   }
 
   @Test
-  fun parseProcStatRejectsMalformedLine() {
+  fun parseProcStat_malformed_returnsNull() {
     assertNull(BatteryUsageTracker.parseProcStat("invalid stat line"))
     assertNull(BatteryUsageTracker.parseProcStat("123 (short) S 1 2 3"))
   }
 
   @Test
-  fun formatDurationFormatsMillisecondsSecondsMinutesAndHours() {
+  fun normalizeThreadName_groupsBinderPoolsAndKnownWorkers() {
+    assertEquals("Binder (IPC pool)", BatteryUsageTracker.normalizeThreadName("binder:6349_2"))
+    assertEquals("Binder (IPC pool)", BatteryUsageTracker.normalizeThreadName("Binder:1234_1"))
+    assertEquals("BacktalkPrefetch (pool)", BatteryUsageTracker.normalizeThreadName("BacktalkPrefetch-1"))
+    assertEquals("OkHttp (network)", BatteryUsageTracker.normalizeThreadName("OkHttp Dispatcher"))
+    assertEquals("NavigationPcm", BatteryUsageTracker.normalizeThreadName("NavigationPcm"))
+  }
+
+  @Test
+  fun formatDuration_formatsMillisecondsSecondsMinutesAndHours() {
     assertEquals("450 ms", BatteryUsageTracker.formatDuration(450L))
     assertEquals("12s", BatteryUsageTracker.formatDuration(12_000L))
     assertEquals("3m 05s", BatteryUsageTracker.formatDuration(185_000L))
     assertEquals("2h 04m 09s", BatteryUsageTracker.formatDuration(7_449_000L))
   }
+
+  @Test
+  fun formatBytes_formatsBytesKilobytesAndMegabytes() {
+    assertEquals("512 B", BatteryUsageTracker.formatBytes(512L))
+    assertEquals("1.5 KB", BatteryUsageTracker.formatBytes(1536L))
+    assertEquals("2.00 MB", BatteryUsageTracker.formatBytes(2L * 1024L * 1024L))
+  }
+
+  @Test
+  fun defaultEnabledState_isFalse() {
+    assertFalse(BatteryUsageTracker.isEnabled())
+  }
+
 }

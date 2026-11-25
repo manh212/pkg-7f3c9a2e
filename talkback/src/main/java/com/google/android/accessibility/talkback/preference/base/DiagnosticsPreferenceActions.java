@@ -29,6 +29,7 @@ import androidx.appcompat.app.AlertDialog;
 import com.google.android.accessibility.utils.BatteryUsageTracker;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.TwoStatePreference;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.report.DiagnosticsExport;
 import com.google.android.accessibility.talkback.report.LatencyMeasurementSession;
@@ -64,23 +65,43 @@ public final class DiagnosticsPreferenceActions {
             return true;
           });
     }
-    Preference battery =
-        fragment.findPreference(fragment.getString(R.string.pref_battery_usage_report_key));
-    if (battery != null) {
-      Context appCtx = fragment.requireContext().getApplicationContext();
-      battery.setSummary(BatteryUsageTracker.buildShortSubtitle(appCtx));
-      battery.setOnPreferenceClickListener(
-          preference -> {
-            showBatteryUsageDialog(fragment, battery);
-            return true;
-          });
-    }
     Preference delete =
         fragment.findPreference(fragment.getString(R.string.pref_delete_debug_log_key));
     if (delete != null) {
       delete.setOnPreferenceClickListener(
           preference -> {
             deleteDebugLog(fragment.requireContext().getApplicationContext());
+            return true;
+          });
+    }
+  }
+
+  /** Binds the opt-in battery profiler toggle and detailed report inside Developer Settings. */
+  static void bindBatteryPreferences(PreferenceFragmentCompat fragment) {
+    Context appCtx = fragment.requireContext().getApplicationContext();
+    BatteryUsageTracker.syncEnabledFromPreferences(appCtx);
+
+    TwoStatePreference toggle =
+        fragment.findPreference(fragment.getString(R.string.pref_battery_profiler_enabled_key));
+    Preference reportPref =
+        fragment.findPreference(fragment.getString(R.string.pref_battery_usage_report_key));
+
+    if (reportPref != null) {
+      reportPref.setSummary(BatteryUsageTracker.buildShortSubtitle(appCtx));
+      reportPref.setOnPreferenceClickListener(
+          preference -> {
+            showBatteryUsageDialog(fragment, reportPref);
+            return true;
+          });
+    }
+    if (toggle != null) {
+      toggle.setOnPreferenceChangeListener(
+          (preference, newValue) -> {
+            boolean enabled = Boolean.TRUE.equals(newValue);
+            BatteryUsageTracker.setEnabled(appCtx, enabled);
+            if (reportPref != null) {
+              reportPref.setSummary(BatteryUsageTracker.buildShortSubtitle(appCtx));
+            }
             return true;
           });
     }

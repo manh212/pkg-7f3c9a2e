@@ -138,6 +138,7 @@
     <string name="pref_export_diagnostics_key">pref_export_diagnostics</string>
     <string name="pref_export_diagnostics_to_downloads_key">pref_export_diagnostics_to_downloads</string>
     <string name="pref_battery_usage_report_key">pref_battery_usage_report</string>
+    <string name="pref_battery_profiler_enabled_key">pref_battery_profiler_enabled</string>
     <string name="pref_copy_diagnostics_key">pref_copy_diagnostics</string>
     <!-- Using for showing version information. [CHAR_LIMIT=NONE] -->
     <string name="pref_developer_version_code_key">pref_developer_version_code</string>

@@ -8,7 +8,9 @@ import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import android.os.Process
 import com.google.android.accessibility.utils.BatteryUsageTracker
+import com.google.android.accessibility.utils.PerformanceHintHelper
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.Performance
 import com.google.android.accessibility.utils.Performance.PreparedSpeechWork
@@ -54,7 +56,9 @@ class NavigationPcmCache(context: Context) {
 
   private val appContext = context.applicationContext
   private val thread = HandlerThread("NavigationPcm").apply { start() }
-  private val handler = Handler(thread.looper)
+  private val handler = Handler(thread.looper).apply {
+    post { PerformanceHintHelper.registerWorkerThread(Process.myTid()) }
+  }
   private val cache = PreparedPcmStore<Key>(MAX_CACHE_BYTES, 32)
   private val queue = ArrayDeque<Request>()
   private val epoch = AtomicLong()
@@ -154,7 +158,10 @@ class NavigationPcmCache(context: Context) {
             dropped++
           }
         }
-        if (dropped > 0) work.addAndGet(Work.SUPERSEDED.ordinal, dropped.toLong())
+        if (dropped > 0) {
+          work.addAndGet(Work.SUPERSEDED.ordinal, dropped.toLong())
+          repeat(dropped) { BatteryUsageTracker.onPcmPrefetchWasted("superseded") }
+        }
         pendingGeneration = generation
       }
       // Q11d: a key already cached, being synthesized, or queued is dropped silently.
@@ -166,6 +173,7 @@ class NavigationPcmCache(context: Context) {
         // Replace-oldest policy keeps the background TTS queue strictly bounded to 2 items.
         queue.removeFirst()
         note(Work.SUPERSEDED)
+        BatteryUsageTracker.onPcmPrefetchWasted("superseded")
       }
       queue.addLast(Request(key, voice, parameters, foreground, requestedEpoch, generation))
       // Q11a: remember that this key was queued, so a later TEXT_MISS can say whether
@@ -218,6 +226,7 @@ class NavigationPcmCache(context: Context) {
         chunkIndex, everQueuedKeys.contains(key.hashCode()))
     } else {
       hits.incrementAndGet()
+      BatteryUsageTracker.onPcmPrefetchHit()
     }
     return result
   }
@@ -258,6 +267,7 @@ class NavigationPcmCache(context: Context) {
     val request = active ?: return
     active = null
     cancelled.incrementAndGet()
+    BatteryUsageTracker.onPcmPrefetchWasted("cancelled")
     engine?.stop()
     request.timeout?.let { handler.removeCallbacks(it) }
     request.file?.delete()
@@ -331,6 +341,7 @@ class NavigationPcmCache(context: Context) {
     while (queue.peekFirst()?.let { it.epoch != epoch.get() || now - it.queuedAt > MAX_PENDING_AGE_MS } == true) {
       queue.removeFirst()
       note(Work.EXPIRED)
+      BatteryUsageTracker.onPcmPrefetchWasted("expired")
     }
     val request = queue.peekFirst() ?: return
     if (shouldYield()) {
@@ -395,6 +406,7 @@ class NavigationPcmCache(context: Context) {
       val timeout = Runnable {
         if (active === request) {
           engine?.stop()
+          BatteryUsageTracker.onPcmPrefetchWasted("timeout")
           finish(request.id, false, Work.FAILURE_TIMEOUT)
         }
       }

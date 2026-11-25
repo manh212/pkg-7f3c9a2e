@@ -65,6 +65,7 @@ import androidx.core.content.ContextCompat;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.Logger;
 import com.google.android.accessibility.utils.Performance;
+import com.google.android.accessibility.utils.BatteryUsageTracker;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.ChangeLocaleAction;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -994,6 +995,7 @@ public class FailoverTextToSpeech {
     text = withSpanTextWritten(utteranceId, text);
 
     LogUtils.i(TAG, "Speak: %s", text);
+    BatteryUsageTracker.onTtsSpeakRequest(ttsEngine, text.length(), /* fromCache= */ false);
 
     if (flushGlobalTtsQueue
         && !params.containsKey(SpeechControllerImpl.SPEECH_PARAM_BILINGUAL_SEGMENT)) {
@@ -1006,6 +1008,7 @@ public class FailoverTextToSpeech {
 
     if (preventDeviceSleep && wakeLock != null && !wakeLock.isHeld()) {
       wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/);
+      BatteryUsageTracker.onWakeLockAcquire("FailoverTextToSpeech:WakeLock");
     }
 
     String profileId = params.get(SpeechControllerImpl.SPEECH_PARAM_VOICE_PROFILE);
@@ -1326,6 +1329,7 @@ public class FailoverTextToSpeech {
       if (completedUtteranceId == null || isLast || !isRecent) {
         try {
           wakeLock.release();
+          BatteryUsageTracker.onWakeLockRelease("FailoverTextToSpeech:WakeLock");
         } catch (RuntimeException unused) {
           // Ignore: already released by timeout.
           // TODO: Log this exception from GoogleLogger.
@@ -1371,6 +1375,9 @@ public class FailoverTextToSpeech {
       // The engine keeps making the held speech, so it can carry on if speech is paused.
       allowDeviceSleep();
       return;
+    }
+    if (!unfinishedUtterances.isEmpty()) {
+      BatteryUsageTracker.onTtsInterrupted();
     }
     stopLowLatencySpeech();
     try {
@@ -4096,6 +4103,9 @@ public class FailoverTextToSpeech {
 
     @Override
     public void onAudioAvailable(String utteranceId, byte[] audio) {
+      if (audio != null && audio.length > 0) {
+        BatteryUsageTracker.onTtsAudioChunk(audio.length);
+      }
       SpeechChunk chunk = toOriginal(utteranceId);
       if (chunk != null) {
         if (chunk.utteranceId() == null) {
@@ -4109,6 +4119,7 @@ public class FailoverTextToSpeech {
     }
 
     void onAudioCacheAvailable(String utteranceId) {
+      BatteryUsageTracker.onTtsSpeakRequest(ttsEngine, 0, /* fromCache= */ true);
       // onAudioAvailable() is usually called many times per utterance,
       // once for each audio chunk.
       updatePerformanceMetrics(utteranceId, /* localCache= */ true);

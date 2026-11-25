@@ -19,6 +19,7 @@ package com.google.android.accessibility.utils
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.TrafficStats
 import android.os.BatteryManager
 import android.os.Process
 import android.os.PowerManager
@@ -37,50 +38,94 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Lightweight, zero-polling battery and resource profiler for Meridian.
+ * Opt-in, zero-polling battery and resource profiler for Meridian (Developer Settings → Quản lý
+ * mức sử dụng pin).
  *
- * Combines:
- * 1. Real battery drain via [BatteryManager] (`CHARGE_COUNTER` in µAh, level %, current µA, temp),
- *    strictly separated into unplugged Screen-On vs Screen-Off segments.
- * 2. Exact per-thread CPU time (user + kernel ms) from `/proc/self/task/<tid>/stat`, attributed to
- *    Screen-On vs Screen-Off only at state transitions and on-demand report generation.
- * 3. Lightweight `AtomicLong` hardware counters for LowLatencyAudio (audible vs keep-warm idle),
- *    sensors (BackTap, StopSensors, Proximity), WakeLocks, screen-off AccessibilityEvents per
- *    package, traversal order builds, and background prefetches.
+ * Disabled by default (`pref_battery_profiler_enabled = false`) so normal users incur virtually
+ * zero overhead (a single volatile boolean check per hook). When enabled, tracks:
+ * 1. Real battery drain via [BatteryManager] (`CHARGE_COUNTER` µAh, unplugged `%` drop per segment,
+ *    current mA, temp), split into unplugged Screen-On vs Screen-Off.
+ * 2. Exact per-thread CPU (`/proc/self/task/<tid>/stat`) cross-checked against total process CPU
+ *    (`/proc/self/stat`) so short-lived and newly spawned threads are never lost.
+ * 3. Speech / TTS output pipeline: speak requests, transmitted character counts, cache hits vs live
+ *    TTS calls, interrupted utterances, PCM IPC bytes, DSP/resample CPU time, and NavigationPcmCache
+ *    waste rate (cancelled/expired/timeout/superseded).
+ * 4. Hardware & system consumers: LowLatencyAudio audible vs keep-warm idle, Earcons & Haptics,
+ *    Sensors, WakeLocks, Network bytes (`TrafficStats`), and Top apps firing AccessibilityEvents
+ *    both while Screen-On and Screen-Off.
  */
 object BatteryUsageTracker {
 
+  const val PREF_ENABLED_KEY = "pref_battery_profiler_enabled"
+
   private val stateLock = Any()
   private val initialized = AtomicBoolean(false)
+  @Volatile private var enabled = false
 
   // Session baseline & current state
   @Volatile private var sessionStartWallMs = 0L
   @Volatile private var sessionStartElapsedMs = 0L
   @Volatile private var lastSegmentElapsedMs = 0L
   @Volatile private var startBatteryLevel = -1
+  @Volatile private var lastBatteryLevel = -1
   @Volatile private var lastChargeCounterUah = Long.MIN_VALUE
   @Volatile private var isScreenOn = true
   @Volatile private var isCharging = false
 
-  // Accumulated unplugged durations & charge drain (µAh)
+  // Accumulated unplugged durations, % drop, & charge drain (µAh)
   private var unpluggedScreenOnMs = 0L
   private var unpluggedScreenOffMs = 0L
   private var pluggedMs = 0L
   private var screenOnDrainUah = 0L
   private var screenOffDrainUah = 0L
+  private var unpluggedLevelDropPct = 0
 
-  // Per-thread CPU tracking (jiffies snapshot -> accumulated ms split by screen state)
+  // Per-thread & whole-process CPU tracking (jiffies snapshot -> accumulated ms split by screen)
   private val lastThreadJiffies = HashMap<Int, ThreadSample>()
+  private var lastProcessJiffies = -1L
   private val screenOnThreadCpuMs = HashMap<String, Long>()
   private val screenOffThreadCpuMs = HashMap<String, Long>()
   private var totalCpuScreenOnMs = 0L
   private var totalCpuScreenOffMs = 0L
+  private var shortLivedCpuScreenOnMs = 0L
+  private var shortLivedCpuScreenOffMs = 0L
 
-  // Audio counters (microseconds)
+  // Network baseline (UID bytes via TrafficStats)
+  private var startUidTxBytes = -1L
+  private var startUidRxBytes = -1L
+
+  // Audio & DSP counters
   private val audioAudibleUs = AtomicLong()
   private val audioKeepWarmIdleUs = AtomicLong()
   private val audioAudibleBursts = AtomicLong()
   private val audioIdleBursts = AtomicLong()
+  private val audioDspWriteUs = AtomicLong()
+  private val audioDspWrites = AtomicLong()
+  @Volatile private var activeAudioBackend = "unknown"
+
+  // TTS / Speech Output counters
+  private val ttsSpeakRequests = AtomicLong()
+  private val ttsSpeakChars = AtomicLong()
+  private val ttsLiveRequests = AtomicLong()
+  private val ttsCacheRequests = AtomicLong()
+  private val ttsInterrupted = AtomicLong()
+  private val ttsErrors = AtomicLong()
+  private val ttsPcmBytes = AtomicLong()
+  private val ttsPcmChunks = AtomicLong()
+  @Volatile private var activeTtsEngine = "unknown"
+
+  // NavigationPcmCache prefetch & waste counters
+  private val pcmPrefetches = AtomicLong()
+  private val pcmPrefetchHits = AtomicLong()
+  private val pcmPrefetchCancelled = AtomicLong()
+  private val pcmPrefetchExpired = AtomicLong()
+  private val pcmPrefetchTimeouts = AtomicLong()
+  private val pcmPrefetchSuperseded = AtomicLong()
+
+  // Earcons & Haptics counters
+  private val earconPlays = AtomicLong()
+  private val hapticPlays = AtomicLong()
+  private val hapticTotalMs = AtomicLong()
 
   // Sensor tracking
   private class SensorStats {
@@ -105,12 +150,12 @@ object BatteryUsageTracker {
   // Accessibility events & background work
   private val eventsScreenOn = AtomicLong()
   private val eventsScreenOff = AtomicLong()
+  private val screenOnEventsByPackage = ConcurrentHashMap<String, AtomicLong>()
   private val screenOffEventsByPackage = ConcurrentHashMap<String, AtomicLong>()
   private val orderBuildsScreenOn = AtomicLong()
   private val orderBuildsScreenOff = AtomicLong()
   private val orderBuildTotalMs = AtomicLong()
   private val windowPrefetches = AtomicLong()
-  private val pcmPrefetches = AtomicLong()
 
   private const val MAX_TRACKED_PACKAGES = 64
 
@@ -143,15 +188,41 @@ object BatteryUsageTracker {
     }
   }
 
-  /** Initializes a profiling session if not already started. */
+  /** Returns whether detailed battery profiling is currently enabled. */
+  @JvmStatic fun isEnabled(): Boolean = enabled
+
+  /**
+   * Synchronizes the in-memory enabled flag from SharedPreferences without overwriting any existing
+   * user choice. Defaults to `false` for new installs.
+   */
+  @JvmStatic
+  fun syncEnabledFromPreferences(context: Context) {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context.applicationContext)
+    val shouldEnable = prefs.getBoolean(PREF_ENABLED_KEY, false)
+    setEnabled(context, shouldEnable)
+  }
+
+  /** Enables or disables battery profiling. Turning on starts a fresh session if needed. */
+  @JvmStatic
+  fun setEnabled(context: Context, value: Boolean) {
+    enabled = value
+    if (value) {
+      startIfNeeded(context)
+    } else {
+      initialized.set(false)
+    }
+  }
+
+  /** Initializes a profiling session if enabled and not already started. */
   @JvmStatic
   fun startIfNeeded(context: Context) {
+    if (!enabled) return
     if (initialized.compareAndSet(false, true)) {
       resetSession(context)
     }
   }
 
-  /** Resets all battery, CPU, sensor, audio, wakelock, and event counters to right now. */
+  /** Resets all battery, CPU, TTS, audio, haptic, network, sensor, wakelock, and event counters. */
   @JvmStatic
   fun resetSession(context: Context) {
     val app = context.applicationContext
@@ -160,6 +231,9 @@ object BatteryUsageTracker {
     val screenInteractive = power?.isInteractive ?: true
     val nowWall = System.currentTimeMillis()
     val nowElapsed = SystemClock.elapsedRealtime()
+    val uid = Process.myUid()
+    val txBytes = safeTrafficBytes { TrafficStats.getUidTxBytes(uid) }
+    val rxBytes = safeTrafficBytes { TrafficStats.getUidRxBytes(uid) }
 
     synchronized(stateLock) {
       initialized.set(true)
@@ -167,6 +241,7 @@ object BatteryUsageTracker {
       sessionStartElapsedMs = nowElapsed
       lastSegmentElapsedMs = nowElapsed
       startBatteryLevel = bat.levelPct
+      lastBatteryLevel = bat.levelPct
       lastChargeCounterUah = bat.chargeCounterUah
       isScreenOn = screenInteractive
       isCharging = bat.charging
@@ -176,18 +251,47 @@ object BatteryUsageTracker {
       pluggedMs = 0L
       screenOnDrainUah = 0L
       screenOffDrainUah = 0L
+      unpluggedLevelDropPct = 0
 
       lastThreadJiffies.clear()
       lastThreadJiffies.putAll(readThreadJiffies())
+      lastProcessJiffies = readProcessJiffies()
       screenOnThreadCpuMs.clear()
       screenOffThreadCpuMs.clear()
       totalCpuScreenOnMs = 0L
       totalCpuScreenOffMs = 0L
+      shortLivedCpuScreenOnMs = 0L
+      shortLivedCpuScreenOffMs = 0L
+
+      startUidTxBytes = txBytes
+      startUidRxBytes = rxBytes
 
       audioAudibleUs.set(0L)
       audioKeepWarmIdleUs.set(0L)
       audioAudibleBursts.set(0L)
       audioIdleBursts.set(0L)
+      audioDspWriteUs.set(0L)
+      audioDspWrites.set(0L)
+
+      ttsSpeakRequests.set(0L)
+      ttsSpeakChars.set(0L)
+      ttsLiveRequests.set(0L)
+      ttsCacheRequests.set(0L)
+      ttsInterrupted.set(0L)
+      ttsErrors.set(0L)
+      ttsPcmBytes.set(0L)
+      ttsPcmChunks.set(0L)
+
+      pcmPrefetches.set(0L)
+      pcmPrefetchHits.set(0L)
+      pcmPrefetchCancelled.set(0L)
+      pcmPrefetchExpired.set(0L)
+      pcmPrefetchTimeouts.set(0L)
+      pcmPrefetchSuperseded.set(0L)
+
+      earconPlays.set(0L)
+      hapticPlays.set(0L)
+      hapticTotalMs.set(0L)
 
       for (stat in sensors.values) {
         stat.samples.set(0L)
@@ -204,18 +308,19 @@ object BatteryUsageTracker {
 
       eventsScreenOn.set(0L)
       eventsScreenOff.set(0L)
+      screenOnEventsByPackage.clear()
       screenOffEventsByPackage.clear()
       orderBuildsScreenOn.set(0L)
       orderBuildsScreenOff.set(0L)
       orderBuildTotalMs.set(0L)
       windowPrefetches.set(0L)
-      pcmPrefetches.set(0L)
     }
   }
 
   /** Called on ACTION_SCREEN_ON / ACTION_SCREEN_OFF. Zero background polling needed. */
   @JvmStatic
   fun onScreenStateChanged(context: Context, screenOn: Boolean) {
+    if (!enabled) return
     if (!initialized.get()) {
       startIfNeeded(context)
     }
@@ -228,6 +333,7 @@ object BatteryUsageTracker {
   /** Called on ACTION_POWER_CONNECTED / ACTION_POWER_DISCONNECTED. */
   @JvmStatic
   fun onPowerStateChanged(context: Context, charging: Boolean) {
+    if (!enabled) return
     if (!initialized.get()) {
       startIfNeeded(context)
     }
@@ -240,7 +346,7 @@ object BatteryUsageTracker {
   /** Records one LowLatencyAudio burst (audible speech/sound vs silent keep-warm). */
   @JvmStatic
   fun onAudioBurstUs(audible: Boolean, durationUs: Long) {
-    if (durationUs <= 0L) return
+    if (!enabled || durationUs <= 0L) return
     if (audible) {
       audioAudibleUs.addAndGet(durationUs)
       audioAudibleBursts.incrementAndGet()
@@ -250,9 +356,74 @@ object BatteryUsageTracker {
     }
   }
 
+  /** Records one DSP/resample write duration in microseconds. */
+  @JvmStatic
+  fun onAudioDspWriteUs(durationUs: Long) {
+    if (!enabled || durationUs <= 0L) return
+    audioDspWriteUs.addAndGet(durationUs)
+    audioDspWrites.incrementAndGet()
+  }
+
+  /** Records the currently active low-latency audio backend label. */
+  @JvmStatic
+  fun onAudioBackendSelected(backendLabel: String) {
+    if (!enabled || backendLabel.isEmpty()) return
+    activeAudioBackend = backendLabel
+  }
+
+  /** Records an utterance dispatched to TTS (live engine synthesis vs local cache). */
+  @JvmStatic
+  fun onTtsSpeakRequest(enginePackage: String?, charCount: Int, fromCache: Boolean) {
+    if (!enabled) return
+    if (!enginePackage.isNullOrEmpty()) {
+      activeTtsEngine = enginePackage
+    }
+    ttsSpeakRequests.incrementAndGet()
+    if (charCount > 0) ttsSpeakChars.addAndGet(charCount.toLong())
+    if (fromCache) ttsCacheRequests.incrementAndGet() else ttsLiveRequests.incrementAndGet()
+  }
+
+  /** Records PCM audio bytes received over IPC from the TTS engine. */
+  @JvmStatic
+  fun onTtsAudioChunk(byteCount: Int) {
+    if (!enabled || byteCount <= 0) return
+    ttsPcmBytes.addAndGet(byteCount.toLong())
+    ttsPcmChunks.incrementAndGet()
+  }
+
+  /** Records an utterance interrupted mid-speech (e.g., user swiped quickly). */
+  @JvmStatic
+  fun onTtsInterrupted() {
+    if (!enabled) return
+    ttsInterrupted.incrementAndGet()
+  }
+
+  /** Records a TTS synthesis/playback failure. */
+  @JvmStatic
+  fun onTtsError() {
+    if (!enabled) return
+    ttsErrors.incrementAndGet()
+  }
+
+  /** Records an earcon / auditory feedback sound play. */
+  @JvmStatic
+  fun onEarconPlayed() {
+    if (!enabled) return
+    earconPlays.incrementAndGet()
+  }
+
+  /** Records a haptic vibration play and its estimated active motor duration in milliseconds. */
+  @JvmStatic
+  fun onHapticPlayed(durationMs: Long) {
+    if (!enabled) return
+    hapticPlays.incrementAndGet()
+    if (durationMs > 0L) hapticTotalMs.addAndGet(durationMs)
+  }
+
   /** Records sensor listener registration / unregistration. */
   @JvmStatic
   fun onSensorStateChanged(sensorName: String, active: Boolean) {
+    if (!enabled) return
     val stat = sensors.getOrPut(sensorName) { SensorStats() }
     val now = SystemClock.elapsedRealtime()
     synchronized(stat) {
@@ -274,12 +445,14 @@ object BatteryUsageTracker {
   /** Records a single sensor callback sample (used to compute real Hz). */
   @JvmStatic
   fun onSensorSample(sensorName: String) {
+    if (!enabled) return
     sensors.getOrPut(sensorName) { SensorStats() }.samples.incrementAndGet()
   }
 
   /** Records WakeLock acquisition. */
   @JvmStatic
   fun onWakeLockAcquire(tag: String) {
+    if (!enabled) return
     val wl = wakeLocks.getOrPut(tag) { WakeLockStats() }
     val now = SystemClock.elapsedRealtime()
     synchronized(wl) {
@@ -294,6 +467,7 @@ object BatteryUsageTracker {
   /** Records WakeLock release. */
   @JvmStatic
   fun onWakeLockRelease(tag: String) {
+    if (!enabled) return
     val wl = wakeLocks[tag] ?: return
     val now = SystemClock.elapsedRealtime()
     synchronized(wl) {
@@ -306,26 +480,31 @@ object BatteryUsageTracker {
     }
   }
 
-  /** Records an incoming AccessibilityEvent and tracks per-package screen-off wakeups. */
+  /** Records an incoming AccessibilityEvent and tracks per-package activity (Screen-On & Off). */
   @JvmStatic
   fun onAccessibilityEvent(packageName: CharSequence?, eventType: Int) {
-    if (isScreenOn) {
-      eventsScreenOn.incrementAndGet()
-    } else {
-      eventsScreenOff.incrementAndGet()
-      val pkg = packageName?.toString()?.takeIf { it.isNotEmpty() } ?: "system"
-      val counter = screenOffEventsByPackage[pkg]
-      if (counter != null) {
-        counter.incrementAndGet()
-      } else if (screenOffEventsByPackage.size < MAX_TRACKED_PACKAGES) {
-        screenOffEventsByPackage.putIfAbsent(pkg, AtomicLong(1L))?.incrementAndGet()
+    if (!enabled) return
+    val pkg = packageName?.toString()?.takeIf { it.isNotEmpty() } ?: "system"
+    val targetMap =
+      if (isScreenOn) {
+        eventsScreenOn.incrementAndGet()
+        screenOnEventsByPackage
+      } else {
+        eventsScreenOff.incrementAndGet()
+        screenOffEventsByPackage
       }
+    val counter = targetMap[pkg]
+    if (counter != null) {
+      counter.incrementAndGet()
+    } else if (targetMap.size < MAX_TRACKED_PACKAGES) {
+      targetMap.putIfAbsent(pkg, AtomicLong(1L))?.incrementAndGet()
     }
   }
 
   /** Records a TraversalTreeCache order build. */
   @JvmStatic
   fun onOrderBuild(durationMs: Long) {
+    if (!enabled) return
     if (isScreenOn) orderBuildsScreenOn.incrementAndGet() else orderBuildsScreenOff.incrementAndGet()
     if (durationMs > 0L) orderBuildTotalMs.addAndGet(durationMs)
   }
@@ -333,18 +512,42 @@ object BatteryUsageTracker {
   /** Records a background WindowNodePrefetcher run. */
   @JvmStatic
   fun onWindowPrefetch() {
+    if (!enabled) return
     windowPrefetches.incrementAndGet()
   }
 
   /** Records a background NavigationPcmCache synthesis request. */
   @JvmStatic
   fun onPcmPrefetch() {
+    if (!enabled) return
     pcmPrefetches.incrementAndGet()
   }
 
-  /** One-line summary for the Settings preference subtitle. */
+  /** Records a NavigationPcmCache hit (prefetched speech actually used). */
+  @JvmStatic
+  fun onPcmPrefetchHit() {
+    if (!enabled) return
+    pcmPrefetchHits.incrementAndGet()
+  }
+
+  /** Records a wasted NavigationPcmCache effort (cancelled, expired, timeout, or superseded). */
+  @JvmStatic
+  fun onPcmPrefetchWasted(reason: String) {
+    if (!enabled) return
+    when (reason) {
+      "cancelled" -> pcmPrefetchCancelled.incrementAndGet()
+      "expired" -> pcmPrefetchExpired.incrementAndGet()
+      "timeout" -> pcmPrefetchTimeouts.incrementAndGet()
+      "superseded" -> pcmPrefetchSuperseded.incrementAndGet()
+    }
+  }
+
+  /** One-line summary for the Developer Settings preference subtitle. */
   @JvmStatic
   fun buildShortSubtitle(context: Context): String {
+    if (!enabled) {
+      return "Đang tắt (bật công tắc ở trên để bắt đầu đo)"
+    }
     if (!initialized.get()) {
       startIfNeeded(context)
     }
@@ -357,23 +560,28 @@ object BatteryUsageTracker {
       flushSegmentLocked(app)
       unpluggedMs = unpluggedScreenOnMs + unpluggedScreenOffMs
       drainUah = screenOnDrainUah + screenOffDrainUah
-      levelDrop = if (startBatteryLevel >= 0 && bat.levelPct >= 0) startBatteryLevel - bat.levelPct else 0
+      levelDrop = unpluggedLevelDropPct
     }
     val drainMah = drainUah / 1000.0
     return String.format(
       Locale.ROOT,
-      "Đã đo %s (rút sạc) · Pin: %d%% (%+d%%, -%.1f mAh)",
+      "Đã đo %s (rút sạc) · Pin: %d%% (-%d%%, -%.1f mAh)",
       formatDuration(unpluggedMs),
       bat.levelPct,
-      -levelDrop,
+      levelDrop,
       drainMah,
     )
   }
 
-  /** Compact section embedded into `meridian-diagnostics-*.txt`. */
+  /** Compact section embedded into `meridian-diagnostics-*.txt` when profiling is enabled. */
   @JvmStatic
-  fun buildCompactSummary(context: Context, flags: DiagnosticFlags = DiagnosticFlags()): String =
-    buildDetailedReport(context, flags, maxThreads = 6, maxPackages = 5)
+  fun buildCompactSummary(context: Context, flags: DiagnosticFlags = DiagnosticFlags()): String {
+    if (!enabled) {
+      return "== Đo chi tiết mức sử dụng pin Meridian ==\n" +
+        "Trạng thái: Đang tắt (bật trong Cài đặt nhà phát triển → Quản lý mức sử dụng pin)\n"
+    }
+    return buildDetailedReport(context, flags, maxThreads = 8, maxPackages = 5)
+  }
 
   /** Full, human-readable detailed battery breakdown report for in-app viewing and file export. */
   @JvmStatic
@@ -383,6 +591,10 @@ object BatteryUsageTracker {
     maxThreads: Int = 12,
     maxPackages: Int = 8,
   ): String {
+    if (!enabled) {
+      return "== Đo chi tiết mức sử dụng pin Meridian ==\n" +
+        "Bộ đo đang TẮT. Hãy bật công tắc 'Bật đo chi tiết mức sử dụng pin' trong Cài đặt nhà phát triển → Quản lý mức sử dụng pin.\n"
+    }
     if (!initialized.get()) {
       startIfNeeded(context)
     }
@@ -390,6 +602,9 @@ object BatteryUsageTracker {
     val bat = readBattery(app)
     val nowElapsed = SystemClock.elapsedRealtime()
     val nowWall = System.currentTimeMillis()
+    val uid = Process.myUid()
+    val curTxBytes = safeTrafficBytes { TrafficStats.getUidTxBytes(uid) }
+    val curRxBytes = safeTrafficBytes { TrafficStats.getUidRxBytes(uid) }
 
     val totalElapsedMs: Long
     val onMs: Long
@@ -397,11 +612,16 @@ object BatteryUsageTracker {
     val chgMs: Long
     val onDrainUah: Long
     val offDrainUah: Long
+    val levelDrop: Int
     val cpuOnMs: Long
     val cpuOffMs: Long
+    val shortCpuOnMs: Long
+    val shortCpuOffMs: Long
     val threadRows: List<ThreadCpuRow>
     val startLevel: Int
     val startWall: Long
+    val netTxBytes: Long
+    val netRxBytes: Long
 
     synchronized(stateLock) {
       flushSegmentLocked(app)
@@ -411,13 +631,18 @@ object BatteryUsageTracker {
       chgMs = pluggedMs
       onDrainUah = screenOnDrainUah
       offDrainUah = screenOffDrainUah
+      levelDrop = unpluggedLevelDropPct
       cpuOnMs = totalCpuScreenOnMs
       cpuOffMs = totalCpuScreenOffMs
+      shortCpuOnMs = shortLivedCpuScreenOnMs
+      shortCpuOffMs = shortLivedCpuScreenOffMs
       startLevel = startBatteryLevel
       startWall = sessionStartWallMs
+      netTxBytes = if (startUidTxBytes >= 0L && curTxBytes >= startUidTxBytes) curTxBytes - startUidTxBytes else 0L
+      netRxBytes = if (startUidRxBytes >= 0L && curRxBytes >= startUidRxBytes) curRxBytes - startUidRxBytes else 0L
 
       val allThreadNames = (screenOnThreadCpuMs.keys + screenOffThreadCpuMs.keys).toSet()
-      threadRows =
+      val mutableRows =
         allThreadNames
           .map { name ->
             val onCpu = screenOnThreadCpuMs[name] ?: 0L
@@ -425,7 +650,14 @@ object BatteryUsageTracker {
             ThreadCpuRow(name, onCpu, offCpu, onCpu + offCpu)
           }
           .filter { it.totalMs > 0L }
-          .sortedByDescending { it.totalMs }
+          .toMutableList()
+      val shortTotal = shortCpuOnMs + shortCpuOffMs
+      if (shortTotal > 0L) {
+        mutableRows.add(
+          ThreadCpuRow("(luồng ngắn hạn đã thoát)", shortCpuOnMs, shortCpuOffMs, shortTotal)
+        )
+      }
+      threadRows = mutableRows.sortedByDescending { it.totalMs }
     }
 
     val unpluggedMs = onMs + offMs
@@ -435,7 +667,6 @@ object BatteryUsageTracker {
     val offDrainMah = offDrainUah / 1000.0
     val unpluggedHours = unpluggedMs / 3_600_000.0
     val mahPerHour = if (unpluggedHours > 0.005) totalDrainMah / unpluggedHours else 0.0
-    val levelDrop = if (startLevel >= 0 && bat.levelPct >= 0) startLevel - bat.levelPct else 0
     val pctPerHour = if (unpluggedHours > 0.005 && levelDrop > 0) levelDrop / unpluggedHours else 0.0
 
     val totalCpuMs = cpuOnMs + cpuOffMs
@@ -447,6 +678,28 @@ object BatteryUsageTracker {
     val audibleMs = audioAudibleUs.get() / 1000L
     val keepWarmMs = audioKeepWarmIdleUs.get() / 1000L
     val totalAudioMs = audibleMs + keepWarmMs
+    val dspWriteMs = audioDspWriteUs.get() / 1000L
+    val dspWrites = audioDspWrites.get()
+
+    val speakReqs = ttsSpeakRequests.get()
+    val speakChars = ttsSpeakChars.get()
+    val liveReqs = ttsLiveRequests.get()
+    val cacheReqs = ttsCacheRequests.get()
+    val interruptedReqs = ttsInterrupted.get()
+    val ttsErrCount = ttsErrors.get()
+    val pcmBytes = ttsPcmBytes.get()
+    val pcmChunks = ttsPcmChunks.get()
+    val pcmQueued = pcmPrefetches.get()
+    val pcmHits = pcmPrefetchHits.get()
+    val pcmCancelled = pcmPrefetchCancelled.get()
+    val pcmExpired = pcmPrefetchExpired.get()
+    val pcmTimeout = pcmPrefetchTimeouts.get()
+    val pcmSuperseded = pcmPrefetchSuperseded.get()
+    val pcmWastedTotal = pcmCancelled + pcmExpired + pcmTimeout + pcmSuperseded
+
+    val earcons = earconPlays.get()
+    val haptics = hapticPlays.get()
+    val hapticMs = hapticTotalMs.get()
 
     // Snapshot sensors
     data class SensorRow(
@@ -493,28 +746,32 @@ object BatteryUsageTracker {
         .sortedByDescending { it.totalHeldMs }
     val totalWakeLockMs = wakeLockRows.sumOf { it.totalHeldMs }
 
-    // Weighted internal power attribution (relative mW-second score normalized to 100%)
-    val scoreCpuMain = mainCpuMs * 1.0
-    val scoreCpuBg = bgCpuMs * 0.85
-    val scoreAudioAudible = audibleMs * 0.28
-    val scoreAudioKeepWarm = keepWarmMs * 0.16
-    val scoreSensors = totalSensorMs * 0.14
-    val scoreWakeLocks = totalWakeLockMs * 0.12
-    val scoreDebugLog = if (flags.debugLogOn) totalCpuMs * 0.25 else 0.0
-    val totalScore =
-      max(
-        1.0,
-        scoreCpuMain +
-          scoreCpuBg +
-          scoreAudioAudible +
-          scoreAudioKeepWarm +
-          scoreSensors +
-          scoreWakeLocks +
-          scoreDebugLog,
-      )
+    // Estimated Meridian-only mAh model (mW * sec / (3600 * 3.85V) -> mAh)
+    val estCpuMainMah = mwMsToMah(260.0, mainCpuMs)
+    val estCpuBgMah = mwMsToMah(200.0, bgCpuMs)
+    val estAudioAudibleMah = mwMsToMah(38.0, audibleMs)
+    val estAudioKeepWarmMah = mwMsToMah(22.0, keepWarmMs)
+    // External TTS engine load proxy: ~18 ms CPU per live synthesis + ~1.8 ms per 100 chars
+    val estTtsActiveMs = liveReqs * 18L + (speakChars * 18L) / 1000L + pcmQueued * 22L
+    val estTtsExternalMah = mwMsToMah(220.0, estTtsActiveMs)
+    val estSensorsMah = mwMsToMah(16.0, totalSensorMs)
+    val estWakeLocksMah = mwMsToMah(25.0, totalWakeLockMs)
+    val estHapticsMah = mwMsToMah(140.0, hapticMs)
+    val estDebugLogMah = if (flags.debugLogOn) mwMsToMah(75.0, totalCpuMs) else 0.0
+    val estMeridianTotalMah =
+      estCpuMainMah +
+        estCpuBgMah +
+        estAudioAudibleMah +
+        estAudioKeepWarmMah +
+        estTtsExternalMah +
+        estSensorsMah +
+        estWakeLocksMah +
+        estHapticsMah +
+        estDebugLogMah
+    val totalScore = max(0.0001, estMeridianTotalMah)
 
     val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
-    val sb = StringBuilder(2048)
+    val sb = StringBuilder(3072)
 
     sb.append("== Đo chi tiết mức sử dụng pin Meridian ==\n")
     sb.append("Bắt đầu đo: ").append(fmt.format(Date(startWall)))
@@ -527,7 +784,7 @@ object BatteryUsageTracker {
     sb.append(
       String.format(
         Locale.ROOT,
-        "Pin máy: %d%% → %d%% (tụt %d%%) · Trạng thái: %s · Nhiệt độ: %.1f°C\n",
+        "Pin máy: %d%% → %d%% (tụt lúc rút sạc: %d%%) · Trạng thái: %s · Nhiệt độ: %.1f°C\n",
         startLevel,
         bat.levelPct,
         levelDrop,
@@ -539,26 +796,43 @@ object BatteryUsageTracker {
       sb.append(
         String.format(
           Locale.ROOT,
-          "Dung lượng tụt thực (CHARGE_COUNTER): -%.1f mAh (Bật màn: -%.1f mAh | Tắt màn: -%.1f mAh)\n",
+          "Tổng máy tụt thực (CHARGE_COUNTER): -%.1f mAh (Bật màn: -%.1f mAh | Tắt màn: -%.1f mAh)\n",
           totalDrainMah,
           onDrainMah,
           offDrainMah,
         )
       )
     }
+    val shortWindowNote = if (unpluggedMs in 1L until 600_000L) " [đo <10p, xem mAh/giờ chuẩn hơn]" else ""
     sb.append(
       String.format(
         Locale.ROOT,
-        "Tốc độ xả: %.1f %%/giờ (%.0f mAh/giờ) · Dòng tức thời: %.0f mA\n",
+        "Tốc độ xả toàn máy: %.1f %%/giờ (%.0f mAh/giờ)%s · Dòng tức thời: %.0f mA\n",
         pctPerHour,
         mahPerHour,
+        shortWindowNote,
         abs(bat.currentNowUa) / 1000.0,
+      )
+    )
+    val shareOfDeviceStr =
+      if (totalDrainMah > 0.5) {
+        val pctOfDev = (estMeridianTotalMah * 100.0 / totalDrainMah).coerceIn(0.0, 100.0)
+        String.format(Locale.ROOT, " (~%.1f%% tổng tụt máy)", pctOfDev)
+      } else {
+        ""
+      }
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "Ước tính riêng Meridian + tải TTS đẩy đi: ~%.2f mAh%s\n",
+        estMeridianTotalMah,
+        shareOfDeviceStr,
       )
     )
     sb.append(
       String.format(
         Locale.ROOT,
-        "Tổng CPU tiến trình Meridian: %s (Bật màn: %s [%.2f%% tải] | Tắt màn: %s [%.2f%% tải])\n",
+        "Tổng CPU tiến trình Meridian (/proc/self/stat): %s (Bật màn: %s [%.2f%% tải] | Tắt màn: %s [%.2f%% tải])\n",
         formatDuration(totalCpuMs),
         formatDuration(cpuOnMs),
         cpuOnPct,
@@ -568,15 +842,103 @@ object BatteryUsageTracker {
     )
 
     sb.append("\n-- Phân bổ tỷ trọng ước tính nội bộ Meridian (100%) --\n")
-    appendShare(sb, "CPU luồng chính (main)", scoreCpuMain, totalScore, formatDuration(mainCpuMs))
-    appendShare(sb, "CPU luồng nền (prefetch/order/audio/AI)", scoreCpuBg, totalScore, formatDuration(bgCpuMs))
-    appendShare(sb, "Âm thanh (phát tiếng thật)", scoreAudioAudible, totalScore, formatDuration(audibleMs))
-    appendShare(sb, "Âm thanh (giữ ấm im lặng Keep-Warm)", scoreAudioKeepWarm, totalScore, formatDuration(keepWarmMs))
-    appendShare(sb, "Cảm biến (BackTap / Lắc / Tiệm cận)", scoreSensors, totalScore, formatDuration(totalSensorMs))
-    appendShare(sb, "WakeLock / Giữ sáng màn hình", scoreWakeLocks, totalScore, formatDuration(totalWakeLockMs))
+    appendShare(sb, "CPU luồng chính (main)", estCpuMainMah, totalScore, formatDuration(mainCpuMs))
+    appendShare(sb, "CPU luồng nền (prefetch/order/audio/AI)", estCpuBgMah, totalScore, formatDuration(bgCpuMs))
+    appendShare(sb, "Đầu ra TTS (tải đẩy sang engine ngoài)", estTtsExternalMah, totalScore, "$speakReqs câu · $speakChars ký tự")
+    appendShare(sb, "Âm thanh loa (phát tiếng thật)", estAudioAudibleMah, totalScore, formatDuration(audibleMs))
+    appendShare(sb, "Âm thanh loa (giữ ấm im lặng Keep-Warm)", estAudioKeepWarmMah, totalScore, formatDuration(keepWarmMs))
+    appendShare(sb, "Rung phản hồi (Haptics)", estHapticsMah, totalScore, "$haptics lần · ${formatDuration(hapticMs)}")
+    appendShare(sb, "Cảm biến (BackTap / Lắc / Tiệm cận)", estSensorsMah, totalScore, formatDuration(totalSensorMs))
+    appendShare(sb, "WakeLock / Giữ sáng màn hình", estWakeLocksMah, totalScore, formatDuration(totalWakeLockMs))
     if (flags.debugLogOn) {
-      appendShare(sb, "Ghi nhật ký gỡ lỗi (Debug log Verbose)", scoreDebugLog, totalScore, "ĐANG BẬT")
+      appendShare(sb, "Ghi nhật ký gỡ lỗi (Debug log Verbose)", estDebugLogMah, totalScore, "ĐANG BẬT")
     }
+
+    sb.append("\n-- Chi tiết Đầu ra giọng nói (TTS & Audio) --\n")
+    sb.append("  • TTS Engine: ").append(activeTtsEngine)
+      .append(" | Đường phát: ").append(activeAudioBackend).append('\n')
+    val avgChars = if (speakReqs > 0L) speakChars.toDouble() / speakReqs else 0.0
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • Yêu cầu đọc: %d câu (trực tiếp: %d | từ cache: %d) · Tổng: %d ký tự (TB %.1f ký tự/câu)\n",
+        speakReqs,
+        liveReqs,
+        cacheReqs,
+        speakChars,
+        avgChars,
+      )
+    )
+    val interruptPct = if (speakReqs > 0L) interruptedReqs * 100.0 / speakReqs else 0.0
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • Bị ngắt ngang sớm: %d lần (%.1f%% số câu) | Lỗi TTS: %d\n",
+        interruptedReqs,
+        interruptPct,
+        ttsErrCount,
+      )
+    )
+    val pcmMb = pcmBytes / (1024.0 * 1024.0)
+    val avgDspMs = if (dspWrites > 0L) dspWriteMs.toDouble() / dspWrites else 0.0
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • PCM truyền qua IPC: %.2f MB (%d chunks) | Xử lý DSP/Resample: %s (%d lượt, TB %.2f ms)\n",
+        pcmMb,
+        pcmChunks,
+        formatDuration(dspWriteMs),
+        dspWrites,
+        avgDspMs,
+      )
+    )
+    val pcmWasteDenom = max(1L, pcmHits + pcmWastedTotal)
+    val pcmWastePct = if (pcmQueued > 0L) pcmWastedTotal * 100.0 / pcmWasteDenom else 0.0
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • Đọc trước nền (NavigationPcmCache): gọi=%d | dùng được=%d | lãng phí=%d (%.1f%% — hủy:%d, hết hạn:%d, timeout:%d, đè:%d)\n",
+        pcmQueued,
+        pcmHits,
+        pcmWastedTotal,
+        pcmWastePct,
+        pcmCancelled,
+        pcmExpired,
+        pcmTimeout,
+        pcmSuperseded,
+      )
+    )
+    val keepWarmPctOfAudio = if (totalAudioMs > 0L) keepWarmMs * 100.0 / totalAudioMs else 0.0
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • LowLatencyAudio: tiếng thật %s (%d bursts) | giữ ấm im lặng %s (%d bursts, %.1f%% tổng audio)\n",
+        formatDuration(audibleMs),
+        audioAudibleBursts.get(),
+        formatDuration(keepWarmMs),
+        audioIdleBursts.get(),
+        keepWarmPctOfAudio,
+      )
+    )
+
+    sb.append("\n-- Chi tiết Rung, Âm thanh phản hồi & Mạng --\n")
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • Rung (Haptics): %d lần (tổng %s) | Âm thanh phản hồi (Earcon): %d lần\n",
+        haptics,
+        formatDuration(hapticMs),
+        earcons,
+      )
+    )
+    sb.append(
+      String.format(
+        Locale.ROOT,
+        "  • Lưu lượng mạng riêng Meridian: Gửi %s | Nhận %s\n",
+        formatBytes(netTxBytes),
+        formatBytes(netRxBytes),
+      )
+    )
 
     sb.append("\n-- Top ").append(maxThreads).append(" luồng tiêu tốn CPU nhiều nhất --\n")
     if (threadRows.isEmpty()) {
@@ -588,8 +950,8 @@ object BatteryUsageTracker {
         sb.append(
           String.format(
             Locale.ROOT,
-            "  • %-24s %6d ms (%4.1f%%) | Bật màn: %5d ms | Tắt màn: %5d ms\n",
-            row.name.take(24),
+            "  • %-26s %6d ms (%4.1f%%) | Bật màn: %5d ms | Tắt màn: %5d ms\n",
+            row.name.take(26),
             row.totalMs,
             pct,
             row.screenOnMs,
@@ -598,20 +960,6 @@ object BatteryUsageTracker {
         )
       }
     }
-
-    sb.append("\n-- Chi tiết Âm thanh (LowLatencyAudio) --\n")
-    val keepWarmPctOfAudio = if (totalAudioMs > 0L) keepWarmMs * 100.0 / totalAudioMs else 0.0
-    sb.append(
-      String.format(
-        Locale.ROOT,
-        "  • Phát tiếng thật: %s (%d bursts) | Giữ ấm im lặng: %s (%d bursts, %.1f%% tổng audio)\n",
-        formatDuration(audibleMs),
-        audioAudibleBursts.get(),
-        formatDuration(keepWarmMs),
-        audioIdleBursts.get(),
-        keepWarmPctOfAudio,
-      )
-    )
 
     sb.append("\n-- Chi tiết Cảm biến --\n")
     if (sensorRows.isEmpty()) {
@@ -679,9 +1027,21 @@ object BatteryUsageTracker {
         Locale.ROOT,
         "  • WindowNodePrefetcher: %d lượt | NavigationPcmCache prefetch: %d lượt\n",
         windowPrefetches.get(),
-        pcmPrefetches.get(),
+        pcmQueued,
       )
     )
+    val topOnPkgs =
+      screenOnEventsByPackage.entries
+        .map { it.key to it.value.get() }
+        .filter { it.second > 0L }
+        .sortedByDescending { it.second }
+        .take(maxPackages)
+    if (topOnPkgs.isNotEmpty()) {
+      sb.append("  • Top ứng dụng xả sự kiện lúc BẬT màn hình:\n")
+      for ((pkg, count) in topOnPkgs) {
+        sb.append("      - ").append(pkg).append(": ").append(count).append(" sự kiện\n")
+      }
+    }
     val topOffPkgs =
       screenOffEventsByPackage.entries
         .map { it.key to it.value.get() }
@@ -698,16 +1058,23 @@ object BatteryUsageTracker {
     // Automatic red-flag alerts
     val alerts = ArrayList<String>()
     if (flags.debugLogOn) {
-      alerts.add("[CẢNH BÁO] Ghi nhật ký gỡ lỗi (Debug log) đang BẬT — ghi logcat liên tục tốn rất nhiều CPU và pin.")
+      alerts.add("[CẢNH BÁO] Ghi nhật ký gỡ lỗi (Debug log) đang BẬT — ghi logcat liên tục tốn CPU và pin.")
     }
     if (flags.performanceStatsOn) {
       alerts.add("[CẢNH BÁO] In thống kê hiệu suất (pref_performance_stats) đang BẬT — tăng tải luồng chính.")
     }
     if (flags.backTapEnabled) {
-      val backTapMs = sensorRows.firstOrNull { it.name.startsWith("BackTap") }?.activeMs ?: 0L
-      alerts.add(
-        "[CẢNH BÁO] Gõ mặt lưng (BackTap) đang BẬT (cảm biến chạy ${formatDuration(backTapMs)}) — gia tốc kế chạy liên tục là nguồn hao pin lớn."
-      )
+      val backTapRow = sensorRows.firstOrNull { it.name.startsWith("BackTap") }
+      val backTapMs = backTapRow?.activeMs ?: 0L
+      if (backTapMs > 0L || backTapRow?.activeNow == true) {
+        alerts.add(
+          "[CẢNH BÁO] Gõ mặt lưng (BackTap) đang hoạt động (${formatDuration(backTapMs)}) — gia tốc kế chạy liên tục là nguồn hao pin lớn."
+        )
+      } else {
+        alerts.add(
+          "[THÔNG TIN] Gõ mặt lưng bật trong cài đặt nhưng cảm biến chưa kích hoạt (0 ms — không hao pin)."
+        )
+      }
     }
     if (flags.audioKeepWarmEnabled && keepWarmMs > 30_000L && keepWarmPctOfAudio > 35.0) {
       alerts.add(
@@ -716,6 +1083,17 @@ object BatteryUsageTracker {
           "[CẢNH BÁO] Audio Keep-Warm giữ luồng phát im lặng %s (%.0f%% tổng thời gian audio) — ngăn Audio DSP ngủ.",
           formatDuration(keepWarmMs),
           keepWarmPctOfAudio,
+        )
+      )
+    }
+    if (pcmQueued >= 20L && pcmWastePct >= 50.0) {
+      alerts.add(
+        String.format(
+          Locale.ROOT,
+          "[CẢNH BÁO] Đọc trước PCM (NavigationPcmCache) lãng phí %.0f%% (%d/%d lượt bị hủy/hết hạn/timeout) — tăng tải pin Google TTS.",
+          pcmWastePct,
+          pcmWastedTotal,
+          pcmQueued,
         )
       )
     }
@@ -753,6 +1131,12 @@ object BatteryUsageTracker {
     }
 
     return sb.toString()
+  }
+
+  private fun mwMsToMah(mw: Double, durationMs: Long): Double {
+    if (durationMs <= 0L) return 0.0
+    val seconds = durationMs / 1000.0
+    return (mw * seconds) / (3600.0 * 3.85)
   }
 
   private fun appendShare(
@@ -794,6 +1178,13 @@ object BatteryUsageTracker {
       unpluggedScreenOffMs += dt
     }
 
+    if (!isCharging && lastBatteryLevel >= 0 && bat.levelPct >= 0 && bat.levelPct < lastBatteryLevel) {
+      unpluggedLevelDropPct += (lastBatteryLevel - bat.levelPct)
+    }
+    if (bat.levelPct >= 0) {
+      lastBatteryLevel = bat.levelPct
+    }
+
     if (lastChargeCounterUah != Long.MIN_VALUE && bat.chargeCounterUah > 0L) {
       val deltaDrain = lastChargeCounterUah - bat.chargeCounterUah
       if (!isCharging && deltaDrain > 0L) {
@@ -804,15 +1195,19 @@ object BatteryUsageTracker {
       lastChargeCounterUah = bat.chargeCounterUah
     }
 
-    // Flush per-thread CPU deltas from /proc/self/task/*/stat
+    // Flush per-thread CPU deltas from /proc/self/task/*/stat and cross-check /proc/self/stat
     val currentThreads = readThreadJiffies()
+    val currentProcJiffies = readProcessJiffies()
     val targetMap = if (isScreenOn) screenOnThreadCpuMs else screenOffThreadCpuMs
-    var deltaCpuMsTotal = 0L
+    var liveDeltaMsTotal = 0L
     for ((tid, sample) in currentThreads) {
       val prev = lastThreadJiffies[tid]
       val deltaJiffies =
         if (prev != null && prev.name == sample.name) {
           max(0L, sample.jiffies - prev.jiffies)
+        } else if (prev == null) {
+          // Newly spawned thread during this segment: credit its initial CPU time.
+          max(0L, sample.jiffies)
         } else {
           0L
         }
@@ -820,19 +1215,35 @@ object BatteryUsageTracker {
         val deltaMs = deltaJiffies * 1000L / clkTck
         val groupName = normalizeThreadName(sample.name)
         targetMap[groupName] = (targetMap[groupName] ?: 0L) + deltaMs
-        deltaCpuMsTotal += deltaMs
+        liveDeltaMsTotal += deltaMs
       }
     }
-    if (isScreenOn) totalCpuScreenOnMs += deltaCpuMsTotal else totalCpuScreenOffMs += deltaCpuMsTotal
+
+    var procDeltaMs = liveDeltaMsTotal
+    if (lastProcessJiffies >= 0L && currentProcJiffies >= lastProcessJiffies) {
+      val measuredProcMs = (currentProcJiffies - lastProcessJiffies) * 1000L / clkTck
+      if (measuredProcMs > liveDeltaMsTotal) {
+        val shortLivedMs = measuredProcMs - liveDeltaMsTotal
+        if (isScreenOn) shortLivedCpuScreenOnMs += shortLivedMs
+        else shortLivedCpuScreenOffMs += shortLivedMs
+        procDeltaMs = measuredProcMs
+      }
+    }
+    if (currentProcJiffies >= 0L) {
+      lastProcessJiffies = currentProcJiffies
+    }
+
+    if (isScreenOn) totalCpuScreenOnMs += procDeltaMs else totalCpuScreenOffMs += procDeltaMs
     lastThreadJiffies.clear()
     lastThreadJiffies.putAll(currentThreads)
   }
 
-  private fun normalizeThreadName(raw: String): String {
+  internal fun normalizeThreadName(raw: String): String {
     val name = raw.trim()
     return when {
       name.startsWith("BacktalkPrefetch") -> "BacktalkPrefetch (pool)"
-      name.startsWith("Binder:") -> "Binder (IPC pool)"
+      name.startsWith("binder:", ignoreCase = true) -> "Binder (IPC pool)"
+      name.startsWith("OkHttp", ignoreCase = true) -> "OkHttp (network)"
       name.startsWith("pool-") -> "Executor pool"
       else -> name
     }
@@ -874,6 +1285,15 @@ object BatteryUsageTracker {
     )
   }
 
+  private fun readProcessJiffies(): Long {
+    return try {
+      val line = File("/proc/self/stat").readText()
+      parseProcStat(line)?.jiffies ?: -1L
+    } catch (_: Throwable) {
+      -1L
+    }
+  }
+
   private fun readThreadJiffies(): Map<Int, ThreadSample> {
     val taskDir = File("/proc/self/task")
     val entries = taskDir.listFiles() ?: return emptyMap()
@@ -892,9 +1312,18 @@ object BatteryUsageTracker {
     return result
   }
 
+  private inline fun safeTrafficBytes(reader: () -> Long): Long {
+    return try {
+      val value = reader()
+      if (value >= 0L) value else -1L
+    } catch (_: Throwable) {
+      -1L
+    }
+  }
+
   /**
-   * Parses `/proc/self/task/<tid>/stat` where comm is enclosed in parentheses `(name)` and fields
-   * 14 (utime) and 15 (stime) are 1-indexed — i.e., indices 11 and 12 after the closing `)`.
+   * Parses `/proc/self/stat` or `/proc/self/task/<tid>/stat` where comm is enclosed in parentheses
+   * `(name)` and fields 14 (utime) and 15 (stime) are indices 11 and 12 after the closing `)`.
    */
   internal fun parseProcStat(statLine: String): ThreadSample? {
     val open = statLine.indexOf('(')
@@ -906,6 +1335,15 @@ object BatteryUsageTracker {
     val utime = rest[11].toLongOrNull() ?: return null
     val stime = rest[12].toLongOrNull() ?: return null
     return ThreadSample(comm, utime + stime)
+  }
+
+  internal fun formatBytes(bytes: Long): String {
+    val safe = max(0L, bytes)
+    return when {
+      safe >= 1024L * 1024L -> String.format(Locale.ROOT, "%.2f MB", safe / (1024.0 * 1024.0))
+      safe >= 1024L -> String.format(Locale.ROOT, "%.1f KB", safe / 1024.0)
+      else -> "$safe B"
+    }
   }
 
   internal fun formatDuration(ms: Long): String {

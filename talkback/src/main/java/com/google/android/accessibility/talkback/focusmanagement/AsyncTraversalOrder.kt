@@ -4,6 +4,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.os.Build
+import android.os.Process
+import com.google.android.accessibility.utils.PerformanceHintHelper
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.utils.LatencyExperiments
@@ -35,7 +37,13 @@ object AsyncTraversalOrder {
 
   private val handler = Handler(Looper.getMainLooper())
   private val executor = Executors.newSingleThreadExecutor { task ->
-    Thread(task, "NavigationOrder").apply { isDaemon = true }
+    Thread(
+      {
+        PerformanceHintHelper.registerWorkerThread(Process.myTid())
+        task.run()
+      },
+      "NavigationOrder",
+    ).apply { isDaemon = true }
   }
   private var active: Job? = null
   private var pending: Job? = null

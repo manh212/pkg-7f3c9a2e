@@ -97,6 +97,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     dspWriteCount++
     dspWriteTotalUs += durationUs
     if (durationUs > dspWriteMaxUs) dspWriteMaxUs = durationUs
+    BatteryUsageTracker.onAudioDspWriteUs(durationUs)
   }
 
   private fun dspWriteSummary(): String {
@@ -1053,6 +1054,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         track = null
         fastPath = true
         underruns = opened.xRunCount
+        BatteryUsageTracker.onAudioBackendSelected(
+          if (opened.isMMapUsed) "AAudio MMAP" else "AAudio"
+        )
         LogUtils.d(
           TAG,
           "Using native AAudio: %d Hz, burst=%d, buffer=%d/%d, mmap=%b",
@@ -1070,6 +1074,11 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     val fallback = createTrack()
     nativeOutput = null
     track = fallback
+    if (fallback != null) {
+      BatteryUsageTracker.onAudioBackendSelected(
+        if (fastPath) "AudioTrack Fast" else "AudioTrack Slow"
+      )
+    }
     return fallback != null
   }
 

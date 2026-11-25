@@ -939,7 +939,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     ContextCompat.registerReceiver(this, bootReceiver, BootReceiver.getFilter(), RECEIVER_EXPORTED);
     super.onCreate();
     PerformanceHintHelper.start(this);
-    BatteryUsageTracker.startIfNeeded(this);
+    BatteryUsageTracker.syncEnabledFromPreferences(this);
     batteryStateReceiver =
         new android.content.BroadcastReceiver() {
           @Override

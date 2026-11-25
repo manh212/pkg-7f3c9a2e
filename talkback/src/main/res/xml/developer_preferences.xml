@@ -169,4 +169,17 @@
       android:defaultValue="@bool/pref_explore_by_touch_default"
       android:key="@string/pref_explore_by_touch_reflect_key"
       android:title="@string/title_pref_explore_by_touch" />
+  <PreferenceCategory
+      android:key="pref_category_battery_management"
+      android:title="@string/title_pref_category_battery_management">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="false"
+        android:key="@string/pref_battery_profiler_enabled_key"
+        android:title="@string/title_pref_battery_profiler_enabled"
+        android:summary="@string/summary_pref_battery_profiler_enabled" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="@string/pref_battery_usage_report_key"
+        android:dependency="@string/pref_battery_profiler_enabled_key"
+        android:title="@string/title_pref_battery_usage_report" />
+  </PreferenceCategory>
 </PreferenceScreen>

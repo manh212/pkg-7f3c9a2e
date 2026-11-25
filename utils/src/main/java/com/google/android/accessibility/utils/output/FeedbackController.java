@@ -35,6 +35,7 @@ import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
+import com.google.android.accessibility.utils.BatteryUsageTracker;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.R;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -305,6 +306,14 @@ public class FeedbackController {
 
     // Starting a vibration waits for the system, so it is done off the main thread, where it would
     // hold up the speech for the same gesture or focus change.
+    long activeHapticMs = 0L;
+    for (int i = 1; i < patternArray.length; i += 2) {
+      if (patternArray[i] > 0) activeHapticMs += patternArray[i];
+    }
+    if (activeHapticMs == 0L && patternArray.length > 0 && patternArray[0] > 0) {
+      activeHapticMs = patternArray[0];
+    }
+    BatteryUsageTracker.onHapticPlayed(activeHapticMs > 0L ? activeHapticMs : 15L);
     VIBRATION_EXECUTOR.execute(() -> mVibrator.vibrate(effect));
 
     return true;
@@ -532,6 +541,7 @@ public class FeedbackController {
         && playLowLatency(resId, path, rate, leftVolume, rightVolume)) {
       return;
     }
+    BatteryUsageTracker.onEarconPlayed();
     int soundId = mSoundIds.get(resId);
     if (soundId != 0 && !TextUtils.equals(path, mLoadedPaths.get(resId))) {
       // The user chose another sound since this one was loaded.
