@@ -192,7 +192,8 @@ class FocusActorForScreenStateChangeTest {
 
     assertTrue(restore(app))
     assertEquals(listOf(first), focused)
-    assertTrue(RootsShadow.rootRequests in 1..2)
+    // One root serves to find the node and to check that the node is still in the window.
+    assertEquals(1, RootsShadow.rootRequests)
   }
 
   /** Restores the last focus into [active], counting only the roots that fetches. */

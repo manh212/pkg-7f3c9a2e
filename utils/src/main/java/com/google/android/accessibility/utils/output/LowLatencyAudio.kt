@@ -31,7 +31,6 @@ import android.os.SystemClock
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import com.google.android.accessibility.utils.BatteryUsageTracker
-import com.google.android.accessibility.utils.PerformanceHintHelper
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.Performance
 import java.nio.ByteBuffer
@@ -807,7 +806,6 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
 
   /** Makes a write blocked on [nativeOut] or [output] return, so the audio thread can go on. */
   private fun interrupt(nativeOut: NativeAAudioOutput?, output: AudioTrack?) {
-    if (streams.isNotEmpty()) BatteryUsageTracker.onTtsInterrupted()
     nativeOut?.requestStop()
     try {
       output?.pause()
@@ -881,7 +879,6 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
 
   private fun run() {
     Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-    PerformanceHintHelper.registerWorkerThread(Process.myTid())
     val buffer = FloatArray(burstFrames * 2)
     while (true) {
       val currentNative: NativeAAudioOutput?
@@ -1360,21 +1357,6 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private const val DEFAULT_RATE = 48_000
     private const val DEFAULT_BURST = 192
     private const val QUEUED_BURSTS = 2
-    const val PREF_SMALL_BUFFER_KEY = "pref_latency_small_audio_buffer"
-
-    @JvmStatic
-    fun activeBackendLabel(): String? {
-      val first = players().firstOrNull() ?: return null
-      val nativeOut = first.nativeOutput
-      if (nativeOut != null) {
-        return if (nativeOut.isMMapUsed) "AAudio MMAP" else "AAudio"
-      }
-      if (first.track != null) {
-        return if (first.fastPath) "AudioTrack Fast" else "AudioTrack Slow"
-      }
-      return null
-    }
-
     @JvmStatic
     var smallBufferEnabled: Boolean = false
       set(value) {

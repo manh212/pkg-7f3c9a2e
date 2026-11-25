@@ -302,7 +302,6 @@ object DiagnosticsExport {
    * there without a storage permission Meridian does not hold.
    */
   fun buildBatteryDiagnosticFlags(context: Context): BatteryUsageTracker.DiagnosticFlags {
-    LowLatencyAudio.activeBackendLabel()?.let { BatteryUsageTracker.onAudioBackendSelected(it) }
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
     return BatteryUsageTracker.DiagnosticFlags(
       debugLogOn = LogUtils.isEnabled(),

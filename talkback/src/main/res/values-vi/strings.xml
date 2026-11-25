@@ -306,8 +306,6 @@
   <string name="title_pref_diagnosis_mode">Chế độ chẩn đoán</string>
   <string name="title_pref_export_diagnostics">Xuất nhật ký</string>
   <string name="title_pref_export_diagnostics_to_downloads">Xuất nhật ký vào Tải xuống</string>
-  <string name="title_latency_small_audio_buffer">Bộ đệm âm thanh siêu nhỏ 1-burst (~5 ms)</string>
-  <string name="summary_latency_small_audio_buffer">Giảm một nửa độ trễ bộ đệm loa trên máy chip mạnh (như Dimensity 9400+). Tự động nới rộng lại nếu bị thiếu mẫu.</string>
   <string name="title_pref_category_battery_management">Quản lý mức sử dụng pin</string>
   <string name="title_pref_battery_profiler_enabled">Bật đo chi tiết mức sử dụng pin</string>
   <string name="summary_pref_battery_profiler_enabled">Mặc định tắt. Ghi nhận chi tiết CPU theo luồng, đầu ra giọng nói TTS/Audio, rung, cảm biến, WakeLock, mạng và sự kiện ứng dụng để gỡ lỗi.</string>

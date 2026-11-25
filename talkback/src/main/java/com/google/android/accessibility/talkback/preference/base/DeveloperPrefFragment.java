@@ -93,17 +93,6 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     initTouchExplorationPreference();
     initLatencyPreparationPreferences();
     DiagnosticsPreferenceActions.bindBatteryPreferences(this);
-    TwoStatePreference smallAudioBuf =
-        findPreference(
-            com.google.android.accessibility.utils.output.LowLatencyAudio.PREF_SMALL_BUFFER_KEY);
-    if (smallAudioBuf != null) {
-      smallAudioBuf.setOnPreferenceChangeListener(
-          (preference, newValue) -> {
-            com.google.android.accessibility.utils.output.LowLatencyAudio.setSmallBufferEnabled(
-                Boolean.TRUE.equals(newValue));
-            return true;
-          });
-    }
     if (!BuildVersionUtils.isAtLeastT()) {
       getPreferenceScreen().removePreferenceRecursively(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY);
       getPreferenceScreen()

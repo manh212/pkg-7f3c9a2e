@@ -940,10 +940,6 @@ public class TalkBackService extends AccessibilityServiceCompat
     super.onCreate();
     PerformanceHintHelper.start(this);
     BatteryUsageTracker.syncEnabledFromPreferences(this);
-    com.google.android.accessibility.utils.output.LowLatencyAudio.setSmallBufferEnabled(
-        SharedPreferencesUtils.getSharedPreferences(this).getBoolean(
-            com.google.android.accessibility.utils.output.LowLatencyAudio.PREF_SMALL_BUFFER_KEY,
-            false));
     batteryStateReceiver =
         new android.content.BroadcastReceiver() {
           @Override
