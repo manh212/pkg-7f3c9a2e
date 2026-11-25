@@ -22,10 +22,21 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <mutex>
+#include <sstream>
+#include <string>
 
 namespace {
 
 constexpr const char* kTag = "MeridianAAudio";
+
+std::mutex gStatusMutex;
+std::string gLastOpenStatus = "unattempted";
+
+void setLastOpenStatus(const std::string& status) {
+  std::lock_guard<std::mutex> lock(gStatusMutex);
+  gLastOpenStatus = status;
+}
 
 // API 28+ AAudio setters resolved dynamically so this library compiles cleanly with minSdk 26.
 using SetUsageFn = void (*)(AAudioStreamBuilder*, aaudio_usage_t);
@@ -76,7 +87,106 @@ AAudioStream* toStream(jlong handle) {
   return reinterpret_cast<AAudioStream*>(static_cast<uintptr_t>(handle));
 }
 
-}  // namespace
+AAudioStream* tryOpenStream(
+    jint sampleRate,
+    jint androidUsage,
+    jint deviceId,
+    jint initialBursts,
+    bool setContentTypeSpeech,
+    std::string& outStatus) {
+  AAudioStreamBuilder* builder = nullptr;
+  aaudio_result_t res = AAudio_createStreamBuilder(&builder);
+  if (res != AAUDIO_OK || builder == nullptr) {
+    std::ostringstream oss;
+    oss << "builder_err=" << res << "(" << AAudio_convertResultToText(res) << ")";
+    outStatus = oss.str();
+    __android_log_print(ANDROID_LOG_WARN, kTag, "AAudio_createStreamBuilder failed: %d", res);
+    return nullptr;
+  }
+
+  AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_OUTPUT);
+  AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_FLOAT);
+  AAudioStreamBuilder_setChannelCount(builder, 2);
+  if (sampleRate > 0) {
+    AAudioStreamBuilder_setSampleRate(builder, sampleRate);
+  }
+  AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
+  AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+  if (deviceId > 0) {
+    AAudioStreamBuilder_setDeviceId(builder, deviceId);
+  }
+
+  if (android_get_device_api_level() >= 28) {
+    if (auto setUsage = resolveSetUsage()) {
+      setUsage(builder, mapAudioUsage(androidUsage));
+    }
+    if (setContentTypeSpeech) {
+      if (auto setContentType = resolveSetContentType()) {
+        setContentType(builder, AAUDIO_CONTENT_TYPE_SPEECH);
+      }
+    }
+  }
+
+  AAudioStream* stream = nullptr;
+  res = AAudioStreamBuilder_openStream(builder, &stream);
+  AAudioStreamBuilder_delete(builder);
+
+  if (res != AAUDIO_OK || stream == nullptr) {
+    std::ostringstream oss;
+    oss << "open_err=" << res << "(" << AAudio_convertResultToText(res)
+        << ",rate=" << sampleRate << ",usage=" << androidUsage
+        << ",speech=" << (setContentTypeSpeech ? 1 : 0) << ")";
+    outStatus = oss.str();
+    __android_log_print(ANDROID_LOG_WARN, kTag, "AAudioStreamBuilder_openStream failed: %s",
+                        outStatus.c_str());
+    return nullptr;
+  }
+
+  const int32_t perfMode = AAudioStream_getPerformanceMode(stream);
+  const int32_t actualRate = AAudioStream_getSampleRate(stream);
+  const int32_t burst = std::max(1, AAudioStream_getFramesPerBurst(stream));
+
+  // Only keep AAudio when Android actually grants the low-latency path; otherwise let Kotlin fall
+  // back to AudioTrack with its slow-buffer heuristics.
+  if (perfMode != AAUDIO_PERFORMANCE_MODE_LOW_LATENCY) {
+    std::ostringstream oss;
+    oss << "perf_mode=" << perfMode << "(want=" << AAUDIO_PERFORMANCE_MODE_LOW_LATENCY
+        << ",rate=" << actualRate << ",burst=" << burst
+        << ",usage=" << androidUsage << ",speech=" << (setContentTypeSpeech ? 1 : 0) << ")";
+    outStatus = oss.str();
+    __android_log_print(ANDROID_LOG_INFO, kTag, "AAudio did not grant LOW_LATENCY: %s",
+                        outStatus.c_str());
+    AAudioStream_close(stream);
+    return nullptr;
+  }
+
+  const int32_t capacity = std::max(burst, AAudioStream_getBufferCapacityInFrames(stream));
+  const int32_t requested = std::clamp(burst * std::max(1, static_cast<int32_t>(initialBursts)),
+                                       burst,
+                                       capacity);
+  AAudioStream_setBufferSizeInFrames(stream, requested);
+
+  bool mmapUsed = false;
+  if (auto isMMap = resolveIsMMapUsed()) {
+    mmapUsed = isMMap(stream);
+  }
+  const int32_t actualBuf = AAudioStream_getBufferSizeInFrames(stream);
+  std::ostringstream oss;
+  oss << "ok(mmap=" << (mmapUsed ? 1 : 0) << ",perf=" << perfMode
+      << ",rate=" << actualRate << ",burst=" << burst
+      << ",buf=" << actualBuf << "/" << capacity
+      << ",usage=" << androidUsage << ",speech=" << (setContentTypeSpeech ? 1 : 0) << ")";
+  outStatus = oss.str();
+  __android_log_print(
+      ANDROID_LOG_INFO,
+      kTag,
+      "Opened AAudio stream: %s device=%d",
+      outStatus.c_str(),
+      AAudioStream_getDeviceId(stream));
+  return stream;
+}
+
+}
 
 extern "C" {
 
@@ -88,75 +198,31 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeOpen
     jint androidUsage,
     jint deviceId,
     jint initialBursts) {
-  AAudioStreamBuilder* builder = nullptr;
-  aaudio_result_t res = AAudio_createStreamBuilder(&builder);
-  if (res != AAUDIO_OK || builder == nullptr) {
-    __android_log_print(ANDROID_LOG_WARN, kTag, "AAudio_createStreamBuilder failed: %d", res);
-    return 0;
+  std::string attempt1;
+  AAudioStream* stream =
+      tryOpenStream(sampleRate, androidUsage, deviceId, initialBursts, true, attempt1);
+  if (stream != nullptr) {
+    setLastOpenStatus(attempt1);
+    return static_cast<jlong>(reinterpret_cast<uintptr_t>(stream));
   }
 
-  AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_OUTPUT);
-  AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_FLOAT);
-  AAudioStreamBuilder_setChannelCount(builder, 2);
-  if (sampleRate > 0) {
-    AAudioStreamBuilder_setSampleRate(builder, sampleRate);
-  }
-  // SHARED + LOW_LATENCY enables AAudio MMAP / Fast Mixer on Pixel while coexisting with media.
-  AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
-  AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
-  if (deviceId > 0) {
-    AAudioStreamBuilder_setDeviceId(builder, deviceId);
+  std::string attempt2;
+  stream = tryOpenStream(0, androidUsage, deviceId, initialBursts, false, attempt2);
+  if (stream != nullptr) {
+    setLastOpenStatus("retry_ok: " + attempt2 + " [a1=" + attempt1 + "]");
+    return static_cast<jlong>(reinterpret_cast<uintptr_t>(stream));
   }
 
-  if (android_get_device_api_level() >= 28) {
-    if (auto setUsage = resolveSetUsage()) {
-      setUsage(builder, mapAudioUsage(androidUsage));
-    }
-    if (auto setContentType = resolveSetContentType()) {
-      setContentType(builder, AAUDIO_CONTENT_TYPE_SPEECH);
-    }
-  }
+  setLastOpenStatus("fallback: a1=" + attempt1 + "; a2=" + attempt2);
+  return 0;
+}
 
-  AAudioStream* stream = nullptr;
-  res = AAudioStreamBuilder_openStream(builder, &stream);
-  AAudioStreamBuilder_delete(builder);
-
-  if (res != AAUDIO_OK || stream == nullptr) {
-    __android_log_print(ANDROID_LOG_WARN, kTag, "AAudioStreamBuilder_openStream failed: %d", res);
-    return 0;
-  }
-
-  // Only keep AAudio when Android actually grants the low-latency path; otherwise let Kotlin fall
-  // back to AudioTrack with its slow-buffer heuristics.
-  if (AAudioStream_getPerformanceMode(stream) != AAUDIO_PERFORMANCE_MODE_LOW_LATENCY) {
-    __android_log_print(ANDROID_LOG_INFO, kTag, "AAudio did not grant LOW_LATENCY; falling back");
-    AAudioStream_close(stream);
-    return 0;
-  }
-
-  const int32_t burst = std::max(1, AAudioStream_getFramesPerBurst(stream));
-  const int32_t capacity = std::max(burst, AAudioStream_getBufferCapacityInFrames(stream));
-  const int32_t requested = std::clamp(burst * std::max(1, static_cast<int32_t>(initialBursts)),
-                                       burst,
-                                       capacity);
-  AAudioStream_setBufferSizeInFrames(stream, requested);
-
-  bool mmapUsed = false;
-  if (auto isMMap = resolveIsMMapUsed()) {
-    mmapUsed = isMMap(stream);
-  }
-  __android_log_print(
-      ANDROID_LOG_INFO,
-      kTag,
-      "Opened AAudio stream: rate=%d burst=%d buf=%d/%d mmap=%d device=%d",
-      AAudioStream_getSampleRate(stream),
-      burst,
-      AAudioStream_getBufferSizeInFrames(stream),
-      capacity,
-      mmapUsed ? 1 : 0,
-      AAudioStream_getDeviceId(stream));
-
-  return static_cast<jlong>(reinterpret_cast<uintptr_t>(stream));
+JNIEXPORT jstring JNICALL
+Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeGetLastOpenStatus(
+    JNIEnv* env,
+    jclass /*clazz*/) {
+  std::lock_guard<std::mutex> lock(gStatusMutex);
+  return env->NewStringUTF(gLastOpenStatus.c_str());
 }
 
 JNIEXPORT jboolean JNICALL

@@ -34,6 +34,7 @@ import com.Braille.BrailleKeyboardService
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.BuildConfig
 import com.google.android.accessibility.utils.BatteryUsageTracker
+import com.google.android.accessibility.utils.PerformanceHintHelper
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.talkback.OtherScreenReaderMonitor
 import com.google.android.accessibility.talkback.TalkBackService
@@ -436,6 +437,7 @@ object DiagnosticsExport {
       out.append("TTS engine: not available while the speech service is not running\n")
     } else {
       out.append("Low-latency audio setting: ${if (tts.isLowLatencyAudioOn) "on" else "off"}\n")
+      out.append("ADPF performance hint: ${PerformanceHintHelper.statusSummary()}\n")
       val engine = tts.currentTtsEnginePackage
       if (engine == null) {
         out.append("TTS engine: none running yet\n")
@@ -476,6 +478,7 @@ object DiagnosticsExport {
         out.append("  Sample rate: ${snapshot.sampleRate} Hz\n")
         out.append("  Burst: ${snapshot.burstFrames} frames\n")
         out.append("  Fast path: ${if (snapshot.fastPath) "yes" else "no"}\n")
+        out.append("  AAudio: ${snapshot.aaudioStatus}\n")
         out.append("  Resumed PCM shortages: ${snapshot.resumedShortages}\n")
         out.append("  End-of-stream PCM waits: ${snapshot.tailWaits}\n")
         out.append("  Interrupted PCM shortages: ${snapshot.interruptedShortages}\n")

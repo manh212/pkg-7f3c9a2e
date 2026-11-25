@@ -93,14 +93,19 @@ internal class NativeAAudioOutput private constructor(@Volatile private var hand
     private const val TAG = "NativeAAudioOutput"
     private const val WRITE_TIMEOUT_NANOS = 1_000_000_000L
 
+    @Volatile var lastOpenStatus: String = "unattempted"
+      private set
+
     val isAvailable: Boolean by lazy {
       try {
         System.loadLibrary("meridian_aaudio")
         true
       } catch (e: UnsatisfiedLinkError) {
+        lastOpenStatus = "lib_load_failed: ${e.message ?: "UnsatisfiedLinkError"}"
         LogUtils.d(TAG, "libmeridian_aaudio not available; using AudioTrack: %s", e.message)
         false
       } catch (e: SecurityException) {
+        lastOpenStatus = "lib_security_error: ${e.message ?: "SecurityException"}"
         LogUtils.w(TAG, "Cannot load libmeridian_aaudio: %s", e.message)
         false
       }
@@ -114,6 +119,12 @@ internal class NativeAAudioOutput private constructor(@Volatile private var hand
     ): NativeAAudioOutput? {
       if (!isAvailable) return null
       val handle = nativeOpen(sampleRate, androidUsage, deviceId, initialBursts)
+      lastOpenStatus =
+        try {
+          nativeGetLastOpenStatus()
+        } catch (_: UnsatisfiedLinkError) {
+          if (handle != 0L) "ok" else "open_failed"
+        }
       if (handle == 0L) return null
       return NativeAAudioOutput(handle)
     }
@@ -125,6 +136,8 @@ internal class NativeAAudioOutput private constructor(@Volatile private var hand
       deviceId: Int,
       initialBursts: Int,
     ): Long
+
+    @JvmStatic private external fun nativeGetLastOpenStatus(): String
 
     @JvmStatic private external fun nativeStart(handle: Long): Boolean
 

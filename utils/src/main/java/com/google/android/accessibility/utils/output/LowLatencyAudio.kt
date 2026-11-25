@@ -120,6 +120,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   // ends when there is nothing to report.
   private val callbacks = singleThreadExecutor("LowLatencyAudio callbacks")
   @Volatile private var nativeOutput: NativeAAudioOutput? = null
+  @Volatile private var aaudioStatus: String = "unattempted"
   @Volatile private var track: AudioTrack? = null
   // Set when no track can be made, or the track stops taking audio and cannot be remade. Then audio
   // plays the usual way.
@@ -713,6 +714,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     val interruptedShortages: String,
     val pendingShortages: Int,
     val dspWrites: String,
+    val aaudioStatus: String = "unattempted",
   )
 
   /** This player's state now, for diagnostics. */
@@ -777,6 +779,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         interruptedShortages = gapSummary(SpeechGapTracker.Kind.INTERRUPTED),
         pendingShortages = streams.count { it.gaps.waiting },
         dspWrites = dspWriteSummary(),
+        aaudioStatus = aaudioStatus,
       )
     }
 
@@ -1040,6 +1043,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         deviceId = detour?.id ?: 0,
         initialBursts = if (smallBufferEnabled && !outgrewSmallBuffer) 1 else QUEUED_BURSTS,
       )
+    aaudioStatus = NativeAAudioOutput.lastOpenStatus
     if (opened != null) {
       if (opened.sampleRate == sampleRate) {
         if (fastFrames > 0) {
@@ -1060,6 +1064,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         )
         return true
       }
+      aaudioStatus = "sample_rate_mismatch(got=${opened.sampleRate},want=$sampleRate)"
       opened.close()
     }
     val fallback = createTrack()
@@ -1140,7 +1145,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
 
   private fun idleLimit(): Int =
     sampleRate * (if (microphoneInUse) MICROPHONE_IDLE_MS
-      else if (LatencyExperiments.Feature.AUDIO_KEEP_WARM.enabled()) 10_000 else IDLE_MS) / 1000
+      else if (LatencyExperiments.Feature.AUDIO_KEEP_WARM.enabled()) KEEP_WARM_IDLE_MS
+      else IDLE_MS) / 1000
 
   /** Mixes the next burst of every sound and the speech stream at the head of the queue. */
   private fun mix(out: FloatArray) {
@@ -1360,6 +1366,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     // How long the audio thread waits for the engine's speech at a time, well within WRITE_STUCK_MS.
     private const val REST_MS = 100L
     private const val IDLE_MS = 2_000
+    internal const val KEEP_WARM_IDLE_MS = 2_500
     // While an app records, long enough for the audio already queued to be heard.
     private const val MICROPHONE_IDLE_MS = 100
     // How long the callback thread is kept with nothing to do.

@@ -947,8 +947,10 @@ public class TalkBackService extends AccessibilityServiceCompat
             String action = intent == null ? null : intent.getAction();
             if (Intent.ACTION_SCREEN_ON.equals(action)) {
               BatteryUsageTracker.onScreenStateChanged(context, true);
+              PerformanceHintHelper.setPreferPowerEfficiency(false);
             } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
               BatteryUsageTracker.onScreenStateChanged(context, false);
+              PerformanceHintHelper.setPreferPowerEfficiency(true);
             } else if (Intent.ACTION_POWER_CONNECTED.equals(action)) {
               BatteryUsageTracker.onPowerStateChanged(context, true);
             } else if (Intent.ACTION_POWER_DISCONNECTED.equals(action)) {

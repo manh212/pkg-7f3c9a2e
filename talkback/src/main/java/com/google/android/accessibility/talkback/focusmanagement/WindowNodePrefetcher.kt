@@ -26,6 +26,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.LatencyExperiments
+import com.google.android.accessibility.utils.PerformanceHintHelper
 import com.google.android.accessibility.utils.WebInterfaceUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.concurrent.ConcurrentHashMap
@@ -85,6 +86,7 @@ object WindowNodePrefetcher {
           } catch (_: SecurityException) {
           } catch (_: IllegalArgumentException) {
           }
+          PerformanceHintHelper.registerWorkerThread(Process.myTid())
           runnable.run()
         },
         "$TAG-${number.incrementAndGet()}",
