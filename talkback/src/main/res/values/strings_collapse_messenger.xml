@@ -18,4 +18,5 @@
   <string name="title_collapse_messenger_react_angry">Phẫn nộ</string>
   <string name="title_collapse_messenger_react_like">Thích</string>
   <string name="title_collapse_messenger_react_more">Biểu tượng cảm xúc khác</string>
+  <string name="title_collapse_messenger_delete_message">Xóa</string>
 </resources>

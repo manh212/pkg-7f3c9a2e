@@ -138,4 +138,56 @@ public class MessengerCollapseScriptTest {
     assertTrue(MessengerAccessibilityHelper.shouldHideNode(avatarBtn));
     assertFalse(MessengerAccessibilityHelper.shouldHideNode(tabNode));
   }
+
+  @Test
+  public void nestedMessageBubbleAndCallCardMatchFallbackScripts() {
+    AccessibilityNodeInfo listInfo = AccessibilityNodeInfo.obtain();
+    listInfo.setPackageName(MessengerCollapseScript.PACKAGE_NAME);
+    listInfo.setClassName("androidx.recyclerview.widget.RecyclerView");
+    listInfo.setVisibleToUser(true);
+
+    // Wrapped chat message row
+    AccessibilityNodeInfo msgRowInfo = AccessibilityNodeInfo.obtain();
+    msgRowInfo.setPackageName(MessengerCollapseScript.PACKAGE_NAME);
+    msgRowInfo.setClassName("android.view.ViewGroup");
+    msgRowInfo.setVisibleToUser(true);
+
+    AccessibilityNodeInfoCompat msgBubble =
+        makeNode(
+            "android.view.ViewGroup",
+            null,
+            "Xin chào, nhấn đúp để xem ngày giờ gửi/nhận, nhấn đúp và giữ để bày tỏ cảm xúc về tin nhắn",
+            true,
+            true);
+    shadowOf(msgRowInfo).addChild(msgBubble.unwrap());
+    shadowOf(listInfo).addChild(msgRowInfo);
+
+    // Wrapped call card row
+    AccessibilityNodeInfo callRowInfo = AccessibilityNodeInfo.obtain();
+    callRowInfo.setPackageName(MessengerCollapseScript.PACKAGE_NAME);
+    callRowInfo.setClassName("android.view.ViewGroup");
+    callRowInfo.setVisibleToUser(true);
+
+    AccessibilityNodeInfoCompat callCard =
+        makeNode(
+            "android.view.ViewGroup",
+            "Cuộc gọi thoại, 2 phút",
+            "Cuộc gọi thoại, 2 phút",
+            true,
+            true);
+    shadowOf(callRowInfo).addChild(callCard.unwrap());
+    shadowOf(listInfo).addChild(callRowInfo);
+
+    CollapsedItem msgItem =
+        CollapseEngine.matchContaining(msgBubble, CollapseScripts.all());
+    assertNotNull(msgItem);
+    assertEquals(msgBubble, msgItem.representative());
+    assertEquals(11, msgItem.actions().size());
+
+    CollapsedItem callItem =
+        CollapseEngine.matchContaining(callCard, CollapseScripts.all());
+    assertNotNull(callItem);
+    assertEquals(callCard, callItem.representative());
+    assertEquals(2, callItem.actions().size());
+  }
 }

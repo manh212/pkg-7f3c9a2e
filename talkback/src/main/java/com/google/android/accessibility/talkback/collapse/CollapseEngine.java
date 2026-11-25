@@ -356,15 +356,19 @@ public final class CollapseEngine {
   private static @Nullable CollapsedItem matchRootMenu(
       CollapseScript script, AccessibilityNodeInfoCompat itemRoot) {
     CollapseScript.MenuCatalog catalog = script.menuCatalog();
-    if (catalog == null || !script.isMenuItemRoot(itemRoot)) {
+    if (catalog == null) {
+      return null;
+    }
+    AccessibilityNodeInfoCompat target = script.menuItemTarget(itemRoot);
+    if (target == null) {
       return null;
     }
     List<ChildAction> actions = new ArrayList<>();
     for (CollapseScript.MenuCatalog.Item item : catalog.items) {
-      actions.add(ChildAction.menuItem(itemRoot, item, catalog));
+      actions.add(ChildAction.menuItem(target, item, catalog));
     }
     return new CollapsedItem(
-        itemRoot, itemRoot, actions, null, null, null, script.pattern());
+        itemRoot, target, actions, null, null, null, script.pattern());
   }
 
   private static @Nullable CollapsedItem matchCompositeTray(

@@ -19,7 +19,9 @@ package com.google.android.accessibility.talkback.collapse;
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.R;
+import java.util.ArrayDeque;
 import java.util.Locale;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Collapse script for Facebook Messenger ({@code com.facebook.orca}):
@@ -27,17 +29,23 @@ import java.util.Locale;
  * <ul>
  *   <li>Primary script: Inbox conversation rows — exposes 7 long-press sheet actions (Ghim/Bỏ ghim,
  *       Lưu trữ, Tắt/Bật thông báo, Đánh dấu đã đọc/chưa đọc, Hạn chế/Bỏ hạn chế, Chặn, Xóa).
- *   <li>Fallback script ({@link MessengerMessageCollapseScript}): In-chat message rows — exposes 4
- *       message actions (Trả lời, Sao chép, Đặt lời nhắc, Khác) plus all 7 reactions (Thả tim,
- *       Haha, Wow, Buồn, Phẫn nộ, Thích, Biểu tượng cảm xúc khác).
+ *   <li>Fallback 1 ({@link MessengerMessageCollapseScript}): In-chat message rows (including
+ *       message bubbles nested inside a RecyclerView row wrapper) — exposes 4 message actions (Trả
+ *       lời, Sao chép, Đặt lời nhắc, Khác) plus all 7 reactions (Thả tim, Haha, Wow, Buồn, Phẫn
+ *       nộ, Thích, Biểu tượng cảm xúc khác).
+ *   <li>Fallback 2 ({@link MessengerCallCardCollapseScript}): In-chat call cards — exposes the
+ *       call-card long-press menu actions (Xóa, Đặt lời nhắc).
  * </ul>
  */
 final class MessengerCollapseScript extends CollapseScript {
 
   static final String PACKAGE_NAME = "com.facebook.orca";
-  static final String BUTTON_CLASS_SELECTOR = MenuAutomation.CLASS_SELECTOR_PREFIX + "android.widget.Button";
+  static final String BUTTON_CLASS_SELECTOR =
+      MenuAutomation.CLASS_SELECTOR_PREFIX + "android.widget.Button";
   static final String CONVERSATION_SHEET_CONTAINER =
       MenuAutomation.CLASS_SELECTOR_PREFIX + "android.widget.AbsListView";
+
+  private static final int MAX_TARGET_SCAN_NODES = 32;
 
   private static final CollapseScript MESSAGE_SCRIPT = new MessengerMessageCollapseScript();
 
@@ -137,6 +145,29 @@ final class MessengerCollapseScript extends CollapseScript {
     return false;
   }
 
+  static boolean isCallCardLabel(@Nullable CharSequence label) {
+    if (TextUtils.isEmpty(label)) {
+      return false;
+    }
+    String lower = label.toString().toLowerCase(Locale.ROOT);
+    return lower.contains("cuộc gọi")
+        || lower.contains("gọi nhỡ")
+        || lower.contains("gọi thoại")
+        || lower.contains("gọi video")
+        || lower.contains("audio call")
+        || lower.contains("video call")
+        || lower.contains("missed call");
+  }
+
+  private static boolean isProfileAvatarButton(AccessibilityNodeInfoCompat node) {
+    CharSequence desc = node.getContentDescription();
+    if (desc == null) {
+      return false;
+    }
+    String s = desc.toString().trim();
+    return s.startsWith("Mở trang cá nhân của ") || s.startsWith("Open profile");
+  }
+
   static boolean hasScrollableListAncestor(AccessibilityNodeInfoCompat node) {
     AccessibilityNodeInfoCompat cur = node.getParent();
     for (int depth = 0; depth < 6 && cur != null; depth++) {
@@ -152,8 +183,62 @@ final class MessengerCollapseScript extends CollapseScript {
     return false;
   }
 
-  /** Fallback script for individual messages inside a Messenger chat thread. */
+  /**
+   * Searches {@code itemRoot} and its descendants (BFS) for the first visible, focusable,
+   * long-clickable chat item target.
+   */
+  private static @Nullable AccessibilityNodeInfoCompat findNestedLongClickableTarget(
+      AccessibilityNodeInfoCompat itemRoot, boolean wantCallCard) {
+    if (itemRoot == null
+        || !TextUtils.equals(PACKAGE_NAME, itemRoot.getPackageName())
+        || !hasScrollableListAncestor(itemRoot)) {
+      return null;
+    }
+    ArrayDeque<AccessibilityNodeInfoCompat> queue = new ArrayDeque<>();
+    queue.add(itemRoot);
+    int scanned = 0;
+    AccessibilityNodeInfoCompat fallbackNonHint = null;
+    while (!queue.isEmpty() && scanned < MAX_TARGET_SCAN_NODES) {
+      AccessibilityNodeInfoCompat cur = queue.poll();
+      scanned++;
+      if (cur == null || !cur.isVisibleToUser()) {
+        continue;
+      }
+      boolean isSelf = cur.equals(itemRoot);
+      if (cur.isFocusable() && cur.isLongClickable() && !isProfileAvatarButton(cur)) {
+        CharSequence label = ItemScan.spokenLabel(cur);
+        boolean hasHint = isMessageHintPresent(cur);
+        boolean isCall = isCallCardLabel(label);
+        if (wantCallCard) {
+          // Call cards inside chat are nested inside a non-longClickable RecyclerView row wrapper
+          // (direct longClickable RecyclerView rows in Inbox are handled by CONVERSATION_CATALOG).
+          if (!isSelf && isCall) {
+            return cur;
+          }
+        } else {
+          if (hasHint) {
+            return cur;
+          }
+          if (!isSelf && !isCall && !TextUtils.isEmpty(label) && fallbackNonHint == null) {
+            fallbackNonHint = cur;
+          }
+        }
+      }
+      int childCount = cur.getChildCount();
+      for (int i = 0; i < childCount && scanned + queue.size() < MAX_TARGET_SCAN_NODES; i++) {
+        AccessibilityNodeInfoCompat child = cur.getChild(i);
+        if (child != null && child.isVisibleToUser()) {
+          queue.add(child);
+        }
+      }
+    }
+    return wantCallCard ? null : fallbackNonHint;
+  }
+
+  /** Fallback 1: Individual messages inside a Messenger chat thread (4 actions + 7 reactions). */
   static final class MessengerMessageCollapseScript extends CollapseScript {
+
+    private static final CollapseScript CALL_CARD_SCRIPT = new MessengerCallCardCollapseScript();
 
     private static final MenuCatalog MESSAGE_CATALOG =
         new MenuCatalog(
@@ -224,20 +309,57 @@ final class MessengerCollapseScript extends CollapseScript {
     }
 
     @Override
+    public CollapseScript fallbackScript() {
+      return CALL_CARD_SCRIPT;
+    }
+
+    @Override
     public MenuCatalog menuCatalog() {
       return MESSAGE_CATALOG;
     }
 
     @Override
-    public boolean isMenuItemRoot(AccessibilityNodeInfoCompat node) {
-      if (node == null
-          || !TextUtils.equals(PACKAGE_NAME, node.getPackageName())
-          || !node.isVisibleToUser()
-          || !node.isFocusable()
-          || !node.isLongClickable()) {
-        return false;
-      }
-      return isMessageHintPresent(node) && hasScrollableListAncestor(node);
+    public @Nullable AccessibilityNodeInfoCompat menuItemTarget(
+        AccessibilityNodeInfoCompat itemRoot) {
+      return findNestedLongClickableTarget(itemRoot, /* wantCallCard= */ false);
+    }
+  }
+
+  /** Fallback 2: Call cards inside a Messenger chat thread (Xóa, Đặt lời nhắc). */
+  static final class MessengerCallCardCollapseScript extends CollapseScript {
+
+    private static final MenuCatalog CALL_CARD_CATALOG =
+        new MenuCatalog(
+            new MenuCatalog.Item[] {
+              new MenuCatalog.Item(
+                  R.string.title_collapse_messenger_delete_message,
+                  new String[] {"Xóa", "Delete"},
+                  new String[] {"xóa", "delete"},
+                  /* restoreFocusOnClose= */ false),
+              new MenuCatalog.Item(
+                  R.string.title_collapse_messenger_remind,
+                  new String[] {"Đặt lời nhắc", "Lời nhắc", "Set reminder", "Remind"},
+                  new String[] {"lời nhắc", "reminder"},
+                  /* restoreFocusOnClose= */ false),
+            },
+            BUTTON_CLASS_SELECTOR,
+            /* openMenuLabelResId= */ 0,
+            CONVERSATION_SHEET_CONTAINER,
+            /* longClick= */ true);
+
+    MessengerCallCardCollapseScript() {
+      super(PACKAGE_NAME, Pattern.ROOT_MENU, /* maxActions= */ 2);
+    }
+
+    @Override
+    public MenuCatalog menuCatalog() {
+      return CALL_CARD_CATALOG;
+    }
+
+    @Override
+    public @Nullable AccessibilityNodeInfoCompat menuItemTarget(
+        AccessibilityNodeInfoCompat itemRoot) {
+      return findNestedLongClickableTarget(itemRoot, /* wantCallCard= */ true);
     }
   }
 }

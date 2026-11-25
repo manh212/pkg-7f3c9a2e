@@ -319,6 +319,16 @@ public abstract class CollapseScript {
     return false;
   }
 
+  /**
+   * For {@link Pattern#ROOT_MENU}: returns the focusable/long-clickable node inside {@code
+   * itemRoot} that owns the menu (e.g. a chat message bubble or call card nested inside a
+   * RecyclerView row wrapper), or {@code itemRoot} itself by default.
+   */
+  public @Nullable AccessibilityNodeInfoCompat menuItemTarget(
+      AccessibilityNodeInfoCompat itemRoot) {
+    return isMenuItemRoot(itemRoot) ? itemRoot : null;
+  }
+
   public @Nullable CollapseScript fallbackScript() {
     return null;
   }
