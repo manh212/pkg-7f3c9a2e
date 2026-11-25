@@ -26,7 +26,7 @@ import org.robolectric.annotation.Config
 
 /** Unit tests for per-app spoken text editing helpers in [SpeechDictionary]. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = 34)
+@Config(sdk = [34])
 class EditSpokenTextTest {
 
   @Test
