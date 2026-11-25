@@ -11,6 +11,7 @@
   <string name="pref_show_context_menu_media_previous_key" translatable="false">pref_show_context_menu_media_previous</string>
   <string name="pref_show_context_menu_media_next_key" translatable="false">pref_show_context_menu_media_next</string>
   <string name="pref_show_context_menu_copy_focused_key" translatable="false">pref_show_context_menu_copy_focused</string>
+  <string name="pref_show_context_menu_edit_spoken_text_key" translatable="false">pref_show_context_menu_edit_spoken_text</string>
   <string name="pref_show_context_menu_clear_all_text_key" translatable="false">pref_show_context_menu_clear_all_text</string>
   <string name="pref_show_context_menu_direct_tap_key" translatable="false">pref_show_context_menu_direct_tap</string>
   <string name="pref_show_context_menu_take_screenshot_key" translatable="false">pref_show_context_menu_take_screenshot</string>

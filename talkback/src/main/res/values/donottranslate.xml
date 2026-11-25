@@ -1328,6 +1328,7 @@
   <string name="shortcut_value_media_previous" translatable="false">MEDIA_PREVIOUS</string>
   <string name="shortcut_value_media_next" translatable="false">MEDIA_NEXT</string>
   <string name="shortcut_value_copy_focused" translatable="false">COPY_FOCUSED</string>
+  <string name="shortcut_value_edit_spoken_text" translatable="false">EDIT_SPOKEN_TEXT</string>
   <string name="shortcut_value_clear_all_text" translatable="false">CLEAR_ALL_TEXT</string>
   <string name="shortcut_value_direct_tap" translatable="false">DIRECT_TAP</string>
   <string name="shortcut_value_direct_long_press" translatable="false">DIRECT_LONG_PRESS</string>

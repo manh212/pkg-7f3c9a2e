@@ -18,26 +18,22 @@ package com.google.android.accessibility.talkback.volume
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.VolumeProvider
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
 import androidx.annotation.VisibleForTesting
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
 
 /**
- * Changes the volume for a volume key press kept from Android, as Android does for the key.
- *
- * Android gives a volume key press to the media session that plays, such as a cast session, which
- * changes its own volume, or a local session, which changes the volume of its stream. An app's
- * volume change goes to the suggested stream instead whenever that app started audio last, which
- * Meridian does with every utterance, so the session is chosen here. Sessions are seen only with
- * notification access; without it, the change goes to the suggested stream.
- *
- * Not followed: the stream that the app on screen sets for its volume keys, which apps can't read.
+ * Changes the volume for a volume key press kept from Android, following whichever audio stream is
+ * actively playing right now: call/VoIP, ringtone, alarm, assistant, Meridian's own accessibility
+ * speech while reading, navigation, notification, cast/media session, or fallback stream.
  */
 class VolumeKeyVolume(private val context: Context) {
   private val audioManager = context.getSystemService(AudioManager::class.java)
@@ -46,17 +42,40 @@ class VolumeKeyVolume(private val context: Context) {
   /** The session of the last press, used again while the key is held. */
   private var session: MediaController? = null
 
+  /** The active stream locked on initial press, reused while the key is held. */
+  private var lockedActiveStream: Int? = null
+
+  /** Overload preserving 4-arg callers with [accessibilitySpeaking] = false. */
+  fun adjust(keyCode: Int, repeated: Boolean, stream: Int, showUi: Boolean) {
+    adjust(keyCode, repeated, stream, showUi, accessibilitySpeaking = false)
+  }
+
   /**
    * Changes the volume as a press of [keyCode] does, [repeated] while the key is held, starting
-   * from [stream]: with [AudioManager.USE_DEFAULT_STREAM_TYPE], the stream of the call, the media
-   * playing or the ringer, as Android chooses. Android's volume panel shows only with [showUi].
+   * from [stream]: prefers any live playback stream (call, ringtone, alarm, assistant, Meridian
+   * speech when [accessibilitySpeaking], notification, media), then an active media session, and
+   * finally [stream]. Android's volume panel shows only with [showUi].
    */
-  fun adjust(keyCode: Int, repeated: Boolean, stream: Int, showUi: Boolean) {
+  fun adjust(
+    keyCode: Int,
+    repeated: Boolean,
+    stream: Int,
+    showUi: Boolean,
+    accessibilitySpeaking: Boolean,
+  ) {
     val audio = audioManager ?: return
     val direction = direction(keyCode)
     val flags = volumeFlags(repeated, showUi)
     if (!repeated) {
-      session = if (prefersStream(stream, audio)) null else volumeSession()
+      val detected = detectActiveStream(audio, accessibilitySpeaking)
+      lockedActiveStream = detected
+      session =
+        if (detected != null || prefersStream(stream, audio)) null else volumeSession()
+    }
+    val activeStream = lockedActiveStream
+    if (activeStream != null) {
+      audio.adjustSuggestedStreamVolume(direction, activeStream, flags)
+      return
     }
     val session = session
     val info = session?.playbackInfo
@@ -105,6 +124,110 @@ class VolumeKeyVolume(private val context: Context) {
 
     /** AudioManager.FLAG_FROM_KEY, hidden: the change is for a hardware key press. */
     @VisibleForTesting const val FLAG_FROM_KEY = 1 shl 12
+
+    /** Lightweight snapshot of an active audio playback for pure-function stream resolution. */
+    data class PlaybackSpec(val usage: Int, val volumeControlStream: Int)
+
+    /**
+     * Resolves the best contextual audio stream to adjust: follows any active call/VoIP, ringtone,
+     * alarm, assistant, Meridian speech (when [accessibilitySpeaking] or accessibility playback is
+     * active), notification, or media playback, falling back to [fallbackStream] when idle.
+     */
+    @JvmStatic
+    fun resolveContextualStream(
+      audio: AudioManager,
+      fallbackStream: Int,
+      accessibilitySpeaking: Boolean,
+    ): Int = detectActiveStream(audio, accessibilitySpeaking) ?: fallbackStream
+
+    /**
+     * Detects the currently active audio stream from [AudioManager.getMode],
+     * [AudioManager.getActivePlaybackConfigurations], and [accessibilitySpeaking], or returns
+     * {@code null} when nothing is actively playing.
+     */
+    @JvmStatic
+    fun detectActiveStream(audio: AudioManager, accessibilitySpeaking: Boolean): Int? {
+      val mode =
+        try {
+          audio.mode
+        } catch (_: RuntimeException) {
+          AudioManager.MODE_NORMAL
+        }
+      val playbacks =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          try {
+            audio.activePlaybackConfigurations.map { config ->
+              val attrs = config.audioAttributes
+              PlaybackSpec(attrs.usage, attrs.volumeControlStream)
+            }
+          } catch (_: RuntimeException) {
+            emptyList()
+          }
+        } else {
+          emptyList()
+        }
+      return selectActiveStream(mode, playbacks, accessibilitySpeaking)
+    }
+
+    /**
+     * Pure-function stream selector: inspects [audioMode] first (calls/VoIP/ringtone), then active
+     * [playbacks] and [accessibilitySpeaking] in priority order so any playing stream — including
+     * assistant audio and Meridian's own reading speech — can be adjusted contextually.
+     */
+    @JvmStatic
+    internal fun selectActiveStream(
+      audioMode: Int,
+      playbacks: List<PlaybackSpec>,
+      accessibilitySpeaking: Boolean = false,
+    ): Int? {
+      when (audioMode) {
+        AudioManager.MODE_IN_CALL,
+        AudioManager.MODE_IN_COMMUNICATION -> return AudioManager.STREAM_VOICE_CALL
+        AudioManager.MODE_RINGTONE -> return AudioManager.STREAM_RING
+      }
+      var bestPriority = Int.MAX_VALUE
+      var bestStream: Int? = null
+      for (spec in playbacks) {
+        val (priority, stream) = classifyPlayback(spec) ?: continue
+        if (priority < bestPriority) {
+          bestPriority = priority
+          bestStream = stream
+        }
+      }
+      // If Meridian is actively reading and no higher-priority call/ringtone/alarm/assistant is
+      // active, prioritize STREAM_ACCESSIBILITY over background media/notifications.
+      if (accessibilitySpeaking && 5 < bestPriority) {
+        return AudioManager.STREAM_ACCESSIBILITY
+      }
+      return bestStream
+    }
+
+    private fun classifyPlayback(spec: PlaybackSpec): Pair<Int, Int>? {
+      val directStream =
+        spec.volumeControlStream.takeIf { it != AudioManager.USE_DEFAULT_STREAM_TYPE }
+      return when (spec.usage) {
+        AudioAttributes.USAGE_VOICE_COMMUNICATION,
+        AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING ->
+          1 to (directStream ?: AudioManager.STREAM_VOICE_CALL)
+        AudioAttributes.USAGE_NOTIFICATION_RINGTONE ->
+          2 to (directStream ?: AudioManager.STREAM_RING)
+        AudioAttributes.USAGE_ALARM ->
+          3 to (directStream ?: AudioManager.STREAM_ALARM)
+        AudioAttributes.USAGE_ASSISTANT ->
+          4 to (directStream ?: AudioManager.USE_DEFAULT_STREAM_TYPE)
+        AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY ->
+          5 to (directStream ?: AudioManager.STREAM_ACCESSIBILITY)
+        AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE ->
+          6 to (directStream ?: AudioManager.STREAM_MUSIC)
+        AudioAttributes.USAGE_NOTIFICATION,
+        AudioAttributes.USAGE_NOTIFICATION_EVENT ->
+          7 to (directStream ?: AudioManager.STREAM_NOTIFICATION)
+        AudioAttributes.USAGE_MEDIA,
+        AudioAttributes.USAGE_GAME ->
+          8 to (directStream ?: AudioManager.STREAM_MUSIC)
+        else -> directStream?.let { 9 to it }
+      }
+    }
 
     @JvmStatic
     internal fun direction(keyCode: Int): Int =

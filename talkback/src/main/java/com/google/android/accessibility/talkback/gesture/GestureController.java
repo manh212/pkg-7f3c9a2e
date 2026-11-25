@@ -550,6 +550,14 @@ public class GestureController {
       result = dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
     } else if (action.equals(service.getString(R.string.shortcut_value_media_next))) {
       result = dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT);
+    } else if (action.equals(service.getString(R.string.shortcut_value_edit_spoken_text))) {
+      AccessibilityNodeInfoCompat node =
+          fromCustomMenu
+              ? menuTarget
+              : accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ true);
+      result =
+          com.google.android.accessibility.talkback.speechdictionary.EditSpokenTextDialog.show(
+              service, node, pipeline, this::speak);
     } else if (action.equals(service.getString(R.string.shortcut_value_copy_focused))) {
       AccessibilityNodeInfoCompat node =
           fromCustomMenu
@@ -1006,7 +1014,10 @@ public class GestureController {
           && (SelectorController.getCurrentSetting(service) != Setting.ACTIONS
               || !selectorController.hasSelectedCustomAction())
           && editBoxDoubleTap.activate(
-              accessibilityFocusMonitor.getAccessibilityFocus(false), eventId, pipeline)) {
+              accessibilityFocusMonitor.getAccessibilityFocus(false),
+              eventId,
+              pipeline,
+              actorState.getDirectionNavigation().getCurrentGranularity())) {
         return;
       } else if (SelectorController.getCurrentSetting(service).equals(Setting.ACTIONS)) {
         selectorController.activateCurrentAction(eventId);

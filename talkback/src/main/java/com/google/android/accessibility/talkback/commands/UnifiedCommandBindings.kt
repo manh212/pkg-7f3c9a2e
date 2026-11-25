@@ -196,6 +196,11 @@ object UnifiedCommandBindings {
         R.bool.pref_show_context_menu_extra_hidden_default,
       ),
       BuiltinMenuMapping(
+        R.string.shortcut_value_edit_spoken_text,
+        R.string.pref_show_context_menu_edit_spoken_text_key,
+        R.bool.pref_show_context_menu_extra_default,
+      ),
+      BuiltinMenuMapping(
         R.string.shortcut_value_direct_tap,
         R.string.pref_show_context_menu_direct_tap_key,
         R.bool.pref_show_context_menu_extra_hidden_default,

@@ -25,10 +25,40 @@ import com.google.android.accessibility.talkback.notifications.TextMatch
 /** Speech > Speech dictionary: the entries, each with the app it is used in. */
 class SpeechDictionaryFragment : NotificationCodeFragment(R.string.title_pref_speech_dictionary) {
 
+  private var filterAppPackage: String? = null
+  private var filterAppLabel: String? = null
+
   override fun build(screen: PreferenceGroup) {
     val entries = SpeechDictionary.read(prefs)
     screen.createAction(getString(R.string.notification_add_replacement)) { edit(entries, -1) }
+    val appScoped =
+      entries
+        .filter { it.app.isNotEmpty() }
+        .distinctBy { it.app }
+        .sortedBy { it.appName.ifEmpty { it.app }.lowercase() }
+    if (appScoped.isNotEmpty()) {
+      val filterTitle = getString(R.string.speech_dictionary_filter_app)
+      val filterSummary = filterAppLabel ?: getString(R.string.speech_dictionary_all_apps)
+      screen.action(filterTitle, filterSummary) {
+        val labels =
+          listOf(getString(R.string.speech_dictionary_all_apps)) +
+            appScoped.map { it.appName.ifEmpty { it.app } }
+        choose(filterTitle, labels) { choice ->
+          if (choice == 0) {
+            filterAppPackage = null
+            filterAppLabel = null
+          } else {
+            val selected = appScoped[choice - 1]
+            filterAppPackage = selected.app
+            filterAppLabel = selected.appName.ifEmpty { selected.app }
+          }
+          rebuild()
+        }
+      }
+    }
     entries.forEachIndexed { index, entry ->
+      val activeFilter = filterAppPackage
+      if (activeFilter != null && entry.app != activeFilter) return@forEachIndexed
       val title = describe(entry.replacement)
       val summary =
         listOfNotNull(

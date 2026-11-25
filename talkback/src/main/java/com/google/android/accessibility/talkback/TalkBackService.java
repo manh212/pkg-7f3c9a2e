@@ -2397,11 +2397,13 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (volumeKeyVolume == null) {
       volumeKeyVolume = new VolumeKeyVolume(this);
     }
+    boolean speaking = speechController != null && speechController.isSpeaking();
     volumeKeyVolume.adjust(
         increase ? KeyEvent.KEYCODE_VOLUME_UP : KeyEvent.KEYCODE_VOLUME_DOWN,
         repeating,
         AudioManager.STREAM_MUSIC,
-        /* showUi= */ true);
+        /* showUi= */ true,
+        speaking);
   }
 
   /** As {@link #adjustContextualVolume(boolean)}, with the touch state given by the caller. */
@@ -2410,7 +2412,19 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (audioManager == null || pipeline == null) {
       return;
     }
-    int stream = touching ? AudioManager.STREAM_ACCESSIBILITY : AudioManager.STREAM_MUSIC;
+    boolean speaking = speechController != null && speechController.isSpeaking();
+    int stream =
+        touching
+            ? AudioManager.STREAM_ACCESSIBILITY
+            : VolumeKeyVolume.resolveContextualStream(
+                audioManager, AudioManager.STREAM_MUSIC, speaking);
+    if (stream == AudioManager.USE_DEFAULT_STREAM_TYPE) {
+      audioManager.adjustSuggestedStreamVolume(
+          increase ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER,
+          AudioManager.USE_DEFAULT_STREAM_TYPE,
+          0);
+      return;
+    }
     changeContextualVolume(audioManager, stream, increase);
     if (!getBooleanPref(
         R.string.pref_speak_volume_changes_key, R.bool.pref_speak_volume_changes_default)) {

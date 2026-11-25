@@ -1506,14 +1506,34 @@ public class SelectorController implements UserInputEventListener {
    * alone: the user turned off changing the reading control in selection mode — whose summary
    * promises the current reading control is kept in web content — and the node is in web content.
    */
+  static boolean isWebContentNode(@Nullable AccessibilityNodeInfoCompat node) {
+    if (node == null) {
+      return false;
+    }
+    if (AccessibilityNodeInfoUtils.isSelfOrAncestorRoleWebView(node)
+        || WebInterfaceUtils.isWebContainer(node)
+        || !TextUtils.isEmpty(AccessibilityNodeInfoUtils.getChromeRole(node))) {
+      return true;
+    }
+    return AccessibilityNodeInfoUtils.getSelfOrMatchingAncestor(
+            node,
+            com.google.android.accessibility.utils.Filter.node(
+                ancestor ->
+                    WebInterfaceUtils.isWebContainer(ancestor)
+                        || !TextUtils.isEmpty(AccessibilityNodeInfoUtils.getChromeRole(ancestor))))
+        != null;
+  }
+
   static boolean keepsReadingControlInWebContent(
       Context context, SharedPreferences prefs, AccessibilityNodeInfo nodeInfo) {
+    if (nodeInfo == null) {
+      return false;
+    }
     return !prefs.getBoolean(
             context.getString(R.string.pref_selection_mode_reading_control_key),
             context.getResources()
                 .getBoolean(R.bool.pref_selection_mode_reading_control_default))
-        && AccessibilityNodeInfoUtils.isSelfOrAncestorRoleWebView(
-            AccessibilityNodeInfoCompat.wrap(nodeInfo));
+        && isWebContentNode(AccessibilityNodeInfoCompat.wrap(nodeInfo));
   }
 
   private static final String PREF_BROWSE_MODE_REMEMBER_MODE = "pref_browse_mode_remember_mode";

@@ -711,6 +711,7 @@ object Commands {
 
     private fun speech() =
       category(R.string.commands_category_speech) {
+        gesture(R.string.shortcut_value_edit_spoken_text, R.string.shortcut_edit_spoken_text)
         gesture(R.string.shortcut_value_switch_speech_stream, R.string.command_switch_speech_stream)
         gesture(
           R.string.shortcut_value_pause_or_resume_feedback,
@@ -858,11 +859,6 @@ object Commands {
         menuAction("typo_suggestions_menu")
         menuAction("emoji_menu")
         gesture(R.string.shortcut_value_dictate, R.string.shortcut_dictate)
-        gesture(
-          R.string.shortcut_value_voice_input,
-          R.string.shortcut_voice_input,
-          available = FeatureFlagReader.enableVoiceDictationShortcut(context),
-        )
       }
 
     private fun device() =
@@ -912,22 +908,11 @@ object Commands {
 
     private fun media() =
       category(R.string.commands_category_media) {
-        val dictation = FeatureFlagReader.enableVoiceDictationShortcut(context)
         if (FeatureSupport.supportMediaControls()) {
-          gesture(
-            R.string.shortcut_value_media_control_or_voice_input,
-            if (dictation) {
-              R.string.shortcut_media_control_or_voice_input
-            } else {
-              R.string.shortcut_media_control
-            },
-            if (dictation) null else Key.PLAY_PAUSE_MEDIA,
-          )
           gesture(
             R.string.shortcut_value_media_control,
             R.string.shortcut_media_control,
             Key.PLAY_PAUSE_MEDIA,
-            available = dictation,
           )
         }
         gesture(R.string.shortcut_value_next_track, R.string.shortcut_next_track)

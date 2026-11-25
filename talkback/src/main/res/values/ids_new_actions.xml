@@ -5,6 +5,7 @@
     <item name="media_previous_menu" type="id" />
     <item name="media_next_menu" type="id" />
     <item name="copy_focused_menu" type="id" />
+    <item name="edit_spoken_text_menu" type="id" />
     <item name="clear_all_text_menu" type="id" />
     <item name="edittext_breakout_correct_text" type="id" />
     <item name="edittext_breakout_dictate" type="id" />

@@ -322,6 +322,9 @@ public class TalkbackMenuProcessor {
     if (!showMenuItem(R.string.pref_show_context_menu_copy_focused_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.copy_focused_menu);
     }
+    if (!showMenuItem(R.string.pref_show_context_menu_edit_spoken_text_key, R.bool.pref_show_context_menu_extra_default)) {
+      menu.removeItem(R.id.edit_spoken_text_menu);
+    }
     if (!showMenuItem(R.string.pref_show_context_menu_clear_all_text_key, R.bool.pref_show_context_menu_extra_hidden_default)) {
       menu.removeItem(R.id.clear_all_text_menu);
     }
@@ -446,6 +449,7 @@ public class TalkbackMenuProcessor {
     {R.string.pref_show_context_menu_media_previous_key, R.id.media_previous_menu},
     {R.string.pref_show_context_menu_media_next_key, R.id.media_next_menu},
     {R.string.pref_show_context_menu_copy_focused_key, R.id.copy_focused_menu},
+    {R.string.pref_show_context_menu_edit_spoken_text_key, R.id.edit_spoken_text_menu},
     {R.string.pref_show_context_menu_clear_all_text_key, R.id.clear_all_text_menu},
     {R.string.pref_show_context_menu_direct_tap_key, R.id.direct_tap_menu},
     {R.string.pref_show_context_menu_take_screenshot_key, R.id.take_screenshot_menu},
@@ -919,6 +923,12 @@ public class TalkbackMenuProcessor {
         28,
         service.getString(R.string.shortcut_copy_focused),
         node -> service.performCatalogAction(service.getString(R.string.shortcut_value_copy_focused)));
+    addAfterMenuCloses(
+        menu,
+        R.id.edit_spoken_text_menu,
+        28,
+        service.getString(R.string.shortcut_edit_spoken_text),
+        node -> service.performCatalogAction(service.getString(R.string.shortcut_value_edit_spoken_text)));
     addAfterMenuCloses(
         menu,
         R.id.clear_all_text_menu,

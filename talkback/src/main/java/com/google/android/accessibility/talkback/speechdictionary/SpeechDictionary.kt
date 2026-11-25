@@ -91,6 +91,60 @@ object SpeechDictionary {
     app = packageName?.toString().orEmpty()
   }
 
+  /** Returns the package name of the last shown window. */
+  @JvmStatic
+  fun currentApp(): String = app
+
+  /**
+   * Finds an existing non-regex entry matching [text], preferring an entry scoped to [app] over a
+   * global entry.
+   */
+  @JvmStatic
+  fun findMatchingEntry(entries: List<DictionaryEntry>, text: String, app: String): DictionaryEntry? {
+    if (text.isEmpty()) return null
+    val appMatch =
+      if (app.isNotEmpty()) {
+        entries.firstOrNull { !it.replacement.regex && it.app == app && it.replacement.find == text }
+      } else {
+        null
+      }
+    return appMatch
+      ?: entries.firstOrNull { !it.replacement.regex && it.app.isEmpty() && it.replacement.find == text }
+  }
+
+  /**
+   * Inserts or updates [entry] in [entries], replacing an existing entry with the same match text,
+   * app scope, and matching flags so repeated edits do not create duplicates.
+   */
+  @JvmStatic
+  fun upsertEntry(entries: List<DictionaryEntry>, entry: DictionaryEntry): List<DictionaryEntry> {
+    val existingIndex =
+      entries.indexOfFirst {
+        it.app == entry.app &&
+          it.replacement.find == entry.replacement.find &&
+          it.replacement.regex == entry.replacement.regex &&
+          it.replacement.wholeWord == entry.replacement.wholeWord
+      }
+    return if (existingIndex >= 0) {
+      entries.mapIndexed { i, old -> if (i == existingIndex) entry else old }
+    } else {
+      entries + entry
+    }
+  }
+
+  /** Saves [entry] into [prefs] and reloads the live dictionary filter immediately. */
+  @JvmStatic
+  fun saveAndApply(
+    context: Context,
+    prefs: SharedPreferences,
+    entry: DictionaryEntry,
+  ): List<DictionaryEntry> {
+    val updated = upsertEntry(read(prefs), entry)
+    write(prefs, updated)
+    load(context, prefs)
+    return updated
+  }
+
   /** Returns [text] with the entries applied, or null when none changed it. */
   @JvmStatic
   fun apply(text: CharSequence): CharSequence? {

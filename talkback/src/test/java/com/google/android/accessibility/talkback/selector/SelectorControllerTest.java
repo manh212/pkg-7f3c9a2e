@@ -88,6 +88,26 @@ public class SelectorControllerTest {
     assertFalse(keepsReadingControlInWebContent(context, prefs, button));
   }
 
+  @Test
+  public void switchOff_chromeWebActionsNodeWithoutWebViewAncestor_keepsReadingControl() {
+    setSwitch(false);
+    AccessibilityNodeInfo root = node(null, "android.widget.FrameLayout");
+    AccessibilityNodeInfo link = node(root, "android.view.View");
+    link.addAction(AccessibilityNodeInfo.ACTION_NEXT_HTML_ELEMENT);
+    assertTrue(keepsReadingControlInWebContent(context, prefs, link));
+  }
+
+  @Test
+  public void switchOff_chromeRoleNodeOrDescendantWithoutWebViewAncestor_keepsReadingControl() {
+    setSwitch(false);
+    AccessibilityNodeInfo root = node(null, "android.widget.FrameLayout");
+    AccessibilityNodeInfo webContainer = node(root, "android.view.View");
+    webContainer.getExtras().putCharSequence("AccessibilityNodeInfo.chromeRole", "rootWebArea");
+    AccessibilityNodeInfo childText = node(webContainer, "android.widget.TextView");
+    assertTrue(keepsReadingControlInWebContent(context, prefs, webContainer));
+    assertTrue(keepsReadingControlInWebContent(context, prefs, childText));
+  }
+
   private void setSwitch(boolean on) {
     prefs.edit().putBoolean(selectionModeReadingControlKey, on).commit();
   }
