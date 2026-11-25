@@ -595,6 +595,9 @@ public class FocusManagerInternal {
     if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
       return false;
     }
+    if (!shouldAllowPaneRestoreForFocusedNode(currentFocus, activeWindow)) {
+      return false;
+    }
     if (root == null || root.getWindowId() != activeWindow.getId()) {
       root = AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
       if (root == null || !root.refresh()) {
@@ -681,6 +684,33 @@ public class FocusManagerInternal {
   private long lastSamePaneCheckUptimeMs;
   @Nullable private AccessibilityNodeInfoCompat lastPaneCheckedFocus;
 
+
+  /**
+   * Returns whether pane-change focus restoration is allowed for {@code currentFocus} relative to
+   * {@code activeWindow}. Never steals accessibility focus when the user is currently focused in a
+   * different window (such as the Navigation Bar, Status Bar, IME keyboard, or system overlay) or
+   * any non-application window.
+   */
+  static boolean shouldAllowPaneRestoreForFocusedNode(
+      @Nullable AccessibilityNodeInfoCompat currentFocus,
+      @Nullable AccessibilityWindowInfo activeWindow) {
+    if (currentFocus == null || activeWindow == null) {
+      return false;
+    }
+    if (currentFocus.getWindowId() != activeWindow.getId()) {
+      return false;
+    }
+    if (activeWindow.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) {
+      return false;
+    }
+    AccessibilityWindowInfo focusedWindow =
+        AccessibilityNodeInfoUtils.getWindow(currentFocus.unwrap());
+    if (focusedWindow != null
+        && focusedWindow.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) {
+      return false;
+    }
+    return true;
+  }
   private boolean maybeRestorePaneRecordAfterPaneChange(
       ScreenState state, AccessibilityNodeInfoCompat currentFocus, EventId eventId) {
     if (!FocusProcessorForScreenStateChange.focusesNewWindows()) {
