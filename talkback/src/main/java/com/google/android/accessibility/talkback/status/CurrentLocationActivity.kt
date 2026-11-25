@@ -230,7 +230,7 @@ class CurrentLocationActivity : AppCompatActivity() {
         service.speechController.speak(
           text,
           EVENT_ID_UNTRACKED,
-          SpeechController.SpeakOptions.create().setQueueMode(SpeechController.QUEUE_MODE_FLUSH),
+          SpeechController.SpeakOptions.create().setQueueMode(SpeechController.QUEUE_MODE_INTERRUPT),
         )
       } else {
         Toast.makeText(app, text, Toast.LENGTH_SHORT).show()
