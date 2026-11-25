@@ -23,6 +23,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.widget.Toast;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.accessibility.utils.BatteryUsageTracker;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import com.google.android.accessibility.talkback.R;
@@ -57,6 +61,17 @@ public final class DiagnosticsPreferenceActions {
       copy.setOnPreferenceClickListener(
           preference -> {
             copyToClipboard(fragment.requireContext().getApplicationContext());
+            return true;
+          });
+    }
+    Preference battery =
+        fragment.findPreference(fragment.getString(R.string.pref_battery_usage_report_key));
+    if (battery != null) {
+      Context appCtx = fragment.requireContext().getApplicationContext();
+      battery.setSummary(BatteryUsageTracker.buildShortSubtitle(appCtx));
+      battery.setOnPreferenceClickListener(
+          preference -> {
+            showBatteryUsageDialog(fragment, battery);
             return true;
           });
     }
@@ -168,6 +183,71 @@ public final class DiagnosticsPreferenceActions {
                           deleted
                               ? R.string.message_debug_log_deleted
                               : R.string.message_debug_log_nothing_to_delete,
+                          Toast.LENGTH_LONG)
+                      .show());
+        });
+  }
+
+  private static void showBatteryUsageDialog(
+      PreferenceFragmentCompat fragment, Preference batteryPref) {
+    Context uiContext = fragment.getContext();
+    if (uiContext == null) {
+      return;
+    }
+    Context appContext = uiContext.getApplicationContext();
+    EXECUTOR.execute(
+        () -> {
+          String report = DiagnosticsExport.INSTANCE.buildBatteryReport(appContext);
+          String subtitle = BatteryUsageTracker.buildShortSubtitle(appContext);
+          MAIN_HANDLER.post(
+              () -> {
+                if (!fragment.isAdded()) {
+                  return;
+                }
+                batteryPref.setSummary(subtitle);
+                float density = uiContext.getResources().getDisplayMetrics().density;
+                int pad = (int) (20 * density);
+                TextView textView = new TextView(uiContext);
+                textView.setText(report);
+                textView.setTextIsSelectable(true);
+                textView.setFocusable(true);
+                textView.setPadding(pad, pad, pad, pad);
+                ScrollView scroll = new ScrollView(uiContext);
+                scroll.addView(textView);
+                new AlertDialog.Builder(uiContext)
+                    .setTitle(R.string.title_pref_battery_usage_report)
+                    .setView(scroll)
+                    .setPositiveButton(R.string.location_close, null)
+                    .setNeutralButton(
+                        R.string.button_battery_export_report,
+                        (dialog, which) -> exportBatteryReport(appContext, report))
+                    .setNegativeButton(
+                        R.string.button_battery_reset_session,
+                        (dialog, which) -> {
+                          BatteryUsageTracker.resetSession(appContext);
+                          batteryPref.setSummary(BatteryUsageTracker.buildShortSubtitle(appContext));
+                          Toast.makeText(
+                                  appContext,
+                                  R.string.message_battery_session_reset,
+                                  Toast.LENGTH_SHORT)
+                              .show();
+                        })
+                    .show();
+              });
+        });
+  }
+
+  private static void exportBatteryReport(Context context, String report) {
+    EXECUTOR.execute(
+        () -> {
+          boolean saved = DiagnosticsExport.INSTANCE.saveBatteryReportToDownloads(context, report);
+          MAIN_HANDLER.post(
+              () ->
+                  Toast.makeText(
+                          context,
+                          saved
+                              ? R.string.message_battery_report_saved
+                              : R.string.message_diagnostics_save_failed,
                           Toast.LENGTH_LONG)
                       .show());
         });

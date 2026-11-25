@@ -64,6 +64,7 @@ import com.google.android.accessibility.utils.ClipboardHistory;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Logger;
+import com.google.android.accessibility.utils.BatteryUsageTracker;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -745,6 +746,7 @@ public class SpeechControllerImpl implements SpeechController {
     if (!shouldKeepOn || activityKeepsOn) {
       if (speakingScreenLock != null && speakingScreenLock.isHeld()) {
         speakingScreenLock.release();
+        BatteryUsageTracker.onWakeLockRelease("Meridian:ReadingScreen");
         LogUtils.d(TAG, "Screen stay-awake: service wake lock released");
       }
       return;
@@ -758,6 +760,7 @@ public class SpeechControllerImpl implements SpeechController {
     }
     if (!speakingScreenLock.isHeld()) {
       speakingScreenLock.acquire();
+      BatteryUsageTracker.onWakeLockAcquire("Meridian:ReadingScreen");
       LogUtils.d(TAG, "Screen stay-awake: service wake lock acquired");
     }
   }

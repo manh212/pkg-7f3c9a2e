@@ -30,6 +30,7 @@ import android.os.Process
 import android.os.SystemClock
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.accessibility.utils.log.LogUtils
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.Performance
 import java.nio.ByteBuffer
@@ -880,6 +881,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       val output: AudioTrack?
       val starts: List<SpeechStream>
       val soundStarts: List<SpeechStream>
+      val burstAudible: Boolean
       synchronized(lock) {
         startingStreams.clear()
         soundStartingStreams.clear()
@@ -918,6 +920,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         primed = true
         starts = startingStreams.toList()
         soundStarts = soundStartingStreams.toList()
+        burstAudible = buffer.any { it != 0f }
         if (idle) idleFrames += burstFrames
       }
       val wrote =
@@ -927,6 +930,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           output != null && !remakeTrack && play(output) && write(output, buffer)
         }
       if (wrote) {
+        BatteryUsageTracker.onAudioBurstUs(burstAudible, burstFrames * 1_000_000L / sampleRate)
         val submittedAt = SystemClock.uptimeMillis()
         for (stream in starts) {
           callbacks.execute { stream.reportAudioSubmitted(submittedAt) }

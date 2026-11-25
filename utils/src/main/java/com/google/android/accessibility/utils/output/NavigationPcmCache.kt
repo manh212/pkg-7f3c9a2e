@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.Performance
 import com.google.android.accessibility.utils.Performance.PreparedSpeechWork
@@ -171,6 +172,7 @@ class NavigationPcmCache(context: Context) {
       // its text was ever prepared. Bounded by MAX_EVER_QUEUED_KEYS (see everQueuedKeys).
       if (everQueuedKeys.size >= MAX_EVER_QUEUED_KEYS) everQueuedKeys.clear()
       everQueuedKeys.add(key.hashCode())
+      BatteryUsageTracker.onPcmPrefetch()
       note(Work.QUEUED)
       schedule(0)
     }

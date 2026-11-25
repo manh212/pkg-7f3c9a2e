@@ -24,6 +24,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.WebInterfaceUtils
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -175,6 +176,7 @@ object WindowNodePrefetcher {
     ) {
       return
     }
+    BatteryUsageTracker.onWindowPrefetch()
     val read = BackgroundRead(windowId)
     backgroundRead = read
     try {

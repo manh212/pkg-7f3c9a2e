@@ -24,6 +24,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Handler
 import android.os.HandlerThread
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
@@ -132,6 +133,7 @@ class BackTapCommands(
       object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
           val values = event.values
+          BatteryUsageTracker.onSensorSample("BackTap:Accelerometer")
           if (values.size >= 3) {
             detector.onSample(event.timestamp, values[0], values[1], values[2])
           }
@@ -151,6 +153,7 @@ class BackTapCommands(
     this.handler = handler
     this.detector = detector
     sensorListener = listener
+    BatteryUsageTracker.onSensorStateChanged("BackTap:Accelerometer", true)
   }
 
   private fun configure(detector: BackTapDetector) {
@@ -164,7 +167,10 @@ class BackTapCommands(
   }
 
   private fun stop() {
-    sensorListener?.let { sensors?.unregisterListener(it) }
+    sensorListener?.let {
+      sensors?.unregisterListener(it)
+      BatteryUsageTracker.onSensorStateChanged("BackTap:Accelerometer", false)
+    }
     sensorListener = null
     thread?.quitSafely()
     thread = null

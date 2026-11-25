@@ -29,6 +29,7 @@ import java.util.function.IntConsumer
 import java.util.concurrent.atomic.AtomicLong
 import com.google.android.accessibility.utils.Statistics
 import com.google.android.accessibility.utils.LatencyExperiments
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.PerformanceHintHelper
 import com.google.android.accessibility.utils.WindowCachePolicy
 
@@ -151,6 +152,7 @@ object TraversalTreeCache {
   @JvmStatic
   fun noteBuild(durationMs: Long) {
     PerformanceHintHelper.reportWorkDurationMs(durationMs)
+    BatteryUsageTracker.onOrderBuild(durationMs)
     if (LogUtils.shouldLog(Log.DEBUG)) buildTimes.increment(durationMs)
   }
 

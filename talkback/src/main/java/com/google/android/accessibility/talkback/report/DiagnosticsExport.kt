@@ -33,6 +33,7 @@ import androidx.core.content.ContextCompat
 import com.Braille.BrailleKeyboardService
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.BuildConfig
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.talkback.OtherScreenReaderMonitor
 import com.google.android.accessibility.talkback.TalkBackService
@@ -133,6 +134,9 @@ object DiagnosticsExport {
     preferencesDigest(appContext, out)
     latencyControls(appContext, out)
     out.append(EventProcessingStats.snapshot())
+    out.append("\n")
+    out.append(BatteryUsageTracker.buildCompactSummary(appContext, buildBatteryDiagnosticFlags(appContext)))
+    out.append("\n")
     return out.toString()
   }
 
@@ -296,6 +300,52 @@ object DiagnosticsExport {
    * Downloads through MediaStore needs Android 10 or later; before that there is no way to write
    * there without a storage permission Meridian does not hold.
    */
+  fun buildBatteryDiagnosticFlags(context: Context): BatteryUsageTracker.DiagnosticFlags {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    return BatteryUsageTracker.DiagnosticFlags(
+      debugLogOn = LogUtils.isEnabled(),
+      performanceStatsOn = Performance.getInstance().getComputeStatsEnabled(),
+      backTapEnabled = prefs.getBoolean("pref_back_tap_enabled", false),
+      audioKeepWarmEnabled = LatencyExperiments.Feature.AUDIO_KEEP_WARM.enabled(),
+      keepScreenOnWhileSpeaking = prefs.getBoolean("pref_keep_screen_on_while_speaking", false),
+      prepareAdjacentSpeech = prefs.getBoolean("pref_prepare_adjacent_speech", false),
+    )
+  }
+
+  fun buildBatteryReport(context: Context): String {
+    val app = context.applicationContext
+    return BatteryUsageTracker.buildDetailedReport(app, buildBatteryDiagnosticFlags(app))
+  }
+
+  @WorkerThread
+  fun saveBatteryReportToDownloads(context: Context, text: String): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+    val resolver = context.contentResolver
+    val name =
+      "meridian-battery-" +
+        SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date()) +
+        ".txt"
+    val values =
+      ContentValues().apply {
+        put(MediaStore.Downloads.DISPLAY_NAME, name)
+        put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+      }
+    val uri =
+      try {
+        resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+      } catch (_: RuntimeException) {
+        null
+      } ?: return false
+    return try {
+      resolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: return false
+      true
+    } catch (_: Exception) {
+      resolver.delete(uri, null, null)
+      false
+    }
+  }
+
   @WorkerThread
   fun saveToDownloads(context: Context, text: String): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false

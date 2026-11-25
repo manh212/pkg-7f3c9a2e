@@ -21,6 +21,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import com.google.android.accessibility.utils.BatteryUsageTracker
 import android.os.SystemClock
 import kotlin.math.sqrt
 
@@ -43,6 +44,7 @@ class StopSensors(context: Context, private val onStop: () -> Unit) {
         val listener = ShakeListener(shakeThreshold(settings.shakeStrength)) { onStop() }
         sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
         shakeListener = listener
+        BatteryUsageTracker.onSensorStateChanged("StopSensors:Shake", true)
       }
     }
     if (settings.waveToStop) {
@@ -50,13 +52,20 @@ class StopSensors(context: Context, private val onStop: () -> Unit) {
         val listener = WaveListener(sensor.maximumRange, settings.pocketMode) { onStop() }
         sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
         waveListener = listener
+        BatteryUsageTracker.onSensorStateChanged("StopSensors:Wave", true)
       }
     }
   }
 
   fun stop() {
-    shakeListener?.let { sensors?.unregisterListener(it) }
-    waveListener?.let { sensors?.unregisterListener(it) }
+    shakeListener?.let {
+      sensors?.unregisterListener(it)
+      BatteryUsageTracker.onSensorStateChanged("StopSensors:Shake", false)
+    }
+    waveListener?.let {
+      sensors?.unregisterListener(it)
+      BatteryUsageTracker.onSensorStateChanged("StopSensors:Wave", false)
+    }
     shakeListener = null
     waveListener = null
   }
@@ -68,6 +77,7 @@ class StopSensors(context: Context, private val onStop: () -> Unit) {
     private var lastShakeAt = 0L
 
     override fun onSensorChanged(event: SensorEvent) {
+      BatteryUsageTracker.onSensorSample("StopSensors:Shake")
       val (x, y, z) = event.values
       val force = sqrt(x * x + y * y + z * z) - SensorManager.GRAVITY_EARTH
       if (force < threshold) return
@@ -99,6 +109,7 @@ class StopSensors(context: Context, private val onStop: () -> Unit) {
     private var armed = true
 
     override fun onSensorChanged(event: SensorEvent) {
+      BatteryUsageTracker.onSensorSample("StopSensors:Wave")
       val near = event.values[0] < minOf(maximumRange, NEAR_CM)
       if (first) {
         first = false

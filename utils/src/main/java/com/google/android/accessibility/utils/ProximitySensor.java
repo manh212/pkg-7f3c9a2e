@@ -96,6 +96,7 @@ public class ProximitySensor {
     LogUtils.v(TAG, "Proximity sensor stopped at %d.", System.currentTimeMillis());
     mIsActive = false;
     mSensorManager.unregisterListener(mListener);
+    BatteryUsageTracker.onSensorStateChanged("ProximitySensor", false);
   }
 
   /** Starts listening for sensor events. */
@@ -107,6 +108,7 @@ public class ProximitySensor {
     mIsActive = true;
     mShouldDropEvents = true;
     mSensorManager.registerListener(mListener, mProxSensor, SensorManager.SENSOR_DELAY_UI);
+    BatteryUsageTracker.onSensorStateChanged("ProximitySensor", true);
     LogUtils.v(TAG, "Proximity sensor registered at %d.", System.currentTimeMillis());
     mHandler.postDelayed(mFilterRunnable, REGISTRATION_EVENT_FILTER_TIMEOUT);
   }
@@ -123,6 +125,7 @@ public class ProximitySensor {
 
         @Override
         public void onSensorChanged(SensorEvent event) {
+          BatteryUsageTracker.onSensorSample("ProximitySensor");
           if (mShouldDropEvents) {
             LogUtils.v(TAG, "Dropping onSensorChanged event at %d.", System.currentTimeMillis());
             return;

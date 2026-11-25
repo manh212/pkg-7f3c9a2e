@@ -300,6 +300,7 @@ import com.google.android.accessibility.utils.Logger;
 import com.google.android.accessibility.utils.PackageManagerUtils;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.PerformanceHintHelper;
+import com.google.android.accessibility.utils.BatteryUsageTracker;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.WindowCachePolicy;
 import com.google.android.accessibility.utils.Performance.EventId;
@@ -916,6 +917,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   private IpcClientCallbackImpl ipcClientCallback;
   private BootReceiver bootReceiver;
+  private android.content.BroadcastReceiver batteryStateReceiver;
   private ClipboardHistoryCapture clipboardHistoryCapture;
   private final com.google.android.accessibility.talkback.focusmanagement.RecordingFocusGuard
       recordingFocusGuard =
@@ -936,6 +938,30 @@ public class TalkBackService extends AccessibilityServiceCompat
     ContextCompat.registerReceiver(this, bootReceiver, BootReceiver.getFilter(), RECEIVER_EXPORTED);
     super.onCreate();
     PerformanceHintHelper.start(this);
+    BatteryUsageTracker.startIfNeeded(this);
+    batteryStateReceiver =
+        new android.content.BroadcastReceiver() {
+          @Override
+          public void onReceive(Context context, Intent intent) {
+            String action = intent == null ? null : intent.getAction();
+            if (Intent.ACTION_SCREEN_ON.equals(action)) {
+              BatteryUsageTracker.onScreenStateChanged(context, true);
+            } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+              BatteryUsageTracker.onScreenStateChanged(context, false);
+            } else if (Intent.ACTION_POWER_CONNECTED.equals(action)) {
+              BatteryUsageTracker.onPowerStateChanged(context, true);
+            } else if (Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
+              BatteryUsageTracker.onPowerStateChanged(context, false);
+            }
+          }
+        };
+    IntentFilter batteryFilter = new IntentFilter();
+    batteryFilter.addAction(Intent.ACTION_SCREEN_ON);
+    batteryFilter.addAction(Intent.ACTION_SCREEN_OFF);
+    batteryFilter.addAction(Intent.ACTION_POWER_CONNECTED);
+    batteryFilter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+    ContextCompat.registerReceiver(
+        this, batteryStateReceiver, batteryFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
     backgroundEventGate = new BackgroundEventGate(
         this::handleAccessibilityEvent, this::isExpectedScrollResponse,
         this::invalidateFilteredEvent);
@@ -1004,9 +1030,20 @@ public class TalkBackService extends AccessibilityServiceCompat
     return speechVolume / 100.0f;
   }
 
+  private void unregisterBatteryStateReceiver() {
+    if (batteryStateReceiver != null) {
+      try {
+        unregisterReceiver(batteryStateReceiver);
+      } catch (IllegalArgumentException ignored) {
+      }
+      batteryStateReceiver = null;
+    }
+  }
+
   @Override
   public boolean onUnbind(Intent intent) {
     PerformanceHintHelper.close();
+    unregisterBatteryStateReceiver();
     fullScreenMonitor.stop();
     progressBarAnnouncer.stop();
     releaseTouchHandling();
@@ -1068,6 +1105,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   public void onDestroy() {
+    unregisterBatteryStateReceiver();
     PerformanceHintHelper.close();
     fullScreenMonitor.stop();
     progressBarAnnouncer.stop();
@@ -1299,6 +1337,7 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (strict && !backgroundEventGate.onAccessibilityEvent(event, receivedAt)) {
       return;
     }
+    BatteryUsageTracker.onAccessibilityEvent(event.getPackageName(), event.getEventType());
     touchVolumeState.onEvent(event.getEventType());
     BrailleImeInputPolicy.onKeyboardPickerClick(this, event);
     if (directTouchController != null) {

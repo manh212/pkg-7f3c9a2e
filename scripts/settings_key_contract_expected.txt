@@ -30,6 +30,7 @@ pref_backup_item_settings
 pref_backup_item_sound_themes
 pref_backup_item_timer_sounds
 pref_backup_reset_screen
+pref_battery_usage_report
 pref_browse_mode_remember_mode
 pref_cache_keyboard_keys
 pref_call_announce
