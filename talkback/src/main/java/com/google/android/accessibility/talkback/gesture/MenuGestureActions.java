@@ -21,6 +21,7 @@ public final class MenuGestureActions {
       new Entry(R.id.custom_action_menu, R.string.menu_gesture_custom_action_menu, "custom_action_menu", R.string.shortcut_value_show_custom_actions),
       new Entry(R.id.viewpager_menu, R.string.menu_gesture_viewpager_menu, "viewpager_menu", 0),
       new Entry(R.id.labeling_breakout_add_label, R.string.menu_gesture_labeling_breakout_add_label, "labeling_breakout_add_label", 0),
+      new Entry(R.id.edit_spoken_text_menu, R.string.shortcut_edit_spoken_text, "edit_spoken_text_menu", R.string.shortcut_value_edit_spoken_text),
       new Entry(R.id.image_caption_menu, R.string.menu_gesture_image_caption_menu, "image_caption_menu", R.string.shortcut_value_describe_image),
       new Entry(R.id.summarize_view_menu, R.string.menu_gesture_summarize_view_menu, "summarize_view_menu", R.string.shortcut_value_screen_overview),
       new Entry(R.id.granularity_menu, R.string.menu_gesture_granularity_menu, "granularity_menu", 0),

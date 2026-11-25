@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.util.ReflectionHelpers;
 import org.robolectric.annotation.Config;
 
 /**
@@ -94,6 +95,7 @@ public class SelectorControllerTest {
     AccessibilityNodeInfo root = node(null, "android.widget.FrameLayout");
     AccessibilityNodeInfo link = node(root, "android.view.View");
     link.addAction(AccessibilityNodeInfo.ACTION_NEXT_HTML_ELEMENT);
+    seal(root, link);
     assertTrue(keepsReadingControlInWebContent(context, prefs, link));
   }
 
@@ -120,6 +122,13 @@ public class SelectorControllerTest {
 
   private AccessibilityNodeInfo webViewNode() {
     return node(null, "android.webkit.WebView");
+  }
+
+  private static void seal(AccessibilityNodeInfo... nodes) {
+    for (AccessibilityNodeInfo node : nodes) {
+      ReflectionHelpers.callInstanceMethod(
+          node, "setSealed", ReflectionHelpers.ClassParameter.from(boolean.class, true));
+    }
   }
 
   private static AccessibilityNodeInfo node(AccessibilityNodeInfo parent, String className) {

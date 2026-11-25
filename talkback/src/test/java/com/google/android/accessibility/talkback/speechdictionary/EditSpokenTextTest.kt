@@ -20,8 +20,13 @@ import com.google.android.accessibility.talkback.notifications.Replacement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Unit tests for per-app spoken text editing helpers in [SpeechDictionary]. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = 34)
 class EditSpokenTextTest {
 
   @Test
