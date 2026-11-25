@@ -145,6 +145,9 @@ public class MessengerCollapseScriptTest {
     listInfo.setPackageName(MessengerCollapseScript.PACKAGE_NAME);
     listInfo.setClassName("androidx.recyclerview.widget.RecyclerView");
     listInfo.setVisibleToUser(true);
+    listInfo.setCollectionInfo(
+        AccessibilityNodeInfo.CollectionInfo.obtain(
+            /* rowCount= */ 2, /* columnCount= */ 1, /* hierarchical= */ false));
 
     // Wrapped chat message row
     AccessibilityNodeInfo msgRowInfo = AccessibilityNodeInfo.obtain();
