@@ -16,7 +16,7 @@
 
 package com.google.android.accessibility.utils
 
-import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,23 +26,33 @@ class PerformanceHintHelperTest {
 
   @Test
   fun targetNanosForRefreshRate_scalesFor144Hz120Hz90HzAnd60Hz() {
-    assertThat(PerformanceHintHelper.targetNanosForRefreshRate(144f))
-      .isEqualTo(PerformanceHintHelper.TARGET_HIGH_REFRESH_NANOS)
-    assertThat(PerformanceHintHelper.targetNanosForRefreshRate(120f))
-      .isEqualTo(PerformanceHintHelper.TARGET_HIGH_REFRESH_NANOS)
-    assertThat(PerformanceHintHelper.targetNanosForRefreshRate(90f))
-      .isEqualTo(PerformanceHintHelper.TARGET_90HZ_NANOS)
-    assertThat(PerformanceHintHelper.targetNanosForRefreshRate(60f))
-      .isEqualTo(PerformanceHintHelper.TARGET_WORK_DURATION_NANOS)
+    assertEquals(
+      PerformanceHintHelper.TARGET_HIGH_REFRESH_NANOS,
+      PerformanceHintHelper.targetNanosForRefreshRate(144f),
+    )
+    assertEquals(
+      PerformanceHintHelper.TARGET_HIGH_REFRESH_NANOS,
+      PerformanceHintHelper.targetNanosForRefreshRate(120f),
+    )
+    assertEquals(
+      PerformanceHintHelper.TARGET_90HZ_NANOS,
+      PerformanceHintHelper.targetNanosForRefreshRate(90f),
+    )
+    assertEquals(
+      PerformanceHintHelper.TARGET_WORK_DURATION_NANOS,
+      PerformanceHintHelper.targetNanosForRefreshRate(60f),
+    )
   }
 
   @Test
   fun boostNanosForTarget_exceedsTargetByHalf() {
-    assertThat(
-      PerformanceHintHelper.boostNanosForTarget(PerformanceHintHelper.TARGET_HIGH_REFRESH_NANOS)
-    ).isEqualTo(10_500_000L)
-    assertThat(
-      PerformanceHintHelper.boostNanosForTarget(PerformanceHintHelper.TARGET_WORK_DURATION_NANOS)
-    ).isEqualTo(18_000_000L)
+    assertEquals(
+      10_500_000L,
+      PerformanceHintHelper.boostNanosForTarget(PerformanceHintHelper.TARGET_HIGH_REFRESH_NANOS),
+    )
+    assertEquals(
+      18_000_000L,
+      PerformanceHintHelper.boostNanosForTarget(PerformanceHintHelper.TARGET_WORK_DURATION_NANOS),
+    )
   }
 }
