@@ -595,9 +595,6 @@ public class FocusManagerInternal {
     if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
       return false;
     }
-    if (!shouldAllowPaneRestoreForFocusedNode(currentFocus, activeWindow)) {
-      return false;
-    }
     if (root == null || root.getWindowId() != activeWindow.getId()) {
       root = AccessibilityWindowInfoUtils.getRootCompat(activeWindow);
       if (root == null || !root.refresh()) {
@@ -724,6 +721,9 @@ public class FocusManagerInternal {
     }
     AccessibilityWindowInfo activeWindow = state.getActiveWindow();
     if (activeWindow == null || AccessibilityWindowInfoUtils.isImeWindow(activeWindow)) {
+      return false;
+    }
+    if (!shouldAllowPaneRestoreForFocusedNode(currentFocus, activeWindow)) {
       return false;
     }
     WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
