@@ -827,7 +827,7 @@ class VietnameseKeyboardService : InputMethodService() {
     if (!composing && !hasSelection && wordLost) {
       val before = adjacentWord(connection, beforeCursor = true)
       val after = adjacentWord(connection, beforeCursor = false)
-      if (before.isNotEmpty() && after.isNotEmpty() && Telex.hasVowel(before) &&
+      if (before.isNotEmpty() && after.isNotEmpty() && Telex.hasVowel(before + after) &&
         before.length + after.length <= MAX_WORD_LENGTH) {
         val fullWord = before + after
         val transformed = Telex.apply(fullWord, letter, quickTelex = false)
