@@ -54,8 +54,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -3382,6 +3380,8 @@ return scroll;
         private int calibrationStep = CAL_NONE;
         private boolean calHoldLocked = false;
         private boolean calCountErrorSpoken = false;
+        private final float[] pendingCalStep1X = new float[3];
+        private final float[] pendingCalStep1Y = new float[3];
 
         private final Map<Integer, FingerTrace> activeFingers = new LinkedHashMap<Integer, FingerTrace>();
         private final List<FingerTrace> gestureFingers = new ArrayList<FingerTrace>();
@@ -3470,38 +3470,29 @@ return scroll;
             }
 
             calHoldLocked = true;
-
-            float minX = Float.MAX_VALUE, maxX = Float.MIN_VALUE;
-            float minY = Float.MAX_VALUE, maxY = Float.MIN_VALUE;
-            for (int i = 0; i < pts.size(); i++) {
-                FingerTrace f = pts.get(i);
-                if (f.currentX < minX) minX = f.currentX;
-                if (f.currentX > maxX) maxX = f.currentX;
-                if (f.currentY < minY) minY = f.currentY;
-                if (f.currentY > maxY) maxY = f.currentY;
-            }
-
-            if ((maxX - minX) >= (maxY - minY)) {
-                Collections.sort(pts, new Comparator<FingerTrace>() {
-                    @Override
-                    public int compare(FingerTrace a, FingerTrace b) {
-                        return Float.compare(a.currentX, b.currentX);
-                    }
-                });
+            if (calibrationStep == CAL_STEP_123) {
+                for (int i = 0; i < 3; i++) {
+                    FingerTrace f = pts.get(i);
+                    pendingCalStep1X[i] = f.currentX;
+                    pendingCalStep1Y[i] = f.currentY;
+                }
             } else {
-                Collections.sort(pts, new Comparator<FingerTrace>() {
-                    @Override
-                    public int compare(FingerTrace a, FingerTrace b) {
-                        return Float.compare(a.currentY, b.currentY);
-                    }
-                });
-            }
-
-            int baseDot = (calibrationStep == CAL_STEP_123) ? 1 : 4;
-            for (int i = 0; i < 3; i++) {
-                FingerTrace f = pts.get(Math.min(i, pts.size() - 1));
-                calDotX[baseDot + i] = f.currentX;
-                calDotY[baseDot + i] = f.currentY;
+                float[] step2X = new float[3];
+                float[] step2Y = new float[3];
+                for (int i = 0; i < 3; i++) {
+                    FingerTrace f = pts.get(i);
+                    step2X[i] = f.currentX;
+                    step2Y[i] = f.currentY;
+                }
+                BrailleCalibrationGeometry.assignAllSixDots(
+                        pendingCalStep1X,
+                        pendingCalStep1Y,
+                        step2X,
+                        step2Y,
+                        invertKeyboard180,
+                        slateAndStylusMode,
+                        calDotX,
+                        calDotY);
             }
 
             triggerFeedback(this, 140L, ToneGenerator.TONE_CDMA_CONFIRM, 190);
@@ -3544,15 +3535,8 @@ return scroll;
         }
 
         private int applyStyleMapping(int dot) {
-            int mapped = dot;
-            if (invertKeyboard180) {
-                mapped = 7 - mapped;
-            }
-            if (slateAndStylusMode) {
-                if (mapped <= 3) mapped += 3;
-                else mapped -= 3;
-            }
-            return mapped;
+            return BrailleCalibrationGeometry.applyStyleMapping(
+                dot, invertKeyboard180, slateAndStylusMode);
         }
 
         @Override
