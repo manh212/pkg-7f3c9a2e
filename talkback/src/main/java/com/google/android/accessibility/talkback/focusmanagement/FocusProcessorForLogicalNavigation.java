@@ -505,8 +505,10 @@ public class FocusProcessorForLogicalNavigation {
     TraversalStrategy localTraversalStrategy =
         TraversalStrategyUtils.getTraversalStrategy(list, focusFinder, searchDirection);
     Filter<AccessibilityNodeInfoCompat> nodeFilter =
-        NavigationTarget.createNodeFilter(
-            NavigationTarget.TARGET_DEFAULT, localTraversalStrategy.getSpeakingNodesCache());
+        CollapseEngine.composeNodeFilter(
+            service,
+            NavigationTarget.createNodeFilter(
+                NavigationTarget.TARGET_DEFAULT, localTraversalStrategy.getSpeakingNodesCache()));
     AccessibilityNodeInfoCompat next =
         TraversalStrategyUtils.searchFocus(
             localTraversalStrategy, focused, searchDirection, nodeFilter);

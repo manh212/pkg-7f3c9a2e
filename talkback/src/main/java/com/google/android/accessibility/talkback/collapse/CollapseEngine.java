@@ -19,11 +19,14 @@ package com.google.android.accessibility.talkback.collapse;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.collapse.CollapseScript.Activation;
 import com.google.android.accessibility.talkback.collapse.CollapseScript.Field;
+import com.google.android.accessibility.talkback.collapse.CollapseScript.Section;
 import com.google.android.accessibility.talkback.collapse.CollapsedItem.ChildAction;
 import com.google.android.accessibility.talkback.compositor.CompositorUtils;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
@@ -31,6 +34,9 @@ import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.Role;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,8 +50,38 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public final class CollapseEngine {
   private static final int MAX_ITEM_SEARCH_DEPTH = 24;
+  private static final long SHORT_CACHE_TTL_MS = 60L;
+  private static final int MAX_SHORT_CACHE_ENTRIES = 48;
+
+  private static final class CachedMatch {
+    final long uptimeMs;
+    final int childCount;
+    final Rect bounds;
+    final List<CollapsedItem> items;
+
+    CachedMatch(long uptimeMs, int childCount, Rect bounds, List<CollapsedItem> items) {
+      this.uptimeMs = uptimeMs;
+      this.childCount = childCount;
+      this.bounds = bounds;
+      this.items = items;
+    }
+  }
+
+  private static final LinkedHashMap<AccessibilityNodeInfoCompat, CachedMatch> shortCache =
+      new LinkedHashMap<AccessibilityNodeInfoCompat, CachedMatch>(
+          MAX_SHORT_CACHE_ENTRIES, 0.75f, /* accessOrder= */ true) {
+        @Override
+        protected boolean removeEldestEntry(
+            Map.Entry<AccessibilityNodeInfoCompat, CachedMatch> eldest) {
+          return size() > MAX_SHORT_CACHE_ENTRIES;
+        }
+      };
 
   private CollapseEngine() {}
+
+  static void clearCacheForTesting() {
+    shortCache.clear();
+  }
 
   public static boolean isEnabled(Context context) {
     if (context == null) {
@@ -72,10 +108,11 @@ public final class CollapseEngine {
 
   static Filter<AccessibilityNodeInfoCompat> composeNodeFilter(
       Filter<AccessibilityNodeInfoCompat> baseFilter, Map<String, CollapseScript> scripts) {
+    final Map<AccessibilityNodeInfoCompat, List<CollapsedItem>> passCache = new HashMap<>();
     return new Filter<AccessibilityNodeInfoCompat>() {
       @Override
       public boolean accept(AccessibilityNodeInfoCompat node) {
-        CollapsedItem item = matchContaining(node, scripts);
+        CollapsedItem item = matchContaining(node, scripts, passCache);
         if (item == null) {
           return baseFilter.accept(node);
         }
@@ -131,6 +168,13 @@ public final class CollapseEngine {
   /** Finds the collapsed item containing a node, via its nearest collection-item ancestor. */
   static @Nullable CollapsedItem matchContaining(
       AccessibilityNodeInfoCompat node, Map<String, CollapseScript> scripts) {
+    return matchContaining(node, scripts, /* passCache= */ null);
+  }
+
+  private static @Nullable CollapsedItem matchContaining(
+      AccessibilityNodeInfoCompat node,
+      Map<String, CollapseScript> scripts,
+      @Nullable Map<AccessibilityNodeInfoCompat, List<CollapsedItem>> passCache) {
     if (node == null) {
       return null;
     }
@@ -141,40 +185,120 @@ public final class CollapseEngine {
     AccessibilityNodeInfoCompat current = node;
     for (int depth = 0; current != null && depth < MAX_ITEM_SEARCH_DEPTH; depth++) {
       if (isCollectionItem(current)) {
-        return match(script, current);
+        List<CollapsedItem> items = matchAllCached(script, current, passCache);
+        return resolveItemForNode(node, items);
       }
       current = current.getParent();
     }
     return null;
   }
 
+  private static @Nullable CollapsedItem resolveItemForNode(
+      AccessibilityNodeInfoCompat node, List<CollapsedItem> items) {
+    if (items.isEmpty()) {
+      return null;
+    }
+    if (items.size() == 1) {
+      return items.get(0);
+    }
+    for (CollapsedItem item : items) {
+      if (node.equals(item.representative())) {
+        return item;
+      }
+    }
+    for (CollapsedItem item : items) {
+      if (item.ownsNode(node)) {
+        return item;
+      }
+    }
+    return items.get(0);
+  }
+
+  private static List<CollapsedItem> matchAllCached(
+      CollapseScript script,
+      AccessibilityNodeInfoCompat itemRoot,
+      @Nullable Map<AccessibilityNodeInfoCompat, List<CollapsedItem>> passCache) {
+    if (passCache != null) {
+      List<CollapsedItem> cached = passCache.get(itemRoot);
+      if (cached != null) {
+        return cached;
+      }
+    }
+    boolean useShortCache =
+        passCache == null
+            && Looper.myLooper() == Looper.getMainLooper();
+    if (useShortCache) {
+      long now = SystemClock.uptimeMillis();
+      CachedMatch entry = shortCache.get(itemRoot);
+      if (entry != null && now >= entry.uptimeMs && (now - entry.uptimeMs) <= SHORT_CACHE_TTL_MS) {
+        Rect bounds = new Rect();
+        itemRoot.getBoundsInScreen(bounds);
+        if (entry.childCount == itemRoot.getChildCount() && entry.bounds.equals(bounds)) {
+          return entry.items;
+        }
+      }
+      List<CollapsedItem> computed = matchAll(script, itemRoot);
+      Rect bounds = new Rect();
+      itemRoot.getBoundsInScreen(bounds);
+      shortCache.put(
+          itemRoot, new CachedMatch(now, itemRoot.getChildCount(), bounds, computed));
+      return computed;
+    }
+    List<CollapsedItem> computed = matchAll(script, itemRoot);
+    if (passCache != null) {
+      passCache.put(itemRoot, computed);
+    }
+    return computed;
+  }
+
   /** Matches a node treated as a collection item root against its package's script. */
   static @Nullable CollapsedItem matchItemRoot(
       AccessibilityNodeInfoCompat itemRoot, Map<String, CollapseScript> scripts) {
+    List<CollapsedItem> all = matchItemRootAll(itemRoot, scripts);
+    return all.isEmpty() ? null : all.get(0);
+  }
+
+  /** Matches all collapsed sections for a collection item root (fresh, bypassing short cache). */
+  static List<CollapsedItem> matchItemRootAll(
+      AccessibilityNodeInfoCompat itemRoot, Map<String, CollapseScript> scripts) {
     if (itemRoot == null) {
-      return null;
+      return Collections.emptyList();
     }
     CollapseScript script = scripts.get(packageName(itemRoot));
-    return script == null ? null : match(script, itemRoot);
+    return script == null ? Collections.emptyList() : matchAll(script, itemRoot);
   }
 
   static @Nullable CollapsedItem match(
       CollapseScript script, AccessibilityNodeInfoCompat itemRoot) {
+    List<CollapsedItem> all = matchAll(script, itemRoot);
+    return all.isEmpty() ? null : all.get(0);
+  }
+
+  static List<CollapsedItem> matchAll(
+      CollapseScript script, AccessibilityNodeInfoCompat itemRoot) {
     if (itemRoot == null || !isCollectionItem(itemRoot)) {
-      return null;
+      return Collections.emptyList();
     }
     if (!script.packageName().contentEquals(packageName(itemRoot))) {
-      return null;
+      return Collections.emptyList();
     }
     if (AccessibilityNodeInfoUtils.isSelfOrAncestorRoleWebView(itemRoot)) {
-      return null;
+      return Collections.emptyList();
     }
     ItemScan scan = ItemScan.of(itemRoot);
     if (scan == null
         || scan.hasEssentialDescendant()
         || (scan.hasSeekControlDescendant() && !script.allowsSeekControlDescendant())
         || scan.hasScrollableDescendant()) {
-      return null;
+      return Collections.emptyList();
+    }
+    if (script.pattern() == CollapseScript.Pattern.SECTIONED_ROOT) {
+      List<CollapsedItem> sections = matchSectionedRoot(script, itemRoot, scan);
+      if (!sections.isEmpty()) {
+        return sections;
+      }
+      CollapseScript fallback = script.fallbackScript();
+      return fallback == null ? Collections.emptyList() : matchAll(fallback, itemRoot);
     }
     CollapsedItem item =
         switch (script.pattern()) {
@@ -182,9 +306,65 @@ public final class CollapseEngine {
           case COMPOSITE_ROOT -> matchCompositeRoot(script, itemRoot, scan);
           case ROOT_MENU -> matchRootMenu(script, itemRoot);
           case COMPOSITE_TRAY -> matchCompositeTray(script, itemRoot, scan);
+          case SECTIONED_ROOT -> null;
         };
+    if (item != null) {
+      return Collections.singletonList(item);
+    }
     CollapseScript fallback = script.fallbackScript();
-    return item != null || fallback == null ? item : match(fallback, itemRoot);
+    return fallback == null ? Collections.emptyList() : matchAll(fallback, itemRoot);
+  }
+
+  private static List<CollapsedItem> matchSectionedRoot(
+      CollapseScript script, AccessibilityNodeInfoCompat itemRoot, ItemScan scan) {
+    if (!itemRoot.isClickable() || !itemRoot.isFocusable()) {
+      if (!script.allowsUnflaggedRepresentative()
+          || !AccessibilityNodeInfoUtils.isTopLevelScrollItem(itemRoot)) {
+        return Collections.emptyList();
+      }
+    }
+    if (!TextUtils.isEmpty(ItemScan.spokenLabel(itemRoot))) {
+      return Collections.emptyList();
+    }
+    List<Section> sections = script.resolveSections(scan);
+    if (sections == null || sections.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<ChildAction> clickActions = new ArrayList<>();
+    for (AccessibilityNodeInfoCompat node : scan.clickables()) {
+      CharSequence childLabel = actionLabel(script, node);
+      if (TextUtils.isEmpty(childLabel)) {
+        continue;
+      }
+      clickActions.add(new ChildAction(node, /* longClick= */ false, childLabel));
+    }
+    clickActions = dedupNestedSameLabel(clickActions);
+    if (clickActions.size() > script.maxActions()) {
+      return Collections.emptyList();
+    }
+    if (clickActions.isEmpty() && script.requiresActionsForSectionedRoot()) {
+      return Collections.emptyList();
+    }
+    List<ChildAction> sharedActions =
+        expandTray(
+            script, retargetActions(script, scan, withLongClickTwins(script, scan, clickActions)));
+    List<CollapsedItem> items = new ArrayList<>(sections.size());
+    for (Section section : sections) {
+      if (TextUtils.isEmpty(section.composedLabel)) {
+        continue;
+      }
+      items.add(
+          new CollapsedItem(
+              itemRoot,
+              section.representative,
+              sharedActions,
+              section.composedLabel,
+              /* activationTarget= */ null,
+              section.selectionTarget,
+              script.pattern(),
+              section.memberNodes));
+    }
+    return items;
   }
 
   private static @Nullable CollapsedItem matchPrimaryChild(

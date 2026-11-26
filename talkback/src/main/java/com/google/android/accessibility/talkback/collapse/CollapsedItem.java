@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.collapse;
 import androidx.annotation.StringRes;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
+import java.util.Collections;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -191,6 +192,7 @@ public final class CollapsedItem {
   private final @Nullable AccessibilityNodeInfoCompat activationTarget;
   private final @Nullable AccessibilityNodeInfoCompat selectionTarget;
   private final CollapseScript.Pattern pattern;
+  private final List<AccessibilityNodeInfoCompat> memberNodes;
 
   CollapsedItem(
       AccessibilityNodeInfoCompat itemRoot,
@@ -200,6 +202,26 @@ public final class CollapsedItem {
       @Nullable AccessibilityNodeInfoCompat activationTarget,
       @Nullable AccessibilityNodeInfoCompat selectionTarget,
       CollapseScript.Pattern pattern) {
+    this(
+        itemRoot,
+        representative,
+        actions,
+        composedLabel,
+        activationTarget,
+        selectionTarget,
+        pattern,
+        Collections.emptyList());
+  }
+
+  CollapsedItem(
+      AccessibilityNodeInfoCompat itemRoot,
+      AccessibilityNodeInfoCompat representative,
+      List<ChildAction> actions,
+      @Nullable CharSequence composedLabel,
+      @Nullable AccessibilityNodeInfoCompat activationTarget,
+      @Nullable AccessibilityNodeInfoCompat selectionTarget,
+      CollapseScript.Pattern pattern,
+      List<AccessibilityNodeInfoCompat> memberNodes) {
     this.itemRoot = itemRoot;
     this.representative = representative;
     this.actions = actions;
@@ -207,6 +229,7 @@ public final class CollapsedItem {
     this.activationTarget = activationTarget;
     this.selectionTarget = selectionTarget;
     this.pattern = pattern;
+    this.memberNodes = memberNodes;
   }
 
   public AccessibilityNodeInfoCompat itemRoot() {
@@ -240,6 +263,24 @@ public final class CollapsedItem {
   /** The representative strategy of the script that matched this item. */
   public CollapseScript.Pattern pattern() {
     return pattern;
+  }
+
+  /** Descendant nodes absorbed into this section (empty for single-stop items). */
+  public List<AccessibilityNodeInfoCompat> memberNodes() {
+    return memberNodes;
+  }
+
+  /** Whether {@code node} belongs specifically to this section. */
+  boolean ownsNode(AccessibilityNodeInfoCompat node) {
+    if (representative.equals(node)) {
+      return true;
+    }
+    for (AccessibilityNodeInfoCompat member : memberNodes) {
+      if (member.equals(node) || AccessibilityNodeInfoUtils.hasAncestor(node, member)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Whether the node is the item root or one of its descendants. */

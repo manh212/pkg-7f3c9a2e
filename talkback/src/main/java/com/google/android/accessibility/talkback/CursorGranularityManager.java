@@ -822,14 +822,18 @@ public class CursorGranularityManager {
     if (root == null) {
       return;
     }
-    pipeline.returnFeedback(eventId, Feedback.nodeAction(root, ACTION_SET_SELECTION));
+    if (AccessibilityNodeInfoUtils.supportsAction(root, ACTION_SET_SELECTION)) {
+      pipeline.returnFeedback(eventId, Feedback.nodeAction(root, ACTION_SET_SELECTION));
+    }
 
-    // Traverse whole subtree, resetting selection.
+    // Traverse whole subtree, resetting selection only on nodes that actually support it.
+    // Avoids firing dozens of failing ACTION_SET_SELECTION IPCs on Compose containers.
     AccessibilityNodeInfoUtils.processSubtree(
         root,
         Filter.node(
             (node) ->
                 FILTER_NON_FOCUSABLE_VISIBLE_NODE.accept(node)
+                    && AccessibilityNodeInfoUtils.supportsAction(node, ACTION_SET_SELECTION)
                     && pipeline.returnFeedback(
                         eventId, Feedback.nodeAction(node, ACTION_SET_SELECTION))));
   }

@@ -40,6 +40,7 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.TalkBackService;
 import com.google.android.accessibility.talkback.TouchInteractionMonitor;
 import com.google.android.accessibility.talkback.actor.helper.FocusActorHelper;
+import com.google.android.accessibility.talkback.collapse.CollapseEngine;
 import com.google.android.accessibility.talkback.focusmanagement.AccessibilityFocusMonitor;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForLogicalNavigation;
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForScreenStateChange;
@@ -666,6 +667,11 @@ public class FocusManagerInternal {
         && (!nodeToFocus.refresh() || !nodeToFocus.isVisibleToUser())) {
       return false;
     }
+    // Never restore focus onto a suppressed child inside a collapsed section/item.
+    AccessibilityNodeInfoCompat collapsedRep = CollapseEngine.touchTarget(service, nodeToFocus);
+    if (collapsedRep != null && collapsedRep.isVisibleToUser()) {
+      nodeToFocus = collapsedRep;
+    }
 
     boolean firstTime =
         stableScreenState != null && stableScreenState.isInterpretFirstTimeWhenWakeUp();
@@ -763,6 +769,19 @@ public class FocusManagerInternal {
     WindowIdentifier currentPane = WindowIdentifier.create(activeWindow.getId(), state);
     long nowMs = SystemClock.uptimeMillis();
     boolean hasPendingSemanticRestore = history.getRestoreCoordinator().hasPendingRestore(nowMs);
+    // Do not hijack focus with a pane-change restore when the user explicitly swiped or touched
+    // onto the current node in this window and no pending window restore is active.
+    if (!hasPendingSemanticRestore) {
+      FocusActionRecord latestRecord = history.reader.getLastFocusActionRecord();
+      if (latestRecord != null
+          && currentFocus.equals(latestRecord.getFocusedNode())
+          && (latestRecord.getExtraInfo().sourceAction == FocusActionInfo.LOGICAL_NAVIGATION
+              || latestRecord.getExtraInfo().sourceAction == FocusActionInfo.TOUCH_EXPLORATION)) {
+        lastPaneCheckedFocus = currentFocus;
+        lastSamePaneCheckUptimeMs = nowMs;
+        return false;
+      }
+    }
     // Avoid calling root.refresh() + full-tree SemanticScreenKey.create() on every 1-second timer
     // SUBTREE_CHANGED tick while focus has not moved off the same node in the same pane.
     if (!hasPendingSemanticRestore

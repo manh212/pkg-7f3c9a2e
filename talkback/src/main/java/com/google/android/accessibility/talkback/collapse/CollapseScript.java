@@ -35,7 +35,13 @@ public abstract class CollapseScript {
     /** The item root itself is the stop; its spoken label is composed from content fields. */
     COMPOSITE_ROOT,
     ROOT_MENU,
-    COMPOSITE_TRAY
+    COMPOSITE_TRAY,
+    /**
+     * One item root is split into multiple focusable sections (e.g. per-heading sections of a
+     * ChatGPT reply), each with its own representative and composed label while sharing the
+     * item's full set of child actions.
+     */
+    SECTIONED_ROOT
   }
 
   /** Where a double-tap on the representative goes. */
@@ -207,6 +213,25 @@ public abstract class CollapseScript {
     }
   }
 
+  /** One focusable section inside a {@link Pattern#SECTIONED_ROOT} item. */
+  public static final class Section {
+    public final AccessibilityNodeInfoCompat representative;
+    public final CharSequence composedLabel;
+    public final @Nullable AccessibilityNodeInfoCompat selectionTarget;
+    public final List<AccessibilityNodeInfoCompat> memberNodes;
+
+    public Section(
+        AccessibilityNodeInfoCompat representative,
+        CharSequence composedLabel,
+        @Nullable AccessibilityNodeInfoCompat selectionTarget,
+        List<AccessibilityNodeInfoCompat> memberNodes) {
+      this.representative = representative;
+      this.composedLabel = composedLabel;
+      this.selectionTarget = selectionTarget;
+      this.memberNodes = memberNodes;
+    }
+  }
+
   private final String packageName;
   private final Pattern pattern;
   private final int maxActions;
@@ -295,6 +320,23 @@ public abstract class CollapseScript {
    */
   protected @Nullable List<Field> resolveFields(ItemScan scan) {
     return null;
+  }
+
+  /**
+   * Resolves ordered focusable sections for a {@link Pattern#SECTIONED_ROOT} item, or returns
+   * null to leave the item untouched.
+   */
+  protected @Nullable List<Section> resolveSections(ItemScan scan) {
+    return null;
+  }
+
+  /**
+   * Whether a {@link Pattern#SECTIONED_ROOT} item requires at least one scanned child action to
+   * collapse. Return {@code false} when partially scrolled items whose action bar is off-screen
+   * should still group their content sections.
+   */
+  public boolean requiresActionsForSectionedRoot() {
+    return true;
   }
 
   /** Lets a script adjust the spoken label of one synthesized action. */
