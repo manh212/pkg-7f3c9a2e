@@ -2401,7 +2401,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
           0L
         }
-      return "$versionCode|${Build.FINGERPRINT}|$sampleRate"
+      return "v2|$versionCode|${Build.FINGERPRINT}|$sampleRate"
     }
 
     /**

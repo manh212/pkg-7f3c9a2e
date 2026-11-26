@@ -19,6 +19,9 @@
 #include <android/log.h>
 #include <dlfcn.h>
 #include <jni.h>
+#if defined(__ANDROID__)
+#include <sys/system_properties.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -38,6 +41,10 @@ namespace {
 constexpr const char* kTag = "MeridianAAudio";
 constexpr int32_t kChannelCount = 2;
 
+// NDK constants defined explicitly so this compiles cleanly with minSdk 26 headers.
+constexpr aaudio_format_t kFormatPcmI32 = 4;        // AAUDIO_FORMAT_PCM_I32 (API 31+)
+constexpr int32_t kSessionIdNone = -1;              // AAUDIO_SESSION_ID_NONE (API 28+)
+
 std::mutex gStatusMutex;
 std::string gLastOpenStatus = "unattempted";
 std::string gLastProbeSummary = "not_probed";
@@ -55,6 +62,7 @@ void setLastProbeSummary(const std::string& summary) {
 // API 28+ AAudio setters resolved dynamically so this library compiles cleanly with minSdk 26.
 using SetUsageFn = void (*)(AAudioStreamBuilder*, aaudio_usage_t);
 using SetContentTypeFn = void (*)(AAudioStreamBuilder*, aaudio_content_type_t);
+using SetSessionIdFn = void (*)(AAudioStreamBuilder*, int32_t);
 using IsMMapUsedFn = bool (*)(AAudioStream*);
 
 SetUsageFn resolveSetUsage() {
@@ -68,9 +76,59 @@ SetContentTypeFn resolveSetContentType() {
   return fn;
 }
 
+SetSessionIdFn resolveSetSessionId() {
+  static auto fn =
+      reinterpret_cast<SetSessionIdFn>(dlsym(RTLD_DEFAULT, "AAudioStreamBuilder_setSessionId"));
+  return fn;
+}
+
 IsMMapUsedFn resolveIsMMapUsed() {
   static auto fn = reinterpret_cast<IsMMapUsedFn>(dlsym(RTLD_DEFAULT, "AAudioStream_isMMapUsed"));
   return fn;
+}
+
+std::string getSystemProperty(const char* name) {
+#if defined(__ANDROID__)
+  char value[PROP_VALUE_MAX] = {0};
+  const int len = __system_property_get(name, value);
+  return len > 0 ? std::string(value, static_cast<size_t>(len)) : std::string();
+#else
+  (void)name;
+  return std::string();
+#endif
+}
+
+// Mirrors Google Oboe's SamsungExynosDeviceQuirks detection: Samsung Exynos EXCLUSIVE MMAP streams
+// need at least 2 bursts bottom margin and 1 burst top margin to avoid DSP pointer glitches.
+bool isSamsungExynos() {
+  static const bool detected = []() {
+    std::string mfr = getSystemProperty("ro.product.manufacturer");
+    std::transform(mfr.begin(), mfr.end(), mfr.begin(), [](unsigned char c) {
+      return static_cast<char>(std::tolower(c));
+    });
+    if (mfr != "samsung") return false;
+    std::string arch = getSystemProperty("ro.arch");
+    std::transform(arch.begin(), arch.end(), arch.begin(), [](unsigned char c) {
+      return static_cast<char>(std::tolower(c));
+    });
+    return arch.rfind("exynos", 0) == 0;
+  }();
+  return detected;
+}
+
+int32_t clampBufferFramesForDevice(
+    int32_t requested,
+    int32_t burst,
+    int32_t capacity,
+    bool mmapUsed,
+    aaudio_sharing_mode_t sharing) {
+  int32_t minFrames = burst;
+  int32_t maxFrames = capacity;
+  if (isSamsungExynos() && mmapUsed && sharing == AAUDIO_SHARING_MODE_EXCLUSIVE) {
+    minFrames = std::min(capacity, burst * 2);
+    maxFrames = std::max(minFrames, capacity - burst);
+  }
+  return std::clamp(requested, minFrames, maxFrames);
 }
 
 // Maps android.media.AudioAttributes.USAGE_* constants to AAudio usage values.
@@ -111,6 +169,12 @@ inline int16_t floatToInt16(float sample) {
   return static_cast<int16_t>(std::clamp(scaled, -32768L, 32767L));
 }
 
+inline int32_t floatToInt32(float sample) {
+  const double clamped = std::clamp(static_cast<double>(sample), -1.0, 1.0);
+  const long long scaled = std::llround(clamped * 2147483647.0);
+  return static_cast<int32_t>(std::clamp(scaled, -2147483648LL, 2147483647LL));
+}
+
 struct StreamProfile {
   int32_t id;
   const char* label;
@@ -119,18 +183,27 @@ struct StreamProfile {
   aaudio_format_t format;
   bool setContentTypeSpeech;
   bool requestExplicitSampleRate;
+  int32_t minApiLevel;
 };
 
-// Candidate AAudio profiles probed on first launch and after app/OS updates.
+// Candidate AAudio profiles probed on first launch and after app/OS updates:
+// - p1..p4: blocking mode (preserves Google/Pixel MMAP path)
+// - p5..p8: callback mode with explicit sample rate (f32 / i16, excl / shared)
+// - p9..p10: callback mode with PCM_I32 (API 31+, for modern 32-bit MMAP mixPorts)
+// - p11..p12: callback mode with Unspecified sample rate (avoids HAL SRC fallback)
 constexpr StreamProfile kProfiles[] = {
-    {1, "p1", false, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, true, true},
-    {2, "p2", false, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, false},
-    {3, "p3", false, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, true},
-    {4, "p4", false, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16, false, true},
-    {5, "p5", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, true},
-    {6, "p6", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16, false, true},
-    {7, "p7", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, true},
-    {8, "p8", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_I16, false, true},
+    {1, "p1", false, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, true, true, 26},
+    {2, "p2", false, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, false, 26},
+    {3, "p3", false, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, true, 26},
+    {4, "p4", false, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16, false, true, 26},
+    {5, "p5", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, true, 26},
+    {6, "p6", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16, false, true, 26},
+    {7, "p7", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, true, 26},
+    {8, "p8", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_I16, false, true, 26},
+    {9, "p9", true, AAUDIO_SHARING_MODE_EXCLUSIVE, kFormatPcmI32, false, true, 31},
+    {10, "p10", true, AAUDIO_SHARING_MODE_SHARED, kFormatPcmI32, false, true, 31},
+    {11, "p11", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, false, 26},
+    {12, "p12", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, false, 26},
 };
 
 const StreamProfile* findProfile(int32_t profileId) {
@@ -149,9 +222,11 @@ struct StreamHandle {
   bool mmapUsed = false;
   aaudio_sharing_mode_t actualSharing = AAUDIO_SHARING_MODE_SHARED;
   int32_t initialBufferFrames = 0;
+  int32_t bufferCapacityFrames = 0;
 
-  // Scratch buffer for blocking PCM_I16 writes.
+  // Scratch buffers for blocking non-float writes.
   std::vector<int16_t> i16Scratch;
+  std::vector<int32_t> i32Scratch;
 
   // Lock-free SPSC ring buffer (only allocated when useCallback == true).
   // Stores interleaved stereo float samples: ring.size() == ringCapacityFrames * kChannelCount.
@@ -179,6 +254,8 @@ void zeroOutput(void* audioData, aaudio_format_t format, int32_t numFrames) {
   const size_t sampleCount = static_cast<size_t>(numFrames) * kChannelCount;
   if (format == AAUDIO_FORMAT_PCM_I16) {
     std::memset(audioData, 0, sampleCount * sizeof(int16_t));
+  } else if (format == kFormatPcmI32) {
+    std::memset(audioData, 0, sampleCount * sizeof(int32_t));
   } else {
     std::memset(audioData, 0, sampleCount * sizeof(float));
   }
@@ -208,29 +285,30 @@ aaudio_data_callback_result_t onDataCallback(
     const uint64_t startIdx = r & h->ringMask;
     const uint64_t firstFrames = std::min<uint64_t>(toCopy, h->ringCapacityFrames - startIdx);
     const uint64_t secondFrames = toCopy - firstFrames;
+    const size_t count1 = static_cast<size_t>(firstFrames) * kChannelCount;
+    const size_t count2 = static_cast<size_t>(secondFrames) * kChannelCount;
+    const float* src1 = h->ring.data() + startIdx * kChannelCount;
+    const float* src2 = h->ring.data();
 
     if (h->format == AAUDIO_FORMAT_PCM_I16) {
       auto* out = static_cast<int16_t*>(audioData);
-      const float* src1 = h->ring.data() + startIdx * kChannelCount;
-      const size_t count1 = static_cast<size_t>(firstFrames) * kChannelCount;
-      for (size_t i = 0; i < count1; ++i) {
-        out[i] = floatToInt16(src1[i]);
-      }
-      if (secondFrames > 0) {
-        const float* src2 = h->ring.data();
-        const size_t count2 = static_cast<size_t>(secondFrames) * kChannelCount;
+      for (size_t i = 0; i < count1; ++i) out[i] = floatToInt16(src1[i]);
+      if (count2 > 0) {
         int16_t* out2 = out + count1;
-        for (size_t i = 0; i < count2; ++i) {
-          out2[i] = floatToInt16(src2[i]);
-        }
+        for (size_t i = 0; i < count2; ++i) out2[i] = floatToInt16(src2[i]);
+      }
+    } else if (h->format == kFormatPcmI32) {
+      auto* out = static_cast<int32_t*>(audioData);
+      for (size_t i = 0; i < count1; ++i) out[i] = floatToInt32(src1[i]);
+      if (count2 > 0) {
+        int32_t* out2 = out + count1;
+        for (size_t i = 0; i < count2; ++i) out2[i] = floatToInt32(src2[i]);
       }
     } else {
       auto* out = static_cast<float*>(audioData);
-      const size_t count1 = static_cast<size_t>(firstFrames) * kChannelCount;
-      std::memcpy(out, h->ring.data() + startIdx * kChannelCount, count1 * sizeof(float));
-      if (secondFrames > 0) {
-        const size_t count2 = static_cast<size_t>(secondFrames) * kChannelCount;
-        std::memcpy(out + count1, h->ring.data(), count2 * sizeof(float));
+      std::memcpy(out, src1, count1 * sizeof(float));
+      if (count2 > 0) {
+        std::memcpy(out + count1, src2, count2 * sizeof(float));
       }
     }
     h->readPos.store(r + toCopy, std::memory_order_release);
@@ -238,11 +316,15 @@ aaudio_data_callback_result_t onDataCallback(
 
   if (toCopy < static_cast<uint64_t>(numFrames)) {
     const int32_t remaining = numFrames - static_cast<int32_t>(toCopy);
+    const size_t offsetSamples = static_cast<size_t>(toCopy) * kChannelCount;
     if (h->format == AAUDIO_FORMAT_PCM_I16) {
-      auto* out = static_cast<int16_t*>(audioData) + static_cast<size_t>(toCopy) * kChannelCount;
+      auto* out = static_cast<int16_t*>(audioData) + offsetSamples;
       std::memset(out, 0, static_cast<size_t>(remaining) * kChannelCount * sizeof(int16_t));
+    } else if (h->format == kFormatPcmI32) {
+      auto* out = static_cast<int32_t*>(audioData) + offsetSamples;
+      std::memset(out, 0, static_cast<size_t>(remaining) * kChannelCount * sizeof(int32_t));
     } else {
-      auto* out = static_cast<float*>(audioData) + static_cast<size_t>(toCopy) * kChannelCount;
+      auto* out = static_cast<float*>(audioData) + offsetSamples;
       std::memset(out, 0, static_cast<size_t>(remaining) * kChannelCount * sizeof(float));
     }
     if (h->hasWrittenSinceStart.load(std::memory_order_relaxed)) {
@@ -352,6 +434,8 @@ const char* formatName(aaudio_format_t format) {
       return "i16";
     case AAUDIO_FORMAT_PCM_FLOAT:
       return "f32";
+    case kFormatPcmI32:
+      return "i32";
     default:
       return "other";
   }
@@ -380,6 +464,8 @@ int64_t scoreHandle(const StreamHandle* h, const StreamProfile& profile) {
   }
   if (h->format == AAUDIO_FORMAT_PCM_FLOAT) {
     score += 10;
+  } else if (h->format == kFormatPcmI32) {
+    score += 5;
   }
   if (profile.setContentTypeSpeech) {
     score += 5;
@@ -409,6 +495,11 @@ StreamHandle* tryOpenProfile(
     jint initialBursts,
     bool verifyStart,
     std::string& outStatus) {
+  if (android_get_device_api_level() < profile.minApiLevel) {
+    outStatus = "api_unsupported";
+    return nullptr;
+  }
+
   AAudioStreamBuilder* builder = nullptr;
   aaudio_result_t res = AAudio_createStreamBuilder(&builder);
   if (res != AAUDIO_OK || builder == nullptr) {
@@ -448,6 +539,10 @@ StreamHandle* tryOpenProfile(
       if (auto setContentType = resolveSetContentType()) {
         setContentType(builder, AAUDIO_CONTENT_TYPE_SPEECH);
       }
+    }
+    // Explicitly opt out of system audio effects session so effects never force a slow path.
+    if (auto setSessionId = resolveSetSessionId()) {
+      setSessionId(builder, kSessionIdNone);
     }
   }
 
@@ -496,16 +591,18 @@ StreamHandle* tryOpenProfile(
     return nullptr;
   }
 
-  const int32_t capacity = std::max(burst, AAudioStream_getBufferCapacityInFrames(stream));
-  const int32_t requested = std::clamp(burst * std::max(1, static_cast<int32_t>(initialBursts)),
-                                       burst,
-                                       capacity);
-  AAudioStream_setBufferSizeInFrames(stream, requested);
-
   bool mmapUsed = false;
   if (auto isMMap = resolveIsMMapUsed()) {
     mmapUsed = isMMap(stream);
   }
+  const int32_t capacity = std::max(burst, AAudioStream_getBufferCapacityInFrames(stream));
+  const int32_t requested = clampBufferFramesForDevice(
+      burst * std::max(1, static_cast<int32_t>(initialBursts)),
+      burst,
+      capacity,
+      mmapUsed,
+      actualSharing);
+  AAudioStream_setBufferSizeInFrames(stream, requested);
   const int32_t actualBuf = std::max(burst, AAudioStream_getBufferSizeInFrames(stream));
 
   handle->stream = stream;
@@ -514,6 +611,7 @@ StreamHandle* tryOpenProfile(
   handle->mmapUsed = mmapUsed;
   handle->actualSharing = actualSharing;
   handle->initialBufferFrames = actualBuf;
+  handle->bufferCapacityFrames = capacity;
 
   if (profile.useCallback) {
     const uint64_t minCap = std::max<uint64_t>(4096, static_cast<uint64_t>(capacity) * 2);
@@ -738,6 +836,15 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeWrit
       h->i16Scratch[i] = floatToInt16(ptr[i]);
     }
     written = AAudioStream_write(h->stream, h->i16Scratch.data(), numFrames, timeoutNanos);
+  } else if (h->format == kFormatPcmI32) {
+    const size_t sampleCount = static_cast<size_t>(numFrames) * kChannelCount;
+    if (h->i32Scratch.size() < sampleCount) {
+      h->i32Scratch.resize(sampleCount);
+    }
+    for (size_t i = 0; i < sampleCount; ++i) {
+      h->i32Scratch[i] = floatToInt32(ptr[i]);
+    }
+    written = AAudioStream_write(h->stream, h->i32Scratch.data(), numFrames, timeoutNanos);
   } else {
     written = AAudioStream_write(h->stream, ptr, numFrames, timeoutNanos);
   }
@@ -838,12 +945,16 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeSetB
     jint requestedFrames) {
   StreamHandle* h = toHandle(handle);
   if (h == nullptr || h->stream == nullptr || requestedFrames <= 0) return -1;
-  const int32_t actual = AAudioStream_setBufferSizeInFrames(h->stream, requestedFrames);
-  if (h->useCallback && actual > 0 && h->ringCapacityFrames > static_cast<uint64_t>(h->framesPerBurst)) {
+  const int32_t burst = std::max(1, h->framesPerBurst);
+  const int32_t capacity = std::max(burst, h->bufferCapacityFrames);
+  const int32_t safeFrames =
+      clampBufferFramesForDevice(requestedFrames, burst, capacity, h->mmapUsed, h->actualSharing);
+  const int32_t actual = AAudioStream_setBufferSizeInFrames(h->stream, safeFrames);
+  if (h->useCallback && actual > 0 && h->ringCapacityFrames > static_cast<uint64_t>(burst)) {
     const int32_t maxRingQueue = static_cast<int32_t>(
-        std::min<uint64_t>(static_cast<uint64_t>(INT32_MAX), h->ringCapacityFrames - h->framesPerBurst));
+        std::min<uint64_t>(static_cast<uint64_t>(INT32_MAX), h->ringCapacityFrames - burst));
     h->maxQueuedFrames.store(
-        std::clamp(actual, std::max(1, h->framesPerBurst), std::max(1, maxRingQueue)),
+        std::clamp(actual, burst, std::max(burst, maxRingQueue)),
         std::memory_order_relaxed);
   }
   return actual;
