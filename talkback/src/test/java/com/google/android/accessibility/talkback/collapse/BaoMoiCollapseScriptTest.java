@@ -153,6 +153,7 @@ public class BaoMoiCollapseScriptTest {
             true,
             null);
     list.setScrollable(true);
+    list.unwrap().setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(10, 1, false));
 
     AccessibilityNodeInfoCompat page =
         makeNode(null, "android.view.ViewGroup", false, false, null);
@@ -223,6 +224,7 @@ public class BaoMoiCollapseScriptTest {
             true,
             null);
     list.setScrollable(true);
+    list.unwrap().setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(10, 1, false));
 
     AccessibilityNodeInfoCompat card =
         makeNode(
