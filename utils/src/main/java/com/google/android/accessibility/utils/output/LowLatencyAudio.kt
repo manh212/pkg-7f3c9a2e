@@ -22,6 +22,7 @@ import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioPlaybackConfiguration
 import android.media.AudioTrack
 import android.os.Build
 import android.os.Handler
@@ -41,6 +42,7 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import kotlin.math.PI
 import kotlin.math.abs
 
 /**
@@ -122,6 +124,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   private val callbacks = singleThreadExecutor("LowLatencyAudio callbacks")
   @Volatile private var nativeOutput: NativeAAudioOutput? = null
   @Volatile private var aaudioStatus: String = "unattempted"
+  @Volatile private var everFailedAAudio = false
+  @Volatile private var pendingAAudioRestore = false
   @Volatile private var track: AudioTrack? = null
   // Set when no track can be made, or the track stops taking audio and cannot be remade. Then audio
   // plays the usual way.
@@ -165,6 +169,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   private var stickyDetour = false
   // When the track was last sent to the media output again after it went to the earpiece.
   private var lastResend = 0L
+  private val speechBuffer: FloatArray
+  private val silentBurst: FloatArray
+  private val speechDeclicker: SpeechDeclicker
 
   init {
     sampleRate =
@@ -173,6 +180,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     burstFrames =
       audioManager?.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull()
         ?: DEFAULT_BURST
+    speechBuffer = FloatArray(burstFrames * 2)
+    silentBurst = FloatArray(burstFrames * 2)
+    speechDeclicker = SpeechDeclicker(sampleRate)
     openOutput()
   }
 
@@ -307,6 +317,12 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private var framesWritten = 0L
     private var framesPlayed = 0L
     private var started = false
+    private val fadeInFrames = maxOf(1, sampleRate * FADE_IN_MS / 1000)
+    private val fadeOutFrames = maxOf(1, sampleRate * FADE_OUT_MS / 1000)
+    private var fadeInStarted = false
+    private var fadeInPos = 0
+    internal var lastMixedFrames = 0
+      private set
     internal val gaps = SpeechGapTracker()
 
     internal fun reportAudioSubmitted(uptimeMs: Long) {
@@ -515,14 +531,31 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         val left = volume * minOf(1f, 1 - pan)
         val right = volume * minOf(1f, 1 + pan)
         for (i in 0 until count) {
-          if (traceOnset && !soundStarted &&
-            (head[(headOffset + i) * 2] * left != 0f ||
-              head[(headOffset + i) * 2 + 1] * right != 0f)) {
+          var sampleL = head[(headOffset + i) * 2] * left
+          var sampleR = head[(headOffset + i) * 2 + 1] * right
+          if (traceOnset && !soundStarted && (sampleL != 0f || sampleR != 0f)) {
             soundStarted = true
             soundStartingStreams += this
           }
-          out[(written + i) * 2] += head[(headOffset + i) * 2] * left
-          out[(written + i) * 2 + 1] += head[(headOffset + i) * 2 + 1] * right
+          if (!fadeInStarted && (abs(sampleL) > EDGE_SILENCE_EPS || abs(sampleR) > EDGE_SILENCE_EPS)) {
+            fadeInStarted = true
+          }
+          if (fadeInStarted && fadeInPos < fadeInFrames) {
+            val gain = smoothstep(fadeInPos.toFloat() / fadeInFrames)
+            sampleL *= gain
+            sampleR *= gain
+            fadeInPos++
+          }
+          if (ended) {
+            val remaining = framesWritten - (framesPlayed + written + i)
+            if (remaining <= fadeOutFrames) {
+              val gain = smoothstep((remaining - 1L).coerceAtLeast(0L).toFloat() / fadeOutFrames)
+              sampleL *= gain
+              sampleR *= gain
+            }
+          }
+          out[(written + i) * 2] += sampleL
+          out[(written + i) * 2 + 1] += sampleR
         }
         written += count
         headOffset += count
@@ -531,6 +564,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           headOffset = 0
         }
       }
+      lastMixedFrames = written
       if (started || written > 0) {
         recordGap(gaps.mix(written, frames, !ended, SystemClock.uptimeMillis()))
       }
@@ -854,6 +888,58 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     }
   }
 
+  internal fun isActivelyPlayingUsage(usage: Int): Boolean {
+    if (attributes.usage != usage || released || broken) return false
+    val nativePlaying = nativeOutput?.playState == AudioTrack.PLAYSTATE_PLAYING
+    val trackPlaying =
+      try {
+        track?.playState == AudioTrack.PLAYSTATE_PLAYING
+      } catch (_: IllegalStateException) {
+        false
+      }
+    return nativePlaying || trackPlaying
+  }
+
+  /** Temporarily yields AAudio MMAP to AudioTrack while external audio is playing. */
+  internal fun yieldAAudioForExternalAudio() {
+    val needsOffThreadRemake =
+      synchronized(lock) {
+        pendingAAudioRestore = false
+        if (released || broken || nativeOutput == null) return
+        if (thread != null) {
+          remakeTrack = true
+          interrupt(nativeOutput, track)
+          lock.notifyAll()
+          false
+        } else {
+          true
+        }
+      }
+    if (needsOffThreadRemake) ROUTES.execute { remake() }
+  }
+
+  /** Restores AAudio MMAP once external audio has finished. */
+  internal fun restoreAAudioAfterExternalAudio() {
+    val needsOffThreadRemake =
+      synchronized(lock) {
+        if (released || broken || everFailedAAudio || nativeOutput != null) return
+        if (thread == null) {
+          pendingAAudioRestore = false
+          true
+        } else if (clips.isEmpty() && (streams.isEmpty() || held)) {
+          pendingAAudioRestore = false
+          remakeTrack = true
+          lock.notifyAll()
+          false
+        } else {
+          // Finish the current utterance cleanly on AudioTrack, then switch back on idle.
+          pendingAAudioRestore = true
+          false
+        }
+      }
+    if (needsOffThreadRemake) ROUTES.execute { remake() }
+  }
+
   private fun remake() {
     synchronized(lock) {
       if (released || broken) return
@@ -911,6 +997,18 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         }
         if (idle && idleFrames >= idleLimit()) {
           pauseOutputLocked(currentNative, output)
+          if (pendingAAudioRestore && nativeOutput == null && !yieldAAudioForExternalAudio && !everFailedAAudio) {
+            pendingAAudioRestore = false
+            val oldTrack = track
+            track = null
+            primed = false
+            oldTrack?.release()
+            if (!openOutput()) {
+              giveUp()
+              end(nativeOutput, track)
+              return
+            }
+          }
           watchdog?.cancel(false)
           watchdog = null
           val parkUntil = SystemClock.uptimeMillis() + THREAD_IDLE_EXIT_MS
@@ -944,6 +1042,10 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
               giveUp()
               end(nativeOutput, track)
               return
+            }
+            // If we only woke to swap backends while still idle, stay parked without waking the DAC.
+            if (clips.isEmpty() && (streams.isEmpty() || held)) {
+              continue
             }
           }
           lastWrite = SystemClock.uptimeMillis()
@@ -1008,6 +1110,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       }
       currentNative?.close()
       output?.release()
+      if (currentNative != null) {
+        refreshExternalPlaybackNow(audioManager)
+      }
       val reopened = openOutput()
       synchronized(lock) {
         remakeTrack = false
@@ -1036,6 +1141,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   }
 
   private fun pauseOutputLocked(nativeOut: NativeAAudioOutput?, output: AudioTrack?) {
+    speechDeclicker.reset()
     if (nativeOut != null) {
       primed = false
       nativeOut.pauseAndFlush()
@@ -1048,6 +1154,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     if (output.playState != AudioTrack.PLAYSTATE_PLAYING) {
       if (!output.start()) return false
       starting = true
+      // Prime the DAC/mixer with one silent burst so the hardware unmutes on silence.
+      output.write(silentBurst, burstFrames)
     }
     return true
   }
@@ -1095,39 +1203,45 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
    * falls back transparently to [AudioTrack].
    */
   private fun openOutput(): Boolean {
-    val opened =
-      NativeAAudioOutput.open(
-        sampleRate = sampleRate,
-        androidUsage = attributes.usage,
-        deviceId = detour?.id ?: 0,
-        initialBursts = if (smallBufferEnabled && !outgrewSmallBuffer) 1 else QUEUED_BURSTS,
-      )
-    aaudioStatus = NativeAAudioOutput.lastOpenStatus
-    if (opened != null) {
-      if (opened.sampleRate == sampleRate) {
-        if (fastFrames > 0) {
-          opened.setBufferSizeInFrames(fastFrames)
+    if (yieldAAudioForExternalAudio) {
+      aaudioStatus = "yielded_for_external_audio"
+    } else {
+      val opened =
+        NativeAAudioOutput.open(
+          sampleRate = sampleRate,
+          androidUsage = attributes.usage,
+          deviceId = detour?.id ?: 0,
+          initialBursts = if (smallBufferEnabled && !outgrewSmallBuffer) 1 else QUEUED_BURSTS,
+        )
+      aaudioStatus = NativeAAudioOutput.lastOpenStatus
+      if (opened != null) {
+        if (opened.sampleRate == sampleRate) {
+          everFailedAAudio = false
+          if (fastFrames > 0) {
+            opened.setBufferSizeInFrames(fastFrames)
+          }
+          nativeOutput = opened
+          track = null
+          fastPath = true
+          underruns = opened.xRunCount
+          BatteryUsageTracker.onAudioBackendSelected(
+            if (opened.isMMapUsed) "AAudio MMAP" else "AAudio"
+          )
+          LogUtils.d(
+            TAG,
+            "Using native AAudio: %d Hz, burst=%d, buffer=%d/%d, mmap=%b",
+            opened.sampleRate,
+            opened.framesPerBurst,
+            opened.bufferSizeInFrames,
+            opened.bufferCapacityInFrames,
+            opened.isMMapUsed,
+          )
+          return true
         }
-        nativeOutput = opened
-        track = null
-        fastPath = true
-        underruns = opened.xRunCount
-        BatteryUsageTracker.onAudioBackendSelected(
-          if (opened.isMMapUsed) "AAudio MMAP" else "AAudio"
-        )
-        LogUtils.d(
-          TAG,
-          "Using native AAudio: %d Hz, burst=%d, buffer=%d/%d, mmap=%b",
-          opened.sampleRate,
-          opened.framesPerBurst,
-          opened.bufferSizeInFrames,
-          opened.bufferCapacityInFrames,
-          opened.isMMapUsed,
-        )
-        return true
+        aaudioStatus = "sample_rate_mismatch(got=${opened.sampleRate},want=$sampleRate)"
+        opened.close()
       }
-      aaudioStatus = "sample_rate_mismatch(got=${opened.sampleRate},want=$sampleRate)"
-      opened.close()
+      everFailedAAudio = true
     }
     val fallback = createTrack()
     nativeOutput = null
@@ -1180,7 +1294,13 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       if (output.playState != AudioTrack.PLAYSTATE_PLAYING) {
         output.play()
         starting = true
-        if (!fastPath) waking = true
+        if (fastPath) {
+          // Prime the fast mixer with one silent burst (~5.3 ms at 48 kHz) so the DAC/amp
+          // unmutes cleanly on silence rather than popping on the first speech sample.
+          output.write(silentBurst, 0, silentBurst.size, AudioTrack.WRITE_BLOCKING)
+        } else {
+          waking = true
+        }
       }
       true
     } catch (e: IllegalStateException) {
@@ -1240,8 +1360,20 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       }
       if (!(playing.position < total)) iterator.remove()
     }
+    speechBuffer.fill(0f)
     val head = if (held) null else streams.peekFirst()
-    if (head != null && !head.mixInto(out, burstFrames)) streams.removeFirst()
+    var speechWritten = 0
+    var streamEnded = false
+    if (head != null) {
+      val hasMore = head.mixInto(speechBuffer, burstFrames)
+      speechWritten = head.lastMixedFrames
+      if (!hasMore) {
+        streams.removeFirst()
+        streamEnded = true
+      }
+    }
+    speechDeclicker.processBurst(speechBuffer, burstFrames, head, speechWritten, streamEnded)
+    for (i in out.indices) out[i] += speechBuffer[i]
     // NaN passes coerceIn. In a float track it plays as a full-scale pop and then silence.
     for (i in out.indices) out[i] = out[i].let { if (it.isNaN()) 0f else it.coerceIn(-1f, 1f) }
   }
@@ -1410,8 +1542,163 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     LogUtils.d(TAG, "Track ran short, now %d frames", output.bufferSizeInFrames)
   }
 
+  /**
+   * Eliminates clicks and pops on the speech bus caused by abrupt stream cuts (interrupt/stop/
+   * hold/underrun), stream switches, and TTS DC offset, without adding playback latency.
+   */
+  internal class SpeechDeclicker(sampleRate: Int) {
+    private val decayFrames = maxOf(1, sampleRate * INTERRUPT_FADE_OUT_MS / 1000)
+    private val dcCoeff = (1.0 - 2.0 * PI * DC_BLOCKER_HZ / maxOf(1, sampleRate)).toFloat()
+    private var activeSource: Any? = null
+    private var lastL = 0f
+    private var lastR = 0f
+    private var decayL = 0f
+    private var decayR = 0f
+    private var decayPos = decayFrames
+    private var dcPrevInL = 0f
+    private var dcPrevOutL = 0f
+    private var dcPrevInR = 0f
+    private var dcPrevOutR = 0f
+
+    fun reset() {
+      activeSource = null
+      lastL = 0f
+      lastR = 0f
+      decayL = 0f
+      decayR = 0f
+      decayPos = decayFrames
+      dcPrevInL = 0f
+      dcPrevOutL = 0f
+      dcPrevInR = 0f
+      dcPrevOutR = 0f
+    }
+
+    fun processBurst(
+      speechBuffer: FloatArray,
+      frames: Int,
+      source: Any?,
+      speechWritten: Int,
+      sourceEnded: Boolean,
+    ) {
+      // Capture the new stream's raw last sample before blending any prior stream's decay tail.
+      val rawLastL = if (speechWritten > 0) speechBuffer[(speechWritten - 1) * 2] else 0f
+      val rawLastR = if (speechWritten > 0) speechBuffer[(speechWritten - 1) * 2 + 1] else 0f
+
+      // If the active speech stream stopped, switched, was held, or starved at the start of
+      // this burst while still at a non-zero sample, smoothly ramp its last sample down to 0.
+      if (source !== activeSource || speechWritten == 0) {
+        armDecayFromLast()
+        lastL = 0f
+        lastR = 0f
+        activeSource = if (speechWritten > 0 && !sourceEnded) source else null
+      }
+
+      // Blend any active de-click decay from frame 0 (crossfades cleanly with a new stream).
+      var hadDecay = false
+      if (decayPos < decayFrames) {
+        hadDecay = true
+        val limit = minOf(frames, decayFrames - decayPos)
+        for (i in 0 until limit) {
+          val gain = 1f - smoothstep((decayPos + 1).toFloat() / decayFrames)
+          speechBuffer[i * 2] += decayL * gain
+          speechBuffer[i * 2 + 1] += decayR * gain
+          decayPos++
+        }
+      }
+
+      if (speechWritten > 0) {
+        lastL = rawLastL
+        lastR = rawLastR
+        if (speechWritten < frames) {
+          // The stream finished or starved mid-burst: start decaying immediately at
+          // speechWritten so there is no step drop to 0 inside this burst.
+          if (abs(lastL) > EDGE_SILENCE_EPS || abs(lastR) > EDGE_SILENCE_EPS) {
+            hadDecay = true
+            val tailL = lastL
+            val tailR = lastR
+            val tailCount = minOf(frames - speechWritten, decayFrames)
+            for (k in 0 until tailCount) {
+              val gain = 1f - smoothstep((k + 1).toFloat() / decayFrames)
+              speechBuffer[(speechWritten + k) * 2] += tailL * gain
+              speechBuffer[(speechWritten + k) * 2 + 1] += tailR * gain
+            }
+            if (tailCount < decayFrames) {
+              // Carry the remaining decay into the next burst (merging if an older decay still runs).
+              if (decayPos < decayFrames) {
+                val remGain = 1f - smoothstep(decayPos.toFloat() / decayFrames)
+                decayL = decayL * remGain + tailL * (1f - smoothstep(tailCount.toFloat() / decayFrames))
+                decayR = decayR * remGain + tailR * (1f - smoothstep(tailCount.toFloat() / decayFrames))
+                decayPos = tailCount
+              } else {
+                decayL = tailL
+                decayR = tailR
+                decayPos = tailCount
+              }
+            }
+          }
+          lastL = 0f
+          lastR = 0f
+        }
+        activeSource = if (sourceEnded) null else source
+        if (sourceEnded && speechWritten == frames) {
+          // If the stream ended on the exact last frame of the burst, arm decay for the next
+          // burst only if its final sample was still non-zero.
+          armDecayFromLast()
+          lastL = 0f
+          lastR = 0f
+        }
+      }
+
+      val hasDcTail =
+        abs(dcPrevOutL) >= EDGE_SILENCE_EPS ||
+          abs(dcPrevOutR) >= EDGE_SILENCE_EPS ||
+          dcPrevInL != 0f ||
+          dcPrevInR != 0f
+      if (speechWritten == 0 && !hadDecay && !hasDcTail) {
+        dcPrevOutL = 0f
+        dcPrevOutR = 0f
+        return
+      }
+
+      for (i in 0 until frames) {
+        val l = speechBuffer[i * 2]
+        val yl = l - dcPrevInL + dcCoeff * dcPrevOutL
+        dcPrevInL = l
+        dcPrevOutL = yl
+        speechBuffer[i * 2] = yl
+
+        val r = speechBuffer[i * 2 + 1]
+        val yr = r - dcPrevInR + dcCoeff * dcPrevOutR
+        dcPrevInR = r
+        dcPrevOutR = yr
+        speechBuffer[i * 2 + 1] = yr
+      }
+      if (abs(dcPrevOutL) < DENORMAL) dcPrevOutL = 0f
+      if (abs(dcPrevOutR) < DENORMAL) dcPrevOutR = 0f
+    }
+
+    private fun armDecayFromLast() {
+      if (abs(lastL) > EDGE_SILENCE_EPS || abs(lastR) > EDGE_SILENCE_EPS) {
+        decayL = lastL
+        decayR = lastR
+        decayPos = 0
+      }
+    }
+  }
+
   companion object {
     private const val TAG = "LowLatencyAudio"
+    internal const val FADE_IN_MS = 3
+    internal const val FADE_OUT_MS = 4
+    internal const val INTERRUPT_FADE_OUT_MS = 4
+    internal const val DC_BLOCKER_HZ = 20.0
+    internal const val EDGE_SILENCE_EPS = 1e-5f
+    private const val DENORMAL = 1e-20f
+
+    internal fun smoothstep(t: Float): Float {
+      val x = t.coerceIn(0f, 1f)
+      return x * x * (3f - 2f * x)
+    }
     private const val DEFAULT_RATE = 48_000
     private const val DEFAULT_BURST = 192
     private const val QUEUED_BURSTS = 2
@@ -1579,6 +1866,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       val players = synchronized(instances) { instances.values.toList().also { instances.clear() } }
       for (player in players) player.shutdown()
       stopWatchingRoutes()
+      stopWatchingPlayback()
     }
 
     private fun followMediaAll() {
@@ -1647,6 +1935,134 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private fun isCallMode(mode: Int): Boolean =
       mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
 
+    private const val AAUDIO_RESTORE_DELAY_MS = 350L
+    private val AAUDIO_RESTORE_TOKEN = Any()
+    @Volatile private var yieldAAudioForExternalAudio = false
+
+    private class PlaybackWatcher(
+      val audioManager: AudioManager,
+      val callback: AudioManager.AudioPlaybackCallback,
+    )
+
+    private var playbackWatcher: PlaybackWatcher? = null
+
+    /**
+     * Returns whether any non-accessibility audio playback (ringtone, alarm, notification, media,
+     * game, call, etc.) is active outside Meridian's own playing tracks.
+     */
+    @VisibleForTesting
+    @JvmStatic
+    fun hasExternalPlayback(
+      activeUsages: List<Int>,
+      ownPlayingUsages: List<Int>,
+      audioMode: Int,
+    ): Boolean {
+      if (audioMode == AudioManager.MODE_RINGTONE ||
+        audioMode == AudioManager.MODE_IN_CALL ||
+        audioMode == AudioManager.MODE_IN_COMMUNICATION) {
+        return true
+      }
+      if (activeUsages.isEmpty()) return false
+      val counts = HashMap<Int, Int>()
+      for (usage in activeUsages) {
+        if (usage == AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY ||
+          usage == AudioAttributes.USAGE_ASSISTANCE_SONIFICATION) {
+          continue
+        }
+        counts[usage] = (counts[usage] ?: 0) + 1
+      }
+      if (counts.isEmpty()) return false
+      for (ownUsage in ownPlayingUsages) {
+        val current = counts[ownUsage] ?: continue
+        if (current <= 1) counts.remove(ownUsage) else counts[ownUsage] = current - 1
+      }
+      return counts.isNotEmpty()
+    }
+
+    private fun hasExternalPlaybackNow(
+      am: AudioManager,
+      configs: List<AudioPlaybackConfiguration>? = null,
+    ): Boolean {
+      val list =
+        configs
+          ?: try {
+            am.activePlaybackConfigurations
+          } catch (_: RuntimeException) {
+            return false
+          }
+      val usages = list.map { it.audioAttributes.usage }
+      val ownUsages = ArrayList<Int>()
+      for (player in players()) {
+        val u = player.attributes.usage
+        if (u != AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY &&
+          u != AudioAttributes.USAGE_ASSISTANCE_SONIFICATION &&
+          player.isActivelyPlayingUsage(u)) {
+          ownUsages += u
+        }
+      }
+      val mode = try { am.mode } catch (_: RuntimeException) { AudioManager.MODE_NORMAL }
+      return hasExternalPlayback(usages, ownUsages, mode)
+    }
+
+    private fun refreshExternalPlaybackNow(am: AudioManager?) {
+      if (am == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+      if (hasExternalPlaybackNow(am)) {
+        routeHandler.removeCallbacksAndMessages(AAUDIO_RESTORE_TOKEN)
+        yieldAAudioForExternalAudio = true
+      }
+    }
+
+    private fun onExternalPlaybackChanged(am: AudioManager, active: Boolean) {
+      if (active) {
+        routeHandler.removeCallbacksAndMessages(AAUDIO_RESTORE_TOKEN)
+        if (!yieldAAudioForExternalAudio) {
+          yieldAAudioForExternalAudio = true
+          LogUtils.d(TAG, "External audio active; temporarily switching AAudio to AudioTrack")
+          for (player in players()) player.yieldAAudioForExternalAudio()
+        }
+      } else if (yieldAAudioForExternalAudio) {
+        routeHandler.removeCallbacksAndMessages(AAUDIO_RESTORE_TOKEN)
+        routeHandler.postAtTime(
+          {
+            if (!hasExternalPlaybackNow(am)) {
+              yieldAAudioForExternalAudio = false
+              LogUtils.d(TAG, "External audio ended; restoring AAudio")
+              for (player in players()) player.restoreAAudioAfterExternalAudio()
+            }
+          },
+          AAUDIO_RESTORE_TOKEN,
+          SystemClock.uptimeMillis() + AAUDIO_RESTORE_DELAY_MS,
+        )
+      }
+    }
+
+    private fun watchPlayback(context: Context) {
+      if (playbackWatcher != null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+      val am = context.getSystemService(AudioManager::class.java) ?: return
+      yieldAAudioForExternalAudio = hasExternalPlaybackNow(am)
+      val callback =
+        object : AudioManager.AudioPlaybackCallback() {
+          override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) {
+            onExternalPlaybackChanged(am, hasExternalPlaybackNow(am, configs))
+          }
+        }
+      try {
+        am.registerAudioPlaybackCallback(callback, routeHandler)
+        playbackWatcher = PlaybackWatcher(am, callback)
+      } catch (e: RuntimeException) {
+        LogUtils.w(TAG, "Cannot monitor external audio playback: %s", e)
+      }
+    }
+
+    private fun stopWatchingPlayback() {
+      val watcher = synchronized(instances) { playbackWatcher.also { playbackWatcher = null } }
+      routeHandler.removeCallbacksAndMessages(AAUDIO_RESTORE_TOKEN)
+      yieldAAudioForExternalAudio = false
+      if (watcher != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        runCatching { watcher.audioManager.unregisterAudioPlaybackCallback(watcher.callback) }
+      }
+    }
+
     /**
      * The player for [attributes]' usage, one for each kind of audio, or null if the device cannot
      * make a low-latency track, and audio should play the usual way.
@@ -1655,6 +2071,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     fun get(context: Context, attributes: AudioAttributes): LowLatencyAudio? =
       synchronized(instances) {
         watchRoutes(context.applicationContext)
+        watchPlayback(context.applicationContext)
         instances
           .getOrPut(attributes.usage) { LowLatencyAudio(context.applicationContext, attributes) }
           .takeIf { it.hasOutput() && !it.broken }
