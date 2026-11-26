@@ -2135,6 +2135,15 @@ public class FocusProcessorForLogicalNavigation {
       return null;
     }
     if (WebInterfaceUtils.supportsWebActions(pivot)) {
+      if (LatencyExperiments.Feature.WEB_LOCAL_NAVIGATION.enabled()
+          && targetType == NavigationTarget.TARGET_DEFAULT
+          && Role.getRole(pivot) != Role.ROLE_WEB_VIEW) {
+        AccessibilityNodeInfoCompat webTarget =
+            findLocalVisibleWebTarget(pivot, searchDirection, targetType);
+        if (webTarget != null) {
+          return webTarget;
+        }
+      }
       noteNoTarget(PreparedSpeechWork.NO_TARGET_WEB_PIVOT);
       return null;
     }
@@ -2165,6 +2174,65 @@ public class FocusProcessorForLogicalNavigation {
       return null;
     }
     return target;
+  }
+
+  private static final int MAX_WEB_LOCAL_SEARCH_STEPS = 24;
+  private static final long MAX_WEB_LOCAL_SEARCH_MS = 18L;
+
+  /**
+   * Bounded local traversal inside a WebView for on-screen elements only. Never builds a full
+   * WebView traversal tree (which could pull thousands of off-screen DOM nodes over Binder IPC);
+   * returns {@code null} at viewport edges or on slow IPC so Chrome's native HTML navigation
+   * handles scrolling, virtualized DOMs, iframes, and semantic granularities seamlessly.
+   */
+  private @Nullable AccessibilityNodeInfoCompat findLocalVisibleWebTarget(
+      @NonNull AccessibilityNodeInfoCompat pivot,
+      @SearchDirection int searchDirection,
+      @TargetType int targetType) {
+    AccessibilityNodeInfoCompat webView =
+        AccessibilityNodeInfoUtils.getSelfOrMatchingAncestor(
+            pivot, Filter.node(node -> Role.getRole(node) == Role.ROLE_WEB_VIEW));
+    if (webView == null) {
+      return null;
+    }
+    Rect webViewBounds = new Rect();
+    webView.getBoundsInScreen(webViewBounds);
+    if (webViewBounds.isEmpty()) {
+      return null;
+    }
+    int pivotWindowId = pivot.getWindowId();
+    SimpleTraversalStrategy strategy = new SimpleTraversalStrategy();
+    Filter<AccessibilityNodeInfoCompat> filter =
+        composeNodeFilter(targetType, strategy.getSpeakingNodesCache());
+    long deadline = SystemClock.uptimeMillis() + MAX_WEB_LOCAL_SEARCH_MS;
+    AccessibilityNodeInfoCompat current = pivot;
+    java.util.HashSet<AccessibilityNodeInfoCompat> seen = new java.util.HashSet<>();
+    Rect candidateBounds = new Rect();
+    for (int step = 0; step < MAX_WEB_LOCAL_SEARCH_STEPS; step++) {
+      if (SystemClock.uptimeMillis() >= deadline) {
+        return null;
+      }
+      seen.add(current);
+      AccessibilityNodeInfoCompat next = strategy.findFocus(current, searchDirection);
+      if (next == null
+          || seen.contains(next)
+          || next.getWindowId() != pivotWindowId
+          || !WebInterfaceUtils.supportsWebActions(next)) {
+        return null;
+      }
+      current = next;
+      if (Role.getRole(current) == Role.ROLE_WEB_VIEW || !current.isVisibleToUser()) {
+        continue;
+      }
+      current.getBoundsInScreen(candidateBounds);
+      if (candidateBounds.isEmpty() || !Rect.intersects(candidateBounds, webViewBounds)) {
+        continue;
+      }
+      if (filter.accept(current)) {
+        return current;
+      }
+    }
+    return null;
   }
 
   /** Counts a failed prediction, in total and by cause (round-3 Q11). */
@@ -2304,6 +2372,17 @@ public class FocusProcessorForLogicalNavigation {
             && navigationAction.targetType == NavigationTarget.TARGET_DEFAULT
             && logicalDirection == TraversalStrategy.SEARCH_FOCUS_BACKWARD)) {
       TraversalTreeCache.rememberPivot(pivot);
+      if (LatencyExperiments.Feature.WEB_LOCAL_NAVIGATION.enabled()
+          && navigationAction.targetType == NavigationTarget.TARGET_DEFAULT
+          && Role.getRole(pivot) != Role.ROLE_WEB_VIEW) {
+        AccessibilityNodeInfoCompat localWebTarget =
+            findLocalVisibleWebTarget(pivot, searchDirection, navigationAction.targetType);
+        if (localWebTarget != null
+            && setAccessibilityFocusInternal(localWebTarget, navigationAction, eventId)) {
+          reachEdge = false;
+          return true;
+        }
+      }
       if (navigateToHtmlTargetExpectingFocus(pivot, navigationAction, eventId)) {
         reachEdge = false;
         return true;

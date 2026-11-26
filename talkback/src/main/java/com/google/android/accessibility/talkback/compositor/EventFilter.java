@@ -639,7 +639,8 @@ public class EventFilter {
         || role == Role.ROLE_KEYBOARD_KEY
         || (!preparedControl && (role == Role.ROLE_SEEK_CONTROL
             || role == Role.ROLE_PROGRESS_BAR || AccessibilityNodeInfoUtils.isPage(node)))
-        || WebInterfaceUtils.supportsWebActions(node)) {
+        || (!LatencyExperiments.Feature.WEB_LOCAL_NAVIGATION.enabled()
+            && WebInterfaceUtils.supportsWebActions(node))) {
       return false;
     }
     // A Telegram chat list row may still describe the conversation it showed before it was reused,

@@ -70,7 +70,8 @@ public final class LatencyExperiments {
     FAST_SCROLL("fast_scroll", true),
     LIVE_EDGE_REUSE("live_edge_reuse", true),
     AUDIO_RESAMPLE("audio_resample", true),
-    AUDIO_KEEP_WARM("audio_keep_warm", true);
+    AUDIO_KEEP_WARM("audio_keep_warm", true),
+    WEB_LOCAL_NAVIGATION("web_local_navigation");
 
     public final String key;
     public final boolean defaultEnabled;
