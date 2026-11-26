@@ -220,18 +220,21 @@ public class AccessibilityNodeFeedbackUtils {
         com.google.android.accessibility.utils.UniversalAccessibilityHelper
             .filterContentDescription(
                 node,
-                com.google.android.accessibility.utils.MessengerAccessibilityHelper
+                com.google.android.accessibility.utils.FacebookAccessibilityHelper
                     .filterContentDescription(
                         node,
-                        com.google.android.accessibility.utils.TikTokAccessibilityHelper
+                        com.google.android.accessibility.utils.MessengerAccessibilityHelper
                             .filterContentDescription(
                                 node,
-                                com.google.android.accessibility.utils.ZaloAccessibilityHelper
+                                com.google.android.accessibility.utils.TikTokAccessibilityHelper
                                     .filterContentDescription(
                                         node,
-                                        com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                        com.google.android.accessibility.utils.ZaloAccessibilityHelper
                                             .filterContentDescription(
-                                                node, node.getContentDescription())))));
+                                                node,
+                                                com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                                    .filterContentDescription(
+                                                        node, node.getContentDescription()))))));
     return prepareSpans(
         LauncherPositionDescriptionFilter.filter(
             filteredDescription, node.getPackageName(), context),
@@ -266,18 +269,21 @@ public class AccessibilityNodeFeedbackUtils {
         com.google.android.accessibility.utils.UniversalAccessibilityHelper
             .filterContentDescription(
                 node,
-                com.google.android.accessibility.utils.MessengerAccessibilityHelper
+                com.google.android.accessibility.utils.FacebookAccessibilityHelper
                     .filterContentDescription(
                         node,
-                        com.google.android.accessibility.utils.TikTokAccessibilityHelper
+                        com.google.android.accessibility.utils.MessengerAccessibilityHelper
                             .filterContentDescription(
                                 node,
-                                com.google.android.accessibility.utils.ZaloAccessibilityHelper
+                                com.google.android.accessibility.utils.TikTokAccessibilityHelper
                                     .filterContentDescription(
                                         node,
-                                        com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                        com.google.android.accessibility.utils.ZaloAccessibilityHelper
                                             .filterContentDescription(
-                                                node, node.getContentDescription())))));
+                                                node,
+                                                com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                                    .filterContentDescription(
+                                                        node, node.getContentDescription()))))));
     CharSequence contentDescription =
         LauncherPositionDescriptionFilter.filter(
             rawContentDescription, node.getPackageName(), context);
@@ -491,18 +497,21 @@ public class AccessibilityNodeFeedbackUtils {
         return true;
       }
       CharSequence desc =
-          com.google.android.accessibility.utils.MessengerAccessibilityHelper
+          com.google.android.accessibility.utils.FacebookAccessibilityHelper
               .filterContentDescription(
                   child,
-                  com.google.android.accessibility.utils.TikTokAccessibilityHelper
+                  com.google.android.accessibility.utils.MessengerAccessibilityHelper
                       .filterContentDescription(
                           child,
-                          com.google.android.accessibility.utils.ZaloAccessibilityHelper
+                          com.google.android.accessibility.utils.TikTokAccessibilityHelper
                               .filterContentDescription(
                                   child,
-                                  com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                  com.google.android.accessibility.utils.ZaloAccessibilityHelper
                                       .filterContentDescription(
-                                          child, child.getContentDescription()))));
+                                          child,
+                                          com.google.android.accessibility.utils.ShopeeAccessibilityHelper
+                                              .filterContentDescription(
+                                                  child, child.getContentDescription())))));
       if (!TextUtils.isEmpty(desc) && TextUtils.getTrimmedLength(desc) > 0) {
         return true;
       }

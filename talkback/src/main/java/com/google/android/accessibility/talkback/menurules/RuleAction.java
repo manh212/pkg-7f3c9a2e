@@ -48,6 +48,7 @@ public class RuleAction extends NodeMenuRule {
   private final ZaloReactionMenu zaloReactionMenu;
   private final ZaloMessageActionsMenu zaloMessageActionsMenu;
   private final MessengerMessageActionsMenu messengerMessageActionsMenu;
+  private final FacebookActionsMenu facebookActionsMenu;
 
   public RuleAction(
       Pipeline.FeedbackReturner pipeline,
@@ -73,6 +74,7 @@ public class RuleAction extends NodeMenuRule {
     zaloReactionMenu = new ZaloReactionMenu(pipeline);
     zaloMessageActionsMenu = new ZaloMessageActionsMenu(pipeline);
     messengerMessageActionsMenu = new MessengerMessageActionsMenu(pipeline);
+    facebookActionsMenu = new FacebookActionsMenu(pipeline);
   }
 
   @Override
@@ -88,7 +90,8 @@ public class RuleAction extends NodeMenuRule {
         || quotedMessageMenu.accept(context, node)
         || zaloReactionMenu.accept(context, node)
         || zaloMessageActionsMenu.accept(context, node)
-        || messengerMessageActionsMenu.accept(context, node);
+        || messengerMessageActionsMenu.accept(context, node)
+        || facebookActionsMenu.accept(context, node);
   }
 
   @Override
@@ -148,6 +151,11 @@ public class RuleAction extends NodeMenuRule {
     if (messengerMessageActionsMenu.accept(context, node)) {
       actionItems.addAll(
           messengerMessageActionsMenu.getMenuItemsForNode(context, node, includeAncestors));
+    }
+
+    if (facebookActionsMenu.accept(context, node)) {
+      actionItems.addAll(
+          facebookActionsMenu.getMenuItemsForNode(context, node, includeAncestors));
     }
 
     return actionItems;
