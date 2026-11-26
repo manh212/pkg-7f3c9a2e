@@ -29,11 +29,14 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import com.google.android.accessibility.utils.BatteryUsageTracker
 import com.google.android.accessibility.utils.LatencyExperiments
 import com.google.android.accessibility.utils.Performance
+import com.google.android.accessibility.utils.R
+import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.nio.ByteBuffer
 import java.util.ArrayDeque
 import java.util.concurrent.Executor
@@ -64,6 +67,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   val sampleRate: Int
 
   private val burstFrames: Int
+  private val appContext = context.applicationContext
   private val audioManager = context.getSystemService(AudioManager::class.java)
   private val mainHandler = Handler(Looper.getMainLooper())
   private val lock = java.lang.Object()
@@ -125,6 +129,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   private val callbacks = singleThreadExecutor("LowLatencyAudio callbacks")
   @Volatile private var nativeOutput: NativeAAudioOutput? = null
   @Volatile private var aaudioStatus: String = "unattempted"
+  @Volatile private var preferredAAudioProfile: Int = NativeAAudioOutput.PROFILE_UNSET
+  @Volatile private var audioProbeSummary: String = ""
+  @Volatile private var calibratingAudioPath = false
   @Volatile private var aaudioPermanentlyUnavailable = false
   @Volatile private var pendingAAudioRestore = false
   @Volatile private var everHadFastPath = false
@@ -189,7 +196,14 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     speechBuffer = FloatArray(burstFrames * 2)
     silentBurst = FloatArray(burstFrames * 2)
     speechDeclicker = SpeechDeclicker(sampleRate)
+    val needsCalibration = loadOrCheckAudioCalibration()
+    if (needsCalibration) {
+      calibratingAudioPath = true
+    }
     openOutput()
+    if (needsCalibration) {
+      scheduleAudioPathCalibration()
+    }
   }
 
   /**
@@ -820,7 +834,12 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         interruptedShortages = gapSummary(SpeechGapTracker.Kind.INTERRUPTED),
         pendingShortages = streams.count { it.gaps.waiting },
         dspWrites = dspWriteSummary(),
-        aaudioStatus = aaudioStatus,
+        aaudioStatus =
+          if (audioProbeSummary.isNotEmpty() && !aaudioStatus.contains("probe=[")) {
+            "$aaudioStatus | $audioProbeSummary"
+          } else {
+            aaudioStatus
+          },
       )
     }
 
@@ -1281,8 +1300,12 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
    */
   private fun openOutput(): Boolean {
     prepareInitialDetour()
-    if (yieldAAudioForExternalAudio) {
+    if (calibratingAudioPath) {
+      aaudioStatus = "calibrating_audio_paths"
+    } else if (yieldAAudioForExternalAudio) {
       aaudioStatus = "yielded_for_external_audio"
+    } else if (preferredAAudioProfile == NativeAAudioOutput.PROFILE_USE_AUDIOTRACK) {
+      aaudioStatus = "calibrated_audiotrack"
     } else {
       val opened =
         NativeAAudioOutput.open(
@@ -1290,6 +1313,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           androidUsage = attributes.usage,
           deviceId = detour?.id ?: 0,
           initialBursts = if (smallBufferEnabled && !outgrewSmallBuffer) 1 else QUEUED_BURSTS,
+          preferredProfileId = preferredAAudioProfile,
         )
       aaudioStatus = NativeAAudioOutput.lastOpenStatus
       if (opened != null) {
@@ -1333,6 +1357,116 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       )
     }
     return fallback != null
+  }
+
+  private fun loadOrCheckAudioCalibration(): Boolean {
+    if (!NativeAAudioOutput.isAvailable) return false
+    val stamp = buildCalibrationStamp(appContext, sampleRate)
+    val prefs =
+      try {
+        SharedPreferencesUtils.getSharedPreferences(appContext)
+      } catch (_: RuntimeException) {
+        return false
+      }
+    val savedStamp = prefs.getString(PREF_AUDIO_PROBE_STAMP, null)
+    val profileKey = PREF_AUDIO_PROBE_PROFILE_PREFIX + attributes.usage
+    val summaryKey = PREF_AUDIO_PROBE_SUMMARY_PREFIX + attributes.usage
+    val savedProfile = prefs.getInt(profileKey, NativeAAudioOutput.PROFILE_UNSET)
+    if (shouldRunAudioCalibration(savedStamp, stamp, savedProfile)) {
+      return true
+    }
+    preferredAAudioProfile = savedProfile
+    audioProbeSummary = prefs.getString(summaryKey, "") ?: ""
+    return false
+  }
+
+  private fun scheduleAudioPathCalibration() {
+    val stamp = buildCalibrationStamp(appContext, sampleRate)
+    val usageKey = "$stamp|${attributes.usage}"
+    val shouldStart = synchronized(calibratingKeys) { calibratingKeys.add(usageKey) }
+    if (!shouldStart) {
+      calibratingAudioPath = false
+      return
+    }
+    val shouldAnnounce =
+      synchronized(calibratingKeys) {
+        if (calibrationNoticeStamp != stamp) {
+          calibrationNoticeStamp = stamp
+          true
+        } else {
+          false
+        }
+      }
+    if (shouldAnnounce) {
+      mainHandler.post {
+        runCatching {
+          Toast.makeText(appContext, R.string.audio_path_calibrating_notice, Toast.LENGTH_LONG)
+            .show()
+        }
+      }
+    }
+    ROUTES.execute {
+      try {
+        if (released) return@execute
+        if (yieldAAudioForExternalAudio) {
+          // Do not calibrate during an active phone call or external media playback; retry next
+          // time the player is created or restarted in normal mode.
+          calibratingAudioPath = false
+          synchronized(calibratingKeys) { calibratingKeys.remove(usageKey) }
+          remake()
+          return@execute
+        }
+        val initialBursts = if (smallBufferEnabled && !outgrewSmallBuffer) 1 else QUEUED_BURSTS
+        val bestProfile =
+          NativeAAudioOutput.probeBestProfile(
+            sampleRate = sampleRate,
+            androidUsage = attributes.usage,
+            deviceId = detour?.id ?: 0,
+            initialBursts = initialBursts,
+          )
+        val summary = NativeAAudioOutput.lastProbeSummary
+        preferredAAudioProfile = bestProfile
+        audioProbeSummary = summary
+        runCatching {
+          SharedPreferencesUtils.getSharedPreferences(appContext)
+            .edit()
+            .putString(PREF_AUDIO_PROBE_STAMP, stamp)
+            .putInt(PREF_AUDIO_PROBE_PROFILE_PREFIX + attributes.usage, bestProfile)
+            .putString(PREF_AUDIO_PROBE_SUMMARY_PREFIX + attributes.usage, summary)
+            .apply()
+        }
+        LogUtils.i(
+          TAG,
+          "Audio path calibration complete for usage=%d: profile=%d (%s)",
+          attributes.usage,
+          bestProfile,
+          summary,
+        )
+        calibratingAudioPath = false
+        if (!released) {
+          if (broken) {
+            recoverAfterRouteChange()
+          } else {
+            remake()
+          }
+        }
+        if (shouldAnnounce) {
+          mainHandler.post {
+            runCatching {
+              Toast.makeText(
+                  appContext,
+                  R.string.audio_path_calibrated_notice,
+                  Toast.LENGTH_SHORT,
+                )
+                .show()
+            }
+          }
+        }
+      } finally {
+        calibratingAudioPath = false
+        synchronized(calibratingKeys) { calibratingKeys.remove(usageKey) }
+      }
+    }
   }
 
   /** Pauses the track and drops what it has queued. Called with [lock] held. */
@@ -2237,6 +2371,45 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
      * The player for [attributes]' usage, one for each kind of audio, or null if the device cannot
      * make a low-latency track, and audio should play the usual way.
      */
+    private const val PREF_AUDIO_PROBE_STAMP = "pref_audio_path_probe_stamp"
+    private const val PREF_AUDIO_PROBE_PROFILE_PREFIX = "pref_audio_path_profile_"
+    private const val PREF_AUDIO_PROBE_SUMMARY_PREFIX = "pref_audio_path_probe_summary_"
+    private val calibratingKeys = HashSet<String>()
+    @Volatile private var calibrationNoticeStamp: String? = null
+
+    private fun buildCalibrationStamp(context: Context, sampleRate: Int): String {
+      val versionCode =
+        try {
+          val info = context.packageManager.getPackageInfo(context.packageName, 0)
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+          } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+          }
+        } catch (_: RuntimeException) {
+          0L
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+          0L
+        }
+      return "$versionCode|${Build.FINGERPRINT}|$sampleRate"
+    }
+
+    /**
+     * Returns whether automatic audio-path calibration should run: true on first launch, after any
+     * app or OS/ROM update (stamp changed), or when no winning profile has been recorded yet.
+     */
+    @VisibleForTesting
+    @JvmStatic
+    fun shouldRunAudioCalibration(
+      savedStamp: String?,
+      currentStamp: String,
+      savedProfile: Int,
+    ): Boolean {
+      if (savedStamp.isNullOrEmpty() || savedStamp != currentStamp) return true
+      return savedProfile == NativeAAudioOutput.PROFILE_UNSET
+    }
+
     private const val RECOVERY_COOLDOWN_MS = 10_000L
     private const val MAX_RECOVERY_COOLDOWN_MS = 60_000L
     private const val MAX_CONSECUTIVE_GIVE_UPS = 5

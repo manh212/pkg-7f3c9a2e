@@ -88,4 +88,6 @@
   <string name="color_blue">xanh dương</string>
   <string name="color_purple">tím</string>
     <string name="menu_button_description">Trình đơn</string>
+    <string name="audio_path_calibrating_notice">Đang kiểm tra và chọn đường âm thanh tối ưu nhất cho thiết bị, phản hồi có thể hơi trễ trong giây lát.</string>
+    <string name="audio_path_calibrated_notice">Đã chọn xong đường âm thanh tối ưu nhất cho thiết bị.</string>
 </resources>

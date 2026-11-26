@@ -26,6 +26,7 @@ import android.media.AudioManager.MODE_IN_COMMUNICATION
 import android.media.AudioManager.MODE_NORMAL
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.sendToMedia
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldAttemptRecovery
+import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldRunAudioCalibration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -97,5 +98,15 @@ class LowLatencyAudioRouteTest {
     // Beyond max consecutive failures: time-based retries stop, but explicit route/call recovery still works
     assertFalse(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 600_000L, consecutiveGiveUps = 6, force = false))
     assertTrue(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 1_001L, consecutiveGiveUps = 6, force = true))
+  }
+
+  @Test
+  fun audioCalibration_runsOnFirstLaunchAndAfterUpdatesOnly() {
+    assertTrue(shouldRunAudioCalibration(null, "100|fp1|48000", 0))
+    assertTrue(shouldRunAudioCalibration("100|fp1|48000", "101|fp1|48000", 1))
+    assertTrue(shouldRunAudioCalibration("100|fp1|48000", "100|fp2|48000", 1))
+    assertTrue(shouldRunAudioCalibration("100|fp1|48000", "100|fp1|48000", 0))
+    assertFalse(shouldRunAudioCalibration("100|fp1|48000", "100|fp1|48000", 5))
+    assertFalse(shouldRunAudioCalibration("100|fp1|48000", "100|fp1|48000", -1))
   }
 }

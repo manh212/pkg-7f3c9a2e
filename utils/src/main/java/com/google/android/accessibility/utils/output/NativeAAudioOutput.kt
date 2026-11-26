@@ -93,7 +93,16 @@ internal class NativeAAudioOutput private constructor(@Volatile private var hand
     private const val TAG = "NativeAAudioOutput"
     private const val WRITE_TIMEOUT_NANOS = 1_000_000_000L
 
+    /** Sentinel indicating calibration determined AudioTrack should be used instead of AAudio. */
+    const val PROFILE_USE_AUDIOTRACK = -1
+
+    /** Sentinel indicating no cached profile yet (try default fallback order). */
+    const val PROFILE_UNSET = 0
+
     @Volatile var lastOpenStatus: String = "unattempted"
+      private set
+
+    @Volatile var lastProbeSummary: String = "not_probed"
       private set
 
     val isAvailable: Boolean by lazy {
@@ -111,14 +120,40 @@ internal class NativeAAudioOutput private constructor(@Volatile private var hand
       }
     }
 
+    /**
+     * Probes all candidate AAudio configurations (blocking/callback × shared/exclusive × f32/i16)
+     * and returns the winning profile ID (> 0), or [PROFILE_USE_AUDIOTRACK] if none granted
+     * low-latency.
+     */
+    fun probeBestProfile(
+      sampleRate: Int,
+      androidUsage: Int,
+      deviceId: Int = 0,
+      initialBursts: Int = 2,
+    ): Int {
+      if (!isAvailable) {
+        lastProbeSummary = "lib_unavailable"
+        return PROFILE_USE_AUDIOTRACK
+      }
+      val best = nativeProbeBestProfile(sampleRate, androidUsage, deviceId, initialBursts)
+      lastProbeSummary =
+        try {
+          nativeGetLastProbeSummary()
+        } catch (_: UnsatisfiedLinkError) {
+          if (best > 0) "best=p$best" else "best=AudioTrack"
+        }
+      return if (best > 0) best else PROFILE_USE_AUDIOTRACK
+    }
+
     fun open(
       sampleRate: Int,
       androidUsage: Int,
       deviceId: Int = 0,
       initialBursts: Int = 2,
+      preferredProfileId: Int = PROFILE_UNSET,
     ): NativeAAudioOutput? {
       if (!isAvailable) return null
-      val handle = nativeOpen(sampleRate, androidUsage, deviceId, initialBursts)
+      val handle = nativeOpen(sampleRate, androidUsage, deviceId, initialBursts, preferredProfileId)
       lastOpenStatus =
         try {
           nativeGetLastOpenStatus()
@@ -130,14 +165,25 @@ internal class NativeAAudioOutput private constructor(@Volatile private var hand
     }
 
     @JvmStatic
+    private external fun nativeProbeBestProfile(
+      sampleRate: Int,
+      androidUsage: Int,
+      deviceId: Int,
+      initialBursts: Int,
+    ): Int
+
+    @JvmStatic
     private external fun nativeOpen(
       sampleRate: Int,
       androidUsage: Int,
       deviceId: Int,
       initialBursts: Int,
+      preferredProfileId: Int,
     ): Long
 
     @JvmStatic private external fun nativeGetLastOpenStatus(): String
+
+    @JvmStatic private external fun nativeGetLastProbeSummary(): String
 
     @JvmStatic private external fun nativeStart(handle: Long): Boolean
 

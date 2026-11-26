@@ -232,4 +232,6 @@
     <!-- Label for color purple.[CHAR_LIMIT=40] -->
     <string name="color_purple">purple</string>
 
+    <string name="audio_path_calibrating_notice">Testing audio paths to select the fastest option for this device; speech may be briefly delayed.</string>
+    <string name="audio_path_calibrated_notice">Fastest audio path selected for this device.</string>
 </resources>

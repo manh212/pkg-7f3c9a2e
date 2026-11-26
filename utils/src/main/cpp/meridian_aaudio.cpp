@@ -40,10 +40,16 @@ constexpr int32_t kChannelCount = 2;
 
 std::mutex gStatusMutex;
 std::string gLastOpenStatus = "unattempted";
+std::string gLastProbeSummary = "not_probed";
 
 void setLastOpenStatus(const std::string& status) {
   std::lock_guard<std::mutex> lock(gStatusMutex);
   gLastOpenStatus = status;
+}
+
+void setLastProbeSummary(const std::string& summary) {
+  std::lock_guard<std::mutex> lock(gStatusMutex);
+  gLastProbeSummary = summary;
 }
 
 // API 28+ AAudio setters resolved dynamically so this library compiles cleanly with minSdk 26.
@@ -105,11 +111,47 @@ inline int16_t floatToInt16(float sample) {
   return static_cast<int16_t>(std::clamp(scaled, -32768L, 32767L));
 }
 
+struct StreamProfile {
+  int32_t id;
+  const char* label;
+  bool useCallback;
+  aaudio_sharing_mode_t sharing;
+  aaudio_format_t format;
+  bool setContentTypeSpeech;
+  bool requestExplicitSampleRate;
+};
+
+// Candidate AAudio profiles probed on first launch and after app/OS updates.
+constexpr StreamProfile kProfiles[] = {
+    {1, "p1", false, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, true, true},
+    {2, "p2", false, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, false},
+    {3, "p3", false, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, true},
+    {4, "p4", false, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16, false, true},
+    {5, "p5", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT, false, true},
+    {6, "p6", true, AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16, false, true},
+    {7, "p7", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT, false, true},
+    {8, "p8", true, AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_I16, false, true},
+};
+
+const StreamProfile* findProfile(int32_t profileId) {
+  for (const auto& p : kProfiles) {
+    if (p.id == profileId) return &p;
+  }
+  return nullptr;
+}
+
 struct StreamHandle {
   AAudioStream* stream = nullptr;
+  int32_t profileId = 0;
   bool useCallback = false;
   aaudio_format_t format = AAUDIO_FORMAT_PCM_FLOAT;
   int32_t framesPerBurst = 0;
+  bool mmapUsed = false;
+  aaudio_sharing_mode_t actualSharing = AAUDIO_SHARING_MODE_SHARED;
+  int32_t initialBufferFrames = 0;
+
+  // Scratch buffer for blocking PCM_I16 writes.
+  std::vector<int16_t> i16Scratch;
 
   // Lock-free SPSC ring buffer (only allocated when useCallback == true).
   // Stores interleaved stereo float samples: ring.size() == ringCapacityFrames * kChannelCount.
@@ -319,15 +361,53 @@ const char* sharingName(aaudio_sharing_mode_t mode) {
   return mode == AAUDIO_SHARING_MODE_EXCLUSIVE ? "excl" : "shared";
 }
 
-StreamHandle* tryOpenStream(
+// Scores an opened low-latency AAudio stream: higher is better.
+// True MMAP always beats legacy FastMixer; within the same tier, smaller burst and buffer win;
+// ties prefer SHARED (better coexistence with system sounds), blocking (no extra ring copy),
+// PCM_FLOAT (no quantization), and speech content type.
+int64_t scoreHandle(const StreamHandle* h, const StreamProfile& profile) {
+  int64_t score = 0;
+  if (h->mmapUsed) {
+    score += 1'000'000;
+  }
+  score -= static_cast<int64_t>(h->framesPerBurst) * 100;
+  score -= static_cast<int64_t>(h->initialBufferFrames) * 10;
+  if (h->actualSharing == AAUDIO_SHARING_MODE_SHARED) {
+    score += 50;
+  }
+  if (!h->useCallback) {
+    score += 20;
+  }
+  if (h->format == AAUDIO_FORMAT_PCM_FLOAT) {
+    score += 10;
+  }
+  if (profile.setContentTypeSpeech) {
+    score += 5;
+  }
+  return score;
+}
+
+void destroyHandle(StreamHandle* h) {
+  if (h == nullptr) return;
+  if (h->useCallback) {
+    h->stopping.store(true, std::memory_order_release);
+    h->writeCv.notify_all();
+  }
+  if (h->stream != nullptr) {
+    // AAudioStream_close synchronously stops and joins the callback thread before returning.
+    AAudioStream_close(h->stream);
+    h->stream = nullptr;
+  }
+  delete h;
+}
+
+StreamHandle* tryOpenProfile(
+    const StreamProfile& profile,
     jint sampleRate,
     jint androidUsage,
     jint deviceId,
     jint initialBursts,
-    bool setContentTypeSpeech,
-    bool useCallback,
-    aaudio_sharing_mode_t sharingMode,
-    aaudio_format_t format,
+    bool verifyStart,
     std::string& outStatus) {
   AAudioStreamBuilder* builder = nullptr;
   aaudio_result_t res = AAudio_createStreamBuilder(&builder);
@@ -340,21 +420,22 @@ StreamHandle* tryOpenStream(
   }
 
   auto handle = std::make_unique<StreamHandle>();
-  handle->useCallback = useCallback;
-  handle->format = format;
+  handle->profileId = profile.id;
+  handle->useCallback = profile.useCallback;
+  handle->format = profile.format;
 
   AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_OUTPUT);
-  AAudioStreamBuilder_setFormat(builder, format);
+  AAudioStreamBuilder_setFormat(builder, profile.format);
   AAudioStreamBuilder_setChannelCount(builder, kChannelCount);
-  if (sampleRate > 0) {
+  if (profile.requestExplicitSampleRate && sampleRate > 0) {
     AAudioStreamBuilder_setSampleRate(builder, sampleRate);
   }
-  AAudioStreamBuilder_setSharingMode(builder, sharingMode);
+  AAudioStreamBuilder_setSharingMode(builder, profile.sharing);
   AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
   if (deviceId > 0) {
     AAudioStreamBuilder_setDeviceId(builder, deviceId);
   }
-  if (useCallback) {
+  if (profile.useCallback) {
     AAudioStreamBuilder_setDataCallback(builder, onDataCallback, handle.get());
     AAudioStreamBuilder_setErrorCallback(builder, onErrorCallback, handle.get());
   }
@@ -363,7 +444,7 @@ StreamHandle* tryOpenStream(
     if (auto setUsage = resolveSetUsage()) {
       setUsage(builder, mapAudioUsage(androidUsage));
     }
-    if (setContentTypeSpeech) {
+    if (profile.setContentTypeSpeech) {
       if (auto setContentType = resolveSetContentType()) {
         setContentType(builder, AAUDIO_CONTENT_TYPE_SPEECH);
       }
@@ -377,14 +458,12 @@ StreamHandle* tryOpenStream(
   if (res != AAUDIO_OK || stream == nullptr) {
     std::ostringstream oss;
     oss << "open_err=" << res << "(" << AAudio_convertResultToText(res)
-        << ",cb=" << (useCallback ? 1 : 0)
-        << ",share=" << sharingName(sharingMode)
-        << ",fmt=" << formatName(format)
-        << ",rate=" << sampleRate << ",usage=" << androidUsage
-        << ",speech=" << (setContentTypeSpeech ? 1 : 0) << ")";
+        << ",cb=" << (profile.useCallback ? 1 : 0)
+        << ",share=" << sharingName(profile.sharing)
+        << ",fmt=" << formatName(profile.format) << ")";
     outStatus = oss.str();
-    __android_log_print(ANDROID_LOG_WARN, kTag, "AAudioStreamBuilder_openStream failed: %s",
-                        outStatus.c_str());
+    __android_log_print(ANDROID_LOG_WARN, kTag, "AAudioStreamBuilder_openStream failed (%s): %s",
+                        profile.label, outStatus.c_str());
     return nullptr;
   }
 
@@ -394,30 +473,25 @@ StreamHandle* tryOpenStream(
   const aaudio_sharing_mode_t actualSharing = AAudioStream_getSharingMode(stream);
   const aaudio_format_t actualFormat = AAudioStream_getFormat(stream);
 
-  // Only keep AAudio when Android actually grants the low-latency path; otherwise let Kotlin fall
-  // back to AudioTrack with its slow-buffer heuristics.
   if (perfMode != AAUDIO_PERFORMANCE_MODE_LOW_LATENCY) {
     std::ostringstream oss;
-    oss << "perf_mode=" << perfMode << "(want=" << AAUDIO_PERFORMANCE_MODE_LOW_LATENCY
-        << ",cb=" << (useCallback ? 1 : 0)
+    oss << "perf=" << perfMode << "(cb=" << (profile.useCallback ? 1 : 0)
         << ",share=" << sharingName(actualSharing)
         << ",fmt=" << formatName(actualFormat)
-        << ",rate=" << actualRate << ",burst=" << burst
-        << ",usage=" << androidUsage << ",speech=" << (setContentTypeSpeech ? 1 : 0) << ")";
+        << ",burst=" << burst << ")";
     outStatus = oss.str();
-    __android_log_print(ANDROID_LOG_INFO, kTag, "AAudio did not grant LOW_LATENCY: %s",
-                        outStatus.c_str());
+    __android_log_print(ANDROID_LOG_INFO, kTag, "AAudio %s did not grant LOW_LATENCY: %s",
+                        profile.label, outStatus.c_str());
     AAudioStream_close(stream);
     return nullptr;
   }
 
-  if (useCallback && sampleRate > 0 && actualRate != sampleRate) {
+  if (sampleRate > 0 && actualRate != sampleRate) {
     std::ostringstream oss;
-    oss << "rate_mismatch(cb=1,got=" << actualRate << ",want=" << sampleRate
-        << ",share=" << sharingName(actualSharing) << ",fmt=" << formatName(actualFormat) << ")";
+    oss << "rate=" << actualRate << "!=" << sampleRate;
     outStatus = oss.str();
-    __android_log_print(ANDROID_LOG_INFO, kTag, "AAudio callback sample rate mismatch: %s",
-                        outStatus.c_str());
+    __android_log_print(ANDROID_LOG_INFO, kTag, "AAudio %s sample rate mismatch: %s",
+                        profile.label, outStatus.c_str());
     AAudioStream_close(stream);
     return nullptr;
   }
@@ -437,7 +511,11 @@ StreamHandle* tryOpenStream(
   handle->stream = stream;
   handle->format = actualFormat;
   handle->framesPerBurst = burst;
-  if (useCallback) {
+  handle->mmapUsed = mmapUsed;
+  handle->actualSharing = actualSharing;
+  handle->initialBufferFrames = actualBuf;
+
+  if (profile.useCallback) {
     const uint64_t minCap = std::max<uint64_t>(4096, static_cast<uint64_t>(capacity) * 2);
     handle->ringCapacityFrames = nextPowerOfTwo(minCap);
     handle->ringMask = handle->ringCapacityFrames - 1;
@@ -448,14 +526,32 @@ StreamHandle* tryOpenStream(
                                   std::memory_order_relaxed);
   }
 
+  if (verifyStart) {
+    aaudio_stream_state_t state = AAudioStream_getState(stream);
+    aaudio_result_t startRes = AAudioStream_requestStart(stream);
+    aaudio_stream_state_t nextState = state;
+    if (startRes == AAUDIO_OK) {
+      AAudioStream_waitForStateChange(stream, state, &nextState, 50'000'000LL);
+    }
+    if (startRes != AAUDIO_OK ||
+        (nextState != AAUDIO_STREAM_STATE_STARTED && nextState != AAUDIO_STREAM_STATE_STARTING) ||
+        handle->disconnected.load(std::memory_order_acquire)) {
+      std::ostringstream oss;
+      oss << "start_err=" << startRes << "(state=" << nextState << ")";
+      outStatus = oss.str();
+      destroyHandle(handle.release());
+      return nullptr;
+    }
+  }
+
   std::ostringstream oss;
-  oss << "ok(cb=" << (useCallback ? 1 : 0)
+  oss << profile.label << ":ok(cb=" << (profile.useCallback ? 1 : 0)
       << ",mmap=" << (mmapUsed ? 1 : 0) << ",perf=" << perfMode
       << ",share=" << sharingName(actualSharing)
       << ",fmt=" << formatName(actualFormat)
       << ",rate=" << actualRate << ",burst=" << burst
       << ",buf=" << actualBuf << "/" << capacity
-      << ",usage=" << androidUsage << ",speech=" << (setContentTypeSpeech ? 1 : 0) << ")";
+      << ",usage=" << androidUsage << ",speech=" << (profile.setContentTypeSpeech ? 1 : 0) << ")";
   outStatus = oss.str();
   __android_log_print(
       ANDROID_LOG_INFO,
@@ -470,6 +566,56 @@ StreamHandle* tryOpenStream(
 
 extern "C" {
 
+JNIEXPORT jint JNICALL
+Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeProbeBestProfile(
+    JNIEnv* /*env*/,
+    jclass /*clazz*/,
+    jint sampleRate,
+    jint androidUsage,
+    jint deviceId,
+    jint initialBursts) {
+  int32_t bestProfileId = 0;
+  int64_t bestScore = INT64_MIN;
+  std::string bestDesc;
+  std::ostringstream report;
+
+  bool first = true;
+  for (const auto& profile : kProfiles) {
+    std::string status;
+    StreamHandle* h = tryOpenProfile(
+        profile, sampleRate, androidUsage, deviceId, initialBursts, /*verifyStart=*/true, status);
+    if (!first) report << "; ";
+    first = false;
+    if (h != nullptr) {
+      const int64_t score = scoreHandle(h, profile);
+      report << profile.label << "=OK(mmap=" << (h->mmapUsed ? 1 : 0)
+             << ",cb=" << (h->useCallback ? 1 : 0)
+             << ",share=" << sharingName(h->actualSharing)
+             << ",fmt=" << formatName(h->format)
+             << ",burst=" << h->framesPerBurst
+             << ",buf=" << h->initialBufferFrames << ")";
+      if (score > bestScore) {
+        bestScore = score;
+        bestProfileId = profile.id;
+        bestDesc = status;
+      }
+      destroyHandle(h);
+    } else {
+      report << profile.label << "=" << status;
+    }
+  }
+
+  std::ostringstream full;
+  if (bestProfileId > 0) {
+    full << "best=" << bestDesc << " | probe=[" << report.str() << "]";
+  } else {
+    full << "best=AudioTrack | probe=[" << report.str() << "]";
+  }
+  setLastProbeSummary(full.str());
+  __android_log_print(ANDROID_LOG_INFO, kTag, "Audio path probe finished: %s", full.str().c_str());
+  return bestProfileId;
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeOpen(
     JNIEnv* /*env*/,
@@ -477,73 +623,32 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeOpen
     jint sampleRate,
     jint androidUsage,
     jint deviceId,
-    jint initialBursts) {
-  // Attempts 1-2 preserve the proven blocking SHARED+PCM_FLOAT path used on Google/Pixel devices.
-  std::string attempt1;
-  StreamHandle* handle = tryOpenStream(
-      sampleRate,
-      androidUsage,
-      deviceId,
-      initialBursts,
-      /*setContentTypeSpeech=*/true,
-      /*useCallback=*/false,
-      AAUDIO_SHARING_MODE_SHARED,
-      AAUDIO_FORMAT_PCM_FLOAT,
-      attempt1);
-  if (handle != nullptr) {
-    setLastOpenStatus(attempt1);
-    return static_cast<jlong>(reinterpret_cast<uintptr_t>(handle));
-  }
-
-  std::string attempt2;
-  handle = tryOpenStream(
-      0,
-      androidUsage,
-      deviceId,
-      initialBursts,
-      /*setContentTypeSpeech=*/false,
-      /*useCallback=*/false,
-      AAUDIO_SHARING_MODE_SHARED,
-      AAUDIO_FORMAT_PCM_FLOAT,
-      attempt2);
-  if (handle != nullptr) {
-    setLastOpenStatus("retry_ok: " + attempt2 + " [a1=" + attempt1 + "]");
-    return static_cast<jlong>(reinterpret_cast<uintptr_t>(handle));
-  }
-
-  // Fallback for HALs (e.g. Xiaomi/HyperOS) that only grant LOW_LATENCY / MMAP in Data Callback
-  // mode, or require EXCLUSIVE sharing or PCM_I16 format.
-  struct CallbackAttempt {
-    const char* label;
-    aaudio_sharing_mode_t sharing;
-    aaudio_format_t format;
-  };
-  constexpr CallbackAttempt kCallbackAttempts[] = {
-      {"a3", AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_FLOAT},
-      {"a4", AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_FLOAT},
-      {"a5", AAUDIO_SHARING_MODE_SHARED, AAUDIO_FORMAT_PCM_I16},
-      {"a6", AAUDIO_SHARING_MODE_EXCLUSIVE, AAUDIO_FORMAT_PCM_I16},
-  };
-
-  std::ostringstream failedSummary;
-  failedSummary << "fallback: a1=" << attempt1 << "; a2=" << attempt2;
-  for (const auto& cfg : kCallbackAttempts) {
+    jint initialBursts,
+    jint preferredProfileId) {
+  // Fast path: open the previously calibrated winning profile immediately.
+  if (const StreamProfile* preferred = findProfile(preferredProfileId)) {
     std::string status;
-    handle = tryOpenStream(
-        sampleRate,
-        androidUsage,
-        deviceId,
-        initialBursts,
-        /*setContentTypeSpeech=*/false,
-        /*useCallback=*/true,
-        cfg.sharing,
-        cfg.format,
-        status);
-    if (handle != nullptr) {
-      setLastOpenStatus(std::string("cb_ok(") + cfg.label + "): " + status + " [a1=" + attempt1 + "]");
-      return static_cast<jlong>(reinterpret_cast<uintptr_t>(handle));
+    StreamHandle* h = tryOpenProfile(
+        *preferred, sampleRate, androidUsage, deviceId, initialBursts, /*verifyStart=*/false, status);
+    if (h != nullptr) {
+      setLastOpenStatus("cached(" + status + ")");
+      return static_cast<jlong>(reinterpret_cast<uintptr_t>(h));
     }
-    failedSummary << "; " << cfg.label << "=" << status;
+  }
+
+  // Fallback path: iterate through all profiles in order until one grants LOW_LATENCY.
+  std::ostringstream failedSummary;
+  failedSummary << "fallback:";
+  for (const auto& profile : kProfiles) {
+    if (profile.id == preferredProfileId) continue;
+    std::string status;
+    StreamHandle* h = tryOpenProfile(
+        profile, sampleRate, androidUsage, deviceId, initialBursts, /*verifyStart=*/false, status);
+    if (h != nullptr) {
+      setLastOpenStatus(status);
+      return static_cast<jlong>(reinterpret_cast<uintptr_t>(h));
+    }
+    failedSummary << " " << profile.label << "=" << status << ";";
   }
 
   setLastOpenStatus(failedSummary.str());
@@ -556,6 +661,14 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeGetL
     jclass /*clazz*/) {
   std::lock_guard<std::mutex> lock(gStatusMutex);
   return env->NewStringUTF(gLastOpenStatus.c_str());
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeGetLastProbeSummary(
+    JNIEnv* env,
+    jclass /*clazz*/) {
+  std::lock_guard<std::mutex> lock(gStatusMutex);
+  return env->NewStringUTF(gLastProbeSummary.c_str());
 }
 
 JNIEXPORT jboolean JNICALL
@@ -613,10 +726,21 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeWrit
   if (ptr == nullptr) {
     return AAUDIO_ERROR_NO_MEMORY;
   }
-  const aaudio_result_t written =
-      h->useCallback
-          ? writeCallbackRing(h, ptr, numFrames, timeoutNanos)
-          : AAudioStream_write(h->stream, ptr, numFrames, timeoutNanos);
+  aaudio_result_t written = 0;
+  if (h->useCallback) {
+    written = writeCallbackRing(h, ptr, numFrames, timeoutNanos);
+  } else if (h->format == AAUDIO_FORMAT_PCM_I16) {
+    const size_t sampleCount = static_cast<size_t>(numFrames) * kChannelCount;
+    if (h->i16Scratch.size() < sampleCount) {
+      h->i16Scratch.resize(sampleCount);
+    }
+    for (size_t i = 0; i < sampleCount; ++i) {
+      h->i16Scratch[i] = floatToInt16(ptr[i]);
+    }
+    written = AAudioStream_write(h->stream, h->i16Scratch.data(), numFrames, timeoutNanos);
+  } else {
+    written = AAudioStream_write(h->stream, ptr, numFrames, timeoutNanos);
+  }
   env->ReleaseFloatArrayElements(samples, ptr, JNI_ABORT);
   return static_cast<jint>(written);
 }
@@ -667,18 +791,7 @@ Java_com_google_android_accessibility_utils_output_NativeAAudioOutput_nativeClos
     JNIEnv* /*env*/,
     jclass /*clazz*/,
     jlong handle) {
-  StreamHandle* h = toHandle(handle);
-  if (h == nullptr) return;
-  if (h->useCallback) {
-    h->stopping.store(true, std::memory_order_release);
-    h->writeCv.notify_all();
-  }
-  if (h->stream != nullptr) {
-    // AAudioStream_close synchronously stops and joins the callback thread before returning.
-    AAudioStream_close(h->stream);
-    h->stream = nullptr;
-  }
-  delete h;
+  destroyHandle(toHandle(handle));
 }
 
 JNIEXPORT jint JNICALL
