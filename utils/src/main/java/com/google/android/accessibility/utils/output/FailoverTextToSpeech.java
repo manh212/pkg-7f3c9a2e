@@ -1318,7 +1318,7 @@ public class FailoverTextToSpeech {
   }
 
   /** Releases the {@link WakeLock} */
-  private void allowDeviceSleep() {
+  void allowDeviceSleep() {
     allowDeviceSleep(null);
   }
 

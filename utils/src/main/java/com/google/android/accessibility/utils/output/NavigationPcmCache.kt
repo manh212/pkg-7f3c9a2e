@@ -169,8 +169,8 @@ class NavigationPcmCache(context: Context) {
         Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_DEDUP)
         return@post
       }
-      while (queue.size >= 2) {
-        // Replace-oldest policy keeps the background TTS queue strictly bounded to 2 items.
+      while (queue.size >= 1) {
+        // Replace-oldest policy keeps the background TTS queue strictly bounded to 1 item.
         queue.removeFirst()
         note(Work.SUPERSEDED)
         BatteryUsageTracker.onPcmPrefetchWasted("superseded")

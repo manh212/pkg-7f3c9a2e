@@ -123,7 +123,7 @@ public class EventFilter {
    * How long after focus moves the announcements of the next and previous nodes are prepared: after
    * the app's focus event has been handled, and usually before the next swipe starts.
    */
-  private static final long PREPARE_DELAY_MS = 30;
+  private static final long PREPARE_DELAY_MS = 55;
   /** Yield between target preparations so a swipe is not queued behind a whole prefetch pass. */
   private static final long PREPARE_STEP_DELAY_MS = 8;
   private static final long PREPARE_ORDER_RETRY_MS = 48;
@@ -838,7 +838,7 @@ public class EventFilter {
       return;
     }
     long waitMs = LatencyExperiments.Feature.INPUT_PRIORITY.enabled()
-        ? LatencyExperiments.inputQuietDelay(35) : 0;
+        ? LatencyExperiments.inputQuietDelay(65) : 0;
     if (waitMs > 0) {
       Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.WAITING_FOR_IDLE);
       waitingForIdle = true;

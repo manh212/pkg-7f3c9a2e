@@ -664,6 +664,9 @@ public class SpeechControllerImpl implements SpeechController {
 
   public void setKeepScreenOnWhileSpeaking(boolean keepOn) {
     keepScreenOnWhileSpeaking = keepOn;
+    if (!keepOn && failoverTts != null) {
+      failoverTts.allowDeviceSleep();
+    }
     updateSpeakingScreenLock(mIsSpeaking || !externalSpeech.isEmpty() || dictationActive);
   }
 
@@ -2893,7 +2896,8 @@ public class SpeechControllerImpl implements SpeechController {
     }
     final Locale locale = fragment.getLocale();
 
-    final boolean preventDeviceSleep = feedbackItem.hasFlag(FeedbackItem.FLAG_NO_DEVICE_SLEEP);
+    final boolean preventDeviceSleep =
+        keepScreenOnWhileSpeaking && feedbackItem.hasFlag(FeedbackItem.FLAG_NO_DEVICE_SLEEP);
 
     // for capital letter, or a phonetic word said in place of one
     if (text != null

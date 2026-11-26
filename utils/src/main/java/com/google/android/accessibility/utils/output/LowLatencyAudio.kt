@@ -787,13 +787,25 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   /** Starts the audio thread and its watchdog if they are not running. Called with [lock] held. */
   private fun wake() {
     idleFrames = 0
-    // A thread waiting for speech carries on with it.
-    lock.notifyAll()
-    if (thread != null || released || broken) return
     lastWrite = SystemClock.uptimeMillis()
+    if (released || broken) {
+      lock.notifyAll()
+      return
+    }
+    if (thread != null) {
+      ensureWatchdogLocked()
+      lock.notifyAll()
+      return
+    }
     remakeTrack = false
     waking = false
     thread = Thread(::run, "LowLatencyAudio").apply { start() }
+    ensureWatchdogLocked()
+  }
+
+  /** Schedules the stall watchdog if not already running. Called with [lock] held. */
+  private fun ensureWatchdogLocked() {
+    if (watchdog != null || released || broken) return
     // Separate from the audio thread, so that a stuck track cannot stop it.
     watchdog =
       WATCHDOG.scheduleWithFixedDelay(
@@ -848,6 +860,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       if (thread != null) {
         remakeTrack = true
         interrupt(nativeOutput, track)
+        lock.notifyAll()
         return
       }
       nativeOutput?.close()
@@ -892,10 +905,51 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         currentNative = nativeOutput
         output = track
         val idle = clips.isEmpty() && (streams.isEmpty() || held)
-        if (released || broken || (currentNative == null && output == null) ||
-          (idle && idleFrames >= idleLimit())) {
+        if (released || broken || (currentNative == null && output == null)) {
           end(currentNative, output)
           return
+        }
+        if (idle && idleFrames >= idleLimit()) {
+          pauseOutputLocked(currentNative, output)
+          watchdog?.cancel(false)
+          watchdog = null
+          val parkUntil = SystemClock.uptimeMillis() + THREAD_IDLE_EXIT_MS
+          while (!released && !broken && !remakeTrack &&
+            clips.isEmpty() && (streams.isEmpty() || held)) {
+            val remaining = parkUntil - SystemClock.uptimeMillis()
+            if (remaining <= 0L) {
+              end(nativeOutput, track)
+              return
+            }
+            try {
+              lock.wait(remaining)
+            } catch (e: InterruptedException) {
+              break
+            }
+          }
+          if (released || broken || (nativeOutput == null && track == null)) {
+            end(nativeOutput, track)
+            return
+          }
+          if (remakeTrack) {
+            val oldNative = nativeOutput
+            val oldTrack = track
+            nativeOutput = null
+            track = null
+            primed = false
+            oldNative?.close()
+            oldTrack?.release()
+            remakeTrack = false
+            if (!openOutput()) {
+              giveUp()
+              end(nativeOutput, track)
+              return
+            }
+          }
+          lastWrite = SystemClock.uptimeMillis()
+          idleFrames = 0
+          ensureWatchdogLocked()
+          continue
         }
         if (currentNative == null && output != null && !fastPath) {
           // Silence queued without the fast path would delay the next sound by the whole buffer, so
@@ -978,6 +1032,10 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       output?.release()
       return
     }
+    pauseOutputLocked(nativeOut, output)
+  }
+
+  private fun pauseOutputLocked(nativeOut: NativeAAudioOutput?, output: AudioTrack?) {
     if (nativeOut != null) {
       primed = false
       nativeOut.pauseAndFlush()
@@ -1374,8 +1432,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private const val SLOW_BUFFER_MS = 40
     // How long the audio thread waits for the engine's speech at a time, well within WRITE_STUCK_MS.
     private const val REST_MS = 100L
-    private const val IDLE_MS = 2_000
-    internal const val KEEP_WARM_IDLE_MS = 2_500
+    private const val IDLE_MS = 180
+    internal const val KEEP_WARM_IDLE_MS = 450
+    private const val THREAD_IDLE_EXIT_MS = 20_000L
     // While an app records, long enough for the audio already queued to be heard.
     private const val MICROPHONE_IDLE_MS = 100
     // How long the callback thread is kept with nothing to do.
