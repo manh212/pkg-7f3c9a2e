@@ -17,6 +17,9 @@
 package com.google.android.accessibility.talkback.notifications
 
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
+import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.LatencyExperiments
 
 object PerformanceProfile {
@@ -38,6 +41,10 @@ object PerformanceProfile {
   private const val EVENT_PROCESSING_LEVEL_KEY = "pref_event_processing_level"
   private const val EVENT_PROCESSING_LEVEL_LOW = "low"
 
+  @Volatile private var writing = false
+
+  @JvmStatic fun isWriting(): Boolean = writing
+
   /** The stored profile, or null when none was ever picked, the stored value is unknown, or it was recorded before explicit choice was required. */
   fun storedProfile(preferences: SharedPreferences): String? =
     preferences.getString(KEY, null)?.takeIf { it == SPEED || it == ENERGY }
@@ -46,25 +53,39 @@ object PerformanceProfile {
   /** Writes the profile's values in one edit. Anything other than [ENERGY] applies speed. */
   fun apply(preferences: SharedPreferences, profile: String) {
     val energy = profile == ENERGY
-    preferences.edit().apply {
-      putBoolean(DISABLE_LATENCY_EXTRAS_KEY, energy)
-      putBoolean(DISABLE_LATENCY_PINNED_KEY, energy)
-      putBoolean(PREPARE_ADJACENT_KEY, false)
-      putBoolean(PREPARE_SECOND_AHEAD_KEY, false)
-      putBoolean(ORDER_CACHE_KEY, !energy)
-      putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
-      putBoolean(SPEAK_ITEMS_BEFORE_SCROLL_KEY, !energy)
-      putBoolean(REDUCE_WINDOW_DELAY_KEY, !energy)
-      for (feature in LatencyExperiments.Feature.values()) {
-        putBoolean(feature.key, if (energy) false else feature.defaultEnabled)
+    writing = true
+    try {
+      preferences.edit().apply {
+        putBoolean(DISABLE_LATENCY_EXTRAS_KEY, energy)
+        putBoolean(DISABLE_LATENCY_PINNED_KEY, energy)
+        putBoolean(PREPARE_ADJACENT_KEY, false)
+        putBoolean(PREPARE_SECOND_AHEAD_KEY, false)
+        putBoolean(ORDER_CACHE_KEY, !energy)
+        putBoolean(SPLIT_CONTROL_SPEECH_KEY, false)
+        putBoolean(SPEAK_ITEMS_BEFORE_SCROLL_KEY, !energy)
+        putBoolean(REDUCE_WINDOW_DELAY_KEY, !energy)
+        for (feature in LatencyExperiments.Feature.values()) {
+          putBoolean(feature.key, if (energy) false else feature.defaultEnabled)
+        }
+        putString(EVENT_PROCESSING_LEVEL_KEY, EVENT_PROCESSING_LEVEL_LOW)
+        putInt(
+          LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY,
+          LatencyExperiments.defaultStationaryTouchDelayMs(),
+        )
+        putString(KEY, if (energy) ENERGY else SPEED)
+        putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
+      }.apply()
+    } finally {
+      val mainLooper = Looper.getMainLooper()
+      if (mainLooper != null) {
+        Handler(mainLooper).post {
+          writing = false
+          TalkBackService.getInstance()?.onPerformanceProfileApplied()
+        }
+      } else {
+        writing = false
+        TalkBackService.getInstance()?.onPerformanceProfileApplied()
       }
-      putString(EVENT_PROCESSING_LEVEL_KEY, EVENT_PROCESSING_LEVEL_LOW)
-      putInt(
-        LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY,
-        LatencyExperiments.defaultStationaryTouchDelayMs(),
-      )
-      putString(KEY, if (energy) ENERGY else SPEED)
-      putInt(CHOICE_VERSION_KEY, CHOICE_VERSION)
-    }.apply()
+    }
   }
 }

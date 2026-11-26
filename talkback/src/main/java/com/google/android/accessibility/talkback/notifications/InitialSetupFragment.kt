@@ -278,7 +278,15 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
       }
     )
     category.action(getString(R.string.timer_setup_performance_keep)) {
-      applyPerformanceProfile(steps.size, currentPerformanceProfileIndex())
+      val index = currentPerformanceProfileIndex()
+      val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
+      val desired = PerformanceChoice.entries[index].profile
+      if (PerformanceProfile.storedProfile(prefs) == desired) {
+        flow.chooseProfile(steps.size)
+        rebuild()
+      } else {
+        applyPerformanceProfile(steps.size, index)
+      }
     }
     if (flow.reviewing) {
       category.action(getString(R.string.timer_setup_back)) {
@@ -295,7 +303,14 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     val prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
     PerformanceProfile.apply(prefs, profile)
     flow.chooseProfile(stepCount)
-    rebuild()
+    val root = view
+    if (root != null) {
+      root.post {
+        if (isAdded) rebuild()
+      }
+    } else {
+      rebuild()
+    }
   }
 
   private fun currentPerformanceProfileIndex(): Int {

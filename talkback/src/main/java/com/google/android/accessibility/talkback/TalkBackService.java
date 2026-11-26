@@ -4591,7 +4591,11 @@ public class TalkBackService extends AccessibilityServiceCompat
             : 0);
 
     proximitySensorMonitor.reloadSilenceOnProximity();
-    reloadDebugLog();
+    if (key == null
+        || getString(R.string.pref_debug_log_key).equals(key)
+        || getString(R.string.pref_log_level_key).equals(key)) {
+      reloadDebugLog();
+    }
 
     globalVariables.setIsDndEnabled(SettingsUtils.getDoNotDisturbState(this) > 0);
     globalVariables.setSpeakNotifications(
@@ -5687,8 +5691,8 @@ public class TalkBackService extends AccessibilityServiceCompat
             || DirectTouchSettings.PREF_SEEN.equals(key)) {
           return;
         }
-        // Settings profiles write many settings at once, and reload them once afterwards.
-        if (SettingsProfiles.isWriting()) {
+        if (SettingsProfiles.isWriting()
+            || com.google.android.accessibility.talkback.notifications.PerformanceProfile.isWriting()) {
           return;
         }
         reloadPreferences(key);
@@ -5707,6 +5711,14 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (keyboard && keyComboManager != null) {
       keyComboManager.refreshKeyComboModel();
     }
+  }
+
+  public void onPerformanceProfileApplied() {
+    if (serviceState == ServiceStateListener.SERVICE_STATE_INACTIVE) {
+      return;
+    }
+    PreparedFocusSpeech.clear();
+    reloadPreferences();
   }
 
   public void onLockedBootCompleted(EventId eventId) {
