@@ -57,7 +57,7 @@ public class ChatGptCollapseScriptTest {
   private static void addChild(
       AccessibilityNodeInfoCompat parent, AccessibilityNodeInfoCompat child) {
     Shadows.shadowOf(parent.unwrap()).addChild(child.unwrap());
-    Shadows.shadowOf(child.unwrap()).setParent(parent.unwrap());
+
   }
 
   private static AccessibilityNodeInfoCompat makeComposeActionButton(String description) {
