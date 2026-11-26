@@ -6,10 +6,12 @@ import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.InputType
 import android.text.SpannableString
 import android.text.style.LocaleSpan
 import android.view.InputDevice
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.OrientationEventListener
 import android.view.View
@@ -44,6 +46,7 @@ import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.SpeechController.QUEUE_MODE_INTERRUPT_AND_UNINTERRUPTIBLE_BY_NEW_SPEECH
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions
 import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_KEYBOARD
+import com.google.android.accessibility.utils.output.SpeechController.UTTERANCE_GROUP_TEXT_SELECTION
 import com.google.android.accessibility.utils.output.SpeechControllerImpl
 import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.Locale
@@ -121,11 +124,12 @@ class VietnameseKeyboardService : InputMethodService() {
   private var observedSpeechController: SpeechControllerImpl? = null
   private val readerSpeechObserver = object : SpeechController.Observer {
     override fun onSpeechStarting() {
-      main.post {
+      val stopIfNeeded = {
         if (observedSpeechController?.hasOtherSpeech(UTTERANCE_GROUP_KEYBOARD) == true) {
           stopKeyboardVoice()
         }
       }
+      if (Looper.myLooper() == Looper.getMainLooper()) stopIfNeeded() else main.post(stopIfNeeded)
     }
 
     override fun onSpeechCompleted() = Unit
@@ -823,11 +827,13 @@ class VietnameseKeyboardService : InputMethodService() {
     if (!composing && !hasSelection && wordLost) {
       val before = adjacentWord(connection, beforeCursor = true)
       val after = adjacentWord(connection, beforeCursor = false)
-      if (after.isNotEmpty() && before.length + after.length <= MAX_WORD_LENGTH) {
+      if (before.isNotEmpty() && after.isNotEmpty() && Telex.hasVowel(before) &&
+        before.length + after.length <= MAX_WORD_LENGTH) {
         val fullWord = before + after
         val transformed = Telex.apply(fullWord, letter, quickTelex = false)
         if (transformed != fullWord + letter) {
           wordLost = false
+          if (speakAt != null) markEdit()
           if (!connection.deleteSurroundingTextInCodePoints(before.length, after.length)) {
             return false
           }
@@ -859,6 +865,7 @@ class VietnameseKeyboardService : InputMethodService() {
           val transformed = Telex.apply(before, letter, quickTelex = false)
           if (transformed != before + letter && transformed.length <= MAX_WORD_LENGTH) {
             wordLost = false
+            if (speakAt != null) markEdit()
             if (!connection.deleteSurroundingTextInCodePoints(before.length, 0)) {
               return false
             }
@@ -1270,8 +1277,14 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun sendKey(connection: InputConnection, keyCode: Int): Boolean {
-    val down = connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
-    val up = connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+    val now = SystemClock.uptimeMillis()
+    val flags = KeyEvent.FLAG_SOFT_KEYBOARD or KeyEvent.FLAG_KEEP_TOUCH_MODE
+    val down = connection.sendKeyEvent(
+      KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, flags),
+    )
+    val up = connection.sendKeyEvent(
+      KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, flags),
+    )
     return down && up
   }
 
@@ -1396,6 +1409,7 @@ class VietnameseKeyboardService : InputMethodService() {
       if (reader?.isMute == true) {
         return false
       }
+      reader?.stopUtteranceGroup(UTTERANCE_GROUP_TEXT_SELECTION)
       warmUpKeyboardVoice()
       return keyboardVoice?.speak(label, started, { main.post { completed() } }) == true
     }

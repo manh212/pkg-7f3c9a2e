@@ -288,7 +288,7 @@ public class FocusProcessorForTapAndTouchExploration {
     if (actorState.getSpeechState().isSpeaking()) {
       // We refocus and re-announce a node if TalkBack is currently speaking.
       mayBeRefocusAction = true;
-      if (typingMethod == DIRECT_SILENT_TYPING && eventId != null && isSpeakingKeyboard()) {
+      if (typingMethod != SINGLE_TAP_TO_TYPE && eventId != null && isSpeakingKeyboard()) {
         if (eventId.getEventTimeMs() > lastDirectKeyboardTouchDown) {
           pendingKeyboardSpeechInterrupt = eventId;
           postDelayHandler.postDelayed(

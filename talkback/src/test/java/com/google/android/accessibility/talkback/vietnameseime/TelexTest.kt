@@ -87,21 +87,29 @@ class TelexTest {
   }
 
   @Test
-  fun vowelKeyAfterConsonantAppendsInsteadOfReshaping() {
+  fun delayedCircumflexShapesVietnameseSyllablesAndStillProtectsNonVietnameseCodas() {
+    assertEquals("tân", type("tana"))
+    assertEquals("tana", type("tanaa"))
+    assertEquals("tông", type("tongo"))
+    assertEquals("tongo", type("tongoo"))
+    assertEquals("tên", type("tene"))
+    assertEquals("tấn", type("tansa"))
+    assertEquals("tống", type("tongso"))
+    assertEquals("tiếng", type("tiengse"))
+    assertEquals("quốc", type("quocso"))
+    assertEquals("tôi", type("toio"))
+    assertEquals("tây", type("taya"))
+    assertEquals("tâu", type("taua"))
+    assertEquals("kênh", type("kenhe"))
+    assertEquals("số", type("soso"))
+    assertEquals("soso", type("sosso"))
     assertEquals("tele", type("tele"))
     assertEquals("telex", type("telexx"))
     assertEquals("tẽle", type("telex"))
     assertEquals("masage", type("massage"))
     assertEquals("Masage", type("Massage"))
-    assertEquals("máa", type("masa"))
-    assertEquals("cáa", type("casa"))
     assertEquals("casa", type("cassa"))
-    assertEquals("papa", type("papa"))
-    assertEquals("tete", type("tete"))
-    assertEquals("banana", type("banana"))
-    assertEquals("bâna", type("baana"))
-    assertEquals("sóo", type("soso"))
-    assertEquals("soso", type("sosso"))
+    assertEquals("bana", type("baana"))
   }
 
   @Test

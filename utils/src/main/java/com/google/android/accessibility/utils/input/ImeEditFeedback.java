@@ -7,7 +7,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class ImeEditFeedback {
-  private static final long EVENT_WINDOW_MS = 400;
+  private static final long EVENT_WINDOW_MS = 800;
+  private static final long EVENT_SKEW_MS = 50;
 
   private record Edit(String packageName, long time) {}
 
@@ -51,7 +52,7 @@ public final class ImeEditFeedback {
     Edit edit = latestEdit;
     if (edit == null) return false;
     long age = event.getEventTime() - edit.time();
-    return age >= 0 && age <= EVENT_WINDOW_MS
+    return age >= -EVENT_SKEW_MS && age <= EVENT_WINDOW_MS
         && TextUtils.equals(edit.packageName(), event.getPackageName());
   }
 }

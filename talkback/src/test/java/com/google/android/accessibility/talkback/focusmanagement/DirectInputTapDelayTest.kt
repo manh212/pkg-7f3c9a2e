@@ -31,6 +31,7 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.FORCE_LIFT_TO_TYPE_ON_IME
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.action.TouchExplorationAction
 import com.google.android.accessibility.utils.Performance.EVENT_TYPE_ACCESSIBILITY
@@ -217,6 +218,19 @@ class DirectInputTapDelayTest {
     runMainQueueFor(100)
 
     assertEquals(1, receiver.touchStartInterrupts())
+  }
+
+  @Test
+  fun forceLiftToTypeKeyboardTouchKeepsItsSpeech() {
+    processor.setTypingMethod(FORCE_LIFT_TO_TYPE_ON_IME)
+    setSpeaking(UTTERANCE_GROUP_KEYBOARD)
+    val event = touchStartEvent()
+    runMainQueueFor(3)
+    processor.onDirectKeyboardTouchDown()
+    startTouch(event)
+    runMainQueueFor(100)
+
+    assertEquals(0, receiver.touchStartInterrupts())
   }
 
   @Test

@@ -12,7 +12,18 @@ internal object Telex {
     "qq" to "qu", "hh" to "nh", "ggg" to "gh", "ttt" to "th",
   )
 
+  private val circumflexCodas = mapOf(
+    'a' to setOf("", "c", "m", "n", "ng", "p", "t", "u", "y"),
+    'e' to setOf("", "c", "ch", "m", "n", "ng", "nh", "p", "t", "u"),
+    'o' to setOf("", "c", "m", "n", "ng", "p", "t", "i"),
+  )
+
   fun isTelexKey(key: Char): Boolean = key.isLetter() || key in "[]{}"
+
+  fun hasVowel(text: String): Boolean {
+    val (plain, _) = splitTone(text)
+    return plain.lowercase().any { it in VOWELS }
+  }
 
   fun apply(word: String, key: Char, quickTelex: Boolean = false): String {
     val letter = key.lowercaseChar()
@@ -40,7 +51,7 @@ internal object Telex {
     }
     if (letter == 'z' && tone >= 0) return plain
 
-    val shaped = changeShape(plain, key, tone)
+    val shaped = changeShape(plain, key)
     if (shaped != null) return withTone(shaped, tone)
     val continued = if (letter in "iuycgmnpt") completeHornPair(plain) else plain
     return withTone(continued + key, tone)
@@ -95,7 +106,7 @@ internal object Telex {
     }
   }
 
-  private fun changeShape(word: String, key: Char, tone: Int): String? {
+  private fun changeShape(word: String, key: Char): String? {
     val lower = word.lowercase()
     return when (key.lowercaseChar()) {
       'd' -> {
@@ -103,9 +114,9 @@ internal object Telex {
         else if (lower == "d") replace(word, 0, 'đ')
         else null
       }
-      'a' -> replaceShape(word, lower, key, 'a', 'â', tone)
-      'e' -> replaceShape(word, lower, key, 'e', 'ê', tone)
-      'o' -> replaceShape(word, lower, key, 'o', 'ô', tone)
+      'a' -> replaceShape(word, lower, key, 'a', 'â')
+      'e' -> replaceShape(word, lower, key, 'e', 'ê')
+      'o' -> replaceShape(word, lower, key, 'o', 'ô')
       'w' -> addHornOrBreve(word, lower, key)
       '[' -> addBracketVowel(word, lower, '[', 'ơ')
       ']' -> addBracketVowel(word, lower, ']', 'ư')
@@ -115,14 +126,12 @@ internal object Telex {
     }
   }
 
-  private fun replaceShape(word: String, lower: String, key: Char, plain: Char, shaped: Char, tone: Int): String? {
-    // A tone already on the word normally blocks reshaping, so a vowel key
-    // after a toned word appends instead (e.g. "só" + "o" stays "sóo").
-    // But a lone toned vowel has no other vowel to confuse it with, so the
-    // key reshapes it and the tone carries over (e.g. "ò" + "o" becomes "ồ").
-    if (tone >= 0 && word.length != 1) return null
+  private fun replaceShape(word: String, lower: String, key: Char, plain: Char, shaped: Char): String? {
     val index = lower.indexOfLast { it == plain || it == shaped }
-    if (index < 0 || index != word.lastIndex) return null
+    if (index < 0) return null
+    if (lower.indices.any { it != index && lower[it] in SHAPED_VOWELS }) return null
+    val after = lower.substring(index + 1)
+    if (after !in circumflexCodas[plain].orEmpty()) return null
     return if (lower[index] == shaped) replace(word, index, plain) + key
     else replace(word, index, shaped)
   }

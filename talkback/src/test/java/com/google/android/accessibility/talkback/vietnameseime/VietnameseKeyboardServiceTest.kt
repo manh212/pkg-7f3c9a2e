@@ -1401,6 +1401,43 @@ class VietnameseKeyboardServiceTest {
     assertEquals(0, finishCount)
   }
 
+  @Test
+  fun insertingToneKeyAtStartOfWordAfterDeletingInitialConsonantInsertsLetter() {
+    setAutoCapitalize(false)
+    text.append("con rùa")
+    Selection.setSelection(text, 5)
+    startEditor {
+      initialSelStart = 5
+      initialSelEnd = 5
+    }
+    service.onUpdateSelection(5, 5, 5, 5, -1, -1)
+
+    press(service.getString(R.string.vietnamese_ime_delete))
+    assertEquals("con ùa", text.toString())
+
+    press("sờ")
+    assertEquals("con sùa", text.toString())
+  }
+
+  @Test
+  fun delayedCircumflexTypesTanAndTongInEditor() {
+    setAutoCapitalize(false)
+    startEditor()
+    press("tê")
+    press("a")
+    press("nờ")
+    press("a")
+    assertEquals("tân", text.toString())
+
+    press("Dấu cách")
+    press("tê")
+    press("o")
+    press("nờ")
+    press("gờ")
+    press("o")
+    assertEquals("tân tông", text.toString())
+  }
+
   private fun enableMicWithFakeDictation() {
     service.dictationAvailable = { true }
     service.dictationListen = { callback ->

@@ -11,6 +11,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DIRECT_SILENT_TYPING
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.DOUBLE_TAP
+import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.FORCE_LIFT_TO_TYPE_ON_IME
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.LIFT_TO_TYPE_EXCEPT_ACTION_KEY
 import com.google.android.accessibility.talkback.focusmanagement.FocusProcessorForTapAndTouchExploration.SINGLE_TAP_TO_TYPE
@@ -211,6 +212,18 @@ class VietnameseKeyboardViewTest {
     assertTrue(typed.isEmpty())
     assertEquals(listOf("q", ""), spoken)
     assertEquals(0, released)
+  }
+
+  @Test
+  fun forceLiftToTypeNotifiesDirectKeyTouchDown() {
+    keyboard.typingMethod = FORCE_LIFT_TO_TYPE_ON_IME
+    keyboard.showKeys(false, false, true, "Gửi")
+    keyboard.layout(0, 0, 400, 250)
+
+    touch(MotionEvent.ACTION_DOWN, 20f, 60f, 100)
+
+    assertEquals(1, directKeyDowns)
+    assertEquals(listOf("q"), spoken)
   }
 
   @Test

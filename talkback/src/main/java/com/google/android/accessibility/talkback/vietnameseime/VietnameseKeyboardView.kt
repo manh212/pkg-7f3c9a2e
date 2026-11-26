@@ -413,7 +413,7 @@ internal class VietnameseKeyboardView(
         )
         pointers[id] = state
         val key = cell?.key
-        if (event.actionMasked == MotionEvent.ACTION_DOWN && state.method == DIRECT_SILENT_TYPING &&
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && state.method != SINGLE_TAP_TO_TYPE &&
           event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN) && key != null && isKeyEnabled(key)) {
           onDirectKeyTouchDown()
         }

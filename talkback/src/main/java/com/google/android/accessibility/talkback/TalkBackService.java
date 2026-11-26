@@ -1992,7 +1992,9 @@ public class TalkBackService extends AccessibilityServiceCompat
 
     if (keyAction == KeyEvent.ACTION_DOWN) {
       if (textEventInterpreter != null) {
-        textEventInterpreter.setLastKeyEventTime(keyEvent.getEventTime());
+        if ((keyEvent.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) == 0) {
+          textEventInterpreter.setLastKeyEventTime(keyEvent.getEventTime());
+        }
         textEventInterpreter.resetLastKeyDown();
       }
       InputFocusInterpreter.setLastKeyDownTime(keyEvent.getEventTime());
