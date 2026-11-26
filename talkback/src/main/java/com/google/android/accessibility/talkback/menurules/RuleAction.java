@@ -63,7 +63,9 @@ public class RuleAction extends NodeMenuRule {
     editingAndSelectingMenu =
         new EditingAndSelectingMenu(pipeline, actorState, accessibilityFocusMonitor, analytics);
     vietnameseTextActionsMenu =
-        new VietnameseTextActionsMenu(pipeline, actorState, accessibilityFocusMonitor);
+        actorState == null || accessibilityFocusMonitor == null
+            ? null
+            : new VietnameseTextActionsMenu(pipeline, actorState, accessibilityFocusMonitor);
     typoSuggestionMenu = new TypoSuggestionMenu(pipeline, actorState, accessibilityFocusMonitor);
     linkMenu = new LinkMenu(analytics);
     textEntityMenu = new TextEntityMenu(pipeline);
@@ -75,7 +77,7 @@ public class RuleAction extends NodeMenuRule {
 
   @Override
   public boolean accept(Context context, AccessibilityNodeInfoCompat node) {
-    return vietnameseTextActionsMenu.accept(context, node)
+    return (vietnameseTextActionsMenu != null && vietnameseTextActionsMenu.accept(context, node))
         || customActionMenu.accept(context, node)
         || collapsedItemActions.accept(context, node)
         || settingsQuickActions.accept(context, node)
@@ -94,7 +96,7 @@ public class RuleAction extends NodeMenuRule {
       Context context, AccessibilityNodeInfoCompat node, boolean includeAncestors) {
     List<ContextMenuItem> actionItems = new ArrayList<>();
 
-    if (vietnameseTextActionsMenu.accept(context, node)) {
+    if (vietnameseTextActionsMenu != null && vietnameseTextActionsMenu.accept(context, node)) {
       actionItems.addAll(
           vietnameseTextActionsMenu.getMenuItemsForNode(context, node, includeAncestors));
     }

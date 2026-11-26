@@ -170,6 +170,8 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_mic_enabled",
         "pref_vietnamese_keyboard_t9_double_tap",
         "pref_vietnamese_keyboard_auto_switch_letters_on_space",
+        "pref_vietnamese_keyboard_word_suggestions",
+        "pref_vietnamese_keyboard_spell_check",
       ),
       rows.map { it.first },
     )
