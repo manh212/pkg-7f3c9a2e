@@ -124,8 +124,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   private val callbacks = singleThreadExecutor("LowLatencyAudio callbacks")
   @Volatile private var nativeOutput: NativeAAudioOutput? = null
   @Volatile private var aaudioStatus: String = "unattempted"
-  @Volatile private var everFailedAAudio = false
+  @Volatile private var aaudioPermanentlyUnavailable = false
   @Volatile private var pendingAAudioRestore = false
+  @Volatile private var everHadFastPath = false
   @Volatile private var track: AudioTrack? = null
   // Set when no track can be made, or the track stops taking audio and cannot be remade. Then audio
   // plays the usual way.
@@ -167,6 +168,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   private var holdFull = false
   @Volatile private var detour: AudioDeviceInfo? = null
   private var stickyDetour = false
+  private var detouredForEarpiece = false
   // When the track was last sent to the media output again after it went to the earpiece.
   private var lastResend = 0L
   private val speechBuffer: FloatArray
@@ -922,7 +924,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   internal fun restoreAAudioAfterExternalAudio() {
     val needsOffThreadRemake =
       synchronized(lock) {
-        if (released || broken || everFailedAAudio || nativeOutput != null) return
+        if (released || broken || aaudioPermanentlyUnavailable || nativeOutput != null) return
         if (thread == null) {
           pendingAAudioRestore = false
           true
@@ -932,12 +934,35 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           lock.notifyAll()
           false
         } else {
-          // Finish the current utterance cleanly on AudioTrack, then switch back on idle.
+          // Finish the current utterance cleanly on AudioTrack, then switch back as soon as idle.
           pendingAAudioRestore = true
           false
         }
       }
     if (needsOffThreadRemake) ROUTES.execute { remake() }
+  }
+
+  /**
+   * Swaps an active AudioTrack back to native AAudio while [lock] is held. Returns true if a
+   * backend swap was attempted (caller should re-enter the main loop to inspect updated state).
+   */
+  private fun tryRestoreAAudioLocked(): Boolean {
+    if (!pendingAAudioRestore ||
+      nativeOutput != null ||
+      yieldAAudioForExternalAudio ||
+      aaudioPermanentlyUnavailable) {
+      return false
+    }
+    pendingAAudioRestore = false
+    val oldTrack = track
+    track = null
+    primed = false
+    oldTrack?.release()
+    if (!openOutput()) {
+      giveUp()
+      end(nativeOutput, track)
+    }
+    return true
   }
 
   private fun remake() {
@@ -995,20 +1020,20 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           end(currentNative, output)
           return
         }
+        if ((idle || !primed) &&
+          pendingAAudioRestore &&
+          nativeOutput == null &&
+          !yieldAAudioForExternalAudio &&
+          !aaudioPermanentlyUnavailable) {
+          pauseOutputLocked(currentNative, output)
+          if (tryRestoreAAudioLocked()) {
+            lastWrite = SystemClock.uptimeMillis()
+            idleFrames = if (idle) idleLimit() else 0
+            continue
+          }
+        }
         if (idle && idleFrames >= idleLimit()) {
           pauseOutputLocked(currentNative, output)
-          if (pendingAAudioRestore && nativeOutput == null && !yieldAAudioForExternalAudio && !everFailedAAudio) {
-            pendingAAudioRestore = false
-            val oldTrack = track
-            track = null
-            primed = false
-            oldTrack?.release()
-            if (!openOutput()) {
-              giveUp()
-              end(nativeOutput, track)
-              return
-            }
-          }
           watchdog?.cancel(false)
           watchdog = null
           val parkUntil = SystemClock.uptimeMillis() + THREAD_IDLE_EXIT_MS
@@ -1060,6 +1085,11 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           if (primed && !audible && silentFrames >= output.bufferSizeInFrames) pauseAndFlush(output)
           if (!primed && !readyToStart(output)) {
             if (idle) {
+              if (tryRestoreAAudioLocked()) {
+                lastWrite = SystemClock.uptimeMillis()
+                idleFrames = idleLimit()
+                continue
+              }
               end(null, output)
               return
             }
@@ -1203,6 +1233,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
    * falls back transparently to [AudioTrack].
    */
   private fun openOutput(): Boolean {
+    prepareInitialDetour()
     if (yieldAAudioForExternalAudio) {
       aaudioStatus = "yielded_for_external_audio"
     } else {
@@ -1216,13 +1247,14 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       aaudioStatus = NativeAAudioOutput.lastOpenStatus
       if (opened != null) {
         if (opened.sampleRate == sampleRate) {
-          everFailedAAudio = false
+          aaudioPermanentlyUnavailable = false
           if (fastFrames > 0) {
             opened.setBufferSizeInFrames(fastFrames)
           }
           nativeOutput = opened
           track = null
           fastPath = true
+          everHadFastPath = true
           underruns = opened.xRunCount
           BatteryUsageTracker.onAudioBackendSelected(
             if (opened.isMMapUsed) "AAudio MMAP" else "AAudio"
@@ -1240,8 +1272,10 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         }
         aaudioStatus = "sample_rate_mismatch(got=${opened.sampleRate},want=$sampleRate)"
         opened.close()
+        aaudioPermanentlyUnavailable = true
+      } else if (!NativeAAudioOutput.isAvailable) {
+        aaudioPermanentlyUnavailable = true
       }
-      everFailedAAudio = true
     }
     val fallback = createTrack()
     nativeOutput = null
@@ -1405,10 +1439,21 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           // Moving to another output, such as Bluetooth, can lose or gain the fast path.
           it.addOnRoutingChangedListener(
             { routed ->
-              fitBuffer(routed as AudioTrack)
+              val audioTrack = routed as AudioTrack
+              fitBuffer(audioTrack)
+              val routedType = audioTrack.routedDevice?.type
               ROUTES.execute {
-                LogUtils.d(TAG, "Track on %s", describe(routed.routedDevice))
+                LogUtils.d(TAG, "Track on %s", describe(audioTrack.routedDevice))
                 followMedia()
+                if (!fastPath &&
+                  everHadFastPath &&
+                  routedType == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER &&
+                  track === audioTrack &&
+                  !released &&
+                  !broken) {
+                  LogUtils.d(TAG, "Track returned to speaker without fast path; recreating for low latency")
+                  remake()
+                }
               }
             },
             mainHandler,
@@ -1447,6 +1492,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       )
       underruns = output.underrunCount
       fastPath = fast
+      if (fast) everHadFastPath = true
       LogUtils.d(
         TAG,
         "Track at %d Hz, %d frames, low latency=%b",
@@ -1456,6 +1502,28 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       )
     } catch (e: IllegalStateException) {
       // Released already.
+    }
+  }
+
+  /**
+   * Computes whether a newly created [AudioTrack] should be detoured to the media output (e.g.,
+   * full stereo speaker instead of earpiece or mono speaker-safe during a notification) before
+   * playback starts.
+   */
+  private fun prepareInitialDetour() {
+    val am = audioManager ?: return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || released || broken) return
+    try {
+      val ours = am.getAudioDevicesForAttributes(attributes).firstOrNull()?.type
+      val media = am.getAudioDevicesForAttributes(MEDIA_ATTRIBUTES).firstOrNull()
+      val send = sendToMedia(am.mode, ours, null, media?.type, stickyDetour, detouredForEarpiece)
+      val earpieceRoute = ours == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+      stickyDetour =
+        send && !isRestrictedSpeaker(ours) && ours != media?.type && (earpieceRoute || stickyDetour)
+      detouredForEarpiece = send && (earpieceRoute || stickyDetour || detouredForEarpiece)
+      detour = media.takeIf { send }
+    } catch (_: RuntimeException) {
+      // Fall back to default routing if AudioManager query fails.
     }
   }
 
@@ -1469,9 +1537,13 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         val media = am.getAudioDevicesForAttributes(MEDIA_ATTRIBUTES).firstOrNull()
         val routed = output.routedDevice?.type
         val send =
-          sendToMedia(am.mode, ours, routed, media?.type, stickyDetour, detour != null)
+          sendToMedia(am.mode, ours, routed, media?.type, stickyDetour, detouredForEarpiece)
+        val earpieceRoute =
+          ours == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ||
+            routed == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
         stickyDetour =
-          send && ours != AudioDeviceInfo.TYPE_BUILTIN_EARPIECE && ours != media?.type
+          send && !isRestrictedSpeaker(ours) && ours != media?.type && (earpieceRoute || stickyDetour)
+        detouredForEarpiece = send && (earpieceRoute || stickyDetour || detouredForEarpiece)
         media.takeIf { send }
       } catch (e: RuntimeException) {
         LogUtils.w(TAG, "Cannot find the media output: %s", e)
@@ -1480,24 +1552,28 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     detour = target
     try {
       if (output.preferredDevice?.id == target?.id) {
-        if (target == null || output.routedDevice?.type != AudioDeviceInfo.TYPE_BUILTIN_EARPIECE) {
+        if (target == null || !isRestrictedSpeaker(output.routedDevice?.type)) {
           return
         }
         // The track was sent to the media output while it still played there, which Android
-        // ignores, and then went to the earpiece with the rest of accessibility audio. Setting
-        // the same device again is ignored too, so it is cleared first.
+        // ignores, and then went to the earpiece/speaker-safe with the rest of accessibility
+        // audio. Setting the same device again is ignored too, so it is cleared first.
         val now = SystemClock.uptimeMillis()
         if (now - lastResend < ROUTE_SETTLE_MS) {
           recheckRoute(lastResend + ROUTE_SETTLE_MS)
           return
         }
         lastResend = now
-        LogUtils.d(TAG, "Track went to the earpiece, sending it to %s again", describe(target))
+        LogUtils.d(TAG, "Track went to restricted speaker, sending it to %s again", describe(target))
         output.setPreferredDevice(null)
       } else if (target == null) {
         LogUtils.d(TAG, "Track plays where Android routes it again")
       } else {
-        LogUtils.d(TAG, "Accessibility audio is on the earpiece outside a call, sending the track to %s", describe(target))
+        LogUtils.d(
+          TAG,
+          "Accessibility audio is on restricted speaker outside a call, sending the track to %s",
+          describe(target),
+        )
       }
       output.setPreferredDevice(target)
     } catch (e: IllegalStateException) {
@@ -1773,6 +1849,11 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
      * earpiece, until a call starts or the media output goes. A track already sent there
      * ([detoured]) stays while Android routes accessibility audio to the media output as well.
      */
+    private fun isRestrictedSpeaker(type: Int?): Boolean =
+      type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ||
+        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+          type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE)
+
     @VisibleForTesting
     @JvmStatic
     fun sendToMedia(
@@ -1785,9 +1866,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     ): Boolean =
       mode == AudioManager.MODE_NORMAL &&
         mediaOutput != null &&
-        mediaOutput != AudioDeviceInfo.TYPE_BUILTIN_EARPIECE &&
-        (ours == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ||
-          routed == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ||
+        !isRestrictedSpeaker(mediaOutput) &&
+        (isRestrictedSpeaker(ours) ||
+          isRestrictedSpeaker(routed) ||
           sticky ||
           // While other audio plays on the media output, One UI routes accessibility audio there
           // too, and back to the earpiece when it stops.
@@ -1898,6 +1979,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           val wasInCall = inCall
           inCall = isCallMode(mode)
           if (wasInCall && mode == AudioManager.MODE_NORMAL) remakeTracks()
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            onExternalPlaybackChanged(audioManager, hasExternalPlaybackNow(audioManager))
+          }
           followMediaAll()
         }
       val communicationListener =
@@ -1936,7 +2020,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
 
     private const val AAUDIO_RESTORE_DELAY_MS = 350L
+    private const val AAUDIO_RECHECK_DELAY_MS = 500L
     private val AAUDIO_RESTORE_TOKEN = Any()
+    private val AAUDIO_RECHECK_TOKEN = Any()
     @Volatile private var yieldAAudioForExternalAudio = false
 
     private class PlaybackWatcher(
@@ -2004,11 +2090,28 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       return hasExternalPlayback(usages, ownUsages, mode)
     }
 
+    private fun scheduleExternalPlaybackRecheck(am: AudioManager) {
+      routeHandler.removeCallbacksAndMessages(AAUDIO_RECHECK_TOKEN)
+      routeHandler.postAtTime(
+        {
+          if (yieldAAudioForExternalAudio && !hasExternalPlaybackNow(am)) {
+            onExternalPlaybackChanged(am, false)
+          }
+        },
+        AAUDIO_RECHECK_TOKEN,
+        SystemClock.uptimeMillis() + AAUDIO_RECHECK_DELAY_MS,
+      )
+    }
+
     private fun refreshExternalPlaybackNow(am: AudioManager?) {
       if (am == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
       if (hasExternalPlaybackNow(am)) {
         routeHandler.removeCallbacksAndMessages(AAUDIO_RESTORE_TOKEN)
-        yieldAAudioForExternalAudio = true
+        if (!yieldAAudioForExternalAudio) {
+          yieldAAudioForExternalAudio = true
+          LogUtils.d(TAG, "External audio active (detected on reopen); switching AAudio to AudioTrack")
+        }
+        scheduleExternalPlaybackRecheck(am)
       }
     }
 
@@ -2057,6 +2160,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private fun stopWatchingPlayback() {
       val watcher = synchronized(instances) { playbackWatcher.also { playbackWatcher = null } }
       routeHandler.removeCallbacksAndMessages(AAUDIO_RESTORE_TOKEN)
+      routeHandler.removeCallbacksAndMessages(AAUDIO_RECHECK_TOKEN)
       yieldAAudioForExternalAudio = false
       if (watcher != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         runCatching { watcher.audioManager.unregisterAudioPlaybackCallback(watcher.callback) }

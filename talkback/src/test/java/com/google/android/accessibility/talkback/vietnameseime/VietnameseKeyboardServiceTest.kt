@@ -504,6 +504,28 @@ class VietnameseKeyboardServiceTest {
   }
 
   @Test
+  fun quickTelexExpandsInitialsWhenWFollowsInEditor() {
+    setAutoCapitalize(false)
+    setKeyboardSwitch(R.string.pref_vietnamese_keyboard_quick_telex_key, true)
+    startEditor()
+    repeat(2) { press("xê") }
+    press("vê kép")
+    press("a")
+    press("Dấu cách")
+    repeat(2) { press("tê") }
+    press("vê kép")
+    press("a")
+    press("Dấu cách")
+    repeat(2) { press("nờ") }
+    press("vê kép")
+    press("o")
+    press("i")
+    press("ép")
+
+    assertEquals("chưa trưa người", text.toString())
+  }
+
+  @Test
   fun shortcutMatchesTypedKeysBeforeTelexAndInsertsMultilineTextOnce() {
     saveShortcuts(mapOf("as" to "Một dòng\nHai dòng"))
     startEditor()

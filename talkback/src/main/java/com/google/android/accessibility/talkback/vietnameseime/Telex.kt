@@ -20,6 +20,11 @@ internal object Telex {
 
   fun isTelexKey(key: Char): Boolean = key.isLetter() || key in "[]{}"
 
+  fun isQuickTelexVowelKey(key: Char): Boolean {
+    val letter = key.lowercaseChar()
+    return letter in VOWELS || letter == 'w' || key in "[]{}"
+  }
+
   fun hasVowel(text: String): Boolean {
     val (plain, _) = splitTone(text)
     return plain.lowercase().any { it in VOWELS }
@@ -27,16 +32,28 @@ internal object Telex {
 
   fun apply(word: String, key: Char, quickTelex: Boolean = false): String {
     val letter = key.lowercaseChar()
-    if (quickTelex && letter in "aeiouy") {
+    if (quickTelex && isQuickTelexVowelKey(key)) {
       val initial = quickInitials[word.lowercase()]
       if (initial != null) {
-        val spelledInitial = if (initial == "ng" && letter in "ei") "ngh" else initial
-        return buildString {
-          spelledInitial.forEachIndexed { index, character ->
-            append(if (word[minOf(index, word.lastIndex)].isUpperCase()) character.uppercaseChar()
-              else character)
+        val vowelChar = when (key) {
+          'w' -> 'ư'
+          'W' -> 'Ư'
+          '[' -> 'ơ'
+          '{' -> 'Ơ'
+          ']' -> 'ư'
+          '}' -> 'Ư'
+          else -> key
+        }
+        val vowelLower = vowelChar.lowercaseChar()
+        if (!(initial == "qu" && vowelLower == 'ư')) {
+          val spelledInitial = if (initial == "ng" && vowelLower in "eiê") "ngh" else initial
+          return buildString {
+            spelledInitial.forEachIndexed { index, character ->
+              append(if (word[minOf(index, word.lastIndex)].isUpperCase()) character.uppercaseChar()
+                else character)
+            }
+            append(vowelChar)
           }
-          append(key)
         }
       }
     }

@@ -44,6 +44,45 @@ class TelexTest {
   }
 
   @Test
+  fun quickTelexExpandsInitialsBeforeWBracketAndShapedVowels() {
+    // cc -> ch
+    assertEquals("chư", type("ccw", quickTelex = true))
+    assertEquals("chưa", type("ccwa", quickTelex = true))
+    assertEquals("chứa", type("ccwas", quickTelex = true))
+    assertEquals("chương", type("ccwong", quickTelex = true))
+    assertEquals("CHƯA", type("CCWA", quickTelex = true))
+    assertEquals("Chưa", type("Ccwa", quickTelex = true))
+    assertEquals("chuw", type("ccww", quickTelex = true))
+    assertEquals("chơ", type("cc[", quickTelex = true))
+    assertEquals("chưa", type("cc]a", quickTelex = true))
+
+    // All other quick initials with w -> ư and following vowels/codas/tones
+    assertEquals("trưa", type("ttwa", quickTelex = true))
+    assertEquals("trường", type("ttwongf", quickTelex = true))
+    assertEquals("trời", type("tt[if", quickTelex = true))
+    assertEquals("thưa", type("tttwa", quickTelex = true))
+    assertEquals("thương", type("tttwong", quickTelex = true))
+    assertEquals("thơ", type("ttt[", quickTelex = true))
+    assertEquals("giữ", type("ggwx", quickTelex = true))
+    assertEquals("giường", type("ggwongf", quickTelex = true))
+    assertEquals("khứ", type("kkws", quickTelex = true))
+    assertEquals("khưa", type("kkwa", quickTelex = true))
+    assertEquals("người", type("nnwoif", quickTelex = true))
+    assertEquals("ngựa", type("nnwaj", quickTelex = true))
+    assertEquals("NGƯỜI", type("NNWOIF", quickTelex = true))
+    assertEquals("nghê", type("nnê", quickTelex = true))
+    assertEquals("phương", type("ppwong", quickTelex = true))
+    assertEquals("nhưng", type("hhwng", quickTelex = true))
+    assertEquals("nhựa", type("hhwaj", quickTelex = true))
+    assertEquals("quơ", type("qq[", quickTelex = true))
+
+    // Guardrails: qq + w must not produce invalid "quư"; mid-word cc + w must not expand.
+    assertEquals("qqư", type("qqw", quickTelex = true))
+    assertEquals("lccưa", type("lccwa", quickTelex = true))
+    assertEquals("ccưa", type("ccwa", quickTelex = false))
+  }
+
+  @Test
   fun completesBothHornsWhenTypedSeparatelyOrBeforeTheEnding() {
     assertEquals("người", type("nguwowif"))
     assertEquals("người", type("nguwoif"))

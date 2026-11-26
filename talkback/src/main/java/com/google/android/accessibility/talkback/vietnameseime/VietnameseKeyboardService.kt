@@ -897,7 +897,7 @@ class VietnameseKeyboardService : InputMethodService() {
         wordLost = false
       }
     }
-    val useQuickTelex = quickTelex && letter.lowercaseChar() in "aeiouy" && word.length in 2..3 &&
+    val useQuickTelex = quickTelex && Telex.isQuickTelexVowelKey(letter) && word.length in 2..3 &&
       word.all { it.equals(word[0], ignoreCase = true) } &&
       connection.getTextBeforeCursor(word.length + 2, 0)
         ?.let { WORD_BEFORE_CURSOR.find(it)?.value == word } == true
