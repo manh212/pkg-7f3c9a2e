@@ -177,6 +177,11 @@ public class AccessibilityNodeFeedbackUtils {
     if (!TextUtils.isEmpty(grabBookingLabel)) {
       return markCapital(node, grabBookingLabel, context, globalVariables);
     }
+    CharSequence baoMoiLabel =
+        com.google.android.accessibility.talkback.collapse.BaoMoiAccessibility.labelForNode(node);
+    if (!TextUtils.isEmpty(baoMoiLabel)) {
+      return markCapital(node, baoMoiLabel, context, globalVariables);
+    }
     CharSequence nodeTextDescription = getNodeTextDescription(node, context, globalVariables);
     if (!TextUtils.isEmpty(nodeTextDescription)) {
       return nodeTextDescription;
@@ -951,3 +956,4 @@ public class AccessibilityNodeFeedbackUtils {
     return text == null ? "" : text;
   }
 }
+

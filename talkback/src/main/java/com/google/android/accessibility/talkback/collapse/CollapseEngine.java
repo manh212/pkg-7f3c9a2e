@@ -170,7 +170,10 @@ public final class CollapseEngine {
       return null;
     }
     ItemScan scan = ItemScan.of(itemRoot);
-    if (scan == null || scan.hasEssentialDescendant() || scan.hasScrollableDescendant()) {
+    if (scan == null
+        || scan.hasEssentialDescendant()
+        || (scan.hasSeekControlDescendant() && !script.allowsSeekControlDescendant())
+        || scan.hasScrollableDescendant()) {
       return null;
     }
     CollapsedItem item =
@@ -291,7 +294,7 @@ public final class CollapseEngine {
     if (!TextUtils.isEmpty(ItemScan.spokenLabel(itemRoot))) {
       return null;
     }
-    if (scan.clickables().size() < 2) {
+    if (scan.clickables().size() < script.minCompositeClickables()) {
       return null;
     }
     List<Field> fields = script.resolveFields(scan);
@@ -603,3 +606,4 @@ public final class CollapseEngine {
     return packageName == null ? "" : packageName.toString();
   }
 }
+

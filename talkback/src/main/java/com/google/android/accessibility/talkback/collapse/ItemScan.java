@@ -37,6 +37,7 @@ public final class ItemScan {
   private final List<AccessibilityNodeInfoCompat> descendants;
   private final List<AccessibilityNodeInfoCompat> clickables;
   private final boolean hasEssentialDescendant;
+  private final boolean hasSeekControlDescendant;
   private final boolean hasScrollableDescendant;
 
   private ItemScan(
@@ -44,11 +45,13 @@ public final class ItemScan {
       List<AccessibilityNodeInfoCompat> descendants,
       List<AccessibilityNodeInfoCompat> clickables,
       boolean hasEssentialDescendant,
+      boolean hasSeekControlDescendant,
       boolean hasScrollableDescendant) {
     this.itemRoot = itemRoot;
     this.descendants = descendants;
     this.clickables = clickables;
     this.hasEssentialDescendant = hasEssentialDescendant;
+    this.hasSeekControlDescendant = hasSeekControlDescendant;
     this.hasScrollableDescendant = hasScrollableDescendant;
   }
 
@@ -59,6 +62,7 @@ public final class ItemScan {
     }
     List<AccessibilityNodeInfoCompat> clickables = new ArrayList<>();
     boolean hasEssential = false;
+    boolean hasSeekControl = false;
     boolean hasScrollable = false;
     for (AccessibilityNodeInfoCompat node : descendants) {
       if (node.isClickable() && node.isVisibleToUser()) {
@@ -66,16 +70,18 @@ public final class ItemScan {
       }
       int role = Role.getRole(node);
       if (role == Role.ROLE_EDIT_TEXT
-          || role == Role.ROLE_SEEK_CONTROL
           || node.isCheckable()
           || AccessibilityNodeInfoUtils.isTextSelectable(node)) {
         hasEssential = true;
+      } else if (role == Role.ROLE_SEEK_CONTROL) {
+        hasSeekControl = true;
       }
       if (node.isScrollable()) {
         hasScrollable = true;
       }
     }
-    return new ItemScan(itemRoot, descendants, clickables, hasEssential, hasScrollable);
+    return new ItemScan(
+        itemRoot, descendants, clickables, hasEssential, hasSeekControl, hasScrollable);
   }
 
   private static boolean collect(
@@ -117,6 +123,10 @@ public final class ItemScan {
     return hasEssentialDescendant;
   }
 
+  public boolean hasSeekControlDescendant() {
+    return hasSeekControlDescendant;
+  }
+
   public boolean hasScrollableDescendant() {
     return hasScrollableDescendant;
   }
@@ -141,3 +151,4 @@ public final class ItemScan {
     return text == null ? "" : text;
   }
 }
+

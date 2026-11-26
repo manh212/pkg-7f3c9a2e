@@ -31,6 +31,7 @@ public final class CollapseScripts {
     register(new ZaloCollapseScript());
     register(new MessengerCollapseScript());
     register(new ChatGptCollapseScript());
+    register(new BaoMoiCollapseScript());
   }
 
   private CollapseScripts() {}
@@ -50,3 +51,4 @@ public final class CollapseScripts {
     return BY_PACKAGE;
   }
 }
+

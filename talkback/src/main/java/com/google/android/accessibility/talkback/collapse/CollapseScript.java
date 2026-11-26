@@ -270,6 +270,16 @@ public abstract class CollapseScript {
     return true;
   }
 
+  /** Minimum number of clickable descendants required before a composite root collapses. */
+  public int minCompositeClickables() {
+    return 2;
+  }
+
+  /** Whether a SeekBar descendant is allowed inside a collapsed item for this script. */
+  public boolean allowsSeekControlDescendant() {
+    return false;
+  }
+
   /**
    * Field anchoring activation when the representative is unflagged: a double-tap clicks
    * the field node's nearest clickable ancestor inside the item (the wrapper that carries
@@ -356,3 +366,4 @@ public abstract class CollapseScript {
     return false;
   }
 }
+
