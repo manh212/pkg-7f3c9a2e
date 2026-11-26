@@ -30,8 +30,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * is left untouched.
  */
 public final class ItemScan {
-  private static final int MAX_DEPTH = 12;
-  private static final int MAX_NODES = 250;
+  private static final int MAX_DEPTH = 24;
+  private static final int MAX_NODES = 400;
 
   private final AccessibilityNodeInfoCompat itemRoot;
   private final List<AccessibilityNodeInfoCompat> descendants;

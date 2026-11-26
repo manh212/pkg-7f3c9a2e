@@ -332,7 +332,7 @@ public final class CollapseEngine {
       if (activationTarget == null) {
         return null;
       }
-    } else if (unflaggedRepresentative) {
+    } else if (unflaggedRepresentative && script.requiresActivationAnchor()) {
       // The representative cannot be clicked at all, so a double-tap goes to the nearest
       // clickable ancestor of the main content field — for Facebook, the shell wrapping
       // the body text. Without one there is nothing meaningful to activate: no match.

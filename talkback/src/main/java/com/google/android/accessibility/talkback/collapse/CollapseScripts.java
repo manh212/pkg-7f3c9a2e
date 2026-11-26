@@ -30,6 +30,7 @@ public final class CollapseScripts {
     register(new FacebookCollapseScript());
     register(new ZaloCollapseScript());
     register(new MessengerCollapseScript());
+    register(new ChatGptCollapseScript());
   }
 
   private CollapseScripts() {}

@@ -266,6 +266,10 @@ public abstract class CollapseScript {
     return false;
   }
 
+  public boolean requiresActivationAnchor() {
+    return true;
+  }
+
   /**
    * Field anchoring activation when the representative is unflagged: a double-tap clicks
    * the field node's nearest clickable ancestor inside the item (the wrapper that carries
