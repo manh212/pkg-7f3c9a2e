@@ -26,6 +26,7 @@ import android.media.AudioManager.MODE_IN_COMMUNICATION
 import android.media.AudioManager.MODE_NORMAL
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.sendToMedia
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldAttemptRecovery
+import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldRecreateForSpeakerFastPath
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldRunAudioCalibration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -108,5 +109,48 @@ class LowLatencyAudioRouteTest {
     assertTrue(shouldRunAudioCalibration("100|fp1|48000", "100|fp1|48000", 0))
     assertFalse(shouldRunAudioCalibration("100|fp1|48000", "100|fp1|48000", 5))
     assertFalse(shouldRunAudioCalibration("100|fp1|48000", "100|fp1|48000", -1))
+  }
+
+  @Test
+  fun speakerFastPathRecreate_avoidsLoopDuringExternalMediaAndFreshSpeaker() {
+    // Yielding for TikTok/media must not loop recreating AudioTrack
+    assertFalse(
+      shouldRecreateForSpeakerFastPath(
+        fastPath = false,
+        everHadFastPath = true,
+        previousRoutedType = TYPE_BLUETOOTH_A2DP,
+        routedType = TYPE_BUILTIN_SPEAKER,
+        yieldingForExternalAudio = true,
+      )
+    )
+    // Starting directly on speaker (null or already speaker) must not loop
+    assertFalse(
+      shouldRecreateForSpeakerFastPath(
+        fastPath = false,
+        everHadFastPath = true,
+        previousRoutedType = null,
+        routedType = TYPE_BUILTIN_SPEAKER,
+        yieldingForExternalAudio = false,
+      )
+    )
+    assertFalse(
+      shouldRecreateForSpeakerFastPath(
+        fastPath = false,
+        everHadFastPath = true,
+        previousRoutedType = TYPE_BUILTIN_SPEAKER,
+        routedType = TYPE_BUILTIN_SPEAKER,
+        yieldingForExternalAudio = false,
+      )
+    )
+    // Returning from Bluetooth/earpiece to speaker without fast path SHOULD recreate once
+    assertTrue(
+      shouldRecreateForSpeakerFastPath(
+        fastPath = false,
+        everHadFastPath = true,
+        previousRoutedType = TYPE_BLUETOOTH_A2DP,
+        routedType = TYPE_BUILTIN_SPEAKER,
+        yieldingForExternalAudio = false,
+      )
+    )
   }
 }

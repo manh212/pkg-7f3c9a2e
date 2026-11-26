@@ -135,6 +135,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   @Volatile private var aaudioPermanentlyUnavailable = false
   @Volatile private var pendingAAudioRestore = false
   @Volatile private var everHadFastPath = false
+  @Volatile private var lastRoutedDeviceType: Int? = null
   @Volatile private var track: AudioTrack? = null
   // Set when no track can be made, or the track stops taking audio and cannot be remade. Then audio
   // plays the usual way.
@@ -1623,12 +1624,20 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
               val audioTrack = routed as AudioTrack
               fitBuffer(audioTrack)
               val routedType = audioTrack.routedDevice?.type
+              val previousRoutedType = lastRoutedDeviceType
+              if (routedType != null) {
+                lastRoutedDeviceType = routedType
+              }
               ROUTES.execute {
                 LogUtils.d(TAG, "Track on %s", describe(audioTrack.routedDevice))
                 followMedia()
-                if (!fastPath &&
-                  everHadFastPath &&
-                  routedType == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER &&
+                if (shouldRecreateForSpeakerFastPath(
+                    fastPath = fastPath,
+                    everHadFastPath = everHadFastPath,
+                    previousRoutedType = previousRoutedType,
+                    routedType = routedType,
+                    yieldingForExternalAudio = yieldAAudioForExternalAudio,
+                  ) &&
                   track === audioTrack &&
                   !released &&
                   !broken) {
@@ -2409,6 +2418,27 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       if (savedStamp.isNullOrEmpty() || savedStamp != currentStamp) return true
       return savedProfile == NativeAAudioOutput.PROFILE_UNSET
     }
+
+    /**
+     * Returns whether a slow [AudioTrack] on the built-in speaker should be recreated to regain
+     * the fast path. Only triggers when actually returning from a non-speaker route (e.g.
+     * Bluetooth or earpiece) and never while intentionally yielded for external media playback.
+     */
+    @VisibleForTesting
+    @JvmStatic
+    fun shouldRecreateForSpeakerFastPath(
+      fastPath: Boolean,
+      everHadFastPath: Boolean,
+      previousRoutedType: Int?,
+      routedType: Int?,
+      yieldingForExternalAudio: Boolean,
+    ): Boolean =
+      !fastPath &&
+        everHadFastPath &&
+        !yieldingForExternalAudio &&
+        routedType == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER &&
+        previousRoutedType != null &&
+        previousRoutedType != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
 
     private const val RECOVERY_COOLDOWN_MS = 10_000L
     private const val MAX_RECOVERY_COOLDOWN_MS = 60_000L
