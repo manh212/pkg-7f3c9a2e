@@ -335,7 +335,7 @@ class EventFilterPrepareTest {
   private fun awaitPrepared(node: AccessibilityNodeInfoCompat): Boolean {
     val end = System.nanoTime() + 3_000_000_000L
     while (System.nanoTime() < end) {
-      shadowOf(Looper.getMainLooper()).idle()
+      shadowOf(Looper.getMainLooper()).idleFor(5, TimeUnit.MILLISECONDS)
       if (PreparedFocusSpeech.peek(node, NavigationTarget.TARGET_DEFAULT) != null) {
         return true
       }
