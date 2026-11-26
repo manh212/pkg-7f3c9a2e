@@ -122,4 +122,18 @@
     <string name="vietnamese_ime_auto_switch_letters_on_space_summary">Tự động quay lại trang chữ cái sau khi nhấn dấu cách ở trang ký hiệu</string>
     <string name="vietnamese_ime_symbols_page_1">Trang ký hiệu 1</string>
     <string name="vietnamese_ime_symbols_page_2">Trang ký hiệu 2</string>
+    <string name="pref_vietnamese_keyboard_word_suggestions_key" translatable="false">pref_vietnamese_keyboard_word_suggestions</string>
+    <string name="pref_vietnamese_keyboard_spell_check_key" translatable="false">pref_vietnamese_keyboard_spell_check</string>
+    <string name="vietnamese_ime_word_suggestions" tools:ignore="MissingTranslation">Gợi ý từ tiếng Việt</string>
+    <string name="vietnamese_ime_word_suggestions_summary" tools:ignore="MissingTranslation">Hiển thị từ gợi ý ngay đầu danh sách Thao tác của hộp chỉnh sửa và tự học theo thói quen của bạn</string>
+    <string name="vietnamese_ime_spell_check" tools:ignore="MissingTranslation">Kiểm tra chính tả tiếng Việt</string>
+    <string name="vietnamese_ime_spell_check_summary" tools:ignore="MissingTranslation">Thêm nút đi đến lỗi chính tả tiếp theo, trước đó và gợi ý sửa lỗi trong Thao tác của hộp chỉnh sửa</string>
+    <string name="vietnamese_ime_action_word_suggestion" tools:ignore="MissingTranslation">Gợi ý: %1$s</string>
+    <string name="vietnamese_ime_action_fix_spelling" tools:ignore="MissingTranslation">Sửa thành: %1$s</string>
+    <string name="vietnamese_ime_action_replaced_with" tools:ignore="MissingTranslation">Đã sửa thành %1$s</string>
+    <string name="editor_action_next_spelling_error" tools:ignore="MissingTranslation">Đi đến lỗi chính tả tiếp theo</string>
+    <string name="editor_action_prev_spelling_error" tools:ignore="MissingTranslation">Đi đến lỗi chính tả trước</string>
+    <string name="vietnamese_ime_no_spelling_errors" tools:ignore="MissingTranslation">Không tìm thấy lỗi chính tả.</string>
+    <string name="vietnamese_ime_spelling_error_found" tools:ignore="MissingTranslation">Lỗi chính tả: %1$s</string>
+    <string name="vietnamese_ime_spelling_error_with_fix" tools:ignore="MissingTranslation">Lỗi chính tả: %1$s. Gợi ý: %2$s</string>
 </resources>

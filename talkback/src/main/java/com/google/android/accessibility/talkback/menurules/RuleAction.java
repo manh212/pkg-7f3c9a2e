@@ -40,6 +40,7 @@ public class RuleAction extends NodeMenuRule {
   private final CollapsedItemActions collapsedItemActions;
   private final SettingsQuickActions settingsQuickActions;
   private final EditingAndSelectingMenu editingAndSelectingMenu;
+  private final VietnameseTextActionsMenu vietnameseTextActionsMenu;
   private final TypoSuggestionMenu typoSuggestionMenu;
   private final LinkMenu linkMenu;
   private final TextEntityMenu textEntityMenu;
@@ -61,6 +62,8 @@ public class RuleAction extends NodeMenuRule {
     settingsQuickActions = new SettingsQuickActions(pipeline, analytics);
     editingAndSelectingMenu =
         new EditingAndSelectingMenu(pipeline, actorState, accessibilityFocusMonitor, analytics);
+    vietnameseTextActionsMenu =
+        new VietnameseTextActionsMenu(pipeline, actorState, accessibilityFocusMonitor);
     typoSuggestionMenu = new TypoSuggestionMenu(pipeline, actorState, accessibilityFocusMonitor);
     linkMenu = new LinkMenu(analytics);
     textEntityMenu = new TextEntityMenu(pipeline);
@@ -72,7 +75,8 @@ public class RuleAction extends NodeMenuRule {
 
   @Override
   public boolean accept(Context context, AccessibilityNodeInfoCompat node) {
-    return customActionMenu.accept(context, node)
+    return vietnameseTextActionsMenu.accept(context, node)
+        || customActionMenu.accept(context, node)
         || collapsedItemActions.accept(context, node)
         || settingsQuickActions.accept(context, node)
         || editingAndSelectingMenu.accept(context, node)
@@ -89,6 +93,11 @@ public class RuleAction extends NodeMenuRule {
   public List<ContextMenuItem> getMenuItemsForNode(
       Context context, AccessibilityNodeInfoCompat node, boolean includeAncestors) {
     List<ContextMenuItem> actionItems = new ArrayList<>();
+
+    if (vietnameseTextActionsMenu.accept(context, node)) {
+      actionItems.addAll(
+          vietnameseTextActionsMenu.getMenuItemsForNode(context, node, includeAncestors));
+    }
 
     if (typoSuggestionMenu.accept(context, node)) {
       actionItems.addAll(typoSuggestionMenu.getMenuItemsForNode(context, node, includeAncestors));

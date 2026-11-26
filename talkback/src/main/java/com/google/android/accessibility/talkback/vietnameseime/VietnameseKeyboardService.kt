@@ -56,6 +56,7 @@ class VietnameseKeyboardService : InputMethodService() {
   private var editor: EditorInfo? = null
   private var inputGeneration = 0
   private var word = ""
+  private var lastCommittedWord: String? = null
   private var wordTruncated = false
   private var composing = false
   private var cursor = -1
@@ -1311,6 +1312,14 @@ class VietnameseKeyboardService : InputMethodService() {
   }
 
   private fun finishWord(connection: InputConnection?) {
+    val finished = completedWord()
+    if (finished.isNotEmpty() &&
+      ::prefs.isInitialized &&
+      prefs.getBoolean(getString(R.string.pref_vietnamese_keyboard_word_suggestions_key), false)
+    ) {
+      VietnameseLexicon.recordTypedWord(this, lastCommittedWord, finished)
+      lastCommittedWord = finished
+    }
     if (composing && connection?.finishComposingText() == true) expectSelection(cursor)
     resetWord()
   }

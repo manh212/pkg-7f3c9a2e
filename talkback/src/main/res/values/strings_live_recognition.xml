@@ -68,7 +68,9 @@
     <string translatable="false" name="live_recognition_text_start_live">Bắt đầu đọc trực tiếp</string>
     <string translatable="false" name="live_recognition_text_reading_live">Đang đọc văn bản trực tiếp.</string>
     <string translatable="false" name="live_recognition_text_stop_live">Dừng đọc trực tiếp</string>
-    <string translatable="false" name="live_recognition_text_capture">Chụp đọc rõ</string>
+    <string translatable="false" name="live_recognition_text_capture">Chụp ảnh đọc trực tuyến</string>
+    <string translatable="false" name="live_recognition_text_online_not_found">Không tìm thấy văn bản nào trong ảnh.</string>
+    <string translatable="false" name="live_recognition_online_required">Chưa thiết lập dịch vụ AI trực tuyến. Hãy chọn dịch vụ trực tuyến trong cài đặt Mô tả hình ảnh.</string>
     <string translatable="false" name="live_recognition_please_wait">Vui lòng đợi…</string>
 
     <string translatable="false" name="live_recognition_lottery_dialog_title">Nhận dạng vé số</string>
@@ -78,9 +80,22 @@
     <string translatable="false" name="live_recognition_lottery_checking">Đang lấy kết quả xổ số để đối chiếu…</string>
     <string translatable="false" name="live_recognition_lottery_not_ticket">Đây không phải là vé số.</string>
     <string translatable="false" name="live_recognition_lottery_online_required">Chưa thiết lập dịch vụ AI trực tuyến. Hãy chọn dịch vụ trực tuyến trong cài đặt Mô tả hình ảnh.</string>
+    <string translatable="false" name="live_recognition_lottery_save">Lưu vé để tự động dò</string>
+    <string translatable="false" name="live_recognition_lottery_saved_ok">Đã lưu vé. Ứng dụng sẽ tự động dò và gửi thông báo sau giờ mở thưởng.</string>
+    <string translatable="false" name="live_recognition_lottery_saved_list">Vé đã lưu (%1$d)</string>
+    <string translatable="false" name="live_recognition_lottery_saved_empty">Chưa có vé số nào được lưu.</string>
+    <string translatable="false" name="live_recognition_lottery_recheck">Dò lại ngay</string>
+    <string translatable="false" name="live_recognition_lottery_delete">Xóa vé</string>
+    <string translatable="false" name="live_recognition_lottery_deleted">Đã xóa vé đã lưu.</string>
+    <string translatable="false" name="live_recognition_lottery_notify_won_title">Chúc mừng! Vé số đã trúng thưởng</string>
+    <string translatable="false" name="live_recognition_lottery_notify_not_won_title">Kết quả dò vé số</string>
+    <string translatable="false" name="live_recognition_lottery_channel_name">Kết quả dò vé số</string>
+    <string translatable="false" name="live_recognition_lottery_channel_desc">Thông báo tự động khi có kết quả xổ số cho vé đã lưu</string>
 
     <string translatable="false" name="live_recognition_currency_start">Bắt đầu đọc tiền</string>
     <string translatable="false" name="live_recognition_currency_stop">Dừng đọc tiền</string>
+    <string translatable="false" name="live_recognition_currency_online">Nhận diện tiền trực tuyến</string>
+    <string translatable="false" name="live_recognition_currency_not_money">Đây không phải là tiền.</string>
     <string translatable="false" name="live_recognition_point_start">Bắt đầu Chỉ và đọc</string>
     <string translatable="false" name="live_recognition_point_stop">Dừng Chỉ và đọc</string>
     <string translatable="false" name="live_recognition_light_start">Bắt đầu nhận biết ánh sáng</string>

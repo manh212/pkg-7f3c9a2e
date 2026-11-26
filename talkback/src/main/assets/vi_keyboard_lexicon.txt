@@ -1,0 +1,1282 @@
+# Meridian Vietnamese Keyboard Lexicon (unigrams + bigrams)
+U	tôi	100
+U	có	99
+U	không	99
+U	bạn	98
+U	là	98
+U	của	97
+U	và	97
+U	anh	96
+U	em	96
+U	được	96
+U	cho	95
+U	mình	95
+U	trong	95
+U	một	94
+U	này	94
+U	với	94
+U	để	94
+U	các	93
+U	cảm	93
+U	người	93
+U	đã	93
+U	ơn	93
+U	sẽ	92
+U	đang	92
+U	hôm	91
+U	khi	91
+U	nay	91
+U	nhưng	91
+U	những	91
+U	thể	91
+U	chào	90
+U	chị	90
+U	cũng	90
+U	cả	90
+U	mọi	90
+U	nhiều	90
+U	rất	90
+U	thoại	90
+U	tất	90
+U	về	90
+U	xin	90
+U	điện	90
+U	bàn	89
+U	bây	89
+U	dụng	89
+U	giờ	89
+U	làm	89
+U	lại	89
+U	mai	89
+U	nam	89
+U	ngày	89
+U	như	89
+U	phím	89
+U	phải	89
+U	tiếng	89
+U	từ	89
+U	việt	89
+U	ứng	89
+U	bao	88
+U	biết	88
+U	chúng	88
+U	cài	88
+U	công	88
+U	gian	88
+U	hình	88
+U	màn	88
+U	nhiêu	88
+U	nhắn	88
+U	qua	88
+U	ra	88
+U	sử	88
+U	ta	88
+U	thì	88
+U	thông	88
+U	thời	88
+U	tin	88
+U	việc	88
+U	vào	88
+U	đi	88
+U	đặt	88
+U	đến	88
+U	báo	87
+U	bản	87
+U	bắt	87
+U	cần	87
+U	cập	87
+U	dùng	87
+U	gia	87
+U	giọng	87
+U	gì	87
+U	gợi	87
+U	hay	87
+U	kiếm	87
+U	kiểm	87
+U	kết	87
+U	lỗi	87
+U	mà	87
+U	nhật	87
+U	nào	87
+U	nên	87
+U	nói	87
+U	nếu	87
+U	quả	87
+U	sao	87
+U	theo	87
+U	tiếp	87
+U	tra	87
+U	tìm	87
+U	tại	87
+U	tự	87
+U	vì	87
+U	văn	87
+U	vấn	87
+U	ý	87
+U	đâu	87
+U	đình	87
+U	đầu	87
+U	đề	87
+U	động	87
+U	ở	87
+U	chuyện	86
+U	chính	86
+U	chỉnh	86
+U	chụp	86
+U	diện	86
+U	dung	86
+U	hiện	86
+U	hỗ	86
+U	khỏe	86
+U	muốn	86
+U	nhận	86
+U	năng	86
+U	nội	86
+U	phố	86
+U	số	86
+U	sức	86
+U	sửa	86
+U	thao	86
+U	thành	86
+U	thấy	86
+U	trợ	86
+U	trực	86
+U	tuyến	86
+U	ty	86
+U	tác	86
+U	tính	86
+U	tả	86
+U	vậy	86
+U	ảnh	86
+U	biệt	85
+U	buổi	85
+U	bè	85
+U	chí	85
+U	chúc	85
+U	chút	85
+U	chắc	85
+U	chắn	85
+U	chế	85
+U	chỉ	85
+U	con	85
+U	cuộc	85
+U	cầu	85
+U	danh	85
+U	do	85
+U	dẫn	85
+U	gọi	85
+U	hoàn	85
+U	hà	85
+U	hàng	85
+U	hơn	85
+U	hướng	85
+U	học	85
+U	hồ	85
+U	hợp	85
+U	khoản	85
+U	khẩu	85
+U	luôn	85
+U	minh	85
+U	máy	85
+U	mật	85
+U	mừng	85
+U	ngay	85
+U	ngoại	85
+U	ngân	85
+U	nhiên	85
+U	nhà	85
+U	nhất	85
+U	nhập	85
+U	phát	85
+U	quan	85
+U	quay	85
+U	rồi	85
+U	sinh	85
+U	sách	85
+U	sống	85
+U	thay	85
+U	thúc	85
+U	thế	85
+U	thứ	85
+U	thực	85
+U	triển	85
+U	trường	85
+U	trọng	85
+U	tuy	85
+U	tài	85
+U	tối	85
+U	tục	85
+U	viên	85
+U	vé	85
+U	yêu	85
+U	đó	85
+U	đăng	85
+U	đặc	85
+U	địa	85
+U	đồng	85
+U	đổi	85
+U	độ	85
+U	bị	84
+U	bổ	84
+U	chi	84
+U	chia	84
+U	chiều	84
+U	chuyển	84
+U	chuẩn	84
+U	chép	84
+U	chưa	84
+U	chất	84
+U	chọn	84
+U	cà	84
+U	câu	84
+U	còn	84
+U	cơm	84
+U	cứu	84
+U	dạng	84
+U	dịch	84
+U	dữ	84
+U	dự	84
+U	giúp	84
+U	giải	84
+U	giới	84
+U	gửi	84
+U	hiểu	84
+U	hoạch	84
+U	hệ	84
+U	hỏi	84
+U	hộp	84
+U	khách	84
+U	ký	84
+U	kế	84
+U	liệu	84
+U	lúc	84
+U	lý	84
+U	lưu	84
+U	lượng	84
+U	lựa	84
+U	miễn	84
+U	mô	84
+U	nghe	84
+U	năm	84
+U	phiên	84
+U	phê	84
+U	phí	84
+U	phẩm	84
+U	quyết	84
+U	quá	84
+U	quản	84
+U	sung	84
+U	sáng	84
+U	sản	84
+U	sẻ	84
+U	sự	84
+U	thanh	84
+U	thống	84
+U	tiết	84
+U	toán	84
+U	vẫn	84
+U	vụ	84
+U	xem	84
+U	xác	84
+U	xổ	84
+U	xử	84
+U	án	84
+U	âm	84
+U	ăn	84
+U	đều	84
+U	định	84
+U	đọc	84
+U	đỡ	84
+U	ạ	84
+U	bác	83
+U	bảo	83
+U	bắc	83
+U	bằng	83
+U	bệnh	83
+U	bố	83
+U	chung	83
+U	chuyên	83
+U	chú	83
+U	chơi	83
+U	cuối	83
+U	cá	83
+U	cách	83
+U	cáo	83
+U	cải	83
+U	cẩn	83
+U	cộng	83
+U	cụ	83
+U	cửa	83
+U	dưới	83
+U	dừng	83
+U	dựng	83
+U	giao	83
+U	giá	83
+U	giáo	83
+U	hy	83
+U	hội	83
+U	khai	83
+U	khó	83
+U	khăn	83
+U	kinh	83
+U	kiến	83
+U	kiện	83
+U	lai	83
+U	liên	83
+U	lòng	83
+U	miền	83
+U	mong	83
+U	mặc	83
+U	mẹ	83
+U	mềm	83
+U	mỗi	83
+U	mở	83
+U	nghiên	83
+U	nghiệm	83
+U	nghiệp	83
+U	nghĩ	83
+U	nguyên	83
+U	ngôn	83
+U	ngủ	83
+U	ngữ	83
+U	nhân	83
+U	nhé	83
+U	nước	83
+U	nẵng	83
+U	nối	83
+U	nữa	83
+U	pháp	83
+U	phân	83
+U	phần	83
+U	quốc	83
+U	sau	83
+U	suy	83
+U	sàng	83
+U	sĩ	83
+U	sắp	83
+U	sẵn	83
+U	tai	83
+U	thiết	83
+U	thiện	83
+U	thường	83
+U	thưởng	83
+U	thận	83
+U	thử	83
+U	tiền	83
+U	toàn	83
+U	trao	83
+U	trung	83
+U	trên	83
+U	trí	83
+U	trúng	83
+U	trước	83
+U	trở	83
+U	tuyệt	83
+U	tuần	83
+U	tâm	83
+U	tích	83
+U	tương	83
+U	tải	83
+U	tế	83
+U	tốc	83
+U	tới	83
+U	viện	83
+U	vui	83
+U	vẻ	83
+U	vị	83
+U	vọng	83
+U	vời	83
+U	xe	83
+U	xong	83
+U	xuyên	83
+U	xuống	83
+U	xây	83
+U	xã	83
+U	yên	83
+U	điều	83
+U	điển	83
+U	đà	83
+U	đánh	83
+U	đây	83
+U	đại	83
+U	đảm	83
+U	đất	83
+U	đầy	83
+U	đủ	83
+U	ơi	83
+U	ưu	83
+U	ổn	83
+U	ai	82
+U	biến	82
+U	bài	82
+U	bật	82
+U	chiếu	82
+U	chờ	82
+U	cùng	82
+U	cơ	82
+U	cấp	82
+U	dàng	82
+U	dòng	82
+U	dấu	82
+U	dễ	82
+U	dục	82
+U	giữa	82
+U	góp	82
+U	gần	82
+U	hiệu	82
+U	hạnh	82
+U	họ	82
+U	họp	82
+U	hồi	82
+U	khu	82
+U	khắc	82
+U	lẽ	82
+U	lời	82
+U	mái	82
+U	mới	82
+U	mục	82
+U	nghỉ	82
+U	ngoài	82
+U	ngơi	82
+U	nha	82
+U	nhau	82
+U	nhiệm	82
+U	nhu	82
+U	nhạc	82
+U	nâng	82
+U	phù	82
+U	phúc	82
+U	phản	82
+U	phổ	82
+U	phục	82
+U	pin	82
+U	quy	82
+U	ràng	82
+U	rõ	82
+U	so	82
+U	sánh	82
+U	sạc	82
+U	thoải	82
+U	thái	82
+U	tháng	82
+U	thêm	82
+U	thức	82
+U	tiêu	82
+U	truy	82
+U	trách	82
+U	trạng	82
+U	trả	82
+U	tên	82
+U	tình	82
+U	tô	82
+U	tùy	82
+U	tưởng	82
+U	tập	82
+U	tắt	82
+U	tốt	82
+U	uống	82
+U	viết	82
+U	vệ	82
+U	vực	82
+U	xuất	82
+U	xét	82
+U	áp	82
+U	ít	82
+U	ô	82
+U	đa	82
+U	đúng	82
+U	đối	82
+U	đợi	82
+U	an	81
+U	bay	81
+U	biểu	81
+U	bà	81
+U	bình	81
+U	bộ	81
+U	chóng	81
+U	chồng	81
+U	chủ	81
+U	cường	81
+U	cảnh	81
+U	cứ	81
+U	dò	81
+U	flash	81
+U	gái	81
+U	gõ	81
+U	gặp	81
+U	hoặc	81
+U	huống	81
+U	hãy	81
+U	hóa	81
+U	hạn	81
+U	hầu	81
+U	hẹn	81
+U	khiếm	81
+U	kiệm	81
+U	lo	81
+U	luận	81
+U	lâu	81
+U	lắng	81
+U	lịch	81
+U	lợi	81
+U	mua	81
+U	mã	81
+U	mưa	81
+U	mạng	81
+U	mất	81
+U	mặt	81
+U	mệnh	81
+U	nghìn	81
+U	ngoái	81
+U	nhanh	81
+U	nhiệt	81
+U	nhớ	81
+U	nãy	81
+U	phim	81
+U	phòng	81
+U	phương	81
+U	quên	81
+U	rằng	81
+U	siêu	81
+U	sân	81
+U	sạn	81
+U	sắm	81
+U	thuận	81
+U	thân	81
+U	thôi	81
+U	thảo	81
+U	thật	81
+U	thị	81
+U	trai	81
+U	triệu	81
+U	truyền	81
+U	trình	81
+U	trưa	81
+U	trời	81
+U	tăng	81
+U	tượng	81
+U	tổng	81
+U	vá	81
+U	vợ	81
+U	vừa	81
+U	xóa	81
+U	y	81
+U	ích	81
+U	ông	81
+U	đèn	81
+U	đóng	81
+U	đơn	81
+U	đấy	81
+U	đẹp	81
+U	đừng	81
+U	buýt	80
+U	bán	80
+U	bạ	80
+U	bất	80
+U	bỏ	80
+U	bớt	80
+U	chợ	80
+U	chữ	80
+U	cô	80
+U	cũ	80
+U	cấu	80
+U	du	80
+U	duy	80
+U	dư	80
+U	dậy	80
+U	giám	80
+U	giảm	80
+U	hoa	80
+U	hoạt	80
+U	hải	80
+U	khuyến	80
+U	khích	80
+U	khả	80
+U	khứ	80
+U	kia	80
+U	kỷ	80
+U	loa	80
+U	loại	80
+U	lên	80
+U	lập	80
+U	lớn	80
+U	mấy	80
+U	nghị	80
+U	ngon	80
+U	ngờ	80
+U	nhỏ	80
+U	niệm	80
+U	nắng	80
+U	phút	80
+U	quen	80
+U	quyền	80
+U	quán	80
+U	ro	80
+U	rủi	80
+U	sai	80
+U	sữa	80
+U	thi	80
+U	thiểu	80
+U	thuốc	80
+U	thói	80
+U	thơ	80
+U	thư	80
+U	thầy	80
+U	trà	80
+U	trì	80
+U	trúc	80
+U	trăm	80
+U	tín	80
+U	tạm	80
+U	tức	80
+U	uy	80
+U	điểm	80
+U	đường	80
+U	đốc	80
+U	ba	79
+U	bại	79
+U	cam	79
+U	cao	79
+U	chậm	79
+U	căn	79
+U	cước	79
+U	cận	79
+U	di	79
+U	dán	79
+U	dường	79
+U	hát	79
+U	hậu	79
+U	la	79
+U	lạnh	79
+U	lớp	79
+U	mơ	79
+U	mức	79
+U	nhì	79
+U	nhỉ	79
+U	quét	79
+U	thách	79
+U	thất	79
+U	thủ	79
+U	truyện	79
+U	tệ	79
+U	tệp	79
+U	tỉnh	79
+U	tỷ	79
+U	yếu	79
+U	đoạn	79
+U	đêm	79
+U	đô	79
+U	ước	79
+U	buồn	78
+U	cháu	78
+U	dài	78
+U	giây	78
+U	má	78
+U	mại	78
+U	mệt	78
+U	nghĩa	78
+U	ngắn	78
+U	nóng	78
+U	quận	78
+U	thương	78
+U	thấp	78
+U	trưởng	78
+U	xóm	78
+U	bún	77
+U	cậu	77
+U	ga	77
+U	gián	77
+U	huyện	77
+U	khá	77
+U	ngột	77
+U	phở	77
+U	rung	77
+U	rẻ	77
+U	trưng	77
+U	xúc	77
+U	đắt	77
+U	đột	77
+U	link	76
+U	ship	75
+U	đãi	73
+B	cảm	ơn	98
+B	có	thể	96
+B	hôm	nay	96
+B	không	có	95
+B	mọi	người	95
+B	tất	cả	95
+B	xin	chào	95
+B	điện	thoại	95
+B	bàn	phím	94
+B	bây	giờ	94
+B	không	phải	94
+B	không	thể	94
+B	ngày	mai	94
+B	tiếng	việt	94
+B	việt	nam	94
+B	ứng	dụng	94
+B	bao	nhiêu	93
+B	chúng	ta	93
+B	cài	đặt	93
+B	các	bạn	93
+B	công	việc	93
+B	hôm	qua	93
+B	không	biết	93
+B	không	được	93
+B	làm	việc	93
+B	màn	hình	93
+B	sử	dụng	93
+B	thông	tin	93
+B	thời	gian	93
+B	tin	nhắn	93
+B	bắt	đầu	92
+B	chúng	tôi	92
+B	cập	nhật	92
+B	của	bạn	92
+B	của	tôi	92
+B	gia	đình	92
+B	giọng	nói	92
+B	gợi	ý	92
+B	khi	nào	92
+B	không	cần	92
+B	kiểm	tra	92
+B	kết	quả	92
+B	làm	gì	92
+B	người	dùng	92
+B	thông	báo	92
+B	tiếp	theo	92
+B	tìm	kiếm	92
+B	tại	sao	92
+B	tự	động	92
+B	văn	bản	92
+B	vấn	đề	92
+B	xin	lỗi	92
+B	ơn	nhiều	92
+B	ở	đâu	92
+B	chính	tả	91
+B	chỉnh	sửa	91
+B	chụp	ảnh	91
+B	công	ty	91
+B	của	mình	91
+B	hiện	tại	91
+B	hình	ảnh	91
+B	hỗ	trợ	91
+B	làm	được	91
+B	như	vậy	91
+B	nhận	diện	91
+B	nhận	được	91
+B	nói	chuyện	91
+B	nội	dung	91
+B	số	điện	91
+B	sức	khỏe	91
+B	thao	tác	91
+B	thành	phố	91
+B	trực	tuyến	91
+B	tính	năng	91
+B	vì	vậy	91
+B	bao	giờ	90
+B	buổi	tối	90
+B	bạn	bè	90
+B	chào	anh	90
+B	chào	bạn	90
+B	chí	minh	90
+B	chúc	mừng	90
+B	chắc	chắn	90
+B	chế	độ	90
+B	con	người	90
+B	cuộc	gọi	90
+B	cuộc	sống	90
+B	của	anh	90
+B	của	em	90
+B	danh	sách	90
+B	do	đó	90
+B	hoàn	thành	90
+B	hà	nội	90
+B	hướng	dẫn	90
+B	học	sinh	90
+B	hồ	chí	90
+B	không	muốn	90
+B	kết	thúc	90
+B	làm	sao	90
+B	lỗi	chính	90
+B	máy	tính	90
+B	mật	khẩu	90
+B	mọi	thứ	90
+B	một	chút	90
+B	ngoại	tuyến	90
+B	ngân	hàng	90
+B	như	thế	90
+B	phát	triển	90
+B	quan	trọng	90
+B	quay	lại	90
+B	sinh	viên	90
+B	thay	đổi	90
+B	thực	hiện	90
+B	tiếng	anh	90
+B	tiếp	tục	90
+B	trường	hợp	90
+B	trực	tiếp	90
+B	tuy	nhiên	90
+B	tài	khoản	90
+B	tìm	thấy	90
+B	vé	số	90
+B	về	nhà	90
+B	yêu	cầu	90
+B	đi	làm	90
+B	đăng	nhập	90
+B	được	rồi	90
+B	đặc	biệt	90
+B	địa	chỉ	90
+B	đồng	ý	90
+B	ơn	anh	90
+B	ơn	bạn	90
+B	ở	nhà	90
+B	buổi	chiều	89
+B	buổi	sáng	89
+B	bổ	sung	89
+B	chi	tiết	89
+B	chia	sẻ	89
+B	cho	nên	89
+B	chuyển	khoản	89
+B	chuẩn	bị	89
+B	chất	lượng	89
+B	cà	phê	89
+B	câu	hỏi	89
+B	dịch	vụ	89
+B	dữ	liệu	89
+B	dự	án	89
+B	giúp	đỡ	89
+B	giải	quyết	89
+B	gửi	cho	89
+B	hệ	thống	89
+B	hộp	chỉnh	89
+B	khách	hàng	89
+B	không	nên	89
+B	kế	hoạch	89
+B	làm	thế	89
+B	lúc	này	89
+B	lưu	ý	89
+B	lựa	chọn	89
+B	miễn	phí	89
+B	mô	tả	89
+B	nghe	thấy	89
+B	nhận	dạng	89
+B	năm	nay	89
+B	phiên	bản	89
+B	quyết	định	89
+B	quản	lý	89
+B	sao	chép	89
+B	sản	phẩm	89
+B	thanh	toán	89
+B	thành	công	89
+B	thế	giới	89
+B	thế	nào	89
+B	thời	tiết	89
+B	thực	sự	89
+B	tra	cứu	89
+B	tìm	hiểu	89
+B	vì	sao	89
+B	xem	lại	89
+B	xác	nhận	89
+B	xổ	số	89
+B	xử	lý	89
+B	âm	lượng	89
+B	âm	thanh	89
+B	ăn	cơm	89
+B	đi	học	89
+B	đi	đâu	89
+B	đăng	ký	89
+B	đọc	màn	89
+B	biết	rồi	88
+B	biết	được	88
+B	bác	sĩ	88
+B	báo	cáo	88
+B	bằng	giọng	88
+B	bệnh	viện	88
+B	bố	mẹ	88
+B	chuyên	nghiệp	88
+B	chào	em	88
+B	chính	xác	88
+B	chú	ý	88
+B	cuối	tuần	88
+B	cá	nhân	88
+B	cách	làm	88
+B	có	gì	88
+B	cải	thiện	88
+B	cần	thiết	88
+B	cẩn	thận	88
+B	cộng	đồng	88
+B	cụ	thể	88
+B	cửa	hàng	88
+B	dừng	lại	88
+B	giao	hàng	88
+B	giáo	viên	88
+B	giải	pháp	88
+B	giải	đặc	88
+B	gửi	lại	88
+B	hiểu	rồi	88
+B	hoàn	toàn	88
+B	hy	vọng	88
+B	hàng	ngày	88
+B	khó	khăn	88
+B	không	sao	88
+B	kinh	nghiệm	88
+B	kết	nối	88
+B	liên	tục	88
+B	miền	bắc	88
+B	miền	nam	88
+B	mong	muốn	88
+B	mặc	định	88
+B	mỗi	ngày	88
+B	một	lúc	88
+B	nghiên	cứu	88
+B	nguyên	nhân	88
+B	ngôn	ngữ	88
+B	nhân	viên	88
+B	nhật	ký	88
+B	nói	chung	88
+B	phát	hiện	88
+B	phân	tích	88
+B	phần	mềm	88
+B	quan	tâm	88
+B	quốc	gia	88
+B	sau	này	88
+B	suy	nghĩ	88
+B	sắp	tới	88
+B	sẵn	sàng	88
+B	tai	nghe	88
+B	thường	xuyên	88
+B	thực	tế	88
+B	trao	đổi	88
+B	triển	khai	88
+B	trung	tâm	88
+B	trúng	thưởng	88
+B	trước	đây	88
+B	trường	học	88
+B	trở	lại	88
+B	trợ	năng	88
+B	tuyệt	vời	88
+B	tuần	này	88
+B	tuần	sau	88
+B	tài	liệu	88
+B	tích	hợp	88
+B	tương	lai	88
+B	tải	xuống	88
+B	tốc	độ	88
+B	tối	ưu	88
+B	từ	điển	88
+B	vui	lòng	88
+B	vui	vẻ	88
+B	vị	trí	88
+B	xe	máy	88
+B	xem	thử	88
+B	xong	rồi	88
+B	xác	định	88
+B	xây	dựng	88
+B	xã	hội	88
+B	yên	tâm	88
+B	ý	kiến	88
+B	đi	chơi	88
+B	đi	ngủ	88
+B	điều	chỉnh	88
+B	điều	kiện	88
+B	đà	nẵng	88
+B	đánh	giá	88
+B	đại	học	88
+B	đảm	bảo	88
+B	đất	nước	88
+B	đầy	đủ	88
+B	đặt	hàng	88
+B	ơn	em	88
+B	ổn	định	88
+B	bài	tập	87
+B	báo	lỗi	87
+B	bảo	vệ	87
+B	chờ	đợi	87
+B	cuộc	họp	87
+B	câu	trả	87
+B	có	lẽ	87
+B	cơ	hội	87
+B	dấu	cách	87
+B	dễ	dàng	87
+B	giao	dịch	87
+B	giáo	dục	87
+B	giải	thưởng	87
+B	góp	ý	87
+B	gần	như	87
+B	gần	đây	87
+B	gửi	đi	87
+B	hiệu	quả	87
+B	hạnh	phúc	87
+B	họ	tên	87
+B	khu	vực	87
+B	khắc	phục	87
+B	kinh	tế	87
+B	kiến	thức	87
+B	ký	tự	87
+B	kết	hợp	87
+B	miền	trung	87
+B	mục	tiêu	87
+B	nghe	nhạc	87
+B	nghe	rõ	87
+B	nghỉ	ngơi	87
+B	người	yêu	87
+B	nhu	cầu	87
+B	nhận	hàng	87
+B	nhận	thấy	87
+B	nhập	liệu	87
+B	nâng	cấp	87
+B	năm	sau	87
+B	phù	hợp	87
+B	phản	hồi	87
+B	phổ	biến	87
+B	quy	định	87
+B	ra	ngoài	87
+B	rõ	ràng	87
+B	so	sánh	87
+B	sạc	pin	87
+B	thiết	kế	87
+B	thoải	mái	87
+B	tháng	này	87
+B	thử	nghiệm	87
+B	tin	tưởng	87
+B	tiêu	đề	87
+B	truy	cập	87
+B	trách	nhiệm	87
+B	trạng	thái	87
+B	trả	lời	87
+B	tuần	trước	87
+B	tìm	lại	87
+B	tình	cảm	87
+B	tình	yêu	87
+B	tùy	chọn	87
+B	tối	đa	87
+B	tự	nhiên	87
+B	uống	nước	87
+B	xem	thêm	87
+B	xem	xét	87
+B	xuống	dòng	87
+B	áp	dụng	87
+B	ít	nhất	87
+B	ô	tô	87
+B	ăn	sáng	87
+B	ăn	tối	87
+B	đi	ra	87
+B	đi	vào	87
+B	đề	xuất	87
+B	đọc	lại	87
+B	đối	chiếu	87
+B	an	toàn	86
+B	biểu	tượng	86
+B	buổi	trưa	86
+B	bạn	thân	86
+B	bản	thân	86
+B	bản	vá	86
+B	bảo	mật	86
+B	bộ	nhớ	86
+B	chào	chị	86
+B	chính	sách	86
+B	chính	thức	86
+B	chúc	bạn	86
+B	chủ	đề	86
+B	dò	vé	86
+B	em	gái	86
+B	em	trai	86
+B	gặp	lại	86
+B	hiểu	rõ	86
+B	hiện	đại	86
+B	hiệu	chỉnh	86
+B	hình	như	86
+B	hóa	đơn	86
+B	hạn	chế	86
+B	hầu	như	86
+B	hẹn	gặp	86
+B	hợp	lý	86
+B	khiếm	thị	86
+B	khách	sạn	86
+B	kiệm	pin	86
+B	ký	hiệu	86
+B	lo	lắng	86
+B	làm	ơn	86
+B	lâu	rồi	86
+B	lúc	nãy	86
+B	lắng	nghe	86
+B	lịch	sử	86
+B	lợi	ích	86
+B	mua	sắm	86
+B	máy	bay	86
+B	mệnh	giá	86
+B	nghe	gọi	86
+B	nghĩ	rằng	86
+B	người	thân	86
+B	ngữ	cảnh	86
+B	nhanh	chóng	86
+B	nhiệt	độ	86
+B	nhà	hàng	86
+B	nhà	phát	86
+B	nhớ	lại	86
+B	nói	lại	86
+B	nói	rõ	86
+B	nói	thật	86
+B	năm	ngoái	86
+B	phương	pháp	86
+B	quy	trình	86
+B	quên	mất	86
+B	rất	tốt	86
+B	siêu	thị	86
+B	sân	bay	86
+B	thuận	lợi	86
+B	tháng	sau	86
+B	tháng	trước	86
+B	thảo	luận	86
+B	thị	trường	86
+B	thống	nhất	86
+B	tiết	kiệm	86
+B	tiền	mặt	86
+B	trung	bình	86
+B	truyền	thống	86
+B	trình	đọc	86
+B	trời	mưa	86
+B	tài	chính	86
+B	tình	huống	86
+B	tăng	cường	86
+B	tổng	tiền	86
+B	viết	lại	86
+B	văn	hóa	86
+B	văn	phòng	86
+B	vợ	chồng	86
+B	vừa	rồi	86
+B	xem	phim	86
+B	xác	thực	86
+B	y	tế	86
+B	ông	bà	86
+B	ăn	trưa	86
+B	đi	lại	86
+B	đi	qua	86
+B	đèn	flash	86
+B	đọc	rõ	86
+B	đọc	sách	86
+B	đồng	nghiệp	86
+B	đợi	một	86
+B	anh	trai	85
+B	bàn	luận	85
+B	bình	thường	85
+B	bất	ngờ	85
+B	chào	buổi	85
+B	chúc	ngủ	85
+B	chị	gái	85
+B	chữ	hoa	85
+B	chữ	thường	85
+B	con	gái	85
+B	con	trai	85
+B	cấu	trúc	85
+B	cần	thơ	85
+B	danh	bạ	85
+B	du	lịch	85
+B	duy	trì	85
+B	giám	đốc	85
+B	giải	nhất	85
+B	giảm	bớt	85
+B	hiệu	năng	85
+B	hải	phòng	85
+B	hợp	đồng	85
+B	khuyến	khích	85
+B	khả	thi	85
+B	kỷ	niệm	85
+B	loa	ngoài	85
+B	loại	bỏ	85
+B	lập	tức	85
+B	mới	đây	85
+B	mở	thưởng	85
+B	ngay	lập	85
+B	nghĩ	lại	85
+B	ngày	kia	85
+B	ngày	sinh	85
+B	ngủ	ngon	85
+B	nhiều	nhất	85
+B	nhiệt	tình	85
+B	nhận	xét	85
+B	quan	điểm	85
+B	quyền	lợi	85
+B	quá	khứ	85
+B	quán	ăn	85
+B	rủi	ro	85
+B	số	dư	85
+B	thói	quen	85
+B	thông	cảm	85
+B	thư	mục	85
+B	thầy	cô	85
+B	thức	dậy	85
+B	tiêu	chuẩn	85
+B	tiếp	nhận	85
+B	trà	sữa	85
+B	trời	nắng	85
+B	tình	bạn	85
+B	tạm	biệt	85
+B	tải	lên	85
+B	tối	thiểu	85
+B	tự	tin	85
+B	uy	tín	85
+B	uống	thuốc	85
+B	xe	buýt	85
+B	đi	chợ	85
+B	đi	du	85
+B	đăng	xuất	85
+B	đặt	xe	85
+B	đề	nghị	85
+B	đọc	báo	85
+B	đối	tác	85
+B	bạn	học	84
+B	bạn	khỏe	84
+B	cam	kết	84
+B	chúc	sức	84
+B	chưa	xong	84
+B	căn	cước	84
+B	cảm	biến	84
+B	di	động	84
+B	dán	vào	84
+B	dường	như	84
+B	dụng	pin	84
+B	giải	ba	84
+B	giải	nhì	84
+B	hậu	quả	84
+B	khỏe	không	84
+B	mạng	di	84
+B	mức	sử	84
+B	ngoại	tệ	84
+B	pin	yếu	84
+B	sao	đâu	84
+B	thất	bại	84
+B	thể	dục	84
+B	thủ	công	84
+B	thử	thách	84
+B	tiếp	cận	84
+B	trời	lạnh	84
+B	tập	thể	84
+B	tệp	tin	84
+B	tự	học	84
+B	viết	bài	84
+B	đoạn	văn	84
+B	đô	la	84
+B	đúng	giờ	84
+B	đầu	tuần	84
+B	đọc	nhanh	84
+B	đồng	việt	84
+B	ước	mơ	84
+B	hàng	xóm	83
+B	nghĩa	vụ	83
+B	thương	mại	83
+B	trưởng	phòng	83
+B	anh	khỏe	82
+B	gián	tiếp	82
+B	khá	ổn	82
+B	kết	cấu	82
+B	lên	đường	82
+B	nhà	ga	82
+B	nhất	trí	82
+B	rung	phản	82
+B	tiếp	sức	82
+B	tiếp	xúc	82
+B	đặc	trưng	82
+B	đột	ngột	82
+B	tiếp	đãi	78

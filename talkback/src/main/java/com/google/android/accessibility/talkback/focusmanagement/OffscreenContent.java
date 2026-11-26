@@ -55,9 +55,8 @@ final class OffscreenContent {
   static boolean keepsAllContent(AccessibilityNodeInfoCompat scrollable) {
     int role = Role.getRole(scrollable);
     // The notification shade's list says it is a scroll view but leaves the notifications past its
-    // edge out of the tree.
     String viewId = scrollable.getViewIdResourceName();
-    if (viewId != null && viewId.endsWith(NOTIFICATION_LIST_ID)) {
+    if (viewId != null && (viewId.isEmpty() || viewId.endsWith(NOTIFICATION_LIST_ID))) {
       return false;
     }
     return scrollable.isVisibleToUser()

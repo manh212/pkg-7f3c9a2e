@@ -48,6 +48,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.Observer
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.actor.gemini.OnlineImageQuery
 import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import com.google.android.accessibility.talkback.imagecaption.TesseractOcr
 import com.google.android.libraries.accessibility.utils.log.LogUtils
@@ -175,6 +176,7 @@ internal class LiveTextRecognitionDialog(
   private val processing = AtomicBoolean(false)
   private val qualityAnalyzer = TextFrameQualityAnalyzer()
   private val textTracker = CameraTextTracker(requireConfirmation = false)
+  private val onlineQuery = OnlineImageQuery(activity)
 
   private var dialog: AlertDialog? = null
   private var cameraProvider: ProcessCameraProvider? = null
@@ -388,7 +390,10 @@ internal class LiveTextRecognitionDialog(
 
   private fun captureSingleFrame() {
     if (captureInFlight) return
-    if (!ensureModelReady(startAfter = false)) return
+    if (!onlineQuery.isReady()) {
+      updateResult(activity.getString(R.string.live_recognition_online_required), speakInterrupt = true)
+      return
+    }
     val capture = imageCapture
     if (capture == null) {
       updateResult(activity.getString(R.string.live_recognition_camera_error), speakInterrupt = true)
@@ -406,46 +411,43 @@ internal class LiveTextRecognitionDialog(
       worker,
       object : ImageCapture.OnImageCapturedCallback() {
         override fun onCaptureSuccess(image: ImageProxy) {
-          val bitmap = try {
-            imageToRotatedBitmap(image)
+          val jpeg = try {
+            OnlineRecognitionImageEncoder.encodeForOnlineQuery(image)
           } catch (e: Throwable) {
-            LogUtils.e(TAG, "Text capture decode failed: %s", e.javaClass.simpleName)
+            LogUtils.e(TAG, "Online text capture encode failed: %s", e.javaClass.simpleName)
             null
           } finally {
             image.close()
           }
-          if (bitmap == null) {
-            handler.post {
-              if (!dismissed && sessionToken == token) {
-                captureInFlight = false
-                updateButtons()
-                updateResult(activity.getString(R.string.live_recognition_camera_error), speakInterrupt = true)
+          handler.post {
+            if (dismissed || sessionToken != token) return@post
+            if (jpeg == null) {
+              captureInFlight = false
+              updateButtons()
+              updateResult(activity.getString(R.string.live_recognition_camera_error), speakInterrupt = true)
+              return@post
+            }
+            onlineQuery.ask(OnlineTextPrompt.PROMPT, jpeg, wantsJson = true) { response, error ->
+              if (dismissed || sessionToken != token) return@ask
+              captureInFlight = false
+              updateButtons()
+              if (error != null) {
+                updateResult(error, speakInterrupt = true)
+                return@ask
               }
-            }
-            return
-          }
-          try {
-            val text = runOcrPipeline(bitmap)
-            val fallbackHint = if (text != null && text.isBlank()) {
-              guidanceForUnreadableFrame(bitmap)
-            } else {
-              ""
-            }
-            handler.post {
-              if (!dismissed && sessionToken == token) {
-                captureInFlight = false
-                updateButtons()
-                if (text == null) {
-                  updateResult(activity.getString(R.string.live_recognition_ocr_error), speakInterrupt = true)
-                } else if (text.isBlank()) {
-                  updateResult(fallbackHint, speakInterrupt = true)
-                } else {
-                  updateResult(text.take(MAX_TEXT_LENGTH), speakInterrupt = true)
+              if (response == null) return@ask
+              when (val outcome = OnlineTextResponseParser.parse(response)) {
+                OnlineTextOutcome.NoText -> {
+                  updateResult(
+                    activity.getString(R.string.live_recognition_text_online_not_found),
+                    speakInterrupt = true,
+                  )
+                }
+                is OnlineTextOutcome.Text -> {
+                  updateResult(outcome.text.take(MAX_ONLINE_TEXT_LENGTH), speakInterrupt = true)
                 }
               }
             }
-          } finally {
-            bitmap.recycle()
           }
         }
 
@@ -670,6 +672,7 @@ internal class LiveTextRecognitionDialog(
     private const val LIVE_FRAME_INTERVAL_MS = 850L
     private const val GUIDANCE_REPEAT_MS = 2_800L
     private const val MAX_TEXT_LENGTH = 1_200
+    private const val MAX_ONLINE_TEXT_LENGTH = 4_000
 
     internal fun imageToRotatedBitmap(image: ImageProxy): Bitmap {
       val raw = image.toBitmap()

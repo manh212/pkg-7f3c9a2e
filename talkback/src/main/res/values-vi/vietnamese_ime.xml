@@ -89,4 +89,16 @@
     <string name="vietnamese_ime_auto_switch_letters_on_space_summary">Tự động quay lại trang chữ cái sau khi nhấn dấu cách ở trang ký hiệu</string>
     <string name="vietnamese_ime_symbols_page_1">Trang ký hiệu 1</string>
     <string name="vietnamese_ime_symbols_page_2">Trang ký hiệu 2</string>
+    <string name="vietnamese_ime_word_suggestions">Gợi ý từ tiếng Việt</string>
+    <string name="vietnamese_ime_word_suggestions_summary">Hiển thị từ gợi ý ngay đầu danh sách Thao tác của hộp chỉnh sửa và tự học theo thói quen của bạn</string>
+    <string name="vietnamese_ime_spell_check">Kiểm tra chính tả tiếng Việt</string>
+    <string name="vietnamese_ime_spell_check_summary">Thêm nút đi đến lỗi chính tả tiếp theo, trước đó và gợi ý sửa lỗi trong Thao tác của hộp chỉnh sửa</string>
+    <string name="vietnamese_ime_action_word_suggestion">Gợi ý: %1$s</string>
+    <string name="vietnamese_ime_action_fix_spelling">Sửa thành: %1$s</string>
+    <string name="vietnamese_ime_action_replaced_with">Đã sửa thành %1$s</string>
+    <string name="editor_action_next_spelling_error">Đi đến lỗi chính tả tiếp theo</string>
+    <string name="editor_action_prev_spelling_error">Đi đến lỗi chính tả trước</string>
+    <string name="vietnamese_ime_no_spelling_errors">Không tìm thấy lỗi chính tả.</string>
+    <string name="vietnamese_ime_spelling_error_found">Lỗi chính tả: %1$s</string>
+    <string name="vietnamese_ime_spelling_error_with_fix">Lỗi chính tả: %1$s. Gợi ý: %2$s</string>
 </resources>

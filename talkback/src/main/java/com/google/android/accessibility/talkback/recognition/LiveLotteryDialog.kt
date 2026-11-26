@@ -64,6 +64,8 @@ internal class LiveLotteryDialog(
   private var flashBox: CheckBox? = null
   private var captureButton: Button? = null
   private var checkButton: Button? = null
+  private var saveButton: Button? = null
+  private var savedListButton: Button? = null
   private var resultText: TextView? = null
 
   private var flashOn = false
@@ -119,6 +121,21 @@ internal class LiveLotteryDialog(
     }
     checkButton = chkBtn
     column.addView(chkBtn)
+
+    val svBtn = Button(activity).apply {
+      text = activity.getString(R.string.live_recognition_lottery_save)
+      visibility = View.GONE
+      setOnClickListener { saveLastTicket() }
+    }
+    saveButton = svBtn
+    column.addView(svBtn)
+
+    val listBtn = Button(activity).apply {
+      setOnClickListener { showSavedTicketsDialog() }
+    }
+    savedListButton = listBtn
+    column.addView(listBtn)
+    refreshSavedCountButton()
 
     val result = TextView(activity).apply {
       textSize = 17f
@@ -313,11 +330,86 @@ internal class LiveLotteryDialog(
     camera.cameraControl.enableTorch(flashOn)
   }
 
+  private fun saveLastTicket() {
+    val ticket = lastTicket ?: return
+    LotteryTicketStore.saveNew(activity, ticket)
+    LotteryCheckReceiver.rescheduleAllPending(activity)
+    refreshSavedCountButton()
+    updateResult(activity.getString(R.string.live_recognition_lottery_saved_ok))
+  }
+
+  private fun refreshSavedCountButton() {
+    val count = LotteryTicketStore.list(activity).size
+    savedListButton?.text = activity.getString(R.string.live_recognition_lottery_saved_list, count)
+  }
+
+  private fun showSavedTicketsDialog() {
+    val saved = LotteryTicketStore.list(activity)
+    if (saved.isEmpty()) {
+      updateResult(activity.getString(R.string.live_recognition_lottery_saved_empty))
+      return
+    }
+    val labels = saved.map { it.summary() }.toTypedArray()
+    AlertDialog.Builder(activity)
+      .setTitle(activity.getString(R.string.live_recognition_lottery_saved_list, saved.size))
+      .setItems(labels) { _, which ->
+        val selected = saved.getOrNull(which) ?: return@setItems
+        showSavedTicketActions(selected)
+      }
+      .setNegativeButton(R.string.live_recognition_close, null)
+      .show()
+  }
+
+  private fun showSavedTicketActions(saved: SavedLotteryTicket) {
+    AlertDialog.Builder(activity)
+      .setMessage(saved.summary())
+      .setPositiveButton(R.string.live_recognition_lottery_recheck) { _, _ ->
+        recheckSavedTicket(saved)
+      }
+      .setNeutralButton(R.string.live_recognition_lottery_delete) { _, _ ->
+        LotteryTicketStore.delete(activity, saved.id)
+        LotteryCheckReceiver.rescheduleAllPending(activity)
+        refreshSavedCountButton()
+        updateResult(activity.getString(R.string.live_recognition_lottery_deleted))
+      }
+      .setNegativeButton(R.string.live_recognition_close, null)
+      .show()
+  }
+
+  private fun recheckSavedTicket(saved: SavedLotteryTicket) {
+    if (checkInFlight) return
+    val token = sessionToken
+    checkInFlight = true
+    updateButtons()
+    updateResult(activity.getString(R.string.live_recognition_lottery_checking))
+    lookupFuture = lookupWorker.submit {
+      val result = LotteryResultChecker.checkOnline(saved.ticket)
+      val updated = when (result) {
+        is LotteryCheckResult.Won -> saved.copy(status = SavedTicketStatus.WON, lastResultMessage = result.message)
+        is LotteryCheckResult.NotWon -> saved.copy(status = SavedTicketStatus.NOT_WON, lastResultMessage = result.message)
+        else -> saved
+      }
+      if (updated != saved) {
+        LotteryTicketStore.update(activity, updated)
+        LotteryCheckReceiver.rescheduleAllPending(activity)
+      }
+      handler.post {
+        if (dismissed || sessionToken != token) return@post
+        checkInFlight = false
+        updateButtons()
+        refreshSavedCountButton()
+        updateResult(result.message)
+      }
+    }
+  }
+
   private fun updateButtons() {
     captureButton?.isEnabled = !captureInFlight
     val hasTicket = lastTicket != null
     checkButton?.visibility = if (hasTicket) View.VISIBLE else View.GONE
     checkButton?.isEnabled = hasTicket && !captureInFlight && !checkInFlight
+    saveButton?.visibility = if (hasTicket) View.VISIBLE else View.GONE
+    saveButton?.isEnabled = hasTicket && !captureInFlight
   }
 
   private fun updateResult(message: String) {

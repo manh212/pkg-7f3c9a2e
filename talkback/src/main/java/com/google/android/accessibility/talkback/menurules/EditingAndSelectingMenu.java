@@ -212,6 +212,22 @@ public class EditingAndSelectingMenu implements NodeMenu {
               R.id.edittext_breakout_dictate,
               Menu.NONE,
               context.getString(R.string.shortcut_dictate)));
+      if (VietnameseTextActionsMenu.isSpellCheckEnabled(context)) {
+        items.add(
+            ContextMenu.createMenuItem(
+                context,
+                Menu.NONE,
+                R.id.edittext_breakout_next_spelling_error,
+                Menu.NONE,
+                context.getString(R.string.editor_action_next_spelling_error)));
+        items.add(
+            ContextMenu.createMenuItem(
+                context,
+                Menu.NONE,
+                R.id.edittext_breakout_prev_spelling_error,
+                Menu.NONE,
+                context.getString(R.string.editor_action_prev_spelling_error)));
+      }
     }
 
     if (node.isEditable() && node.isEnabled()) {
@@ -317,6 +333,16 @@ public class EditingAndSelectingMenu implements NodeMenu {
                         : R.string.shortcut_value_dictate),
                 node);
           }
+        } else if (itemId == R.id.edittext_breakout_next_spelling_error
+            || itemId == R.id.edittext_breakout_prev_spelling_error) {
+          TalkBackService service = TalkBackService.getInstance();
+          result =
+              service != null
+                  && VietnameseTextActionsMenu.navigateToSpellingError(
+                      service,
+                      node,
+                      pipeline,
+                      itemId == R.id.edittext_breakout_next_spelling_error);
         } else if (itemId == R.id.edittext_breakout_choose_keyboard) {
           TalkBackService service = TalkBackService.getInstance();
           result = service != null;

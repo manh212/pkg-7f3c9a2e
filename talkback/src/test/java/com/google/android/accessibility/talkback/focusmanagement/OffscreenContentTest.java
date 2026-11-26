@@ -217,6 +217,15 @@ public final class OffscreenContentTest {
     assertFalse(OffscreenContent.keepsAllContent(wrap(scroll)));
   }
 
+  @Test
+  public void flutterScrollViewWithEmptyViewId_doesNotKeepAllContent() {
+    AccessibilityNodeInfo scroll = scrollView();
+    scroll.setViewIdResourceName("");
+    seal(scroll);
+
+    assertFalse(OffscreenContent.keepsAllContent(wrap(scroll)));
+  }
+
   private static AccessibilityNodeInfo node(String text, boolean visible) {
     AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
     node.setText(text);

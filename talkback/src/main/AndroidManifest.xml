@@ -762,6 +762,15 @@
             </intent-filter>
             <meta-data android:name="android.view.im" android:resource="@xml/meridian_vietnamese_method" />
         </service>
+
+        <receiver
+            android:name="com.google.android.accessibility.talkback.recognition.LotteryCheckReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.android.accessibility.talkback.recognition.ACTION_CHECK_LOTTERY" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
 

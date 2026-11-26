@@ -51,12 +51,14 @@ internal sealed class ParsedLotteryTicket {
     val rawStationName: String?,
     val drawDate: String?,
     val number: String,
+    val symbolCode: String? = null,
   ) : ParsedLotteryTicket() {
     override fun speak(): String {
       val parts = mutableListOf<String>()
       val stationLabel = station?.displayName ?: rawStationName?.takeIf { it.isNotBlank() }
       parts += if (stationLabel != null) "Vé số $stationLabel" else "Vé số kiến thiết"
       if (!drawDate.isNullOrBlank()) parts += "ngày $drawDate"
+      if (!symbolCode.isNullOrBlank()) parts += "ký hiệu $symbolCode"
       parts += "số: ${number.toCharArray().joinToString(", ")}"
       return parts.joinToString(", ") + "."
     }
@@ -107,7 +109,7 @@ internal object LotteryOnlinePrompt {
       "QUY TẮC BẮT BUỘC: Nếu ảnh KHÔNG PHẢI là tờ vé số, TUYỆT ĐỐI KHÔNG mô tả bất kỳ nội dung nào khác trong ảnh, chỉ trả về đúng JSON: {\"khong_phai_ve_so\":true}. " +
       "Nếu đúng là vé số nhưng ảnh quá mờ không đọc được dãy số, chỉ trả về: {\"loi\":\"Ảnh mờ, không đọc được số vé.\"}. " +
       "Nếu đọc được vé số kiến thiết truyền thống, chỉ trả về JSON ngắn gọn: " +
-      "{\"loai\":\"truyen_thong\",\"dai\":\"tên tỉnh/thành phố hoặc Miền Bắc\",\"ngay\":\"DD/MM/YYYY\",\"so\":\"dãy 5 hoặc 6 chữ số\"}. " +
+      "{\"loai\":\"truyen_thong\",\"dai\":\"tên tỉnh/thành phố hoặc Miền Bắc\",\"ngay\":\"DD/MM/YYYY\",\"so\":\"dãy 5 hoặc 6 chữ số\",\"ky_hieu\":\"ký hiệu vé nếu là vé Miền Bắc (ví dụ 5LT, 14AB) hoặc để trống\"}. " +
       "Nếu đọc được vé Vietlott (Mega 6/45, Power 6/55, Max 3D), chỉ trả về JSON ngắn gọn: " +
       "{\"loai\":\"vietlott\",\"san_pham\":\"Mega 6/45|Power 6/55|Max 3D\",\"ky\":\"mã kỳ không có dấu #\",\"ngay\":\"DD/MM/YYYY\",\"bo_so\":[{\"ky_hieu\":\"A\",\"so\":[\"01\",\"02\"]}]}. " +
       "Không giải thích, không thêm chữ nào ngoài JSON."
@@ -192,8 +194,13 @@ internal object LotteryOnlineResponseParser {
     val rawStation = obj.optString("dai", "").trim().takeIf { it.isNotEmpty() && !it.equals("null", true) }
     val station = rawStation?.let(::matchStation)
     val drawDate = parseDate(obj.optString("ngay", ""))
+    val symbolCode = obj.optString("ky_hieu", "")
+      .trim()
+      .uppercase(Locale.ROOT)
+      .replace(Regex("[^A-Z0-9]"), "")
+      .takeIf { it.isNotEmpty() && !it.equals("NULL", ignoreCase = true) }
     return LotteryRecognitionOutcome.Ticket(
-      ParsedLotteryTicket.Traditional(station, rawStation, drawDate, digits)
+      ParsedLotteryTicket.Traditional(station, rawStation, drawDate, digits, symbolCode)
     )
   }
 
@@ -317,25 +324,36 @@ internal object LotteryResultChecker {
     val drawDate = ticket.drawDate
       ?: return LotteryCheckResult.Unavailable("Không xác định được ngày mở thưởng trên vé để đối chiếu.")
 
+    val htmlUrl = buildTraditionalHtmlUrl(station, drawDate)
     val rssUrl = "https://xskt.com.vn/rss-feed/${station.rssSlug}.rss"
     val rssXml = fetchText(rssUrl)
     if (rssXml != null) {
-      val rssResult = evaluateRssXml(rssXml, drawDate, ticket.number, station)
-      if (rssResult != null) return rssResult
+      val rssPrizes = extractRssPrizeMap(rssXml, drawDate, ticket.number.length)
+      if (rssPrizes != null) {
+        val mbSymbols = if (station.region == LotteryRegion.MIEN_BAC &&
+          rssPrizes["ĐB"]?.any { ticket.number.endsWith(it) } == true &&
+          htmlUrl != null
+        ) {
+          fetchText(htmlUrl)?.let(::parseMienBacSpecialSymbols).orEmpty()
+        } else {
+          emptySet()
+        }
+        return buildTraditionalResult(
+          prizeMap = rssPrizes,
+          ticketNumber = ticket.number,
+          drawDate = drawDate,
+          station = station,
+          ticketSymbol = ticket.symbolCode,
+          specialSymbols = mbSymbols,
+        )
+      }
     }
 
-    val parts = drawDate.split("/")
-    if (parts.size == 3) {
-      val day = parts[0].toIntOrNull()
-      val month = parts[1].toIntOrNull()
-      val year = parts[2].toIntOrNull()
-      if (day != null && month != null && year != null) {
-        val htmlUrl = "https://xskt.com.vn/${station.htmlSlug}/ngay-$day-$month-$year"
-        val html = fetchText(htmlUrl)
-        if (html != null) {
-          val htmlResult = evaluateTraditionalHtml(html, drawDate, ticket.number, station)
-          if (htmlResult != null) return htmlResult
-        }
+    if (htmlUrl != null) {
+      val html = fetchText(htmlUrl)
+      if (html != null) {
+        val htmlResult = evaluateTraditionalHtml(html, drawDate, ticket.number, station, ticket.symbolCode)
+        if (htmlResult != null) return htmlResult
       }
     }
 
@@ -345,6 +363,15 @@ internal object LotteryResultChecker {
     return LotteryCheckResult.NotDrawnYet(
       "Chưa có kết quả mở thưởng cho đài ${station.displayName} ngày $drawDate."
     )
+  }
+
+  private fun buildTraditionalHtmlUrl(station: LotteryStation, drawDate: String): String? {
+    val parts = drawDate.split("/")
+    if (parts.size != 3) return null
+    val day = parts[0].toIntOrNull() ?: return null
+    val month = parts[1].toIntOrNull() ?: return null
+    val year = parts[2].toIntOrNull() ?: return null
+    return "https://xskt.com.vn/${station.htmlSlug}/ngay-$day-$month-$year"
   }
 
   private fun checkVietlott(ticket: ParsedLotteryTicket.Vietlott): LotteryCheckResult {
@@ -376,21 +403,30 @@ internal object LotteryResultChecker {
     return source.readUtf8()
   }
 
-  internal fun evaluateRssXml(
+  private fun extractRssPrizeMap(
     rssXml: String,
     drawDate: String,
-    ticketNumber: String,
-    station: LotteryStation? = null,
-  ): LotteryCheckResult? {
+    ticketLength: Int,
+  ): Map<String, List<String>>? {
     val item = rssItems.findAll(rssXml).map { it.groupValues[1] }.firstOrNull { chunk ->
       val link = extractTag(chunk, "link") ?: return@firstOrNull false
       val date = publishedDate.find(link)?.groupValues ?: return@firstOrNull false
       "${date[1].padStart(2, '0')}/${date[2].padStart(2, '0')}/${date[3]}" == drawDate
     } ?: return null
     val description = extractTag(item, "description") ?: return null
-    val parsedPrizes = parsePrizesFromRss(description, ticketNumber.length)
-    if (parsedPrizes.isEmpty()) return null
-    return buildTraditionalResult(parsedPrizes, ticketNumber, drawDate, station)
+    val parsedPrizes = parsePrizesFromRss(description, ticketLength)
+    return parsedPrizes.takeIf { it.isNotEmpty() }
+  }
+
+  internal fun evaluateRssXml(
+    rssXml: String,
+    drawDate: String,
+    ticketNumber: String,
+    station: LotteryStation? = null,
+    ticketSymbol: String? = null,
+  ): LotteryCheckResult? {
+    val parsedPrizes = extractRssPrizeMap(rssXml, drawDate, ticketNumber.length) ?: return null
+    return buildTraditionalResult(parsedPrizes, ticketNumber, drawDate, station, ticketSymbol, emptySet())
   }
 
   internal fun evaluateTraditionalHtml(
@@ -398,10 +434,35 @@ internal object LotteryResultChecker {
     drawDate: String,
     ticketNumber: String,
     station: LotteryStation,
+    ticketSymbol: String? = null,
   ): LotteryCheckResult? {
     val parsed = parsePrizesFromHtml(html, ticketNumber.length)
     if (parsed.isEmpty()) return null
-    return buildTraditionalResult(parsed, ticketNumber, drawDate, station)
+    val specialSymbols = if (station.region == LotteryRegion.MIEN_BAC) {
+      parseMienBacSpecialSymbols(html)
+    } else {
+      emptySet()
+    }
+    return buildTraditionalResult(parsed, ticketNumber, drawDate, station, ticketSymbol, specialSymbols)
+  }
+
+  internal fun parseMienBacSpecialSymbols(html: String): Set<String> {
+    val plain = Regex("<[^>]+>").replace(html, " ").replace("&nbsp;", " ")
+    val line = Regex("""Mã\s*ĐB\s*[:：]?\s*([^\n\r]{2,80})""", RegexOption.IGNORE_CASE)
+      .find(plain)?.groupValues?.get(1) ?: return emptySet()
+    val result = linkedSetOf<String>()
+    val suffixMatch = Regex("""\(([A-Za-z]{1,4})\)""").find(line)
+    if (suffixMatch != null) {
+      val letters = suffixMatch.groupValues[1].uppercase(Locale.ROOT)
+      val prefixPart = line.substring(0, suffixMatch.range.first)
+      Regex("""\b(\d{1,2})\b""").findAll(prefixPart).forEach { m ->
+        result += "${m.groupValues[1]}$letters"
+      }
+    }
+    Regex("""\b(\d{1,2}[A-Za-z]{1,3})\b""").findAll(line).forEach { m ->
+      result += m.groupValues[1].uppercase(Locale.ROOT)
+    }
+    return result
   }
 
   internal fun evaluateVietlottHtml(
@@ -438,7 +499,10 @@ internal object LotteryResultChecker {
         matched == 3 -> "Giải Ba"
         else -> null
       }
-      if (prize != null) wins += "Bộ $label trúng $prize"
+      if (prize != null) {
+        val moneyText = vietlottPrizeMoneyText(ticket.product, prize)
+        wins += "Bộ $label trúng $prize ($moneyText)"
+      }
     }
     val winningSummary = if (bonus != null) {
       "${nums.take(6).joinToString(" - ")} | số đặc biệt $bonus"
@@ -449,7 +513,7 @@ internal object LotteryResultChecker {
       LotteryCheckResult.Won(
         wins,
         winningSummary,
-        "Chúc mừng! Vé ${ticket.product} ngày $drawDate: ${wins.joinToString(", ")}. Kết quả kỳ này: $winningSummary. Hãy đối chiếu lại với kết quả chính thức.",
+        "Chúc mừng! Vé ${ticket.product} ngày $drawDate: ${wins.joinToString("; ")}. Kết quả kỳ này: $winningSummary. Hãy đối chiếu lại với kết quả chính thức.",
       )
     } else {
       LotteryCheckResult.NotWon(
@@ -464,15 +528,37 @@ internal object LotteryResultChecker {
     ticketNumber: String,
     drawDate: String,
     station: LotteryStation?,
+    ticketSymbol: String? = null,
+    specialSymbols: Set<String> = emptySet(),
   ): LotteryCheckResult {
-    val matches = evaluateMatches(prizeMap, ticketNumber, station?.region)
+    val effectiveRegion = station?.region
+      ?: if (ticketNumber.length == 5) LotteryRegion.MIEN_BAC else LotteryRegion.MIEN_NAM
+    val matches = evaluateMatches(prizeMap, ticketNumber, effectiveRegion, ticketSymbol, specialSymbols)
     val specialPrize = prizeMap["ĐB"]?.firstOrNull()
     val stationText = station?.displayName?.let { "đài $it " }.orEmpty()
     return if (matches.isNotEmpty()) {
+      val detailedPrizes = matches.map { prize ->
+        val amount = traditionalPrizeAmountVnd(effectiveRegion, prize)
+        if (amount != null) "$prize (${formatVnd(amount)})" else prize
+      }
+      val totalAmount = matches.mapNotNull { traditionalPrizeAmountVnd(effectiveRegion, it) }.sum()
+      val totalText = if (totalAmount > 0L) {
+        " Tổng tiền thưởng ước tính: ${formatVnd(totalAmount)}."
+      } else {
+        ""
+      }
+      val symbolNote = if (effectiveRegion == LotteryRegion.MIEN_BAC &&
+        "Giải Đặc biệt" in matches &&
+        (ticketSymbol.isNullOrBlank() || specialSymbols.isEmpty())
+      ) {
+        " Lưu ý vé Miền Bắc: nếu trùng ký hiệu ĐB nhận 1 tỷ đồng, khác ký hiệu nhận Giải Phụ Đặc biệt 25 triệu đồng."
+      } else {
+        ""
+      }
       LotteryCheckResult.Won(
         matches,
         specialPrize,
-        "Chúc mừng! Vé $stationText ngày $drawDate khớp ${matches.joinToString(", ")}. Hãy đối chiếu lại với bảng kết quả chính thức.",
+        "Chúc mừng! Vé $stationText ngày $drawDate trúng ${detailedPrizes.joinToString(", ")}.$totalText$symbolNote Hãy đối chiếu lại với bảng kết quả chính thức.",
       )
     } else {
       val dbSuffix = specialPrize?.let { " Giải Đặc biệt ngày này là ${it.toCharArray().joinToString(", ")}." }.orEmpty()
@@ -531,12 +617,20 @@ internal object LotteryResultChecker {
     prizeMap: Map<String, List<String>>,
     ticketNumber: String,
     region: LotteryRegion?,
+    ticketSymbol: String? = null,
+    specialSymbols: Set<String> = emptySet(),
   ): List<String> {
     val matches = mutableListOf<String>()
+    val isMienBac = region == LotteryRegion.MIEN_BAC || (region == null && ticketNumber.length == 5)
     for ((code, name) in prizesOrder) {
       val values = prizeMap[code] ?: continue
       if (values.any { ticketNumber.endsWith(it) }) {
-        matches += name
+        if (code == "ĐB" && isMienBac && !ticketSymbol.isNullOrBlank() && specialSymbols.isNotEmpty()) {
+          val normalizedSymbol = ticketSymbol.uppercase(Locale.ROOT)
+          matches += if (normalizedSymbol in specialSymbols) "Giải Đặc biệt" else "Giải Phụ Đặc biệt"
+        } else {
+          matches += name
+        }
       }
     }
     val special = prizeMap["ĐB"]?.firstOrNull()
@@ -552,8 +646,66 @@ internal object LotteryResultChecker {
           matches += "Giải Khuyến khích"
         }
       }
+    } else if (isMienBac && special != null && special.length == 5 && ticketNumber.length == 5 &&
+        "Giải Đặc biệt" !in matches && "Giải Phụ Đặc biệt" !in matches) {
+      if (ticketNumber.takeLast(2) == special.takeLast(2)) {
+        matches += "Giải Khuyến khích"
+      }
     }
     return matches
+  }
+
+  internal fun traditionalPrizeAmountVnd(region: LotteryRegion, prizeName: String): Long? =
+    when (region) {
+      LotteryRegion.MIEN_NAM, LotteryRegion.MIEN_TRUNG -> when (prizeName) {
+        "Giải Đặc biệt" -> 2_000_000_000L
+        "Giải Phụ Đặc biệt" -> 50_000_000L
+        "Giải Nhất" -> 30_000_000L
+        "Giải Nhì" -> 15_000_000L
+        "Giải Ba" -> 10_000_000L
+        "Giải Khuyến khích" -> 6_000_000L
+        "Giải Tư" -> 3_000_000L
+        "Giải Năm" -> 1_000_000L
+        "Giải Sáu" -> 400_000L
+        "Giải Bảy" -> 200_000L
+        "Giải Tám" -> 100_000L
+        else -> null
+      }
+      LotteryRegion.MIEN_BAC -> when (prizeName) {
+        "Giải Đặc biệt" -> 1_000_000_000L
+        "Giải Phụ Đặc biệt" -> 25_000_000L
+        "Giải Nhất" -> 10_000_000L
+        "Giải Nhì" -> 5_000_000L
+        "Giải Ba" -> 1_000_000L
+        "Giải Tư" -> 400_000L
+        "Giải Năm" -> 200_000L
+        "Giải Sáu" -> 100_000L
+        "Giải Bảy" -> 40_000L
+        "Giải Khuyến khích" -> 40_000L
+        else -> null
+      }
+    }
+
+  private fun vietlottPrizeMoneyText(product: String, prizeName: String): String =
+    when (product) {
+      "Mega 6/45" -> when (prizeName) {
+        "Giải Nhất" -> formatVnd(10_000_000L)
+        "Giải Nhì" -> formatVnd(300_000L)
+        "Giải Ba" -> formatVnd(30_000L)
+        else -> "tích lũy theo kỳ quay"
+      }
+      "Power 6/55" -> when (prizeName) {
+        "Giải Nhất" -> formatVnd(40_000_000L)
+        "Giải Nhì" -> formatVnd(500_000L)
+        "Giải Ba" -> formatVnd(50_000L)
+        else -> "tích lũy theo kỳ quay"
+      }
+      else -> "theo bảng thưởng kỳ quay"
+    }
+
+  internal fun formatVnd(amount: Long): String {
+    val formatted = amount.toString().reversed().chunked(3).joinToString(".").reversed()
+    return "$formatted đồng"
   }
 
   internal fun checkPrizes(description: String, ticketNumber: String): List<String> {

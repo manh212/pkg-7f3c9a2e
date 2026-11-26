@@ -31,6 +31,9 @@ import androidx.activity.ComponentActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -39,6 +42,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Observer
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.actor.gemini.OnlineImageQuery
 import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.concurrent.Executors
@@ -54,21 +58,25 @@ internal class LiveCurrencyDialog(
   private val processing = AtomicBoolean(false)
   private val tracker = CurrencyTracker()
   private val announcements = RecognitionAnnouncements()
+  private val onlineQuery = OnlineImageQuery(activity)
   private var recognizer: CurrencyRecognizer? = null
 
   private var dialog: AlertDialog? = null
   private var cameraProvider: ProcessCameraProvider? = null
   private var boundCamera: Camera? = null
   private var preview: Preview? = null
+  private var imageCapture: ImageCapture? = null
   private var analysis: ImageAnalysis? = null
   private var previewView: PreviewView? = null
   private var flashBox: CheckBox? = null
   private var toggleButton: Button? = null
+  private var onlineButton: Button? = null
   private var resultText: TextView? = null
 
   private var flashOn = false
   private var sumEnabled = false
   private var running = false
+  private var onlineCaptureInFlight = false
   private var waitingModel = false
   private var downloadBucket = 0
   private var dismissed = false
@@ -149,6 +157,13 @@ internal class LiveCurrencyDialog(
     toggleButton = btn
     column.addView(btn)
 
+    val onlineBtn = Button(activity).apply {
+      text = activity.getString(R.string.live_recognition_currency_online)
+      setOnClickListener { captureCurrencyOnline() }
+    }
+    onlineButton = onlineBtn
+    column.addView(onlineBtn)
+
     val result = TextView(activity).apply {
       textSize = 17f
       setPadding(0, (8 * density).toInt(), 0, (4 * density).toInt())
@@ -214,7 +229,11 @@ internal class LiveCurrencyDialog(
         cameraProvider = provider
         unbindCamera()
         val newPreview = Preview.Builder().build().also { it.setSurfaceProvider(pv.surfaceProvider) }
+        val newCapture = ImageCapture.Builder()
+          .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+          .build()
         preview = newPreview
+        imageCapture = newCapture
         if (running && OfflineModels.isReady(activity, OfflineModels.Group.CURRENCY)) {
           val newAnalysis = ImageAnalysis.Builder()
             .setResolutionSelector(
@@ -272,10 +291,10 @@ internal class LiveCurrencyDialog(
             }
           }
           analysis = newAnalysis
-          boundCamera = provider.bindToLifecycle(activity, CameraSelector.DEFAULT_BACK_CAMERA, newPreview, newAnalysis)
+          boundCamera = provider.bindToLifecycle(activity, CameraSelector.DEFAULT_BACK_CAMERA, newPreview, newCapture, newAnalysis)
         } else {
           analysis = null
-          boundCamera = provider.bindToLifecycle(activity, CameraSelector.DEFAULT_BACK_CAMERA, newPreview)
+          boundCamera = provider.bindToLifecycle(activity, CameraSelector.DEFAULT_BACK_CAMERA, newPreview, newCapture)
         }
         applyTorch()
       } catch (e: Exception) {
@@ -296,10 +315,90 @@ internal class LiveCurrencyDialog(
     camera.cameraControl.enableTorch(flashOn)
   }
 
+  private fun captureCurrencyOnline() {
+    if (onlineCaptureInFlight) return
+    if (!onlineQuery.isReady()) {
+      updateResult(activity.getString(R.string.live_recognition_online_required), interrupt = true)
+      return
+    }
+    val capture = imageCapture
+    if (capture == null) {
+      updateResult(activity.getString(R.string.live_recognition_camera_error), interrupt = true)
+      return
+    }
+    if (running) {
+      running = false
+    }
+    val token = ++sessionToken
+    onlineCaptureInFlight = true
+    updateButtons()
+    updateResult(activity.getString(R.string.live_recognition_please_wait), interrupt = true)
+    capture.takePicture(
+      worker,
+      object : ImageCapture.OnImageCapturedCallback() {
+        override fun onCaptureSuccess(image: ImageProxy) {
+          val jpeg = try {
+            OnlineRecognitionImageEncoder.encodeForOnlineQuery(image)
+          } catch (e: Throwable) {
+            LogUtils.e(TAG, "Online currency capture encode failed: %s", e.javaClass.simpleName)
+            null
+          } finally {
+            image.close()
+          }
+          handler.post {
+            if (dismissed || sessionToken != token) return@post
+            if (jpeg == null) {
+              onlineCaptureInFlight = false
+              updateButtons()
+              updateResult(activity.getString(R.string.live_recognition_camera_error), interrupt = true)
+              return@post
+            }
+            onlineQuery.ask(OnlineCurrencyPrompt.PROMPT, jpeg, wantsJson = true) { response, error ->
+              if (dismissed || sessionToken != token) return@ask
+              onlineCaptureInFlight = false
+              updateButtons()
+              if (error != null) {
+                updateResult(error, interrupt = true)
+                return@ask
+              }
+              if (response == null) return@ask
+              when (val outcome = OnlineCurrencyResponseParser.parse(response)) {
+                OnlineCurrencyOutcome.NotCurrency -> {
+                  updateResult(
+                    activity.getString(R.string.live_recognition_currency_not_money),
+                    interrupt = true,
+                  )
+                }
+                is OnlineCurrencyOutcome.Error -> {
+                  updateResult(outcome.message, interrupt = true)
+                }
+                is OnlineCurrencyOutcome.Currency -> {
+                  updateResult(outcome.speak(), interrupt = true)
+                }
+              }
+            }
+          }
+        }
+
+        override fun onError(exception: ImageCaptureException) {
+          LogUtils.e(TAG, "Online currency capture error: %s", exception.message ?: exception.javaClass.simpleName)
+          handler.post {
+            if (!dismissed && sessionToken == token) {
+              onlineCaptureInFlight = false
+              updateButtons()
+              updateResult(activity.getString(R.string.live_recognition_camera_error), interrupt = true)
+            }
+          }
+        }
+      },
+    )
+  }
+
   private fun updateButtons() {
     toggleButton?.text = activity.getString(
       if (running) R.string.live_recognition_currency_stop else R.string.live_recognition_currency_start
     )
+    onlineButton?.isEnabled = !onlineCaptureInFlight
   }
 
   private fun updateResult(message: String, interrupt: Boolean) {
@@ -311,9 +410,10 @@ internal class LiveCurrencyDialog(
     boundCamera?.cameraControl?.enableTorch(false)
     boundCamera = null
     analysis?.clearAnalyzer()
-    val bound = listOfNotNull(preview, analysis).toTypedArray()
+    val bound = listOfNotNull(preview, imageCapture, analysis).toTypedArray()
     if (bound.isNotEmpty()) cameraProvider?.unbind(*bound)
     preview = null
+    imageCapture = null
     analysis = null
   }
 
@@ -322,6 +422,7 @@ internal class LiveCurrencyDialog(
     dismissed = true
     sessionToken++
     running = false
+    onlineCaptureInFlight = false
     waitingModel = false
     OfflineModels.status.removeObserver(modelObserver)
     unbindCamera()
