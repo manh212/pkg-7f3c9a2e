@@ -42,6 +42,7 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.abs
 
@@ -131,6 +132,9 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   // Set when no track can be made, or the track stops taking audio and cannot be remade. Then audio
   // plays the usual way.
   @Volatile private var broken = false
+  @Volatile private var brokenAtMs = 0L
+  @Volatile private var consecutiveGiveUps = 0
+  private val recoveryInFlight = AtomicBoolean(false)
   // Set by shutdown. Nothing plays again, and the track is released.
   @Volatile private var released = false
   // When the track last took audio, to find a track that has stopped.
@@ -987,6 +991,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
   private fun giveUp() {
     synchronized(lock) {
       broken = true
+      brokenAtMs = SystemClock.uptimeMillis()
+      consecutiveGiveUps++
       clips.clear()
       while (streams.isNotEmpty()) streams.removeFirst().abandon(playerFailed = true)
       if (thread == null) {
@@ -999,6 +1005,46 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
         lock.notifyAll()
       }
     }
+  }
+
+  /**
+   * Attempts to reopen a player that previously gave up (e.g., due to a transient failure during a
+   * phone call or audio route transition). Returns true if the player is healthy again.
+   */
+  internal fun tryRecover(force: Boolean = false): Boolean {
+    if (released || !broken) return !released && hasOutput()
+    val now = SystemClock.uptimeMillis()
+    if (!shouldAttemptRecovery(brokenAtMs, now, consecutiveGiveUps, force)) return false
+    if (!recoveryInFlight.compareAndSet(false, true)) return false
+    try {
+      synchronized(lock) {
+        if (released || !broken || thread != null) return !released && !broken && hasOutput()
+        broken = false
+        remakeTrack = false
+        primed = false
+        if (openOutput()) {
+          LogUtils.i(TAG, "Recovered low-latency audio player (force=%b)", force)
+          return true
+        }
+        broken = true
+        brokenAtMs = SystemClock.uptimeMillis()
+        if (!force) consecutiveGiveUps++
+        return false
+      }
+    } finally {
+      recoveryInFlight.set(false)
+    }
+  }
+
+  /** Resets failure backoff and tries to recover a broken player after a call or device change. */
+  internal fun recoverAfterRouteChange() {
+    if (released) return
+    if (!broken) {
+      remake()
+      return
+    }
+    consecutiveGiveUps = 0
+    tryRecover(force = true)
   }
 
   private fun run() {
@@ -1120,6 +1166,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
           output != null && !remakeTrack && play(output) && write(output, buffer)
         }
       if (wrote) {
+        consecutiveGiveUps = 0
         BatteryUsageTracker.onAudioBurstUs(burstAudible, burstFrames * 1_000_000L / sampleRate)
         val submittedAt = SystemClock.uptimeMillis()
         for (stream in starts) {
@@ -1926,7 +1973,13 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     fun remakeTracks() {
       val players = synchronized(instances) { instances.values.toList() }
       LogUtils.d(TAG, "A call ended, making %d low-latency tracks again", players.size)
-      for (player in players) player.remake()
+      for (player in players) {
+        if (player.broken) {
+          ROUTES.execute { player.recoverAfterRouteChange() }
+        } else {
+          player.remake()
+        }
+      }
     }
 
     @JvmStatic fun isAvoidingEarpiece(): Boolean = players().any { it.detour != null }
@@ -1951,7 +2004,20 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     }
 
     private fun followMediaAll() {
-      val check = Runnable { ROUTES.execute { for (player in players()) player.followMedia() } }
+      val check = Runnable {
+        ROUTES.execute {
+          val now = SystemClock.uptimeMillis()
+          for (player in players()) {
+            if (player.broken) {
+              if (now - player.brokenAtMs >= ROUTE_SETTLE_MS) {
+                player.recoverAfterRouteChange()
+              }
+            } else {
+              player.followMedia()
+            }
+          }
+        }
+      }
       routeHandler.removeCallbacksAndMessages(FOLLOW_MEDIA_TOKEN)
       routeHandler.post(check)
       routeHandler.postAtTime(check, FOLLOW_MEDIA_TOKEN, SystemClock.uptimeMillis() + ROUTE_SETTLE_MS)
@@ -2171,14 +2237,52 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
      * The player for [attributes]' usage, one for each kind of audio, or null if the device cannot
      * make a low-latency track, and audio should play the usual way.
      */
+    private const val RECOVERY_COOLDOWN_MS = 10_000L
+    private const val MAX_RECOVERY_COOLDOWN_MS = 60_000L
+    private const val MAX_CONSECUTIVE_GIVE_UPS = 5
+
+    /**
+     * Returns whether a player that previously gave up should attempt automatic recovery at
+     * [nowMs]. Uses exponential backoff capped at [MAX_RECOVERY_COOLDOWN_MS] and stops time-based
+     * retries after [MAX_CONSECUTIVE_GIVE_UPS] consecutive failures unless [force] is true (e.g.,
+     * after a phone call ends or audio output device changes).
+     */
+    @VisibleForTesting
+    @JvmStatic
+    fun shouldAttemptRecovery(
+      brokenAtMs: Long,
+      nowMs: Long,
+      consecutiveGiveUps: Int,
+      force: Boolean,
+    ): Boolean {
+      if (force) return true
+      if (consecutiveGiveUps <= 0) return true
+      if (consecutiveGiveUps > MAX_CONSECUTIVE_GIVE_UPS) return false
+      val shift = (consecutiveGiveUps - 1).coerceIn(0, 4)
+      val cooldownMs = minOf(RECOVERY_COOLDOWN_MS shl shift, MAX_RECOVERY_COOLDOWN_MS)
+      return (nowMs - brokenAtMs) >= cooldownMs
+    }
+
     @JvmStatic
     fun get(context: Context, attributes: AudioAttributes): LowLatencyAudio? =
       synchronized(instances) {
         watchRoutes(context.applicationContext)
         watchPlayback(context.applicationContext)
-        instances
-          .getOrPut(attributes.usage) { LowLatencyAudio(context.applicationContext, attributes) }
-          .takeIf { it.hasOutput() && !it.broken }
+        val player =
+          instances.getOrPut(attributes.usage) {
+            LowLatencyAudio(context.applicationContext, attributes)
+          }
+        if (player.broken &&
+          shouldAttemptRecovery(
+            player.brokenAtMs,
+            SystemClock.uptimeMillis(),
+            player.consecutiveGiveUps,
+            force = false,
+          ) &&
+          !player.recoveryInFlight.get()) {
+          ROUTES.execute { player.tryRecover(force = false) }
+        }
+        player.takeIf { it.hasOutput() && !it.broken }
       }
 
     /** [volume] from 0 to 1, or 0 when it is NaN or infinite. */

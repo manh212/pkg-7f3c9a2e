@@ -25,6 +25,7 @@ import android.media.AudioManager.MODE_IN_CALL
 import android.media.AudioManager.MODE_IN_COMMUNICATION
 import android.media.AudioManager.MODE_NORMAL
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.sendToMedia
+import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldAttemptRecovery
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -80,5 +81,21 @@ class LowLatencyAudioRouteTest {
     assertTrue(sendToMedia(MODE_NORMAL, TYPE_BUILTIN_SPEAKER_SAFE, null, TYPE_BLUETOOTH_A2DP, false))
     assertFalse(sendToMedia(MODE_NORMAL, TYPE_BUILTIN_SPEAKER_SAFE, null, TYPE_BUILTIN_SPEAKER_SAFE, false))
     assertFalse(sendToMedia(MODE_IN_CALL, TYPE_BUILTIN_SPEAKER_SAFE, null, TYPE_BUILTIN_SPEAKER, false))
+  }
+
+  @Test
+  fun recoveryBackoff_waitsExponentiallyAndStopsAtCapUnlessForced() {
+    // First giveUp: 10s cooldown
+    assertFalse(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 10_999L, consecutiveGiveUps = 1, force = false))
+    assertTrue(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 11_000L, consecutiveGiveUps = 1, force = false))
+    // Second giveUp: 20s cooldown
+    assertFalse(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 20_999L, consecutiveGiveUps = 2, force = false))
+    assertTrue(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 21_000L, consecutiveGiveUps = 2, force = false))
+    // Fourth giveUp: capped at 60s
+    assertFalse(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 60_999L, consecutiveGiveUps = 4, force = false))
+    assertTrue(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 61_000L, consecutiveGiveUps = 4, force = false))
+    // Beyond max consecutive failures: time-based retries stop, but explicit route/call recovery still works
+    assertFalse(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 600_000L, consecutiveGiveUps = 6, force = false))
+    assertTrue(shouldAttemptRecovery(brokenAtMs = 1_000L, nowMs = 1_001L, consecutiveGiveUps = 6, force = true))
   }
 }
