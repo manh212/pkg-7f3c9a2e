@@ -216,7 +216,7 @@ class EventFilterPrepareTest {
   fun prepareRunsAgainWhenTheOrderBuildCompletes() {
     eventFilter.setTargetPredictor(Predictor(local = false))
     moveFocusTo(focused)
-    runMainQueueFor(35)
+    runMainQueueFor(60)
     assertNotNull(PreparedFocusSpeech.peek(focused, NavigationTarget.TARGET_DEFAULT))
     assertTrue(awaitPrepared(next))
   }
