@@ -1383,9 +1383,24 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   private static final long AUTO_SCROLL_EVENT_TIME_GRACE_MS = 250L;
 
+  private static final long FINISHED_AUTO_SCROLL_GRACE_MS = 600L;
+
   private boolean isExpectedScrollResponse(AccessibilityEvent event) {
     if (pipeline == null) return false;
-    ScrollActionRecord record = pipeline.getActorState().getScrollerState().get();
+    AutoScrollActor.StateReader scrollerState = pipeline.getActorState().getScrollerState();
+    ScrollActionRecord record = scrollerState.get();
+    if (record == null) {
+      // Keep admitting TYPE_VIEW_SCROLLED while FocusProcessorForLogicalNavigation is still
+      // settling or chaining multi-attempt auto-scrolls on RecyclerViews without maxScrollY
+      // (e.g. Telegram/Nekogram), so BackgroundEventGate never defers/coalesces scroll feedback.
+      ScrollActionRecord finished = scrollerState.getFinishedScrollActionRecord();
+      if (finished != null
+          && (FocusProcessorForLogicalNavigation.swipeScrollPending()
+              || Math.abs(event.getEventTime() - finished.autoScrolledTime)
+                  <= FINISHED_AUTO_SCROLL_GRACE_MS)) {
+        record = finished;
+      }
+    }
     if (record == null
         || event.getEventTime() + AUTO_SCROLL_EVENT_TIME_GRACE_MS < record.autoScrolledTime) {
       return false;

@@ -106,6 +106,12 @@ public class FocusManagerInternal {
   // the ensure focus would need perform again.
   private boolean skipRefocus = false;
 
+  // Cooldown to avoid flooding WebView/Chrome with synchronous findFocusCompat Binder IPC on
+  // every SUBTREE_CHANGED burst when focus was just confirmed inside the same WebView window.
+  private static final long WEB_ENSURE_ON_SCREEN_COOLDOWN_MS = 450L;
+  private long lastConfirmedWebFocusUptimeMs = 0L;
+  private int lastConfirmedWebFocusWindowId = AccessibilityWindowInfoUtils.WINDOW_ID_NONE;
+
   // The pane (window id, title, pane title) last checked by ensureFocusOnScreen for a
   // pane-record restore after a pane change. A pane change is checked once, when it is
   // first seen; later subtree changes in the same pane keep the app's landing.
@@ -330,17 +336,45 @@ public class FocusManagerInternal {
       return false;
     }
 
+    long nowUptimeMs = SystemClock.uptimeMillis();
+    AccessibilityWindowInfo activeWindow = state.getActiveWindow();
+    int activeWindowId =
+        activeWindow != null
+            ? activeWindow.getId()
+            : AccessibilityWindowInfoUtils.WINDOW_ID_NONE;
+    if (activeWindowId != AccessibilityWindowInfoUtils.WINDOW_ID_NONE
+        && activeWindowId == lastConfirmedWebFocusWindowId
+        && (nowUptimeMs - lastConfirmedWebFocusUptimeMs) < WEB_ENSURE_ON_SCREEN_COOLDOWN_MS) {
+      FocusActionRecord lastRecord = history.getLastFocusActionRecord();
+      if (lastRecord != null
+          && lastRecord.getFocusedNode() != null
+          && lastRecord.getFocusedNode().getWindowId() == activeWindowId) {
+        LogUtils.d(
+            TAG,
+            String.format("%s: Return, recent WebView focus still active (throttled).", subTag));
+        return true;
+      }
+    }
+
     AccessibilityNodeInfoCompat currentFocus = focusFinder.findFocusCompat(FOCUS_ACCESSIBILITY);
     if (currentFocus != null) {
       // Has focus on screen. But when the pane changed since the last recorded focus — BACK
       // out of a chat returns to the list in the same window, so no window change runs the
       // restore — the app's landing may be the wrong item; restore the pane record instead.
       if (maybeRestorePaneRecordAfterPaneChange(state, currentFocus, eventId)) {
+        lastConfirmedWebFocusUptimeMs = 0L;
         return true;
+      }
+      if (WebInterfaceUtils.supportsWebActions(currentFocus)) {
+        lastConfirmedWebFocusUptimeMs = nowUptimeMs;
+        lastConfirmedWebFocusWindowId = currentFocus.getWindowId();
+      } else {
+        lastConfirmedWebFocusUptimeMs = 0L;
       }
       LogUtils.d(TAG, String.format("%s: Return, accessibility focus is already there.", subTag));
       return true;
     }
+    lastConfirmedWebFocusUptimeMs = 0L;
 
     if (FocusProcessorForLogicalNavigation.swipeScrollPending()) {
       LogUtils.d(TAG, String.format("%s: Return, a swipe's scroll is still to focus an item.", subTag));

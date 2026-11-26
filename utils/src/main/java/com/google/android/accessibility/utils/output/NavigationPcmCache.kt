@@ -169,8 +169,9 @@ class NavigationPcmCache(context: Context) {
         Performance.getInstance().onPreparedSpeechWork(PreparedSpeechWork.PREPARE_DROP_DEDUP)
         return@post
       }
-      while (queue.size >= 1) {
-        // Replace-oldest policy keeps the background TTS queue strictly bounded to 1 item.
+      while (queue.size >= 2) {
+        // Replace-oldest policy keeps the background TTS queue bounded to 2 items (forward/backward)
+        // so rapid directional swipes can hit pre-synthesized PCM without starving each other.
         queue.removeFirst()
         note(Work.SUPERSEDED)
         BatteryUsageTracker.onPcmPrefetchWasted("superseded")
@@ -491,8 +492,8 @@ class NavigationPcmCache(context: Context) {
     const val MAX_PREFETCH_TEXT_CHARS = 180
     // Khởi chạy tổng hợp PCM nền sớm hơn ngay sau khi dừng ngón tay để giảm WAITING_FOR_INPUT
     // và tăng tỷ lệ trúng cache PCM (rút ngắn COMPOSED -> FIRST_PCM về ~2-5 ms khi trúng cache).
-    private const val INPUT_QUIET_MS = 35L
-    private const val RETRY_MS = 12L
+    private const val INPUT_QUIET_MS = 12L
+    private const val RETRY_MS = 6L
 
     // Khôi phục ngưỡng timeout theo hợp đồng kiểm thử NavigationPcmCacheTest (2s + 2ms/ký tự, tối
     // đa 4s) để giảm FAILURE_TIMEOUT trên các tin nhắn tiếng Việt dài.

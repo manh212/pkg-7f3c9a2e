@@ -3113,6 +3113,39 @@ public class AccessibilityNodeInfoUtils {
     return actionName == null ? "(unhandled action:" + action + ")" : actionName;
   }
 
+  private static final int MAX_LOG_TEXT_CHARS = 160;
+
+  private static @Nullable CharSequence truncateForLog(@Nullable CharSequence value) {
+    if (value == null) {
+      return null;
+    }
+    int len = value.length();
+    if (len == 0) {
+      return value;
+    }
+    int limit = Math.min(len, MAX_LOG_TEXT_CHARS);
+    boolean hasLineBreak = false;
+    for (int i = 0; i < limit; i++) {
+      char c = value.charAt(i);
+      if (c == '\n' || c == '\r') {
+        hasLineBreak = true;
+        break;
+      }
+    }
+    if (!hasLineBreak && len <= MAX_LOG_TEXT_CHARS) {
+      return value;
+    }
+    StringBuilder sb = new StringBuilder(limit + 20);
+    for (int i = 0; i < limit; i++) {
+      char c = value.charAt(i);
+      sb.append((c == '\n' || c == '\r') ? ' ' : c);
+    }
+    if (len > MAX_LOG_TEXT_CHARS) {
+      sb.append("… (").append(len).append(" chars)");
+    }
+    return sb.toString();
+  }
+
   public static String toStringShort(@Nullable AccessibilityNodeInfo node) {
     return toStringShort(toCompat(node));
   }
@@ -3133,12 +3166,12 @@ public class AccessibilityNodeInfoUtils {
                 ? null
                 : FeatureSupport.logcatIncludePsi()
                     // Logs for DEBUG build or user had opt-in
-                    ? AccessibilityNodeInfoUtils.getText(node)
+                    ? truncateForLog(AccessibilityNodeInfoUtils.getText(node))
                     : "***"),
-        StringBuilderUtils.optionalText("state", node.getStateDescription()),
-        StringBuilderUtils.optionalText("content", node.getContentDescription()),
+        StringBuilderUtils.optionalText("state", truncateForLog(node.getStateDescription())),
+        StringBuilderUtils.optionalText("content", truncateForLog(node.getContentDescription())),
         StringBuilderUtils.optionalText("viewIdResName", node.getViewIdResourceName()),
-        StringBuilderUtils.optionalText("hint", node.getHintText()),
+        StringBuilderUtils.optionalText("hint", truncateForLog(node.getHintText())),
         StringBuilderUtils.optionalTag("enabled", node.isEnabled()),
         StringBuilderUtils.optionalTag("checkable", node.isCheckable()),
         StringBuilderUtils.optionalTag("checked", node.isChecked()),

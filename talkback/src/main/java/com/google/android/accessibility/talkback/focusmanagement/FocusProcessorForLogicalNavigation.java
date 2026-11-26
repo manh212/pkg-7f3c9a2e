@@ -230,9 +230,9 @@ public class FocusProcessorForLogicalNavigation {
   private final Handler earlyScrollCheckHandler = new Handler(Looper.getMainLooper());
   private static final long SETTLE_CHECK_MS = 16;
   private static final int SETTLE_CHECKS = 20;
-  private static final int FILLS_LIST_SETTLE_CHECKS = 3;
-  private static final long FILLS_LIST_QUIET_MS = 120L;
-  private static final long MAX_AUTO_SCROLL_SETTLE_MS = 900L;
+  private static final int FILLS_LIST_SETTLE_CHECKS = 1;
+  private static final long FILLS_LIST_QUIET_MS = 48L;
+  private static final long MAX_AUTO_SCROLL_SETTLE_MS = 360L;
   private int navigationSerial;
 
   // A consumed scroll callback can still have its focus search posted for the next frame.
@@ -1660,9 +1660,21 @@ public class FocusProcessorForLogicalNavigation {
    *
    * @return {@code true} if any accessibility action is successfully performed.
    */
+  private static final long WEB_BOUNDARY_DEDUP_MS = 250L;
+  private long lastWebBoundaryAnnouncedUptimeMs = 0L;
+  private int lastWebBoundaryTargetType = NavigationTarget.TARGET_DEFAULT;
+
   private boolean navigateToHtmlTarget(
       AccessibilityNodeInfoCompat pivot, NavigationAction navigationAction, EventId eventId) {
-    return pipeline.returnFeedback(eventId, Feedback.webDirectionHtml(pivot, navigationAction));
+    boolean moved =
+        pipeline.returnFeedback(eventId, Feedback.webDirectionHtml(pivot, navigationAction));
+    if (!moved && navigationAction.targetType != NavigationTarget.TARGET_DEFAULT) {
+      // WebActor.navigateToHtmlElement already announced end_of_page/start_of_page for non-default
+      // HTML targets; record it so announceNativeElement won't speak the same message a second time.
+      lastWebBoundaryAnnouncedUptimeMs = SystemClock.uptimeMillis();
+      lastWebBoundaryTargetType = navigationAction.targetType;
+    }
+    return moved;
   }
 
   /**
@@ -6980,6 +6992,12 @@ public class FocusProcessorForLogicalNavigation {
 
   /** Announces if there are no more elements while using native granularity. */
   private void announceNativeElement(int direction, @TargetType int targetType, EventId eventId) {
+    if (targetType != NavigationTarget.TARGET_DEFAULT
+        && targetType == lastWebBoundaryTargetType
+        && (SystemClock.uptimeMillis() - lastWebBoundaryAnnouncedUptimeMs) < WEB_BOUNDARY_DEDUP_MS) {
+      lastWebBoundaryAnnouncedUptimeMs = 0L;
+      return;
+    }
     boolean forward = (direction == TraversalStrategy.SEARCH_FOCUS_FORWARD);
     int resId = forward ? R.string.end_of_page : R.string.start_of_page;
 
