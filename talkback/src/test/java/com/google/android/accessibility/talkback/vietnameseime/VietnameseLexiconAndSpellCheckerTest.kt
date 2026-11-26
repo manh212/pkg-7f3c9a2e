@@ -45,6 +45,7 @@ class VietnameseLexiconAndSpellCheckerTest {
   fun personalLearning_promotesRepeatedUserChoiceOverDefaultBigram() {
     val initial = VietnameseLexicon.suggestWords(null, previousWord = "tiếp", currentPrefix = "")
     assertEquals("tục", initial.first())
+
     VietnameseLexicon.recordChosenSuggestion(null, previousWord = "tiếp", chosenWord = "sức", rejectedTopWord = "tục")
     VietnameseLexicon.recordChosenSuggestion(null, previousWord = "tiếp", chosenWord = "sức", rejectedTopWord = "tục")
 
@@ -58,6 +59,7 @@ class VietnameseLexiconAndSpellCheckerTest {
     assertTrue(VietnameseSpellChecker.isValidWord(null, "học"))
     assertTrue(VietnameseSpellChecker.isValidWord(null, "nghỉ"))
     assertTrue(VietnameseSpellChecker.isValidWord(null, "kiến"))
+
     assertFalse(VietnameseSpellChecker.isValidWord(null, "nghà"))
     assertFalse(VietnameseSpellChecker.isValidWord(null, "kà"))
     assertFalse(VietnameseSpellChecker.isValidWord(null, "tôis"))

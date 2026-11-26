@@ -35,6 +35,7 @@ import com.google.android.accessibility.utils.Performance.EVENT_ID_UNTRACKED
 import com.google.android.accessibility.utils.Role
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.input.TextCursorTracker.NO_POSITION
+
 class VietnameseTextActionsMenu(
   private val pipeline: Pipeline.FeedbackReturner,
   private val actorState: ActorState,
@@ -65,6 +66,7 @@ class VietnameseTextActionsMenu(
 
     val text = extractEditableText(editingNode)
     val cursor = resolveCursorPosition(editingNode, text)
+
     if (spellCheckOn && text.isNotEmpty()) {
       val errorSpan = VietnameseSpellChecker.findErrorAtCursor(context, text, cursor)
       if (errorSpan != null) {
@@ -101,6 +103,7 @@ class VietnameseTextActionsMenu(
         }
       }
     }
+
     if (suggestionsOn) {
       val ctx = extractCursorContext(text, cursor)
       val suggestions = VietnameseLexicon.suggestWords(

@@ -21,6 +21,7 @@ import org.json.JSONObject
 import java.io.File
 import java.text.Normalizer
 import java.util.Locale
+
 object VietnameseLexicon {
   private const val ASSET_FILE = "vi_keyboard_lexicon.txt"
   private const val PERSONAL_FILE = "vietnamese_personal_model.json"
@@ -56,7 +57,53 @@ object VietnameseLexicon {
       }
     }
   }
-fun suggestWords(
+
+  internal fun loadFromLinesForTest(lines: List<String>) {
+    synchronized(lock) {
+      baseUnigrams.clear()
+      baseBigrams.clear()
+      asciiIndex.clear()
+      personalUnigrams.clear()
+      personalBigrams.clear()
+      parseLines(lines)
+      baseLoaded = true
+      personalLoaded = true
+    }
+  }
+
+  fun allKnownWords(context: Context?): Set<String> {
+    ensureLoaded(context)
+    synchronized(lock) {
+      val result = LinkedHashSet<String>(baseUnigrams.size + personalUnigrams.size)
+      result.addAll(baseUnigrams.keys)
+      result.addAll(personalUnigrams.keys)
+      return result
+    }
+  }
+
+  fun unigramScore(context: Context?, word: String): Int {
+    ensureLoaded(context)
+    val key = normalizeWord(word)
+    synchronized(lock) {
+      val base = baseUnigrams[key] ?: 0
+      val personal = (personalUnigrams[key] ?: 0) * 4
+      return base + personal
+    }
+  }
+
+  fun bigramScore(context: Context?, previousWord: String?, nextWord: String): Int {
+    if (previousWord.isNullOrBlank()) return 0
+    ensureLoaded(context)
+    val prev = normalizeWord(previousWord)
+    val next = normalizeWord(nextWord)
+    synchronized(lock) {
+      val base = baseBigrams[prev]?.get(next) ?: 0
+      val personal = (personalBigrams[prev]?.get(next) ?: 0) * 6
+      return base + personal
+    }
+  }
+
+  fun suggestWords(
     context: Context?,
     previousWord: String?,
     currentPrefix: String,
@@ -138,7 +185,22 @@ fun suggestWords(
         .map { it.key }
     }
   }
-fun recordChosenSuggestion(
+
+  fun recordTypedWord(context: Context?, previousWord: String?, word: String) {
+    val cleanWord = normalizeWord(word)
+    if (cleanWord.length < 2 || !cleanWord.any(Char::isLetter)) return
+    ensureLoaded(context)
+    val prev = previousWord?.let(::normalizeWord)?.takeIf { it.length >= 2 && it.any(Char::isLetter) }
+    synchronized(lock) {
+      bumpUnigram(cleanWord, delta = 1)
+      if (prev != null) {
+        bumpBigram(prev, cleanWord, delta = 2)
+      }
+      if (context != null) savePersonalLocked(context.applicationContext)
+    }
+  }
+
+  fun recordChosenSuggestion(
     context: Context?,
     previousWord: String?,
     chosenWord: String,

@@ -27,6 +27,7 @@ internal data class SpellingErrorSpan(
   val word: String,
   val previousWord: String?,
 )
+
 object VietnameseSpellChecker {
   private const val TONE_SAC = '\u0301'
   private const val TONE_HUYEN = '\u0300'
@@ -126,6 +127,7 @@ object VietnameseSpellChecker {
   internal fun isValidVietnameseSyllable(word: String): Boolean {
     if (word.isEmpty() || word.length > 7) return false
     val nfc = Normalizer.normalize(word, Normalizer.Form.NFC).lowercase(Locale.ROOT)
+
     val nfd = Normalizer.normalize(nfc, Normalizer.Form.NFD)
     var tone: Char? = null
     val noToneNfd = StringBuilder(nfd.length)
@@ -139,6 +141,7 @@ object VietnameseSpellChecker {
     }
     val plain = Normalizer.normalize(noToneNfd.toString(), Normalizer.Form.NFC)
     if (plain.isEmpty()) return false
+
     var initial = ""
     for (cand in INITIALS_DESC) {
       if (plain.startsWith(cand)) {
@@ -153,6 +156,7 @@ object VietnameseSpellChecker {
     val rime = plain.substring(initial.length)
     if (rime.isEmpty()) return false
     if (rime !in VALID_RIMES) return false
+
     val firstRimeChar = rime[0]
     val frontVowel = firstRimeChar == 'e' || firstRimeChar == 'ê' || firstRimeChar == 'i' || firstRimeChar == 'y'
     when (initial) {
@@ -163,6 +167,7 @@ object VietnameseSpellChecker {
       "ng" -> if (firstRimeChar == 'e' || firstRimeChar == 'ê' || firstRimeChar == 'i') return false
       "ngh" -> if (firstRimeChar != 'e' && firstRimeChar != 'ê' && firstRimeChar != 'i') return false
     }
+
     val hasStopCoda = STOP_CODAS.any { rime.endsWith(it) }
     if (hasStopCoda && tone != TONE_SAC && tone != TONE_NANG) {
       return false
@@ -234,10 +239,12 @@ object VietnameseSpellChecker {
     if (lower.isEmpty()) return emptyList()
 
     val candidates = LinkedHashMap<String, Double>()
+
     val telexRepaired = replayTelex(lower)
     if (telexRepaired != null && telexRepaired != lower && isValidVietnameseSyllable(telexRepaired)) {
       candidates[telexRepaired] = 0.25
     }
+
     val known = VietnameseLexicon.allKnownWords(context)
     val asciiTarget = VietnameseLexicon.foldAscii(lower)
     for (word in known) {
@@ -252,6 +259,7 @@ object VietnameseSpellChecker {
         }
       }
     }
+
     val preserveUpper = misspelledWord.firstOrNull()?.isUpperCase() == true
     return candidates.entries
       .sortedWith(
