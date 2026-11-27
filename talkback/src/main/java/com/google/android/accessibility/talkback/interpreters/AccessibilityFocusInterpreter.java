@@ -60,7 +60,6 @@ import com.google.android.accessibility.utils.ConcurrentNodeQueries;
 import com.google.android.accessibility.utils.DisplayUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
 import com.google.android.accessibility.utils.FormFactorUtils;
-import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.Performance;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Role;
@@ -284,8 +283,8 @@ public class AccessibilityFocusInterpreter
   }
 
   private boolean useFastManualScroll() {
-    return LatencyExperiments.Feature.FAST_SCROLL.enabled()
-        && pendingManualScroll != null && pendingManualScroll != webScroll
+    return pendingManualScroll != null
+        && pendingManualScroll != webScroll
         && pendingManualScroll.scrolledHoldsFocus();
   }
 

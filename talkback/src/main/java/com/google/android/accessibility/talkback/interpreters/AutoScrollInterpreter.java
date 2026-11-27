@@ -35,7 +35,6 @@ import com.google.android.accessibility.talkback.actor.search.UniversalSearchAct
 import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.Performance.EventId;
 import com.google.android.accessibility.utils.Performance;
-import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.WeakReferenceHandler;
 import com.google.android.accessibility.utils.input.ScrollEventInterpreter.ScrollEventHandler;
 import com.google.android.accessibility.utils.input.ScrollEventInterpreter.ScrollEventInterpretation;
@@ -95,10 +94,23 @@ public class AutoScrollInterpreter implements ScrollEventHandler {
       // Cause AutoScrollActor.onScrollEvent() to cancel failure timeout.
       pipeline.input(eventId, event, new Interpretation.ID(SCROLL_CANCEL_TIMEOUT));
 
-      // In P, scroll action is animated, and might trigger several scroll events. Since this
-      // animation behavior is supported in AndroidX it's available for before P as well. For the
-      // use case of scroll by gesture, we have to wait until the scroll action finishes before
-      // searching for next node.
+      // Unified scroll completion: when logical navigation's ScrollTrack is actively watching
+      // this focus scroll, let it be the single source of truth so it can focus the next item as
+      // soon as it appears on screen without AutoScrollInterpreter cutting in mid-animation.
+      // Keep a bounded safety fallback timeout in case the tracker cannot settle on its own.
+      boolean trackedByNavigation =
+          ScrollActionRecord.FOCUS.equals(record.scrollSource)
+              && directionNavigationActor != null
+              && directionNavigationActor.isTrackingActiveAutoScroll();
+      if (trackedByNavigation) {
+        autoScrollHandler.delayHandleAutoScrollSuccess(
+            eventId,
+            AccessibilityEventUtils.getScrollDeltaX(event),
+            AccessibilityEventUtils.getScrollDeltaY(event),
+            AutoScrollHandler.SAFETY_FALLBACK_TIMEOUT_MS);
+        return;
+      }
+
       AutoScrollSuccessChecker checker = record.getAutoScrollSuccessChecker();
       LogUtils.d(TAG, "onScrollEvent, checker = %s", checker);
       if (checker != null && checker.isAutoScrollSuccess(record.getScrolledNode(), event)) {
@@ -107,16 +119,11 @@ public class AutoScrollInterpreter implements ScrollEventHandler {
             AccessibilityEventUtils.getScrollDeltaX(event),
             AccessibilityEventUtils.getScrollDeltaY(event));
       } else {
-        boolean fastFocusScroll =
-            LatencyExperiments.Feature.FAST_SCROLL.enabled()
-                && ScrollActionRecord.FOCUS.equals(record.scrollSource);
         autoScrollHandler.delayHandleAutoScrollSuccess(
             eventId,
             AccessibilityEventUtils.getScrollDeltaX(event),
             AccessibilityEventUtils.getScrollDeltaY(event),
-            fastFocusScroll
-                ? (checker == null || hasVisibleItemRange(event) ? 0 : 16)
-                : TIMEOUT_MS_HANDLE_SCROLL_BY_GESTURE);
+            TIMEOUT_MS_HANDLE_SCROLL_BY_GESTURE);
       }
     }
   }
@@ -214,7 +221,8 @@ public class AutoScrollInterpreter implements ScrollEventHandler {
     // If it is bigger than SUBTREE_CHANGED_DELAY_MS, the ensuring method may already put a focus on
     // a node.
     static final int TIMEOUT_MS_HANDLE_SCROLL_BY_GESTURE = 110;
-    private static final long MAX_SCROLL_SETTLE_MS = 220;
+    static final long SAFETY_FALLBACK_TIMEOUT_MS = 350;
+    private static final long MAX_SCROLL_SETTLE_MS = 350;
     private static final int MSG_HANDLE_AUTO_SCROLL_SUCCESS = 0;
 
     // Due to animation, these variables are used to accumulate the scroll deltas from several
