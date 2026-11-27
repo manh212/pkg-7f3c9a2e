@@ -334,10 +334,10 @@ public class ScrollEventInterpreter implements AccessibilityEventListener {
       // We take into account TYPE_WINDOW_CONTENT_CHANGED events to provide more
       // fine-grained manual scroll callback.
       if (isFromFinishedAutoScroll(event)) {
-        // TalkBack's own scroll, still moving after it went far enough to count as complete. As a
-        // manual scroll, it would move the focus that the scroll has just placed.
-        userAction = ScrollActionRecord.ACTION_UNKNOWN;
-        LogUtils.i(TAG, "End of an auto scroll");
+        // Drop trailing inertia events from an already-completed auto-scroll so they do not flood
+        // the pipeline with redundant ACTION_UNKNOWN interpretations.
+        LogUtils.v(TAG, "Ignoring trailing event from finished auto scroll");
+        return null;
       } else {
         userAction =
             scrollDirection == TraversalStrategy.SEARCH_FOCUS_UNKNOWN
