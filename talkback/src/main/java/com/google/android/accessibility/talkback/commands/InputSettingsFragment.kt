@@ -17,6 +17,7 @@
 package com.google.android.accessibility.talkback.commands
 
 import android.os.Bundle
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.preference.base.TalkBackPreferenceFragment
@@ -39,5 +40,23 @@ class InputSettingsFragment : TalkBackPreferenceFragment(R.xml.input_settings_pr
         startActivity(TutorialInitiator.createPracticeGesturesIntent(context))
         true
       }
+    updateTriggerModifierVisibility()
+  }
+
+  override fun syncDependentPreferencesVisibility() {
+    super.syncDependentPreferencesVisibility()
+    updateTriggerModifierVisibility()
+  }
+
+  private fun updateTriggerModifierVisibility() {
+    val keymap = findPreference<ListPreference>(getString(R.string.pref_select_keymap_key))
+    val modifier = findPreference<Preference>(getString(R.string.pref_default_keymap_trigger_modifier_key))
+    if (keymap != null && modifier != null) {
+      val classicValue = getString(R.string.default_keymap_entry_value)
+      val showModifier = keymap.value == classicValue
+      if (modifier.isVisible != showModifier) {
+        modifier.isVisible = showModifier
+      }
+    }
   }
 }
