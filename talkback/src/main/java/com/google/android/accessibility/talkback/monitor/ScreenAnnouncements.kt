@@ -28,6 +28,7 @@ object ScreenAnnouncementSettings {
   const val SAY_SCREEN_OFF = "pref_screen_off_say_screen_off"
   const val SCREEN_OFF_RINGER = "pref_screen_off_ringer_mode"
   const val SAY_UNLOCKED = "pref_unlock_say_unlocked"
+  const val CONTINUE_READING = "pref_continue_reading_screen_off"
 
   /**
    * The status items that can be spoken after the time as the screen turns on, in the order they
@@ -45,8 +46,12 @@ object ScreenAnnouncementSettings {
 
   /** Each setting's default, which is what Backtalk said before these settings existed. */
   val DEFAULTS: Map<String, Boolean> =
-    mapOf(SAY_SCREEN_OFF to true, SCREEN_OFF_RINGER to true, SAY_UNLOCKED to true) +
-      SCREEN_ON_STATUS.values.associateWith { false }
+    mapOf(
+      SAY_SCREEN_OFF to true,
+      SCREEN_OFF_RINGER to true,
+      SAY_UNLOCKED to true,
+      CONTINUE_READING to false,
+    ) + SCREEN_ON_STATUS.values.associateWith { false }
 
   @JvmStatic
   fun isOn(prefs: SharedPreferences, key: String): Boolean =
