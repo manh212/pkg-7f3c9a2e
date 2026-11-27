@@ -209,18 +209,18 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
     int nowMinutes = hourOfDay * 60 + minute;
     if (amPm != null) {
       int textHour24 = (textHour % 12) + (amPm.equalsIgnoreCase("pm") ? 12 : 0);
-      return minutesApart(nowMinutes, textHour24 * 60 + textMinute) <= 1;
+      return minutesBehind(nowMinutes, textHour24 * 60 + textMinute) <= 1;
     }
-    if (minutesApart(nowMinutes, textHour * 60 + textMinute) <= 1) {
+    if (minutesBehind(nowMinutes, textHour * 60 + textMinute) <= 1) {
       return true;
     }
     int textHourSameHalfDay = (textHour % 12) + (hourOfDay >= 12 ? 12 : 0);
-    return minutesApart(nowMinutes, textHourSameHalfDay * 60 + textMinute) <= 1;
+    return minutesBehind(nowMinutes, textHourSameHalfDay * 60 + textMinute) <= 1;
   }
 
-  private static int minutesApart(int firstMinutesOfDay, int secondMinutesOfDay) {
-    int diff = Math.abs(firstMinutesOfDay - secondMinutesOfDay);
-    return Math.min(diff, 24 * 60 - diff);
+  private static int minutesBehind(int nowMinutesOfDay, int textMinutesOfDay) {
+    int diff = nowMinutesOfDay - textMinutesOfDay;
+    return diff < 0 ? diff + 24 * 60 : diff;
   }
 
   /** Creates a new instance. */
