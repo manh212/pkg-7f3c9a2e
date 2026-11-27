@@ -3,7 +3,7 @@
     <string translatable="false" name="title_pref_input_settings">Cài đặt đầu vào</string>
     <string translatable="false" name="input_settings_category_gestures">Cử chỉ cảm ứng</string>
     <string translatable="false" name="input_settings_category_keyboard">Bàn phím cứng</string>
-    <string translatable="false" name="input_settings_category_profiles_and_menus">Hồ sơ, ứng dụng, menu và bảng nhanh</string>
+    <string translatable="false" name="input_settings_category_profiles_and_menus">Hồ sơ cử chỉ và ứng dụng</string>
     <string translatable="false" name="input_settings_profiles_summary">Tạo, đổi tên, xóa hoặc kích hoạt hồ sơ cử chỉ. Gán lệnh trong Danh sách lệnh.</string>
     <string translatable="false" name="input_settings_app_gestures_summary">Quản lý danh sách ứng dụng có cử chỉ riêng. Gán lệnh trong Danh sách lệnh.</string>
     <string translatable="false" name="input_settings_custom_menus_summary">Tạo, đổi tên, xóa hoặc sắp xếp thứ tự menu tùy chỉnh. Thêm lệnh trong Danh sách lệnh.</string>

@@ -32,4 +32,7 @@
     <string name="summary_sandfly_trial_dialog" tools:ignore="MissingTranslation">This screen reader will turn off in %1$d seconds unless you register this device. You can continue to use it during the countdown.</string>
     <string name="title_admin_announcement" tools:ignore="MissingTranslation">Announcement</string>
     <string name="action_admin_announcement_close" tools:ignore="MissingTranslation">Close</string>
+  <string name="title_pref_continue_reading_screen_off">Continue reading when screen locks</string>
+  <string name="title_pref_recalibrate_audio_path">Measure best audio source</string>
+  <string name="summary_pref_recalibrate_audio_path">Manually re-probe low-latency audio path for this device</string>
 </resources>
