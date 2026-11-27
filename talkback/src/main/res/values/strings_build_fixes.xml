@@ -35,6 +35,4 @@
   <string name="title_pref_continue_reading_screen_off">Continue reading when screen locks</string>
   <string name="title_pref_recalibrate_audio_path">Measure best audio source</string>
   <string name="summary_pref_recalibrate_audio_path">Manually re-probe low-latency audio path for this device</string>
-  <string name="title_pref_fix_lockscreen_clock_repeat">Fix lock screen clock repeating the time</string>
-  <string name="summary_pref_fix_lockscreen_clock_repeat">When the screen turns on, the announcement already says the time, so the lock screen clock is not spoken again when it takes focus</string>
 </resources>
