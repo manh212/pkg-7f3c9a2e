@@ -29,6 +29,8 @@ import com.google.android.accessibility.talkback.Pipeline;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.analytics.TalkBackAnalytics;
 import com.google.android.accessibility.talkback.calls.CallSettings;
+import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryFragment;
+import com.google.android.accessibility.talkback.monitor.FullScreenMonitor;
 import com.google.android.accessibility.talkback.dictation.DictationSettings;
 import com.google.android.accessibility.talkback.directtouch.DirectTouchSettings;
 import com.google.android.accessibility.talkback.imagecaption.FeatureSwitchDialog;
@@ -118,6 +120,12 @@ public final class QuickActionPerformer {
   /** Open the quick settings panel. */
   public static final String PERFORMER_QUICK_SETTINGS = "quick_settings";
 
+  /** Flip full-screen monitoring through FullScreenMonitor.toggle. */
+  public static final String PERFORMER_FULL_SCREEN_MONITOR = "full_screen_monitor";
+
+  /** Open the clipboard history screen. */
+  public static final String PERFORMER_CLIPBOARD_HISTORY = "clipboard_history";
+
   private QuickActionPerformer() {}
 
   /**
@@ -182,6 +190,12 @@ public final class QuickActionPerformer {
     }
     if (PERFORMER_SPEAKING_CLOCK.equals(action.performerId)) {
       return toggleSpeakingClock(context, action, prefs, returner, analytics);
+    }
+    if (PERFORMER_FULL_SCREEN_MONITOR.equals(action.performerId)) {
+      FullScreenMonitor.INSTANCE.toggle(context);
+      boolean next = prefs.getBoolean(FullScreenMonitor.KEY_MANUAL, false);
+      logChange(analytics, FullScreenMonitor.KEY_MANUAL);
+      return speakToggleState(context, action, returner, next);
     }
     return toggle(context, action, prefs, returner, analytics);
   }
@@ -619,6 +633,16 @@ public final class QuickActionPerformer {
       Context context, QuickAction action, Pipeline.FeedbackReturner returner) {
     if (PERFORMER_TEXT_EDITOR.equals(action.performerId)) {
       if (TextEditor.open(context)) {
+        return true;
+      }
+      return speak(
+          returner,
+          context.getString(action.titleResId)
+              + ", "
+              + context.getString(R.string.quick_action_open_failed));
+    }
+    if (PERFORMER_CLIPBOARD_HISTORY.equals(action.performerId)) {
+      if (ClipboardHistoryFragment.open(context)) {
         return true;
       }
       return speak(

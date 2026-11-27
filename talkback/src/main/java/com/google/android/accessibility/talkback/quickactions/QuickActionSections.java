@@ -31,6 +31,8 @@ import com.google.android.accessibility.talkback.directtouch.DirectTouchFragment
 import com.google.android.accessibility.talkback.directtouch.DirectTouchSettings;
 import com.google.android.accessibility.talkback.gesture.extended.ExtendedGestures;
 import com.google.android.accessibility.talkback.individualfeedback.IndividualFeedbackFragment;
+import com.google.android.accessibility.talkback.clipboard.ClipboardHistoryFragment;
+import com.google.android.accessibility.talkback.monitor.FullScreenMonitor;
 import com.google.android.accessibility.talkback.monitor.FullScreenMonitorSettingsFragment;
 import com.google.android.accessibility.talkback.notifications.NotificationAppFragment;
 import com.google.android.accessibility.talkback.notifications.NotificationAppsFragment;
@@ -136,6 +138,7 @@ public final class QuickActionSections {
     VOICE,
     READING,
     NAVIGATION,
+    INPUT,
     MENU,
     SOUND,
     NOTIFICATIONS,
@@ -187,10 +190,12 @@ public final class QuickActionSections {
         NavigationPrefFragment.class,
         TouchActivationFragment.class,
         SmartContextGestureSettingsFragment.class,
-        DirectTouchFragment.class,
+        DirectTouchFragment.class);
+    map(
+        Section.INPUT,
+        InputSettingsFragment.class,
         CommandsFragment.class,
         CommandCategoryFragment.class,
-        InputSettingsFragment.class,
         TalkBackGestureShortcutPreferenceFragment.class,
         TalkBackKeyboardShortcutPreferenceFragment.class,
         VolumeKeySettingsFragment.class,
@@ -215,8 +220,7 @@ public final class QuickActionSections {
         NotificationHistoryFragment.class,
         NotificationListSettingsFragment.class,
         NotificationAutomationMonitorFragment.class,
-        NotificationAutomationFragment.class,
-        FullScreenMonitorSettingsFragment.class);
+        NotificationAutomationFragment.class);
     map(
         Section.TYPING,
         TypingGroupFragment.class,
@@ -242,7 +246,9 @@ public final class QuickActionSections {
         CountdownAlarmSettingsFragment.class,
         TranslationFragment.class,
         TaskAssistantFragment.class,
-        VoiceCommandSettingsFragment.class);
+        VoiceCommandSettingsFragment.class,
+        ClipboardHistoryFragment.class,
+        FullScreenMonitorSettingsFragment.class);
     map(
         Section.ADVANCED,
         AdvancedGroupFragment.class,
@@ -303,6 +309,7 @@ public final class QuickActionSections {
       case VOICE -> voiceActions();
       case READING -> readingActions();
       case NAVIGATION -> navigationActions();
+      case INPUT -> inputActions();
       case MENU -> menuActions();
       case SOUND -> soundActions();
       case NOTIFICATIONS -> notificationActions();
@@ -336,7 +343,12 @@ public final class QuickActionSections {
             Section.VOICE,
             R.string.title_pref_voice_profiles,
             VoiceProfiles.PREF_ACTIVE,
-            QuickActionPerformer.PERFORMER_VOICE_PROFILE));
+            QuickActionPerformer.PERFORMER_VOICE_PROFILE),
+        QuickAction.toggle(
+            Section.VOICE,
+            R.string.title_pref_switch_languages,
+            "pref_switch_languages",
+            false));
   }
 
   private static List<QuickAction> readingActions() {
@@ -354,7 +366,7 @@ public final class QuickActionSections {
             Section.READING,
             R.string.title_pref_always_interrupt_speech,
             FailoverTextToSpeech.PREF_ALWAYS_INTERRUPT_SPEECH_KEY,
-            false),
+            true),
         // Resolved value of R.string.pref_punctuation_verbosity; never pref_punctuation,
         // the invisible legacy switch sharing this row's title.
         QuickAction.cycleList(
@@ -364,7 +376,21 @@ public final class QuickActionSections {
             R.array.pref_punctuation_entries,
             R.array.pref_punctuation_values,
             // Resolved value of R.string.pref_punctuation_verbosity_default.
-            "2"));
+            "2"),
+        QuickAction.cycleList(
+            Section.READING,
+            R.string.pref_time_feedback_format_title,
+            "pref_time_feedback_format_key",
+            R.array.pref_time_feedback_format_entries,
+            R.array.pref_time_feedback_format_values,
+            "pref_time_feedback_format_values_undefined"),
+        QuickAction.cycleList(
+            Section.READING,
+            R.string.title_pref_capital_letters,
+            "pref_capital_letters",
+            R.array.pref_capital_letters_entries,
+            R.array.pref_capital_letters_values,
+            "1"));
   }
 
   private static List<QuickAction> navigationActions() {
@@ -383,9 +409,40 @@ public final class QuickActionSections {
             QuickActionPerformer.PERFORMER_DIRECT_TOUCH),
         QuickAction.toggle(
             Section.NAVIGATION,
+            R.string.title_pref_single_tap,
+            "pref_single_tap",
+            false),
+        QuickAction.cycleList(
+            Section.NAVIGATION,
+            R.string.title_pref_lift_to_activate,
+            "pref_lift_to_activate_key",
+            R.array.pref_lift_to_activate_entries,
+            R.array.pref_lift_to_activate_values,
+            "0"));
+  }
+
+  private static List<QuickAction> inputActions() {
+    return List.of(
+        QuickAction.toggle(
+            Section.INPUT,
+            R.string.edge_gestures_enabled,
+            "pref_edge_gestures_enabled",
+            false),
+        QuickAction.toggle(
+            Section.INPUT,
+            R.string.pref_back_tap_enabled_title,
+            "pref_back_tap_enabled",
+            true),
+        QuickAction.toggle(
+            Section.INPUT,
+            R.string.volume_keys_managed_title,
+            "pref_volume_keys_managed",
+            false),
+        QuickAction.toggle(
+            Section.INPUT,
             R.string.extended_gestures_title,
             ExtendedGestures.ENABLED,
-            false));
+            true));
   }
 
   private static List<QuickAction> notificationActions() {
@@ -408,7 +465,17 @@ public final class QuickActionSections {
             "pref_notification_while_reading",
             R.array.notification_while_reading_entries,
             R.array.notification_while_reading_values,
-            "NOW"));
+            "AFTER"),
+        QuickAction.toggle(
+            Section.NOTIFICATIONS,
+            R.string.notification_screen_off_title,
+            "pref_notification_screen_off",
+            false),
+        QuickAction.toggle(
+            Section.NOTIFICATIONS,
+            R.string.notification_shake_title,
+            "pref_notification_shake_to_stop",
+            false));
   }
 
   private static List<QuickAction> typingActions() {
@@ -431,7 +498,17 @@ public final class QuickActionSections {
             Section.TYPING,
             R.string.title_pref_dictation,
             DictationSettings.PREF_RECOGNITION,
-            QuickActionPerformer.PERFORMER_DICTATION_RECOGNITION));
+            QuickActionPerformer.PERFORMER_DICTATION_RECOGNITION),
+        QuickAction.toggle(
+            Section.TYPING,
+            R.string.vietnamese_ime_spell_check,
+            "pref_vietnamese_keyboard_spell_check",
+            false),
+        QuickAction.toggle(
+            Section.TYPING,
+            R.string.vietnamese_ime_word_suggestions,
+            "pref_vietnamese_keyboard_word_suggestions",
+            false));
   }
 
   private static List<QuickAction> recognitionActions() {
@@ -456,7 +533,12 @@ public final class QuickActionSections {
             SubtitleSettings.ENGINE,
             R.array.subtitle_engine_labels,
             R.array.subtitle_engine_values,
-            SubtitleSettings.OFFLINE_ENGINE));
+            SubtitleSettings.OFFLINE_ENGINE),
+        QuickAction.toggle(
+            Section.RECOGNITION,
+            R.string.title_pref_ai_label_suggestion,
+            "pref_ai_label_suggestion_key",
+            false));
   }
 
   private static List<QuickAction> toolsActions() {
@@ -467,10 +549,25 @@ public final class QuickActionSections {
             SpokenSchedules.KEY_CLOCK_ENABLED,
             false,
             QuickActionPerformer.PERFORMER_SPEAKING_CLOCK),
+        QuickAction.toggle(
+            Section.TOOLS,
+            R.string.title_pref_translation_auto,
+            "pref_translation_auto",
+            false),
+        QuickAction.toggleSpecial(
+            Section.TOOLS,
+            R.string.full_screen_monitor_title,
+            FullScreenMonitor.KEY_MANUAL,
+            false,
+            QuickActionPerformer.PERFORMER_FULL_SCREEN_MONITOR),
         QuickAction.open(
             Section.TOOLS,
             R.string.text_editor_title,
-            QuickActionPerformer.PERFORMER_TEXT_EDITOR));
+            QuickActionPerformer.PERFORMER_TEXT_EDITOR),
+        QuickAction.open(
+            Section.TOOLS,
+            R.string.title_clipboard_history,
+            QuickActionPerformer.PERFORMER_CLIPBOARD_HISTORY));
   }
 
   private static List<QuickAction> advancedActions() {
@@ -482,11 +579,21 @@ public final class QuickActionSections {
             "pref_resume_talkback",
             R.array.pref_resume_backtalk_entries,
             R.array.pref_resume_backtalk_values,
-            "SCREEN_ON"));
+            "SCREEN_ON"),
+        QuickAction.toggle(
+            Section.ADVANCED,
+            R.string.title_pref_debug_log,
+            "pref_debug_log",
+            false));
   }
 
   private static List<QuickAction> menuActions() {
     return List.of(
+        QuickAction.toggle(
+            Section.MENU,
+            R.string.title_pref_selector_auto_switch,
+            "pref_selector_auto_switch",
+            false),
         QuickAction.open(
             Section.MENU,
             R.string.title_pref_quick_settings_items,
@@ -509,11 +616,26 @@ public final class QuickActionSections {
             Section.SOUND,
             R.string.title_pref_sound_themes,
             SoundThemes.PREF_ACTIVE,
-            QuickActionPerformer.PERFORMER_SOUND_THEME));
+            QuickActionPerformer.PERFORMER_SOUND_THEME),
+        QuickAction.toggle(
+            Section.SOUND,
+            R.string.title_pref_use_audio_focus,
+            "pref_use_audio_focus",
+            true),
+        QuickAction.toggle(
+            Section.SOUND,
+            R.string.title_pref_cover_proximity_sensor,
+            "pref_proximity",
+            true));
   }
 
   private static List<QuickAction> callActions() {
     return List.of(
+        QuickAction.toggle(
+            Section.CALLS,
+            R.string.call_announce_title,
+            "pref_call_announce",
+            true),
         QuickAction.cycleSpecial(
             Section.CALLS,
             R.string.call_voice_title,
@@ -524,7 +646,12 @@ public final class QuickActionSections {
             R.string.title_pref_speakerphone_away_from_ear,
             SpeakerphoneSettings.PREF_ENABLED,
             false,
-            QuickActionPerformer.PERFORMER_SPEAKERPHONE));
+            QuickActionPerformer.PERFORMER_SPEAKERPHONE),
+        QuickAction.toggle(
+            Section.CALLS,
+            R.string.call_quiet_title,
+            "pref_call_quiet_hours",
+            false));
   }
 
   private QuickActionSections() {}
