@@ -90,6 +90,31 @@ def build_fragment_xml_map():
     return mapping
 
 
+def build_fragment_code_key_map():
+    """Collect literal keys for preference rows constructed in reachable fragments."""
+    mapping = {}
+    for source_dir in SOURCE_DIRS:
+        for dirpath, _dirnames, filenames in os.walk(source_dir):
+            for filename in filenames:
+                if not filename.endswith((".java", ".kt")):
+                    continue
+                with open(os.path.join(dirpath, filename), encoding="utf-8") as handle:
+                    text = handle.read()
+                package = re.search(r"^\s*package\s+([\w.]+)", text, re.MULTILINE)
+                if not package:
+                    continue
+                declarations = list(re.finditer(
+                    r"^(?:(?:public|private|internal|abstract|open|final|data|sealed)\s+)*"
+                    r"(?:class|object)\s+(\w+)", text, re.MULTILINE))
+                for index, declaration in enumerate(declarations):
+                    end = declarations[index + 1].start() if index + 1 < len(declarations) else len(text)
+                    body = text[declaration.start():end]
+                    keys = set(re.findall(r'\.setKey\(\s*"([^"\n]+)"\s*\)', body))
+                    keys.update(re.findall(r'\bkey\s*=\s*"([^"\n]+)"', body))
+                    mapping[package.group(1) + "." + declaration.group(1)] = keys
+    return mapping
+
+
 def find_xml_file(xml_name):
     for res_dir in RES_DIRS:
         for variant in sorted(os.listdir(res_dir)):
@@ -100,7 +125,7 @@ def find_xml_file(xml_name):
     return None
 
 
-def collect_keys(xml_path, string_values, fragment_xml_map, visited, keys):
+def collect_keys(xml_path, string_values, fragment_xml_map, visited, keys, code_keys):
     if xml_path in visited:
         return
     visited.add(xml_path)
@@ -117,17 +142,19 @@ def collect_keys(xml_path, string_values, fragment_xml_map, visited, keys):
             else:
                 keys.add(raw_key.strip())
         fragment = element.get(ANDROID_NS + "fragment")
+        if fragment:
+            keys.update(code_keys.get(fragment, set()))
         if fragment and fragment in fragment_xml_map:
             target = find_xml_file(fragment_xml_map[fragment])
             if target:
-                collect_keys(target, string_values, fragment_xml_map, visited, keys)
+                collect_keys(target, string_values, fragment_xml_map, visited, keys, code_keys)
 
 
 def reachable_keys():
     string_values = load_string_values()
     fragment_xml_map = build_fragment_xml_map()
     keys = set()
-    collect_keys(MAIN_SCREEN, string_values, fragment_xml_map, set(), keys)
+    collect_keys(MAIN_SCREEN, string_values, fragment_xml_map, set(), keys, build_fragment_code_key_map())
     return keys
 
 

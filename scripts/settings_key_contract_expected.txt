@@ -37,11 +37,9 @@ pref_call_announce
 pref_call_duration
 pref_call_duration_interval
 pref_call_during_dnd
-pref_call_limit_behavior
 pref_call_limit_category
 pref_call_limit_enabled
 pref_call_limit_minutes
-pref_call_limit_notice
 pref_call_limit_scope
 pref_call_permissions
 pref_call_quiet_end
@@ -87,7 +85,6 @@ pref_dictation_advanced_toggle
 pref_dictation_ai
 pref_dictation_ai_service_choice
 pref_dictation_auto_stop_ms
-pref_dictation_google_download
 pref_dictation_online_ai_emoji
 pref_dictation_online_route_choice
 pref_dictation_rambler_live
@@ -95,7 +92,6 @@ pref_dictation_recognition_choice
 pref_dictation_screen
 pref_dictation_speech_threshold
 pref_dictation_translation
-pref_dictation_translation_note
 pref_dictation_translation_source
 pref_dictation_translation_target
 pref_dictation_zipformer_model_choice
@@ -187,7 +183,6 @@ pref_notification_app_cancel_stops
 pref_notification_apps_screen
 pref_notification_automation
 pref_notification_automation_allowed
-pref_notification_automation_monitor_screen
 pref_notification_automation_settings
 pref_notification_clock_enabled
 pref_notification_clock_format
@@ -293,7 +288,6 @@ pref_punctuation
 pref_punctuation_verbosity
 pref_quick_settings_items_screen
 pref_reading_item_info_screen
-pref_reading_style_screen
 pref_reading_text_screen
 pref_reduce_window_delay_key
 pref_reset_application
@@ -313,7 +307,6 @@ pref_screen_on_mobile_network
 pref_screen_on_ringer
 pref_screen_on_wifi
 pref_screen_recognition_method
-pref_screen_recognition_ocr_settings
 pref_screen_recognition_settings
 pref_scripts_key
 pref_select_keymap
@@ -389,7 +382,6 @@ pref_selector_vertical_navigation_key
 pref_selector_voice_profile_key
 pref_selector_wrap_around_key
 pref_settings_group_advanced_key
-pref_settings_group_apps_key
 pref_settings_group_help_center_key
 pref_settings_group_navigation_key
 pref_settings_group_screen_info_key
@@ -404,7 +396,6 @@ pref_single_tap
 pref_smart_browse_mode_key
 pref_smart_context_settings
 pref_sound_and_vibration_key
-pref_sound_ducking_screen
 pref_sound_feature_alarm
 pref_sound_feature_bilingual
 pref_sound_feature_clock
@@ -428,7 +419,6 @@ pref_speak_volume_changes
 pref_speaker_devices
 pref_speakerphone_away_from_ear
 pref_speech_dictionary_screen
-pref_speech_footer
 pref_speech_stream
 pref_speech_text_options
 pref_split_control_speech
@@ -504,7 +494,6 @@ pref_typing_confirmation
 pref_typing_echo_screen
 pref_typing_interrupt_screen
 pref_typing_long_press_duration
-pref_typing_method_prefix_key
 pref_unified_commands_screen
 pref_unlock_say_unlocked
 pref_updates_screen
