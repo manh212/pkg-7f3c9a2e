@@ -1,10 +1,16 @@
 # Switching between the two most recent apps
 
-The existing edge gesture commands `EDGE_GESTURE_PREVIOUS_RECENT` and
+The existing commands `EDGE_GESTURE_PREVIOUS_RECENT` and
 `EDGE_GESTURE_NEXT_RECENT` both switch to the other app in the same recent pair.
 Their saved identifiers remain unchanged, so existing gesture assignments keep
 working. Holding an edge gesture does not repeat either command. Previous-window
 and next-window commands remain separate and retain their window navigation.
+
+Both commands are registered in the common Commands list under system actions
+and are available in general gesture assignment lists. Searching for their
+Vietnamese names, with or without accents, finds them even when no gesture has
+been assigned. Existing edge assignments also appear in the assigned-only
+filter. Sentence-stepping commands remain limited to edge gesture pickers.
 
 Meridian records the two most recently focused, launchable application packages
 while its accessibility service is active. Opening a third app replaces the
@@ -31,5 +37,7 @@ plays the existing failure sound. Shutdown cancels pending verification.
 windows, home behavior, persisted history, uninstall, launch failure and retry,
 timeout, lock state, direct boot, shutdown and corrupt saved data.
 `EdgeGestureRecentCommandsTest` protects saved command identifiers and gesture
-repeat behavior. GitHub Actions provides execution; device task restoration and
+repeat behavior. `CommandsSearchTest` covers common catalog and picker discovery,
+accent-insensitive search, system-action grouping and existing edge assignments.
+GitHub Actions provides execution; device task restoration and
 gesture feel are checked by the owner using the published dev build.

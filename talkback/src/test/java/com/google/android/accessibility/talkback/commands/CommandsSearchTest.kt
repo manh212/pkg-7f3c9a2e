@@ -8,6 +8,8 @@ import android.widget.Spinner
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.gesture.extended.EdgeGesture
+import com.google.android.accessibility.talkback.preference.base.GestureListPreference
 import com.google.android.accessibility.talkback.preference.base.SearchMatcher
 import com.google.android.accessibility.utils.FormFactorUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -100,6 +102,62 @@ class CommandsSearchTest {
     assertEquals(query, search().query.toString())
     assertEquals(true, fragment().showAssignedOnly)
     assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$value"))
+  }
+
+  @Test
+  fun recentAppCommandsAreSearchableWithVietnameseAccentsOrPlainText() {
+    for (query in listOf("ứng dụng gần đây", "ung dung gan day")) {
+      search().setQuery(query, false)
+      for (command in listOf("EDGE_GESTURE_PREVIOUS_RECENT", "EDGE_GESTURE_NEXT_RECENT")) {
+        assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$command"))
+      }
+      assertNull(fragment().findPreference<Preference>(
+        "pref_cmd_row_${controller.get().getString(R.string.shortcut_value_previous_window)}"))
+      assertNull(fragment().findPreference<Preference>(
+        "pref_cmd_row_${controller.get().getString(R.string.shortcut_value_next_window)}"))
+    }
+    fragment().selectGroupFilterForTest(R.string.shortcut_title_system_actions)
+    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_EDGE_GESTURE_PREVIOUS_RECENT"))
+    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_EDGE_GESTURE_NEXT_RECENT"))
+  }
+
+  @Test
+  fun recentAppCommandsHaveOneCatalogEntryAndRemainAssignableAsGeneralGestures() {
+    val context = controller.get()
+    val assignable = GestureListPreference.getAssignableGestureActions(context)
+    for (categories in listOf(Commands.categories(context), Commands.categoriesWithoutApps(context))) {
+      for ((command, label) in listOf(
+        "EDGE_GESTURE_PREVIOUS_RECENT" to R.string.edge_gesture_previous_recent,
+        "EDGE_GESTURE_NEXT_RECENT" to R.string.edge_gesture_next_recent,
+      )) {
+        val matches = categories.flatMap { it.commands }.filter { it.value == command }
+        assertEquals(1, matches.size)
+        assertEquals(context.getString(label), matches.single().label)
+        assertEquals(context.getString(label), assignable[command])
+        assertEquals(context.getString(label), Commands.find(context, command)?.label)
+        assertEquals(R.string.shortcut_title_system_actions,
+          categories.single { category -> category.commands.any { it.value == command } }.titleRes)
+      }
+    }
+    assertNotNull(Commands.find(context, context.getString(R.string.shortcut_value_previous_window)))
+    assertNotNull(Commands.find(context, context.getString(R.string.shortcut_value_next_window)))
+  }
+
+  @Test
+  fun assignedRecentAppCommandAppearsWhenFilteringExistingEdgeBindings() {
+    val context = controller.get()
+    val previous = "EDGE_GESTURE_PREVIOUS_RECENT"
+    val next = "EDGE_GESTURE_NEXT_RECENT"
+    UnifiedCommandBindings.assignEdgeGesture(
+      SharedPreferencesUtils.getSharedPreferences(context), EdgeGesture.values().first(), previous)
+    controller.recreate()
+    shadowOf(Looper.getMainLooper()).idle()
+    search().setQuery("ung dung gan day", false)
+    fragment().setShowAssignedOnlyForTest(true)
+    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$previous"))
+    assertNull(fragment().findPreference<Preference>("pref_cmd_row_$next"))
+    fragment().setShowAssignedOnlyForTest(false)
+    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$next"))
   }
 
   private fun fragment(): CommandsFragment =

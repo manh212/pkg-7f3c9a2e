@@ -427,8 +427,10 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
             getContext().getResources().getString(R.string.shortcut_value_unassigned),
             TYPE_ACTION_ITEM));
     addActionItemsToList(builder, createBasicNavigation());
-    if (edgeGesture) {
-      for (EdgeGestureActions.Action action : EdgeGestureActions.Action.values()) {
+    for (EdgeGestureActions.Action action : EdgeGestureActions.Action.values()) {
+      if (edgeGesture
+          || action == EdgeGestureActions.Action.PREVIOUS_RECENT
+          || action == EdgeGestureActions.Action.NEXT_RECENT) {
         builder.add(
             new ActionItem(
                 getContext().getString(action.getTitle()),

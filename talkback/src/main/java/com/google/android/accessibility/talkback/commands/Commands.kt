@@ -885,6 +885,8 @@ object Commands {
         gesture(R.string.shortcut_value_home, R.string.shortcut_home, Key.HOME)
         gesture(R.string.shortcut_value_back, R.string.shortcut_back, Key.BACK)
         gesture(R.string.shortcut_value_overview, R.string.shortcut_overview, Key.RECENT_APPS)
+        gesture(R.string.edge_gesture_value_previous_recent, R.string.edge_gesture_previous_recent)
+        gesture(R.string.edge_gesture_value_next_recent, R.string.edge_gesture_next_recent)
         gesture(R.string.shortcut_value_answer_call, R.string.shortcut_answer_call)
         gesture(R.string.shortcut_value_quick_settings, R.string.shortcut_quick_settings)
         gesture(
