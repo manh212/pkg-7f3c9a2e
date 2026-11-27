@@ -13,6 +13,7 @@ data class CallSettings(
   val quietStart: Int = 23 * 60,
   val quietEnd: Int = 6 * 60,
   val duringDnd: Boolean = false,
+  val autoBoostVolume: Boolean = false,
 ) {
   fun isQuiet(minutes: Int): Boolean = quietHours && when {
     quietStart == quietEnd -> true
@@ -34,6 +35,7 @@ data class CallSettings(
     const val START = "pref_call_quiet_start"
     const val END = "pref_call_quiet_end"
     const val DND = "pref_call_during_dnd"
+    const val AUTO_BOOST_VOLUME = "pref_call_auto_boost_volume"
 
     fun read(prefs: SharedPreferences): CallSettings {
       fun number(key: String, default: Int): Int =
@@ -48,6 +50,7 @@ data class CallSettings(
         quietStart = number(START, 23 * 60).coerceIn(0, 1439),
         quietEnd = number(END, 6 * 60).coerceIn(0, 1439),
         duringDnd = prefs.getBoolean(DND, false),
+        autoBoostVolume = prefs.getBoolean(AUTO_BOOST_VOLUME, false),
       )
     }
   }

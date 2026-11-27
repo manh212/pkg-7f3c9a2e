@@ -8,7 +8,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -25,9 +27,11 @@ import com.google.android.accessibility.talkback.speakerphone.SpeakerphoneInCall
 import com.google.android.accessibility.talkback.timer.Stopwatch
 import com.google.android.accessibility.utils.SettingsUtils
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.VoiceProfiles
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 object CallAnnouncements {
   private val main = Handler(Looper.getMainLooper())
@@ -48,6 +52,10 @@ object CallAnnouncements {
   private val sessions = mutableMapOf<Any, Session>()
   private val utterances = mutableMapOf<SpeechController.UtteranceCompleteRunnable, () -> Boolean>()
   private const val PHONE = "phone"
+  internal const val RING_VOLUME_BOOST_PERCENT = 20
+  private var boostedStream: Int? = null
+  private var previousSpeechVolume: Int? = null
+  private var appliedBoostVolume: Int? = null
 
   private class Session(val key: Any, var caller: String = "") {
     var ringing = false
@@ -79,6 +87,9 @@ object CallAnnouncements {
     sessions.values.forEach { session ->
       if (session.ringing && !settings().announce) cancel(session)
       if (key == CallSettings.INTERVAL && session.active) scheduleDuration(session)
+    }
+    if (key == CallSettings.AUTO_BOOST_VOLUME && !settings().autoBoostVolume) {
+      restoreBoostedSpeechVolume()
     }
     stopInvalidSpeech()
     if (!allowed()) stopSpeech()
@@ -116,6 +127,7 @@ object CallAnnouncements {
     epoch++
     sessions.values.forEach(::cancel)
     sessions.clear()
+    restoreBoostedSpeechVolume()
     stopSpeech()
     voice?.shutdown()
     voice = null
@@ -286,7 +298,79 @@ object CallAnnouncements {
 
   private fun startRinging(session: Session) {
     session.ringing = true
+    boostSpeechVolumeForIncomingCall()
     scheduleRing(session, 400L)
+  }
+
+  internal fun boostedSpeechPercent(ringPercent: Int): Int =
+    (ringPercent.coerceIn(0, 100) + RING_VOLUME_BOOST_PERCENT).coerceAtMost(100)
+
+  internal fun stepToPercent(step: Int, minStep: Int, maxStep: Int): Int {
+    if (maxStep <= minStep) return 0
+    return (((step - minStep) * 100f) / (maxStep - minStep)).roundToInt().coerceIn(0, 100)
+  }
+
+  internal fun percentToStep(percent: Int, minStep: Int, maxStep: Int): Int {
+    if (maxStep <= minStep) return minStep
+    return (minStep + ((maxStep - minStep) * percent.coerceIn(0, 100) / 100f).roundToInt())
+      .coerceIn(minStep, maxStep)
+  }
+
+  private fun safeMinVolume(audio: AudioManager, stream: Int): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      try {
+        audio.getStreamMinVolume(stream)
+      } catch (_: IllegalArgumentException) {
+        0
+      }
+    } else {
+      0
+    }
+
+  private fun boostSpeechVolumeForIncomingCall() {
+    val ctx = context ?: return
+    if (!settings().autoBoostVolume) return
+    if (boostedStream != null) return
+    val audio = ctx.getSystemService(AudioManager::class.java) ?: return
+    val speechStream = FailoverTextToSpeech.getSpeechAudioStream(ctx)
+    if (speechStream == AudioManager.STREAM_RING) return
+    runCatching {
+      val ringMin = safeMinVolume(audio, AudioManager.STREAM_RING)
+      val ringMax = audio.getStreamMaxVolume(AudioManager.STREAM_RING)
+      val ringVol = audio.getStreamVolume(AudioManager.STREAM_RING)
+      val ringPercent = stepToPercent(ringVol, ringMin, ringMax)
+      val targetPercent = boostedSpeechPercent(ringPercent)
+      val speechMin = safeMinVolume(audio, speechStream)
+      val speechMax = audio.getStreamMaxVolume(speechStream)
+      val currentSpeech = audio.getStreamVolume(speechStream)
+      val targetStep = percentToStep(targetPercent, speechMin, speechMax)
+      if (targetStep > currentSpeech) {
+        TalkBackService.getInstance()?.ignoreSelfVolumeChange(speechStream)
+        audio.setStreamVolume(speechStream, targetStep, 0)
+        boostedStream = speechStream
+        previousSpeechVolume = currentSpeech
+        appliedBoostVolume = targetStep
+      }
+    }
+  }
+
+  private fun restoreBoostedSpeechVolume() {
+    val stream = boostedStream ?: return
+    val previous = previousSpeechVolume
+    val applied = appliedBoostVolume
+    boostedStream = null
+    previousSpeechVolume = null
+    appliedBoostVolume = null
+    val ctx = context ?: return
+    val audio = ctx.getSystemService(AudioManager::class.java) ?: return
+    if (previous != null && applied != null) {
+      runCatching {
+        if (audio.getStreamVolume(stream) == applied) {
+          TalkBackService.getInstance()?.ignoreSelfVolumeChange(stream)
+          audio.setStreamVolume(stream, previous, 0)
+        }
+      }
+    }
   }
 
   private fun scheduleRing(session: Session, delay: Long) {
@@ -312,6 +396,9 @@ object CallAnnouncements {
     session.ringing = false
     session.runnable?.let(main::removeCallbacks)
     session.runnable = null
+    if (sessions.values.none { it.ringing }) {
+      restoreBoostedSpeechVolume()
+    }
   }
 
   private fun resolveCaller(session: Session, number: String) {
