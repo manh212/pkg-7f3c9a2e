@@ -59,7 +59,7 @@ class RecentAppSwitcherTest {
   fun setUp() {
     service = Robolectric.buildService(TargetService::class.java).get()
     shadowOf(service.getSystemService(UserManager::class.java)).setUserUnlocked(true)
-    shadowOf(service.getSystemService(KeyguardManager::class.java)).setIsKeyguardLocked(false)
+    shadowOf(service.getSystemService(KeyguardManager::class.java)).setKeyguardLocked(false)
     service.getSharedPreferences("recent_app_pair", Context.MODE_PRIVATE).edit().clear().commit()
     backend = FakeBackend()
     switcher = RecentAppSwitcher(service, backend) { failures++ }
@@ -203,12 +203,12 @@ class RecentAppSwitcherTest {
     shown("app.b")
     assertTrue(switcher.switchToPrevious())
     val keyguard = shadowOf(service.getSystemService(KeyguardManager::class.java))
-    keyguard.setIsKeyguardLocked(true)
+    keyguard.setKeyguardLocked(true)
     shown("app.c")
     assertFalse(switcher.switchToPrevious())
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
     assertEquals(0, failures)
-    keyguard.setIsKeyguardLocked(false)
+    keyguard.setKeyguardLocked(false)
     shown("app.b")
     assertTrue(switcher.switchToPrevious())
     assertEquals("app.a", lastLaunched())
