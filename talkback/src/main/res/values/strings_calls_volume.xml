@@ -13,6 +13,8 @@
   <string name="call_seconds" translatable="false">%1$d giây</string>
   <string name="call_voice_title" translatable="false">Hồ sơ giọng nói cho cuộc gọi</string>
   <string name="call_voice_default" translatable="false">Giọng đọc Meridian hiện tại</string>
+  <string name="call_auto_boost_volume_title" translatable="false">Tự động tăng âm lượng giọng nói khi có cuộc gọi</string>
+  <string name="call_auto_boost_volume_summary" translatable="false">Khi có cuộc gọi đến, tự động đặt âm lượng giọng nói cao hơn âm lượng nhạc chuông 20% (tối đa 100%)</string>
   <string name="call_dnd_title" translatable="false">Đọc thông báo cuộc gọi khi bật Không làm phiền</string>
   <string name="call_quiet_title" translatable="false">Bật giờ im lặng cho cuộc gọi</string>
   <string name="call_quiet_start_title" translatable="false">Bắt đầu im lặng cuộc gọi</string>
