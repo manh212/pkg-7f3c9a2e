@@ -290,6 +290,11 @@ public class DirectionNavigationActor implements UserInputEventListener, EventFi
     focusProcessorForLogicalNavigation.onAutoScrollFailed(scrolledNodeCompat);
   }
 
+  /** Whether logical navigation is actively tracking an in-flight auto-scroll. */
+  public boolean isTrackingActiveAutoScroll() {
+    return focusProcessorForLogicalNavigation.isTrackingActiveAutoScroll();
+  }
+
   /**
    * Pass-through to {@link FocusProcessorForLogicalNavigation#searchAndFocus(boolean,
    * Filter<AccessibilityNodeInfoCompat>)}.
