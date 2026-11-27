@@ -81,7 +81,7 @@
   <string name="title_pref_category_manage_gestures">Cử chỉ</string>
   <string name="title_pref_manage_labels">Nhãn tùy chỉnh</string>
   <string name="title_pref_category_context_menu">Trình đơn Meridian</string>
-  <string name="title_pref_category_selector_menu">Điều khiển chế độ đọc</string>
+  <string name="title_pref_category_selector_menu">Nhóm điều hướng và trình đơn</string>
   <string name="title_pref_category_navigation_menu">Chỉnh sửa cách di chuyển</string>
   <string name="title_pref_manage_keyboard_shortcuts">Phím tắt</string>
   <string name="title_pref_export_custom_labels">Xuất nhãn tùy chỉnh</string>
@@ -1850,7 +1850,7 @@
   <string name="selector_group_user">Nhóm Người dùng</string>
   <string name="selector_group_adjustable_widget">Điều chỉnh tiện ích</string>
   <string name="selector_group_telling_time">Thời gian</string>
-  <string name="selector_groups_title">Nhóm điều hướng</string>
+  <string name="selector_groups_title">Nhóm điều hướng và trình đơn</string>
   <string name="selector_group_options">Tùy chọn điều khiển đọc</string>
   <string name="selector_groups_add">Thêm nhóm điều hướng</string>
   <string name="selector_groups_add_title">Tạo nhóm điều hướng</string>
@@ -1948,4 +1948,7 @@
   <string name="dictation_zipformer_download_ready">Đã tải xong mô hình nhập bằng giọng nói ngoại tuyến. Bạn có thể bắt đầu nói.</string>
   <string name="dictation_zipformer_download_low_space">Không đủ bộ nhớ trống để tải mô hình nhập bằng giọng nói ngoại tuyến.</string>
   <string name="dictation_zipformer_download_failed">Không thể tải mô hình nhập bằng giọng nói ngoại tuyến. Vui lòng kiểm tra kết nối mạng và thử lại.</string>
+  <string name="title_pref_continue_reading_screen_off">Tiếp tục đọc khi khóa màn hình</string>
+  <string name="title_pref_recalibrate_audio_path">Đo lại nguồn âm thanh tốt nhất</string>
+  <string name="summary_pref_recalibrate_audio_path">Đo thủ công đường dẫn âm thanh độ trễ thấp cho thiết bị này</string>
 </resources>
