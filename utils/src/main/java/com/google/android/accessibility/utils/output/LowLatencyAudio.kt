@@ -974,7 +974,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     if (!pendingAAudioRestore ||
       nativeOutput != null ||
       yieldAAudioForExternalAudio ||
-      aaudioPermanentlyUnavailable) {
+      aaudioPermanentlyUnavailable ||
+      isHeadphoneOutputActive()) {
       return false
     }
     pendingAAudioRestore = false
@@ -1305,6 +1306,8 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
       aaudioStatus = "calibrating_audio_paths"
     } else if (yieldAAudioForExternalAudio) {
       aaudioStatus = "yielded_for_external_audio"
+    } else if (isHeadphoneOutputActive()) {
+      aaudioStatus = "audiotrack_for_headphones"
     } else if (preferredAAudioProfile == NativeAAudioOutput.PROFILE_USE_AUDIOTRACK) {
       aaudioStatus = "calibrated_audiotrack"
     } else {
@@ -1717,6 +1720,54 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     }
   }
 
+  /**
+   * Returns whether audio is currently routed to headphones or a headset (wired, USB, Bluetooth,
+   * BLE headset, or hearing aid). Headphones use [AudioTrack] rather than native AAudio MMAP to
+   * avoid gain/volume jumps against Android's AudioFlinger path.
+   */
+  private fun isHeadphoneOutputActive(): Boolean {
+    if (isHeadphoneDeviceType(detour?.type)) return true
+    val am = audioManager ?: return false
+    return try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val ours = am.getAudioDevicesForAttributes(attributes)
+        val media = am.getAudioDevicesForAttributes(MEDIA_ATTRIBUTES)
+        if (ours.isNotEmpty() || media.isNotEmpty()) {
+          return ours.any { isHeadphoneDeviceType(it.type) } ||
+            media.any { isHeadphoneDeviceType(it.type) }
+        }
+      }
+      am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { isHeadphoneDeviceType(it.type) }
+    } catch (_: RuntimeException) {
+      false
+    }
+  }
+
+  /** Switches between AAudio and AudioTrack when headphones are connected or disconnected. */
+  private fun syncHeadphoneAudioBackend() {
+    if (released || broken) return
+    val headphones = isHeadphoneOutputActive()
+    val shouldSwitchToTrack: Boolean
+    val shouldRestoreAAudio: Boolean
+    synchronized(lock) {
+      shouldSwitchToTrack = headphones && nativeOutput != null && !remakeTrack
+      shouldRestoreAAudio =
+        !headphones &&
+          nativeOutput == null &&
+          track != null &&
+          !yieldAAudioForExternalAudio &&
+          !aaudioPermanentlyUnavailable &&
+          preferredAAudioProfile != NativeAAudioOutput.PROFILE_USE_AUDIOTRACK
+    }
+    if (shouldSwitchToTrack) {
+      LogUtils.d(TAG, "Headphones active; switching AAudio to AudioTrack")
+      remake()
+    } else if (shouldRestoreAAudio) {
+      LogUtils.d(TAG, "Headphones disconnected; restoring AAudio")
+      restoreAAudioAfterExternalAudio()
+    }
+  }
+
   private fun followMedia() {
     val am = audioManager ?: return
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || released || broken) return
@@ -2039,6 +2090,23 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
      * earpiece, until a call starts or the media output goes. A track already sent there
      * ([detoured]) stays while Android routes accessibility audio to the media output as well.
      */
+    /** Returns whether [type] is a headphone or headset output that should use [AudioTrack]. */
+    @VisibleForTesting
+    @JvmStatic
+    fun isHeadphoneDeviceType(type: Int?): Boolean =
+      when (type) {
+        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        AudioDeviceInfo.TYPE_USB_HEADSET,
+        AudioDeviceInfo.TYPE_USB_DEVICE,
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+        AudioDeviceInfo.TYPE_HEARING_AID -> true
+        else ->
+          Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            type == AudioDeviceInfo.TYPE_BLE_HEADSET
+      }
+
     private fun isRestrictedSpeaker(type: Int?): Boolean =
       type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ||
         (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
@@ -2156,6 +2224,7 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
                 player.recoverAfterRouteChange()
               }
             } else {
+              player.syncHeadphoneAudioBackend()
               player.followMedia()
             }
           }

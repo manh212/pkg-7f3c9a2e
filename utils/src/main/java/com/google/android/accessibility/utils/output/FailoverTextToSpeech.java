@@ -1761,9 +1761,13 @@ public class FailoverTextToSpeech {
    * made in another voice, and plays it on its own track, which the adjustment doesn't filter.
    */
   private @Nullable SpeechCacheManager usableSpeechCache() {
-    return VoiceProfiles.isProfileActive() || hasSelectedEngineVoice() || equalizerGains != null
+    return VoiceProfiles.isProfileActive()
+            || hasSelectedEngineVoice()
+            || equalizerGains != null
             || compressorSettings != null
-        ? null : speechCacheManager;
+            || (lowLatencyAudio && !isLowLatencyOffForCurrentEngine())
+        ? null
+        : speechCacheManager;
   }
 
   /**
