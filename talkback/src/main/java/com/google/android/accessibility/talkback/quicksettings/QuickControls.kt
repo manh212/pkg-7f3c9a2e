@@ -490,7 +490,15 @@ class QuickControls(private val context: Context) {
   fun slider(control: QuickControl): SliderState? {
     STREAMS[control]?.let { stream ->
       val min =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) audio.getStreamMinVolume(stream) else 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+          try {
+            audio.getStreamMinVolume(stream)
+          } catch (_: IllegalArgumentException) {
+            0
+          }
+        } else {
+          0
+        }
       return SliderState(min, audio.getStreamMaxVolume(stream), audio.getStreamVolume(stream), 1)
     }
     return when (control) {
