@@ -2386,22 +2386,78 @@ class LowLatencyAudio private constructor(context: Context, private val attribut
     private val calibratingKeys = HashSet<String>()
     @Volatile private var calibrationNoticeStamp: String? = null
 
-    private fun buildCalibrationStamp(context: Context, sampleRate: Int): String {
-      val versionCode =
-        try {
-          val info = context.packageManager.getPackageInfo(context.packageName, 0)
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            info.longVersionCode
-          } else {
-            @Suppress("DEPRECATION")
-            info.versionCode.toLong()
+    private fun buildCalibrationStamp(@Suppress("UNUSED_PARAMETER") context: Context, sampleRate: Int): String {
+      // Tie automatic calibration to the OS/ROM build fingerprint and sample rate only,
+      // so updating Meridian itself keeps the saved optimal audio path without re-probing.
+      return "v3|${Build.FINGERPRINT}|$sampleRate"
+    }
+
+    /** Clears saved audio-path calibration and re-runs the probe immediately on demand. */
+    @JvmStatic
+    fun recalibrateAudioPathNow(context: Context) {
+      val appContext = context.applicationContext
+      runCatching {
+        val prefs = SharedPreferencesUtils.getSharedPreferences(appContext)
+        val editor = prefs.edit().remove(PREF_AUDIO_PROBE_STAMP)
+        for (key in prefs.all.keys) {
+          if (key.startsWith(PREF_AUDIO_PROBE_PROFILE_PREFIX) ||
+              key.startsWith(PREF_AUDIO_PROBE_SUMMARY_PREFIX)) {
+            editor.remove(key)
           }
-        } catch (_: RuntimeException) {
-          0L
-        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
-          0L
         }
-      return "v2|$versionCode|${Build.FINGERPRINT}|$sampleRate"
+        editor.apply()
+      }
+      synchronized(calibratingKeys) {
+        calibratingKeys.clear()
+        calibrationNoticeStamp = null
+      }
+      val activePlayers = players()
+      if (activePlayers.isNotEmpty()) {
+        for (player in activePlayers) {
+          player.preferredAAudioProfile = NativeAAudioOutput.PROFILE_UNSET
+          player.audioProbeSummary = ""
+          player.calibratingAudioPath = true
+          player.scheduleAudioPathCalibration()
+        }
+      } else if (NativeAAudioOutput.isAvailable) {
+        val audioManager = appContext.getSystemService(AudioManager::class.java)
+        val rate =
+          audioManager?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
+            ?: DEFAULT_RATE
+        val stamp = buildCalibrationStamp(appContext, rate)
+        val main = Handler(Looper.getMainLooper())
+        main.post {
+          runCatching {
+            Toast.makeText(appContext, R.string.audio_path_calibrating_notice, Toast.LENGTH_LONG)
+              .show()
+          }
+        }
+        ROUTES.execute {
+          val usage = AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY
+          val bestProfile =
+            NativeAAudioOutput.probeBestProfile(
+              sampleRate = rate,
+              androidUsage = usage,
+              deviceId = 0,
+              initialBursts = QUEUED_BURSTS,
+            )
+          val summary = NativeAAudioOutput.lastProbeSummary
+          runCatching {
+            SharedPreferencesUtils.getSharedPreferences(appContext)
+              .edit()
+              .putString(PREF_AUDIO_PROBE_STAMP, stamp)
+              .putInt(PREF_AUDIO_PROBE_PROFILE_PREFIX + usage, bestProfile)
+              .putString(PREF_AUDIO_PROBE_SUMMARY_PREFIX + usage, summary)
+              .apply()
+          }
+          main.post {
+            runCatching {
+              Toast.makeText(appContext, R.string.audio_path_calibrated_notice, Toast.LENGTH_SHORT)
+                .show()
+            }
+          }
+        }
+      }
     }
 
     /**
