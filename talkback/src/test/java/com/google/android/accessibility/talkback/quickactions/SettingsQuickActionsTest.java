@@ -107,12 +107,12 @@ public class SettingsQuickActionsTest {
   }
 
   @Test
-  public void voiceActions_fourInOrderWithCurrentStateInTitles() {
+  public void voiceActions_fiveInOrderWithCurrentStateInTitles() {
     SettingsQuickActions.setCurrentSection(QuickActionSections.Section.VOICE);
 
     List<ContextMenuItem> items = actions.getMenuItemsForNode(context, node, false);
 
-    assertEquals(4, items.size());
+    assertEquals(5, items.size());
     String[] entries = context.getResources().getStringArray(R.array.pref_speech_stream_entries);
     String[] values = context.getResources().getStringArray(R.array.pref_speech_stream_values);
     assertEquals(
@@ -129,6 +129,11 @@ public class SettingsQuickActionsTest {
             + ", "
             + VoiceProfileNames.nameOf(context, prefs, VoiceProfiles.activeId(prefs)),
         items.get(3).getTitle().toString());
+    assertEquals(
+        context.getString(R.string.title_pref_switch_languages)
+            + ", "
+            + context.getString(R.string.quick_action_state_off),
+        items.get(4).getTitle().toString());
     for (int i = 0; i < items.size(); i++) {
       assertEquals(SettingsQuickActions.ACTION_ID_BASE + i, items.get(i).getItemId());
       assertTrue(SettingsQuickActions.isQuickActionItem(items.get(i)));
@@ -174,7 +179,7 @@ public class SettingsQuickActionsTest {
   }
 
   @Test
-  public void sections_coverAllTwentyNineActions() {
+  public void sections_coverAllFiftyOneActions() {
     int total = 0;
     for (QuickActionSections.Section section : QuickActionSections.Section.values()) {
       List<QuickAction> sectionActions = QuickActionSections.actionsFor(section);
@@ -182,7 +187,7 @@ public class SettingsQuickActionsTest {
       total += sectionActions.size();
     }
 
-    assertEquals(29, total);
+    assertEquals(51, total);
   }
 
   @Test
