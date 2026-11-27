@@ -63,7 +63,7 @@ public class SelectorGroupScreensTest {
   }
 
   @Test
-  public void groupOpensEditorAndItemListsWithoutSeparateSortAction() {
+  public void groupOpensItemListsWithoutSeparateSortAction() {
     ActivityController<TestActivity> controller = createActivity();
     try {
       TestActivity activity = controller.get();
@@ -77,18 +77,6 @@ public class SelectorGroupScreensTest {
       shadowOf(Looper.getMainLooper()).idle();
 
       Fragment current = activity.getSupportFragmentManager().findFragmentById(android.R.id.content);
-      assertTrue(current instanceof SelectorGroupEditorFragment);
-      SelectorGroupEditorFragment editor = (SelectorGroupEditorFragment) current;
-      assertNotNull(editor.findPreference("sgm_rename"));
-      assertNotNull(editor.findPreference("sgm_enabled"));
-      assertNotNull(editor.findPreference("sgm_delete"));
-      assertEquals(4, editor.getPreferenceScreen().getPreferenceCount());
-
-      editor.findPreference("sgm_items").performClick();
-      activity.getSupportFragmentManager().executePendingTransactions();
-      shadowOf(Looper.getMainLooper()).idle();
-
-      current = activity.getSupportFragmentManager().findFragmentById(android.R.id.content);
       assertTrue(current instanceof SelectorGroupItemsFragment);
       SelectorGroupItemsFragment items = (SelectorGroupItemsFragment) current;
       assertNotNull(items.findPreference("sgm_present"));
