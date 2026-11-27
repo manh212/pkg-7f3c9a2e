@@ -56,7 +56,6 @@ class TypingSettingsStructureTest {
   fun typingMethodScreen_holdsLongPressDurationAndTapDelay() {
     assertEquals(
       listOf(
-        "pref_typing_method_prefix_key",
         "pref_typing_confirmation",
         "pref_direct_input_tap_delay",
         "pref_typing_long_press_duration",
@@ -79,6 +78,7 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_timing_screen",
         "pref_vietnamese_keyboard_rows_screen",
         "pref_vietnamese_keyboard_typing_screen",
+        "pref_vietnamese_keyboard_shortcuts_screen",
       ),
       rows.map { it.first },
     )
@@ -93,6 +93,7 @@ class TypingSettingsStructureTest {
         "VietnameseKeyboardTimingFragment",
         "VietnameseKeyboardRowsFragment",
         "VietnameseKeyboardTypingFragment",
+        "VietnameseKeyboardShortcutsFragment",
       ),
       rows.map { it.second?.substringAfterLast('.') },
     )
@@ -135,7 +136,6 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_timing",
         "pref_vietnamese_keyboard_explore_speech",
         "pref_vietnamese_keyboard_release_speech",
-        "pref_direct_input_tap_delay",
         "pref_vietnamese_keyboard_double_tap",
         "pref_vietnamese_keyboard_tap_hold",
       ),
@@ -164,7 +164,6 @@ class TypingSettingsStructureTest {
       listOf(
         "pref_vietnamese_keyboard_quick_telex",
         "pref_vietnamese_keyboard_show_language",
-        "pref_vietnamese_keyboard_shortcuts_screen",
         "pref_vietnamese_keyboard_auto_capitalize",
         "pref_vietnamese_keyboard_double_space_period",
         "pref_vietnamese_keyboard_mic_enabled",
@@ -172,10 +171,11 @@ class TypingSettingsStructureTest {
         "pref_vietnamese_keyboard_auto_switch_letters_on_space",
         "pref_vietnamese_keyboard_word_suggestions",
         "pref_vietnamese_keyboard_spell_check",
+        "pref_vietnamese_keyboard_ai_spell_model",
       ),
       rows.map { it.first },
     )
-    assertTrue(rows[2].second?.endsWith("VietnameseKeyboardShortcutsFragment") == true)
+    assertTrue(rowsOf(R.xml.vietnamese_keyboard_preferences).any { it.first == "pref_vietnamese_keyboard_shortcuts_screen" && it.second?.endsWith("VietnameseKeyboardShortcutsFragment") == true })
     assertEquals(
       listOf(
         "pref_vietnamese_keyboard_shortcuts_enabled",
@@ -253,7 +253,8 @@ class TypingSettingsStructureTest {
     assertTrue(keyboardRows.any { it == "pref_vietnamese_keyboard_typing_screen" })
     val timingRows = rowsOf(R.xml.vietnamese_keyboard_timing_preferences).map { it.first }
     assertTrue(timingRows.any { it == "pref_vietnamese_keyboard_explore_speech" })
-    assertTrue(timingRows.any { it == "pref_direct_input_tap_delay" })
+    assertFalse(timingRows.any { it == "pref_direct_input_tap_delay" })
+    assertTrue(rowsOf(R.xml.typing_method_preferences).any { it.first == "pref_direct_input_tap_delay" })
   }
 
   private fun rowsOf(@XmlRes resId: Int): List<Pair<String, String?>> {

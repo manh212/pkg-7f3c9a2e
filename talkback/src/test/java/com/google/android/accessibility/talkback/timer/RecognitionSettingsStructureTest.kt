@@ -89,7 +89,6 @@ class RecognitionSettingsStructureTest {
         "pref_image_description_key",
         "pref_icon_detection_key",
         "pref_text_recognition_key",
-        "pref_ocr_settings_screen",
       ),
       rows,
     )
@@ -102,7 +101,6 @@ class RecognitionSettingsStructureTest {
     assertEquals(
       listOf(
         "pref_screen_recognition_method",
-        "pref_screen_recognition_ocr_settings",
         "screen_recognition_privacy",
       ),
       rowsOf(R.xml.screen_recognition_preferences).map { it.first },

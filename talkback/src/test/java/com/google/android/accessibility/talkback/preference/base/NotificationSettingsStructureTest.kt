@@ -61,7 +61,7 @@ class NotificationSettingsStructureTest {
         "pref_notification_words_screen" to "NotificationWordsFragment",
         "pref_notification_rules_screen" to "NotificationRulesFragment",
         "pref_notification_reading_advanced_screen" to "NotificationReadingAdvancedFragment",
-        "pref_notification_automation_monitor_screen" to "NotificationAutomationMonitorFragment",
+        "pref_notification_automation_settings" to "NotificationAutomationFragment",
       ),
       rowsOf(R.xml.notification_group_advanced_preferences)
         .map { it.first to it.second?.substringAfterLast('.') },
@@ -153,7 +153,6 @@ class NotificationSettingsStructureTest {
 
     assertEquals(
       listOf(
-        "pref_notification_access",
         "pref_notification_shake_to_stop",
         "pref_notification_shake_strength",
         "pref_notification_wave_to_stop",

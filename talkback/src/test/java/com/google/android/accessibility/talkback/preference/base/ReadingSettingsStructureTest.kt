@@ -40,12 +40,14 @@ class ReadingSettingsStructureTest {
 
     assertEquals(
       listOf(
-        context.getString(R.string.pref_category_group_speech_key) to null,
-        "pref_reading_style_screen" to "ReadingStyleFragment",
+        "pref_category_group_speech_key" to null,
+        "pref_verbosity_preset_key" to null,
+        "pref_time_feedback_format_key" to null,
+        "pref_always_interrupt_speech" to null,
         "pref_reading_item_info_screen" to "ReadingItemInfoFragment",
         "pref_reading_text_screen" to "ReadingTextFragment",
         "pref_screen_announcements" to "ScreenAnnouncementsFragment",
-        context.getString(R.string.pref_status_readout_key) to "StatusReadoutFragment",
+        "pref_status_readout" to "StatusReadoutFragment",
         "pref_navigation_feedback_screen" to "NavigationFeedbackFragment",
       ),
       rows.map { it.first to it.second?.substringAfterLast('.') },
@@ -121,7 +123,7 @@ class ReadingSettingsStructureTest {
     val main = rowsOf(R.xml.preferences)
     val calls = main.indexOfFirst { it.first == "pref_call_settings" }
     assertTrue(calls > 0)
-    assertEquals("SpeechGroupFragment", main[calls - 1].second?.substringAfterLast('.'))
+    assertEquals("TypingGroupFragment", main[calls - 1].second?.substringAfterLast('.'))
     assertEquals("CallSettingsFragment", main[calls].second?.substringAfterLast('.'))
 
     assertTrue(

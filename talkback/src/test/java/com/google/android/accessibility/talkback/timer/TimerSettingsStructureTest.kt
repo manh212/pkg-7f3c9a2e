@@ -136,15 +136,12 @@ class TimerSettingsStructureTest {
 
     assertEquals("pref_updates_screen", topLevel[0].first)
     assertTrue(topLevel[0].second?.contains("UpdatesFragment") == true)
-    assertEquals(SETUP_KEY, topLevel[1].first)
-    assertTrue(topLevel[1].second?.contains("InitialSetupFragment") == true)
+    assertTrue(rowsOf(R.xml.call_preferences).any { it.second?.contains("InitialSetupFragment") == true })
     assertEquals(
       listOf(
         "UpdatesFragment",
-        "InitialSetupFragment",
         "TextToSpeechSettingsFragment",
         "SpeechGroupFragment",
-        "CallSettingsFragment",
         "NavigationGroupFragment",
         "CommandsFragment",
         "InputSettingsFragment",
@@ -152,19 +149,20 @@ class TimerSettingsStructureTest {
         "SoundAndVibrationFragment",
         "NotificationsFragment",
         "TypingGroupFragment",
+        "CallSettingsFragment",
         "ScreenInfoGroupFragment",
         "ToolsGroupFragment",
+        "SettingsProfilesFragment",
         "AdvancedGroupFragment",
         "HelpCenterGroupFragment",
-        "SettingsProfilesFragment",
       ),
       topLevel.map { it.second?.substringAfterLast('.') },
     )
     assertTrue(topLevel.all { !it.second.isNullOrBlank() })
-    assertEquals(17, topLevel.size)
+    assertEquals(16, topLevel.size)
     assertEquals(
-      "one initial setup entry point on the main screen",
-      1,
+      "initial setup is reached through call settings",
+      0,
       topLevel.count { it.second?.contains("SetupFragment") == true },
     )
     assertTrue(
@@ -212,15 +210,16 @@ class TimerSettingsStructureTest {
         "pref_category_group_advanced_key",
         "pref_category_developer",
         "pref_meridian_wallpaper",
-        RESUME_KEY,
-        PLAY_INSTALLER_KEY,
-        BACKUP_RESET_KEY,
-        APPS_KEY,
+        "pref_resume_talkback",
+        "pref_play_installer",
+        "pref_backup_reset_screen",
+        "pref_scripts_key",
+        "pref_manage_labels",
       ),
       rows.map { it.first },
     )
     assertTrue(rows[5].second?.contains("BackupResetFragment") == true)
-    assertTrue(rows[6].second?.contains("AppsGroupFragment") == true)
+    assertTrue(rows[6].second?.contains("ScriptsFragment") == true)
   }
 
   /** The android:key of the parser's current tag, resolving @string references to their value. */

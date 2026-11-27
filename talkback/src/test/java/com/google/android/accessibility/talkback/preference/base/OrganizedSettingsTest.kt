@@ -411,8 +411,6 @@ class OrganizedSettingsTest {
         "com.google.android.accessibility.talkback.preference.base.SoundFeedbackFragment",
       "pref_sound_output_screen" to
         "com.google.android.accessibility.talkback.preference.base.SoundOutputFragment",
-      "pref_sound_ducking_screen" to
-        "com.google.android.accessibility.talkback.preference.base.SoundDuckingFragment",
       "pref_sound_themes" to
         "com.google.android.accessibility.talkback.soundthemes.SoundThemesFragment",
       "pref_individual_feedback" to
@@ -428,6 +426,8 @@ class OrganizedSettingsTest {
         "com.google.android.accessibility.talkback.preference.base.SoundVibrationFragment",
         landing.findPreference<Preference>("pref_sound_vibration_screen")?.fragment)
     }
+    assertTrue(landing.findPreference<Preference>(activity.getString(R.string.pref_use_audio_focus_key)) is TwoStatePreference)
+    assertTrue(landing.findPreference<Preference>(activity.getString(R.string.pref_proximity_key)) is TwoStatePreference)
     val feedback = SoundFeedbackFragment()
     open(feedback)
     val soundbackKey = activity.getString(R.string.pref_soundback_key)
