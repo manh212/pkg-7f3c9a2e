@@ -1,6 +1,7 @@
 package com.google.android.accessibility.talkback.calls
 
 import android.app.Notification
+import android.media.AudioManager
 import android.os.Looper
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.SpeechController
@@ -124,5 +125,43 @@ class CallAnnouncementsTest {
     CallAnnouncements.onCallNotification("zalo", ongoing)
     waitForReading()
     assertTrue(spoken.isEmpty())
+  }
+
+  @Test fun boostedSpeechPercentAddsTwentyAndCapsAtOneHundred() {
+    assertEquals(20, CallAnnouncements.boostedSpeechPercent(0))
+    assertEquals(90, CallAnnouncements.boostedSpeechPercent(70))
+    assertEquals(100, CallAnnouncements.boostedSpeechPercent(80))
+    assertEquals(100, CallAnnouncements.boostedSpeechPercent(90))
+    assertEquals(100, CallAnnouncements.boostedSpeechPercent(100))
+  }
+
+  @Test fun incomingCallAutoBoostsSpeechVolumeAndRestoresAfterRingingEnds() {
+    val audio = context.getSystemService(AudioManager::class.java)!!
+    val ringMax = audio.getStreamMaxVolume(AudioManager.STREAM_RING)
+    val a11yMax = audio.getStreamMaxVolume(AudioManager.STREAM_ACCESSIBILITY)
+    if (ringMax <= 0 || a11yMax <= 0) return
+
+    val ring70 = CallAnnouncements.percentToStep(70, 0, ringMax)
+    val a11y30 = CallAnnouncements.percentToStep(30, 0, a11yMax)
+    val expectedBoost = CallAnnouncements.percentToStep(
+      CallAnnouncements.boostedSpeechPercent(CallAnnouncements.stepToPercent(ring70, 0, ringMax)),
+      0,
+      a11yMax,
+    )
+
+    audio.setStreamVolume(AudioManager.STREAM_RING, ring70, 0)
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, a11y30, 0)
+
+    // Default is OFF: incoming call must not change speech volume.
+    CallAnnouncements.onCallNotification("phone", incoming())
+    assertEquals(a11y30, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    CallAnnouncements.onCallNotificationRemoved("phone")
+
+    // When enabled: incoming call boosts speech volume to ringtone + 20% and restores on removal.
+    prefs.edit().putBoolean(CallSettings.AUTO_BOOST_VOLUME, true).commit()
+    CallAnnouncements.onCallNotification("phone", incoming())
+    assertEquals(expectedBoost, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    CallAnnouncements.onCallNotificationRemoved("phone")
+    assertEquals(a11y30, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
   }
 }

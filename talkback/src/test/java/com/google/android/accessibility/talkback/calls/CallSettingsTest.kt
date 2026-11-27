@@ -84,4 +84,13 @@ class CallSettingsTest {
     assertEquals(CallLimitSettings.Scope.OUTGOING, CallLimitSettings.read(prefs).scope)
     prefs.edit().clear().commit()
   }
+
+  @Test fun autoBoostVolumeDefaultsOffAndReadsSavedValue() {
+    val prefs = SharedPreferencesUtils.getSharedPreferences(RuntimeEnvironment.getApplication())
+    prefs.edit().clear().commit()
+    assertFalse(CallSettings.read(prefs).autoBoostVolume)
+    prefs.edit().putBoolean(CallSettings.AUTO_BOOST_VOLUME, true).commit()
+    assertTrue(CallSettings.read(prefs).autoBoostVolume)
+    prefs.edit().clear().commit()
+  }
 }
