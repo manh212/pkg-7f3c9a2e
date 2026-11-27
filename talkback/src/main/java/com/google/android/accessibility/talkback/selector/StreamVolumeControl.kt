@@ -103,5 +103,13 @@ internal object StreamVolumeControl {
   }
 
   private fun minVolume(audio: AudioManager, stream: Int): Int =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) audio.getStreamMinVolume(stream) else 0
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      try {
+        audio.getStreamMinVolume(stream)
+      } catch (_: IllegalArgumentException) {
+        0
+      }
+    } else {
+      0
+    }
 }
