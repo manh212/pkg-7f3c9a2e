@@ -30,6 +30,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -427,7 +428,12 @@ class OrganizedSettingsTest {
         landing.findPreference<Preference>("pref_sound_vibration_screen")?.fragment)
     }
     assertTrue(landing.findPreference<Preference>(activity.getString(R.string.pref_use_audio_focus_key)) is TwoStatePreference)
-    assertTrue(landing.findPreference<Preference>(activity.getString(R.string.pref_proximity_key)) is TwoStatePreference)
+    val proximity = landing.findPreference<Preference>(activity.getString(R.string.pref_proximity_key))
+    if (FeatureSupport.supportProximitySensor(activity)) {
+      assertTrue(proximity is TwoStatePreference)
+    } else {
+      assertNull(proximity)
+    }
     val feedback = SoundFeedbackFragment()
     open(feedback)
     val soundbackKey = activity.getString(R.string.pref_soundback_key)
