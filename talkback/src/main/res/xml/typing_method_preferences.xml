@@ -2,11 +2,6 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:key="@string/pref_typing_method_prefix_key"
-      android:summary="@string/message_pref_typing_method_prefix"
-      android:selectable="false" />
-
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:key="@string/pref_typing_confirmation_key">
     <com.google.android.accessibility.material.preference.AccessibilitySuiteRadioButtonPreference
@@ -33,7 +28,6 @@
       android:defaultValue="100"
       android:key="@string/pref_direct_input_tap_delay_key"
       android:max="300"
-      android:summary="@string/summary_pref_direct_input_tap_delay"
       android:title="@string/title_pref_direct_input_tap_delay"
       app:min="0"
       app:seekBarIncrement="10"

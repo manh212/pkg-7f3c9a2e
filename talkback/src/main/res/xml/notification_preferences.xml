@@ -3,7 +3,6 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_speak_notifications_default"
       android:key="@string/pref_speak_notifications_key"
-      android:summary="@string/summary_pref_speak_notifications"
       android:title="@string/title_pref_speak_notifications" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="pref_notification_access"

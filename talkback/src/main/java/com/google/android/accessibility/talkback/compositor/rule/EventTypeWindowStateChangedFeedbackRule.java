@@ -137,8 +137,12 @@ public final class EventTypeWindowStateChangedFeedbackRule {
 
   private static boolean forceFeedbackEvenIfMicrophoneActive(
       EventInterpretation eventInterpretation) {
-    return !AccessibilityInterpretationFeedbackUtils.safeAccessibilityFocusInterpretation(
-            eventInterpretation)
+    if (eventInterpretation == null
+        || eventInterpretation.getAccessibilityFocusInterpretation() == null) {
+      return true;
+    }
+    return !eventInterpretation
+        .getAccessibilityFocusInterpretation()
         .getIsInitialFocusAfterScreenStateChange();
   }
 

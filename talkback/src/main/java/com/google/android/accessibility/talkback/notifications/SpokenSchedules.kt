@@ -34,6 +34,7 @@ import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
 import androidx.core.os.UserManagerCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.utils.DateTimeUtils
 import com.google.android.accessibility.talkback.compositor.rule.EventTypeNotificationStateChangedFeedbackRule
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -336,7 +337,7 @@ class SpokenSchedules(
       val template = format.ifBlank { context.getString(R.string.notification_clock_format_default) }
       return NotificationText.tidySeparators(
         template
-          .replace("{time}", DateFormat.getTimeFormat(context).format(now))
+          .replace("{time}", DateTimeUtils.formatTime(context, now.time))
           .replace("{date}", DateFormat.getLongDateFormat(context).format(now))
           .replace("{battery}", percent)
       )

@@ -35,16 +35,16 @@
         android:key="@string/pref_allow_frequent_content_change_announcement_key"
         android:title="@string/pref_allow_frequent_content_change_announcement_title"
         android:summary="@string/summary_pref_allow_frequent_content_change_announcement" />
-    <PreferenceCategory
-        android:key="@string/pref_table_headers_category_key"
-        android:title="@string/pref_table_headers_category_title">
-      <ListPreference
-          android:defaultValue="@string/pref_table_column_headers_default"
-          android:entries="@array/pref_table_column_headers_entries"
-          android:entryValues="@array/pref_table_column_headers_values"
-          android:key="@string/pref_table_column_headers_key"
-          android:summary="%s"
-          android:title="@string/pref_table_column_headers_title" />
-    </PreferenceCategory>
+  </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
+      android:key="@string/pref_table_headers_category_key"
+      android:title="@string/pref_table_headers_category_title">
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:defaultValue="@string/pref_table_column_headers_default"
+        android:entries="@array/pref_table_column_headers_entries"
+        android:entryValues="@array/pref_table_column_headers_values"
+        android:key="@string/pref_table_column_headers_key"
+        android:summary="%s"
+        android:title="@string/pref_table_column_headers_title" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

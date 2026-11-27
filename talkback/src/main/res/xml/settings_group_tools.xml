@@ -22,5 +22,13 @@
     <com.google.android.accessibility.talkback.texteditor.TextEditorEntryPreference
         android:key="pref_text_editor_screen"
         android:title="@string/text_editor_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.clipboard.ClipboardHistoryFragment"
+        android:key="pref_clipboard_history_screen"
+        android:title="@string/title_clipboard_history" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.monitor.FullScreenMonitorSettingsFragment"
+        android:key="pref_full_screen_monitor"
+        android:title="@string/full_screen_monitor_title" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

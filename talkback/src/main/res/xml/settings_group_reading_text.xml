@@ -20,7 +20,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_formatting_inline_default"
         android:key="@string/pref_formatting_inline_key"
-        android:summary="@string/summary_text_formatting_verbosity"
         android:title="@string/title_text_formatting_inline" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_formatting_inline_detail_key"
@@ -56,7 +55,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_count_repeated_symbols_default"
         android:key="@string/pref_count_repeated_symbols_key"
-        android:summary="@string/summary_pref_count_repeated_symbols"
         android:title="@string/title_pref_count_repeated_symbols" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

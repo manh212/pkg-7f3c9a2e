@@ -121,7 +121,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
     val context = requireContext()
     val status = current.status(context)
     val category = screen.category(current.title)
-    category.action(
+    category.information(
       getString(
         R.string.timer_setup_progress,
         flow.step + 1,
@@ -129,9 +129,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         getString(statusText(status)),
       ),
       if (status == Status.UNKNOWN) null else getString(detailText(current, status)),
-    ) {
-      rebuild()
-    }
+    )
     if (current.title == R.string.timer_setup_battery_title && isXiaomiFamily()) {
       category.information(
         getString(R.string.timer_setup_xiaomi_title),
@@ -202,7 +200,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   private fun buildLanguageStep(screen: PreferenceGroup, steps: List<Step>) {
     val context = requireContext()
     val category = screen.category(R.string.timer_setup_language_title)
-    category.action(
+    category.information(
       getString(
         R.string.timer_setup_progress,
         flow.step + 1,
@@ -210,9 +208,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         currentLanguageName(),
       ),
       getString(R.string.timer_setup_language_detail),
-    ) {
-      rebuild()
-    }
+    )
     category.addPreference(
       LanguagePreference(context, currentLanguageIndex()) { index ->
         onLanguageSelected(steps.size, index)
@@ -253,7 +249,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
   private fun buildPerformanceStep(screen: PreferenceGroup, steps: List<Step>) {
     val context = requireContext()
     val category = screen.category(R.string.timer_setup_performance_title)
-    category.action(
+    category.information(
       getString(
         R.string.timer_setup_progress,
         flow.step + 1,
@@ -267,9 +263,7 @@ class InitialSetupFragment : NotificationCodeFragment(R.string.timer_setup_title
         getString(R.string.timer_setup_performance_energy),
         getString(R.string.timer_setup_performance_energy_detail),
       ),
-    ) {
-      rebuild()
-    }
+    )
     category.addPreference(
       PerformancePreference(context, currentPerformanceProfileIndex()) { index ->
         if (index != currentPerformanceProfileIndex()) {

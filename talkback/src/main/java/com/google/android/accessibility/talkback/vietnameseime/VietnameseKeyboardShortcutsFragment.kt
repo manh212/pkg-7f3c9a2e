@@ -16,6 +16,8 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.preference.base.ActionablePreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.preference.base.SearchMatcher
 import com.google.android.accessibility.talkback.preference.base.TalkBackPreferenceFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -68,16 +70,25 @@ class VietnameseKeyboardShortcutsFragment :
       if (!SearchMatcher.matchesNormalized(normalizedQuery, SearchMatcher.normalize("$code $replacement"))) {
         continue
       }
-      list.addPreference(AccessibilitySuitePreference(requireContext()).apply {
-        title = code
-        summary = replacement
-        isPersistent = false
-        isIconSpaceReserved = false
-        setOnPreferenceClickListener {
-          editShortcut(code)
-          true
+      list.addPreference(
+        ActionablePreference(requireContext()) {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.vietnamese_ime_shortcut_edit)) {
+              editShortcut(code)
+            },
+            PreferenceCustomActions.Entry(getString(R.string.vietnamese_ime_shortcut_delete)) {
+              confirmDeleteShortcut(code)
+            },
+          )
+        }.apply {
+          title = code
+          summary = replacement
+          setOnPreferenceClickListener {
+            editShortcut(code)
+            true
+          }
         }
-      })
+      )
     }
     if (list.preferenceCount == 0) {
       list.addPreference(AccessibilitySuitePreference(requireContext()).apply {
@@ -88,6 +99,20 @@ class VietnameseKeyboardShortcutsFragment :
         isIconSpaceReserved = false
       })
     }
+  }
+
+  private fun confirmDeleteShortcut(code: String) {
+    val context = requireContext()
+    AlertDialog.Builder(context)
+      .setTitle(getString(R.string.vietnamese_ime_shortcut_confirm_delete, code))
+      .setPositiveButton(R.string.vietnamese_ime_shortcut_delete) { _, _ ->
+        val entries = VietnameseKeyboardShortcuts.read(prefs).toMutableMap()
+        entries.remove(code)
+        VietnameseKeyboardShortcuts.write(prefs, entries)
+        refreshEntries()
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
   }
 
   private fun editShortcut(original: String?) {

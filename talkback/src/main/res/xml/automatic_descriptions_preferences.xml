@@ -13,7 +13,6 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_ai_label_suggestion_default"
       android:key="@string/pref_ai_label_suggestion_key"
-      android:summary="@string/summary_pref_ai_label_suggestion"
       android:title="@string/title_pref_ai_label_suggestion" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="@string/pref_image_description_key"
@@ -24,8 +23,4 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:key="@string/pref_text_recognition_key"
       android:title="@string/title_pref_text_recognition" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.preference.base.OcrSettingsFragment"
-      android:key="pref_ocr_settings_screen"
-      android:title="@string/title_pref_ocr_settings" />
 </PreferenceScreen>

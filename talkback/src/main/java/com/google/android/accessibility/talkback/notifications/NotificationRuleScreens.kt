@@ -28,6 +28,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import java.text.DateFormatSymbols
 import java.util.Calendar
 
@@ -61,7 +62,29 @@ class NotificationRulesFragment : NotificationCodeFragment(R.string.notification
             describeRule(context, rule),
           )
           .joinToString(". ")
-      list.link(rule.name.ifEmpty { getString(R.string.notification_rule_untitled) }, summary, NotificationRuleFragment::class.java) {
+      val ruleTitle = rule.name.ifEmpty { getString(R.string.notification_rule_untitled) }
+      list.actionableLink(
+        title = ruleTitle,
+        summary = summary,
+        screen = NotificationRuleFragment::class.java,
+        actions = {
+          listOf(
+            PreferenceCustomActions.Entry(
+              getString(if (rule.enabled) R.string.notification_off else R.string.notification_on)
+            ) {
+              save(settings.rules.map { if (it.id == rule.id) it.copy(enabled = !it.enabled) else it })
+            },
+            PreferenceCustomActions.Entry(getString(R.string.notification_rule_delete)) {
+              confirm(
+                getString(R.string.notification_rule_delete_confirm, ruleTitle),
+                R.string.notification_remove,
+              ) {
+                save(settings.rules.filter { it.id != rule.id })
+              }
+            },
+          )
+        },
+      ) {
         putString(NotificationRuleFragment.ARG_RULE, rule.id)
       }
     }
@@ -230,12 +253,31 @@ class NotificationRuleFragment : NotificationCodeFragment(R.string.notification_
     conditions.createAction(getString(R.string.notification_rule_add_condition)) { addCondition() }
     rule.conditions.forEachIndexed { index, condition ->
       val text = NotificationRulesFragment.describeCondition(context, condition)
-      conditions.action(text) {
-        choose(text, listOf(getString(R.string.notification_rule_invert), getString(R.string.notification_remove))) { choice ->
-          update {
-            if (choice == 0) it.copy(conditions = it.conditions.mapIndexed { i, c -> if (i == index) c.copy(negate = !c.negate) else c })
-            else it.copy(conditions = it.conditions.filterIndexed { i, _ -> i != index })
-          }
+      conditions.actionable(
+        title = text,
+        actions = {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.notification_rule_invert)) {
+              update {
+                it.copy(
+                  conditions = it.conditions.mapIndexed { i, c ->
+                    if (i == index) c.copy(negate = !c.negate) else c
+                  }
+                )
+              }
+            },
+            PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+              update { it.copy(conditions = it.conditions.filterIndexed { i, _ -> i != index }) }
+            },
+          )
+        },
+      ) {
+        update {
+          it.copy(
+            conditions = it.conditions.mapIndexed { i, c ->
+              if (i == index) c.copy(negate = !c.negate) else c
+            }
+          )
         }
       }
     }
@@ -243,7 +285,16 @@ class NotificationRuleFragment : NotificationCodeFragment(R.string.notification_
     actions.createAction(getString(R.string.notification_rule_add_action)) { addAction() }
     rule.actions.forEachIndexed { index, action ->
       val text = NotificationRulesFragment.describeAction(context, action)
-      actions.action(text) {
+      actions.actionable(
+        title = text,
+        actions = {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+              update { it.copy(actions = it.actions.filterIndexed { i, _ -> i != index }) }
+            }
+          )
+        },
+      ) {
         choose(text, listOf(getString(R.string.notification_remove))) {
           update { it.copy(actions = it.actions.filterIndexed { i, _ -> i != index }) }
         }

@@ -18,6 +18,11 @@ package com.google.android.accessibility.talkback.menurules
 
 import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import com.google.android.accessibility.talkback.vietnameseime.VietnameseOnnxSpellCorrector
+import com.google.android.accessibility.talkback.vietnameseime.VietnameseSpellModelManager
+import java.util.concurrent.Executors
 import android.view.Menu
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.accessibility.talkback.ActorState
@@ -75,6 +80,8 @@ class VietnameseTextActionsMenu(
           misspelledWord = errorSpan.word,
           previousWord = errorSpan.previousWord,
           maxResults = MAX_SUGGESTIONS,
+          nextWord = errorSpan.nextWord,
+          preferredFix = errorSpan.preferredFix,
         )
         val topFix = fixes.firstOrNull()
         for (fix in fixes) {
@@ -194,6 +201,10 @@ class VietnameseTextActionsMenu(
 
   companion object {
     private const val MAX_SUGGESTIONS = 4
+    private val aiSpellExecutor = Executors.newSingleThreadExecutor { r ->
+      Thread(r, "ViSpellFullCheck").apply { isDaemon = true }
+    }
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @JvmStatic
     fun isWordSuggestionsEnabled(context: Context): Boolean =
@@ -247,11 +258,12 @@ class VietnameseTextActionsMenu(
       }
       node.performAction(AccessibilityNodeInfoCompat.ACTION_SET_SELECTION, args)
 
-      val topFix = VietnameseSpellChecker.suggestCorrections(
+      val topFix = error.preferredFix ?: VietnameseSpellChecker.suggestCorrections(
         context = context,
         misspelledWord = error.word,
         previousWord = error.previousWord,
         maxResults = 1,
+        nextWord = error.nextWord,
       ).firstOrNull()
       val announcement = if (topFix != null) {
         context.getString(R.string.vietnamese_ime_spelling_error_with_fix, error.word, topFix)
@@ -260,6 +272,121 @@ class VietnameseTextActionsMenu(
       }
       pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.speech(announcement))
       return true
+    }
+
+    /**
+     * Checks and corrects spelling across the entire editable field. Uses the downloaded
+     * offline AI ONNX model when available, and falls back to Tier-1 offline dictionary +
+     * phonetic + bigram correction otherwise.
+     */
+    @JvmStatic
+    fun checkSpellingFullField(
+      context: Context,
+      node: AccessibilityNodeInfoCompat?,
+      pipeline: Pipeline.FeedbackReturner,
+    ): Boolean {
+      if (node == null || !node.isEditable || !node.isEnabled || node.isPassword) return false
+      val text = extractEditableText(node)
+      if (text.isBlank()) {
+        pipeline.returnFeedback(
+          EVENT_ID_UNTRACKED,
+          Feedback.speech(context.getString(R.string.vietnamese_ime_no_spelling_errors)),
+        )
+        return true
+      }
+      val app = context.applicationContext
+      if (VietnameseSpellModelManager.isReady(app)) {
+        val nodeCopy = AccessibilityNodeInfoCompat.obtain(node)
+        pipeline.returnFeedback(
+          EVENT_ID_UNTRACKED,
+          Feedback.speech(app.getString(R.string.vietnamese_ime_checking_spelling_ai)),
+        )
+        aiSpellExecutor.execute {
+          val aiResult = VietnameseOnnxSpellCorrector.correctFullText(app, text)
+          mainHandler.post {
+            try {
+              if (aiResult != null) {
+                if (aiResult.changedWords > 0 && aiResult.correctedText != text) {
+                  val ok = applyFullTextReplacement(nodeCopy, aiResult.correctedText)
+                  if (ok) {
+                    pipeline.returnFeedback(
+                      EVENT_ID_UNTRACKED,
+                      Feedback.speech(
+                        app.getString(
+                          R.string.vietnamese_ime_full_check_fixed_ai,
+                          aiResult.changedWords,
+                          aiResult.correctedText,
+                        )
+                      ),
+                    )
+                  } else {
+                    pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.complete))
+                  }
+                } else {
+                  pipeline.returnFeedback(
+                    EVENT_ID_UNTRACKED,
+                    Feedback.speech(app.getString(R.string.vietnamese_ime_no_spelling_errors)),
+                  )
+                }
+              } else {
+                runOfflineFullFieldPass(app, nodeCopy, text, pipeline)
+              }
+            } finally {
+              nodeCopy.recycle()
+            }
+          }
+        }
+        return true
+      }
+      runOfflineFullFieldPass(app, node, text, pipeline)
+      return true
+    }
+
+    private fun runOfflineFullFieldPass(
+      context: Context,
+      node: AccessibilityNodeInfoCompat,
+      text: String,
+      pipeline: Pipeline.FeedbackReturner,
+    ) {
+      val (corrected, fixedCount) = VietnameseSpellChecker.correctFullTextOffline(context, text)
+      if (fixedCount > 0 && corrected != text) {
+        val ok = applyFullTextReplacement(node, corrected)
+        if (ok) {
+          pipeline.returnFeedback(
+            EVENT_ID_UNTRACKED,
+            Feedback.speech(context.getString(R.string.vietnamese_ime_full_check_fixed_offline, fixedCount)),
+          )
+        } else {
+          pipeline.returnFeedback(EVENT_ID_UNTRACKED, Feedback.sound(R.raw.complete))
+        }
+      } else {
+        pipeline.returnFeedback(
+          EVENT_ID_UNTRACKED,
+          Feedback.speech(context.getString(R.string.vietnamese_ime_full_check_clean_offline)),
+        )
+      }
+    }
+
+    private fun applyFullTextReplacement(
+      node: AccessibilityNodeInfoCompat,
+      updatedText: String,
+    ): Boolean {
+      node.refresh()
+      if (!node.isFocused) {
+        node.performAction(AccessibilityNodeInfoCompat.ACTION_FOCUS)
+      }
+      val args = Bundle().apply {
+        putCharSequence(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, updatedText)
+      }
+      val ok = node.performAction(AccessibilityNodeInfoCompat.ACTION_SET_TEXT, args)
+      if (ok) {
+        val selArgs = Bundle().apply {
+          putInt(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_START_INT, updatedText.length)
+          putInt(AccessibilityNodeInfoCompat.ACTION_ARGUMENT_SELECTION_END_INT, updatedText.length)
+        }
+        node.performAction(AccessibilityNodeInfoCompat.ACTION_SET_SELECTION, selArgs)
+      }
+      return ok
     }
 
     internal fun extractEditableText(node: AccessibilityNodeInfoCompat): String {

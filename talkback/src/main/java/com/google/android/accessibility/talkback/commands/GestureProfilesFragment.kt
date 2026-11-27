@@ -27,6 +27,7 @@ import com.google.android.accessibility.talkback.gesture.GestureShortcutMapping
 import com.google.android.accessibility.talkback.gesture.TapTextEditor
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.preference.base.GestureListPreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 
 class GestureProfilesFragment : NotificationCodeFragment(R.string.title_pref_gesture_profiles) {
 
@@ -44,8 +45,68 @@ class GestureProfilesFragment : NotificationCodeFragment(R.string.title_pref_ges
     }
     screen.createAction(getString(R.string.title_pref_add_gesture_profile)) { add() }
     for (profile in profiles) {
-      screen.link(profile.name, null, GestureProfileFragment::class.java) {
+      val isActive = profile.id == activeId
+      screen.actionableLink(
+        title = profile.name,
+        summary = if (isActive) getString(R.string.settings_profile_in_use) else null,
+        screen = GestureProfileFragment::class.java,
+        actions = {
+          buildList {
+            if (!isActive) {
+              add(
+                PreferenceCustomActions.Entry(getString(R.string.sound_theme_use)) {
+                  GestureProfiles.select(context, prefs, profile.id)?.let { name ->
+                    listView?.announceForAccessibility(name)
+                  }
+                  rebuild()
+                }
+              )
+            }
+            add(
+              PreferenceCustomActions.Entry(getString(R.string.voice_profile_rename)) {
+                renameProfile(profile)
+              }
+            )
+            add(
+              PreferenceCustomActions.Entry(getString(R.string.title_pref_delete_gesture_profile)) {
+                confirm(
+                  getString(R.string.voice_profile_delete_confirm, profile.name),
+                  R.string.voice_profile_delete,
+                ) {
+                  GestureProfiles.write(prefs, GestureProfiles.read(prefs).filterNot { it.id == profile.id })
+                  if (prefs.getString(GestureProfiles.ACTIVE_KEY, "") == profile.id) {
+                    GestureProfiles.select(context, prefs, "")
+                  }
+                  rebuild()
+                }
+              }
+            )
+          }
+        },
+      ) {
         putString(GestureProfileFragment.ARG_ID, profile.id)
+      }
+    }
+  }
+
+  private fun renameProfile(profile: GestureProfiles.Profile) {
+    askText(
+      getString(R.string.voice_profile_rename),
+      profile.name,
+      hint = getString(R.string.title_pref_voice_profile_name),
+    ) { name, _, _ ->
+      val all = GestureProfiles.read(prefs)
+      when {
+        name.isEmpty() -> ""
+        nameTaken(all, name, profile.id) -> getString(R.string.gesture_profile_name_taken, name)
+        else -> {
+          GestureProfiles.write(
+            prefs,
+            all.map { if (it.id == profile.id) it.copy(name = name) else it },
+          )
+          rebuild()
+          null
+        }
       }
     }
   }

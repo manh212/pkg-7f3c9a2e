@@ -55,4 +55,14 @@
     <string translatable="false" name="commands_reset_all">Đặt lại tất cả</string>
     <string translatable="false" name="commands_reset_confirm">Bạn có chắc muốn %1$s về mặc định không?</string>
     <string translatable="false" name="commands_reset_done">Đã hoàn tất: %1$s.</string>
+    <string translatable="false" name="commands_more_options">Tùy chọn khác</string>
+    <string translatable="false" name="commands_category_filter_label">Bộ lọc nhóm lệnh</string>
+    <string translatable="false" name="commands_filter_all">Tất cả (tổng %1$d lệnh)</string>
+    <string translatable="false" name="commands_filter_group_count">%1$s (tổng %2$d lệnh)</string>
+    <string translatable="false" name="commands_action_edit_binding">Chỉnh sửa lệnh</string>
+    <string translatable="false" name="commands_action_remove_binding">Xóa lệnh</string>
+    <string translatable="false" name="commands_edit_choose_title">Chọn thao tác cần chỉnh sửa</string>
+    <string translatable="false" name="commands_remove_choose_title">Chọn thao tác cần xóa</string>
+    <string translatable="false" name="commands_remove_all_bindings">Xóa tất cả gán của lệnh này</string>
+    <string translatable="false" name="commands_all_bindings_removed">Đã xóa tất cả gán của %1$s.</string>
 </resources>

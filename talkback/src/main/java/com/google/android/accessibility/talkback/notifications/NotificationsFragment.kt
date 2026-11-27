@@ -16,7 +16,10 @@
 
 package com.google.android.accessibility.talkback.notifications
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.SharedPreferences
+import android.provider.Settings
 import android.os.Bundle
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
@@ -41,8 +44,18 @@ class NotificationsFragment : TalkbackBaseFragment(R.xml.notification_preference
     super.onCreatePreferences(savedInstanceState, rootKey)
     prefs = SharedPreferencesUtils.getSharedPreferences(requireContext())
     NotificationSettingsEntries.setUpPreferences(this)
-    findPreference<Preference>(NotificationXmlFragment.KEY_ACCESS)?.fragment =
-      InitialSetupFragment::class.java.name
+    findPreference<Preference>(NotificationXmlFragment.KEY_ACCESS)?.apply {
+      fragment = null
+      setOnPreferenceClickListener {
+        try {
+          startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+          fragment = InitialSetupFragment::class.java.name
+          return@setOnPreferenceClickListener false
+        }
+        true
+      }
+    }
     updateAccess()
     updateAppsSummary()
   }

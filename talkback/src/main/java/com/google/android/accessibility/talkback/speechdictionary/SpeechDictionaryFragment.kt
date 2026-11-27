@@ -18,6 +18,8 @@ package com.google.android.accessibility.talkback.speechdictionary
 
 import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.preference.base.ActionablePreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.notifications.Replacement
 import com.google.android.accessibility.talkback.notifications.TextMatch
@@ -67,22 +69,28 @@ class SpeechDictionaryFragment : NotificationCodeFragment(R.string.title_pref_sp
           )
           .joinToString(", ")
           .ifEmpty { null }
-      screen.action(title, summary) {
-        choose(
-          title,
+      screen.addPreference(
+        ActionablePreference(requireContext()) {
           listOf(
-            getString(R.string.notification_edit),
-            getString(R.string.notification_choose_app),
-            getString(R.string.notification_remove),
-          ),
-        ) {
-          when (it) {
-            0 -> edit(entries, index)
-            1 -> chooseApp { app, name -> save(entries.replace(index, entry.copy(app = app, appName = name))) }
-            else -> save(entries.filterIndexed { i, _ -> i != index })
+            PreferenceCustomActions.Entry(getString(R.string.notification_edit)) {
+              edit(entries, index)
+            },
+            PreferenceCustomActions.Entry(getString(R.string.notification_choose_app)) {
+              chooseApp { app, name -> save(entries.replace(index, entry.copy(app = app, appName = name))) }
+            },
+            PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+              save(entries.filterIndexed { i, _ -> i != index })
+            },
+          )
+        }.apply {
+          this.title = title
+          this.summary = summary
+          setOnPreferenceClickListener {
+            edit(entries, index)
+            true
           }
         }
-      }
+      )
     }
   }
 

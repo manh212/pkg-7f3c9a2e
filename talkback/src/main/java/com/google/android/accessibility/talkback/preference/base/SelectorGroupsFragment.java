@@ -8,7 +8,10 @@ import androidx.preference.PreferenceScreen;
 import androidx.preference.SwitchPreferenceCompat;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
+import com.google.android.accessibility.talkback.quicksettings.QuickSettingsItemsFragment;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager.Group;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class SelectorGroupsFragment extends TalkbackBaseFragment {
   @Override
@@ -73,8 +76,42 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
     groupsCategory.setTitle(R.string.selector_groups_title);
     screen.addPreference(groupsCategory);
 
-    for (Group group : SelectorGroupManager.getGroups(context)) {
-      Preference row = new Preference(context);
+    List<Group> allGroups = SelectorGroupManager.getGroups(context);
+    for (int i = 0; i < allGroups.size(); i++) {
+      Group group = allGroups.get(i);
+      int index = i;
+      int total = allGroups.size();
+      Preference row = new ActionablePreference(context, () -> {
+        List<PreferenceCustomActions.Entry> actions = new ArrayList<>();
+        if (index > 0) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.voice_profile_move_up),
+              () -> {
+                SelectorGroupManager.moveGroup(context, group.id, -1);
+                refresh();
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        if (index < total - 1) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.voice_profile_move_down),
+              () -> {
+                SelectorGroupManager.moveGroup(context, group.id, 1);
+                refresh();
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        if (allGroups.size() > 1 && SelectorGroupManager.canDisableGroup(context, group.id)) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.notification_remove),
+              () -> {
+                SelectorGroupManager.removeGroup(context, group.id);
+                refresh();
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        return actions;
+      });
       row.setKey("selector_group_" + group.id);
       row.setTitle(group.name);
       row.setSummary(
@@ -117,6 +154,32 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
         R.bool.pref_selector_links_controls_web_only_default,
         R.string.title_pref_selector_links_controls_web_only,
         0);
+
+    PreferenceCategory menus = new PreferenceCategory(context);
+    menus.setKey("selector_related_menus");
+    menus.setTitle(R.string.title_pref_category_context_menu);
+    screen.addPreference(menus);
+
+    Preference contextMenu = new Preference(context);
+    contextMenu.setKey(getString(R.string.pref_category_manage_context_menu_key));
+    contextMenu.setTitle(R.string.title_pref_category_context_menu);
+    contextMenu.setIconSpaceReserved(false);
+    contextMenu.setFragment(ContextMenuFragment.class.getName());
+    menus.addPreference(contextMenu);
+
+    Preference customMenus = new Preference(context);
+    customMenus.setKey("pref_custom_menus_screen");
+    customMenus.setTitle(R.string.custom_menus_title);
+    customMenus.setIconSpaceReserved(false);
+    customMenus.setFragment(CustomMenusFragment.class.getName());
+    menus.addPreference(customMenus);
+
+    Preference quickSettings = new Preference(context);
+    quickSettings.setKey("pref_quick_settings_items_screen");
+    quickSettings.setTitle(R.string.title_pref_quick_settings_items);
+    quickSettings.setIconSpaceReserved(false);
+    quickSettings.setFragment(QuickSettingsItemsFragment.class.getName());
+    menus.addPreference(quickSettings);
   }
 
   private void addExistingSwitch(

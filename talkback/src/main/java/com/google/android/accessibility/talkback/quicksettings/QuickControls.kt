@@ -69,6 +69,7 @@ import android.telephony.TelephonyManager
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.utils.DateTimeUtils
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.shizuku.ShizukuCommand
 import com.google.android.accessibility.talkback.shizuku.ShizukuGrants
@@ -640,9 +641,12 @@ class QuickControls(private val context: Context) {
           val pattern =
             DateFormat.getBestDateTimePattern(
               Locale.getDefault(),
-              if (DateFormat.is24HourFormat(context)) "EHm" else "Ehma",
+              if (DateTimeUtils.is24HourMode(context)) "EHm" else "Ehma",
             )
-          SimpleDateFormat(pattern, Locale.getDefault()).format(Date(next.triggerTime))
+          DateTimeUtils.normalizeVietnameseAmPm(
+            context,
+            SimpleDateFormat(pattern, Locale.getDefault()).format(Date(next.triggerTime)),
+          )
         }
       }
       else -> null

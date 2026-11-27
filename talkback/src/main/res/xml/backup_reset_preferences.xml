@@ -15,40 +15,31 @@
   <PreferenceCategory android:title="@string/backup_item_category">
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_settings_key"
-        android:title="@string/backup_item_settings"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_settings" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_custom_labels_key"
-        android:title="@string/backup_item_custom_labels"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_custom_labels" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_clipboard_history_key"
-        android:title="@string/backup_item_clipboard_history"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_clipboard_history" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_favorite_texts_key"
-        android:title="@string/backup_item_favorite_texts"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_favorite_texts" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_timer_sounds_key"
-        android:title="@string/backup_item_timer_sounds"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_timer_sounds" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_key_sounds_key"
-        android:title="@string/backup_item_key_sounds"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_key_sounds" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_sound_themes_key"
-        android:title="@string/backup_item_sound_themes"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_sound_themes" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_scripts_key"
-        android:title="@string/backup_item_scripts"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_scripts" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_backup_item_editor_documents_key"
-        android:title="@string/backup_item_editor_documents"
-        android:summary="@string/backup_item_summary" />
+        android:title="@string/backup_item_editor_documents" />
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/backup_reset_reset_category">
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
@@ -56,8 +47,7 @@
         android:key="@string/pref_reset_latency_settings_key" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="pref_menu_controls_reset"
-        android:title="@string/menu_controls_reset_title"
-        android:summary="@string/menu_controls_reset_summary" />
+        android:title="@string/menu_controls_reset_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_reset_gesture_settings_key"
         android:title="@string/reset_gesture_settings_title" />

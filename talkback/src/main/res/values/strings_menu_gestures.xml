@@ -20,7 +20,7 @@
   <string name="menu_gesture_text_formatting">Mở định dạng văn bản</string>
   <string name="menu_gesture_keyboard_echo_on_screen_menu">Chọn tiếng vọng bàn phím trên màn hình</string>
   <string name="menu_gesture_keyboard_echo_physical_menu">Chọn tiếng vọng bàn phím vật lý</string>
-  <string name="menu_gesture_verbosity">Mở cài đặt giọng nói</string>
+  <string name="menu_gesture_verbosity">Mở cài đặt mức độ chi tiết</string>
   <string name="menu_gesture_language_menu">Chọn ngôn ngữ đọc</string>
   <string name="menu_gesture_emoji_menu">Chọn cách đọc emoji</string>
   <string name="menu_gesture_voice_profile_menu">Chọn hồ sơ giọng nói</string>
@@ -35,7 +35,7 @@
   <string name="menu_gesture_show_keyboard_shortcuts">Hiển thị phím tắt bàn phím</string>
   <string name="menu_gesture_talkback_settings">Mở cài đặt Meridian</string>
   <string name="menu_gesture_tts_settings">Mở cài đặt chuyển văn bản thành giọng nói</string>
-  <string name="menu_gesture_window_menu">Mở danh sách thao tác hệ thống</string>
+  <string name="menu_gesture_window_menu">Mở menu thao tác cửa sổ</string>
   <string name="menu_gesture_inspect_item">Kiểm tra mục hiện tại</string>
   <string name="menu_gesture_copy_screen_tree">Sao chép cấu trúc màn hình</string>
   <string name="menu_gesture_copy_item_details">Sao chép chi tiết mục</string>
@@ -61,5 +61,5 @@
   <string name="menu_gesture_screen_recognition_app_menu">Nhận dạng nội dung ứng dụng qua AI</string>
   <string name="menu_gesture_subtitles_menu">Bật hoặc tắt đọc phụ đề</string>
   <string name="menu_gesture_subtitle_find_again_menu">Tìm lại vùng phụ đề</string>
-  <string name="menu_gesture_script_command">Mở các lệnh kịch bản</string>
+  <string name="menu_gesture_script_command">Mở danh sách tập lệnh</string>
 </resources>

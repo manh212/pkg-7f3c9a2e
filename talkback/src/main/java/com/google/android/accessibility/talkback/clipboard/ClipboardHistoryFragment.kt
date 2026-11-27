@@ -26,6 +26,7 @@ import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.shizuku.ShizukuClipboard
 import com.google.android.accessibility.talkback.utils.ClipboardUtils
 import com.google.android.accessibility.utils.preference.PreferencesActivity.FRAGMENT_NAME
@@ -159,54 +160,27 @@ class ClipboardHistoryFragment : NotificationCodeFragment(R.string.title_clipboa
           }
         )
       } else {
-        screen.addPreference(
-          object : Preference(context) {
-            override fun onBindViewHolder(holder: PreferenceViewHolder) {
-              super.onBindViewHolder(holder)
-              holder.itemView.setOnLongClickListener {
-                choose(
-                  title,
-                  listOf(
-                    getString(R.string.text_collection_edit),
-                    getString(R.string.notification_remove),
-                    getString(R.string.clipboard_history_select_multiple),
-                  )
-                ) { action ->
-                  when (action) {
-                    0 -> editEntry(text)
-                    1 -> ClipboardHistory.remove(text)
-                    2 -> beginSelection(text)
-                  }
-                }
-                true
-              }
-            }
-          }.apply {
-            this.title = title
-            isPersistent = false
-            isIconSpaceReserved = false
-            layoutResource = R.layout.listitem_2texts
-            setOnPreferenceClickListener {
-              choose(
-                title,
-                listOf(
-                  getString(R.string.clipboard_history_copy),
-                  getString(R.string.notification_remove),
-                  getString(R.string.text_collection_edit),
-                  getString(R.string.clipboard_history_select_multiple),
-                )
-              ) { choice ->
-                when (choice) {
-                  0 -> ClipboardUtils.copyToClipboard(context, text)
-                  1 -> ClipboardHistory.remove(text)
-                  2 -> editEntry(text)
-                  3 -> beginSelection(text)
-                }
-              }
-              true
-            }
-          }
-        )
+        screen.actionable(
+          title = title,
+          actions = {
+            listOf(
+              PreferenceCustomActions.Entry(getString(R.string.clipboard_history_copy)) {
+                ClipboardUtils.copyToClipboard(context, text)
+              },
+              PreferenceCustomActions.Entry(getString(R.string.text_collection_edit)) {
+                editEntry(text)
+              },
+              PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+                ClipboardHistory.remove(text)
+              },
+              PreferenceCustomActions.Entry(getString(R.string.clipboard_history_select_multiple)) {
+                beginSelection(text)
+              },
+            )
+          },
+        ) {
+          ClipboardUtils.copyToClipboard(context, text)
+        }
       }
     }
     if (!multiSelection) {

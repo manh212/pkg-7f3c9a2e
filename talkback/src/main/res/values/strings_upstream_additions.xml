@@ -108,7 +108,7 @@
   <string name="shortcut_toggle_braille_display">Bật hoặc tắt màn hình chữ nổi</string>
   <string name="shortcut_toggle_braille_contracted_mode">Chuyển đổi giữa chế độ rút gọn (cấp 2) và không rút gọn (cấp 1)</string>
   <string name="shortcut_toggle_braille_on_screen_overlay">Hiện/ẩn chữ nổi trên màn hình cho màn hình chữ nổi đã kết nối</string>
-  <string name="shortcut_add_to_clipboard">Thêm vào khay nhớ tạm</string>
+  <string name="shortcut_add_to_clipboard">Nối thêm vào bộ nhớ tạm</string>
   <string name="title_show_braille_display_settings">Cài đặt màn hình chữ nổi</string>
   <string name="summary_braile_display_preferences">Mở phần cài đặt màn hình chữ nổi</string>
   <string name="summary_support_change_touch_explore_latency">Tăng hoặc giảm độ trễ tiêu điểm khi nhập</string>

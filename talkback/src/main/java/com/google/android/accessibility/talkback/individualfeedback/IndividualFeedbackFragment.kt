@@ -146,6 +146,11 @@ class IndividualFeedbackFragment : TalkbackBaseFragment() {
           true
         },
       )
+      holder.itemView.isLongClickable = true
+      holder.itemView.setOnLongClickListener {
+        preview()
+        true
+      }
     }
   }
 

@@ -97,13 +97,21 @@ class CustomReadingControlsFragment : TalkbackBaseFragment() {
       val upLabel = Commands.label(context, control.upAction) ?: control.upAction
       val downLabel = Commands.label(context, control.downAction) ?: control.downAction
       category.addPreference(
-        Preference(context).apply {
+        ActionablePreference(context) {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.custom_reading_control_edit)) {
+              showEditorDialog(existing = control)
+            },
+            PreferenceCustomActions.Entry(getString(R.string.custom_reading_control_delete)) {
+              confirmDelete(control)
+            },
+          )
+        }.apply {
           key = "custom_rc_${control.id}"
           title = control.name
           summary = getString(R.string.custom_reading_control_summary_fmt, upLabel, downLabel)
-          isIconSpaceReserved = false
           setOnPreferenceClickListener {
-            showItemActionsDialog(control)
+            showEditorDialog(existing = control)
             true
           }
         }

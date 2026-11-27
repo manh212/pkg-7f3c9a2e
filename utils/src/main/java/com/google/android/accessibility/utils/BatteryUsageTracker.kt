@@ -391,6 +391,16 @@ object BatteryUsageTracker {
     ttsPcmChunks.incrementAndGet()
   }
 
+  /** Reclassifies an already-counted live TTS request as served from local PCM cache. */
+  @JvmStatic
+  fun onTtsCacheHitReclassify() {
+    if (!enabled) return
+    if (ttsLiveRequests.get() > 0L) {
+      ttsLiveRequests.decrementAndGet()
+    }
+    ttsCacheRequests.incrementAndGet()
+  }
+
   /** Records an utterance interrupted mid-speech (e.g., user swiped quickly). */
   @JvmStatic
   fun onTtsInterrupted() {

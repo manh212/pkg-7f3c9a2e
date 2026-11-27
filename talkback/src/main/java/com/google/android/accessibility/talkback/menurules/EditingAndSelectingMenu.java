@@ -227,6 +227,13 @@ public class EditingAndSelectingMenu implements NodeMenu {
                 R.id.edittext_breakout_prev_spelling_error,
                 Menu.NONE,
                 context.getString(R.string.editor_action_prev_spelling_error)));
+        items.add(
+            ContextMenu.createMenuItem(
+                context,
+                Menu.NONE,
+                R.id.edittext_breakout_check_spelling_all,
+                Menu.NONE,
+                context.getString(R.string.editor_action_check_spelling_all)));
       }
     }
 
@@ -343,6 +350,12 @@ public class EditingAndSelectingMenu implements NodeMenu {
                       node,
                       pipeline,
                       itemId == R.id.edittext_breakout_next_spelling_error);
+        } else if (itemId == R.id.edittext_breakout_check_spelling_all) {
+          TalkBackService service = TalkBackService.getInstance();
+          result =
+              service != null
+                  && VietnameseTextActionsMenu.checkSpellingFullField(
+                      service, node, pipeline);
         } else if (itemId == R.id.edittext_breakout_choose_keyboard) {
           TalkBackService service = TalkBackService.getInstance();
           result = service != null;

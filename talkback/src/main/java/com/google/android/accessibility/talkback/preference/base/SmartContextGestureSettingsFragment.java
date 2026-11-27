@@ -79,12 +79,6 @@ public final class SmartContextGestureSettingsFragment extends TalkbackBaseFragm
     PreferenceScreen screen = getPreferenceManager().createPreferenceScreen(context);
     setPreferenceScreen(screen);
 
-    SwitchPreferenceCompat enabled = new SwitchPreferenceCompat(context);
-    enabled.setKey(getString(R.string.pref_selector_smart_context_key));
-    enabled.setTitle(R.string.smart_context_enable);
-    enabled.setDefaultValue(false);
-    screen.addPreference(enabled);
-
     SwitchPreferenceCompat autoSwitch = new SwitchPreferenceCompat(context);
     autoSwitch.setKey(SmartContextGestures.PREF_AUTO_SWITCH);
     autoSwitch.setTitle(R.string.smart_context_auto_switch);

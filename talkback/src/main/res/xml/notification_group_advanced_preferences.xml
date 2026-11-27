@@ -17,7 +17,7 @@
       android:key="pref_notification_reading_advanced_screen"
       android:title="@string/notification_reading_advanced_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAutomationMonitorFragment"
-      android:key="pref_notification_automation_monitor_screen"
-      android:title="@string/notification_group_automation_monitor_title" />
+      android:fragment="com.google.android.accessibility.talkback.notifications.NotificationAutomationFragment"
+      android:key="pref_notification_automation_settings"
+      android:title="@string/notification_automation_title" />
 </PreferenceScreen>

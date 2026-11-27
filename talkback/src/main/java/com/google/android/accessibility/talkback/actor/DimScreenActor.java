@@ -443,7 +443,9 @@ public class DimScreenActor implements OnConfigurationChangedListener {
                 Speech.builder()
                     .setAction(Action.SPEAK)
                     .setText(service.getString(R.string.screen_dimmed))
-                    .setOptions(announcementOptions(SpeechController.QUEUE_MODE_INTERRUPT))
+                    .setOptions(
+                        announcementOptions(
+                            SpeechController.QUEUE_MODE_INTERRUPT_AND_UNINTERRUPTIBLE_BY_NEW_SPEECH))
                     .build()));
     // Users who turned off the confirmation dialog already know how to show the screen again.
     if (!getShouldShowDialogPref()) {

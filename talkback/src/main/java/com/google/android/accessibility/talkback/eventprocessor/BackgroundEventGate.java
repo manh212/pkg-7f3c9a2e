@@ -21,6 +21,7 @@ public final class BackgroundEventGate {
   private static final long RECENT_INPUT_MS = 500;
   private static final long FLING_CHAIN_GAP_MS = 250;
   private static final long FLING_MAX_EXTENSION_MS = 1800;
+  private static final long TOUCHING_SAFETY_TIMEOUT_MS = 2500;
   private static final int PANE_CONTENT_CHANGES =
       AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_TITLE
           | AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_APPEARED
@@ -64,6 +65,7 @@ public final class BackgroundEventGate {
   private final Predicate<AccessibilityEvent> inputResponse;
   private final Consumer<AccessibilityEvent> deferredInvalidation;
   private final Runnable releasePending = this::releasePending;
+  private final Runnable clearStaleTouch = this::clearStaleTouch;
   private boolean strict;
   private boolean interactionPriorityEnabled;
   private boolean touching;
@@ -149,10 +151,16 @@ public final class BackgroundEventGate {
       onUserInput();
       handler.removeCallbacks(releasePending);
       releaseScheduled = false;
+      armTouchSafetyTimeout();
     } else if (type == AccessibilityEvent.TYPE_TOUCH_INTERACTION_END) {
       touching = false;
+      handler.removeCallbacks(clearStaleTouch);
       onUserInput();
       schedulePending();
+    } else if (touching
+        && (type == AccessibilityEvent.TYPE_VIEW_HOVER_ENTER
+            || type == AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_START)) {
+      armTouchSafetyTimeout();
     }
     if (type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
         || type == AccessibilityEvent.TYPE_VIEW_FOCUSED
@@ -485,8 +493,23 @@ public final class BackgroundEventGate {
     }
   }
 
+  private void armTouchSafetyTimeout() {
+    handler.removeCallbacks(clearStaleTouch);
+    handler.postDelayed(clearStaleTouch, TOUCHING_SAFETY_TIMEOUT_MS);
+  }
+
+  private void clearStaleTouch() {
+    if (!touching) {
+      return;
+    }
+    touching = false;
+    schedulePending();
+  }
+
   public void clear() {
     handler.removeCallbacks(releasePending);
+    handler.removeCallbacks(clearStaleTouch);
+    touching = false;
     releaseScheduled = false;
     TraversalTreeCache.resetChurnTracking();
     if (pendingForeground != null) {

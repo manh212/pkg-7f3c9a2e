@@ -23,16 +23,14 @@ class FullScreenMonitorSettingsFragment :
 
   override fun build(screen: PreferenceGroup) {
     val context = requireContext()
-    screen.action(
+    screen.switch(
       getString(R.string.full_screen_monitor_manual_title),
-      getString(
-        if (prefs.getBoolean(FullScreenMonitor.KEY_MANUAL, false))
-          R.string.full_screen_monitor_enabled
-        else R.string.full_screen_monitor_disabled
-      ),
-    ) {
-      FullScreenMonitor.toggle(context)
-      rebuild()
+      prefs.getBoolean(FullScreenMonitor.KEY_MANUAL, false),
+    ) { checked ->
+      if (checked != prefs.getBoolean(FullScreenMonitor.KEY_MANUAL, false)) {
+        FullScreenMonitor.toggle(context)
+        rebuild()
+      }
     }
     val profiles = VoiceProfileNames.names(context, prefs)
     val voicePreference = AccessibilitySuiteListPreference(context).apply {

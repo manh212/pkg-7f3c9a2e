@@ -36,7 +36,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_intonation_default"
         android:key="@string/pref_intonation_key"
-        android:summary="@string/summary_pref_intonation"
         android:title="@string/title_pref_intonation" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="true"
@@ -44,7 +43,6 @@
         android:title="@string/title_pref_keep_screen_on_while_speaking" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_system_tts_settings_key"
-        android:title="@string/title_pref_system_tts_settings"
-        android:summary="@string/summary_tts_settings" />
+        android:title="@string/title_pref_system_tts_settings" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

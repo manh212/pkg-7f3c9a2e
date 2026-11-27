@@ -37,6 +37,18 @@ class VietnameseLexiconAndSpellCheckerTest {
         "U\ttối\t82",
         "B\ttiếp\ttục\t90",
         "B\ttiếp\tsức\t80",
+        "U\tlàm\t95",
+        "U\tnói\t94",
+        "U\ttrời\t90",
+        "U\tchính\t92",
+        "U\ttrung\t90",
+        "U\tchuyện\t92",
+        "U\tlên\t93",
+        "U\ttranh\t88",
+        "B\ttập\ttrung\t92",
+        "B\tnói\tchuyện\t93",
+        "B\tđi\tlên\t91",
+        "B\tbức\ttranh\t90",
       )
     )
   }
@@ -83,5 +95,22 @@ class VietnameseLexiconAndSpellCheckerTest {
     val prev = VietnameseSpellChecker.findPreviousError(null, text, second.start)
     assertNotNull(prev)
     assertEquals("nghà", prev!!.word)
+  }
+
+  @Test
+  fun spellChecker_catchesLNAndTrChNonWordsAndContextualErrors() {
+    assertFalse(VietnameseSpellChecker.isValidWord(null, "nàm"))
+    assertFalse(VietnameseSpellChecker.isValidWord(null, "lói"))
+    assertFalse(VietnameseSpellChecker.isValidWord(null, "chời"))
+    assertFalse(VietnameseSpellChecker.isValidWord(null, "trính"))
+    assertEquals("làm", VietnameseSpellChecker.suggestCorrections(null, "nàm").firstOrNull())
+    assertEquals("nói", VietnameseSpellChecker.suggestCorrections(null, "lói").firstOrNull())
+    assertEquals("trời", VietnameseSpellChecker.suggestCorrections(null, "chời").firstOrNull())
+    assertEquals("chính", VietnameseSpellChecker.suggestCorrections(null, "trính").firstOrNull())
+
+    val sentence = "Tôi đang tập chung nói truyện và đi nên xem bức chanh"
+    val (corrected, count) = VietnameseSpellChecker.correctFullTextOffline(null, sentence)
+    assertEquals(4, count)
+    assertEquals("Tôi đang tập trung nói chuyện và đi lên xem bức tranh", corrected)
   }
 }

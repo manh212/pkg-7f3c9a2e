@@ -200,8 +200,7 @@ public final class SupportActivity extends Activity {
     });
     button("Hàng chờ gửi", this::queue);
     if (!SupportNotifications.enabled(this)) {
-      text("Thông báo hỗ trợ đang bị tắt trong Android.");
-      button("Mở cài đặt thông báo", () -> {
+      button("Bật thông báo hỗ trợ trong cài đặt Android", () -> {
         try {
           startActivity(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
               .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName()));

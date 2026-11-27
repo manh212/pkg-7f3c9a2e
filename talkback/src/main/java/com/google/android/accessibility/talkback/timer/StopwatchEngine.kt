@@ -30,6 +30,7 @@ import android.os.Vibrator
 import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.utils.DateTimeUtils
 import com.google.android.accessibility.talkback.notifications.AlarmClockIntents
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.util.Date
@@ -156,7 +157,7 @@ class StopwatchEngine(
       context.getString(
         R.string.stopwatch_elapsed_now,
         Stopwatch.formatElapsed(context, Stopwatch.activeElapsedMillis(context)),
-        DateFormat.getTimeFormat(context).format(Date()),
+        DateTimeUtils.formatTime(context, System.currentTimeMillis()),
       ),
       false,
     )

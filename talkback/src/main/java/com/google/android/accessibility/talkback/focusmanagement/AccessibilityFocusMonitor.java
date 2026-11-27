@@ -182,7 +182,7 @@ public class AccessibilityFocusMonitor {
         return inputFocusedNode;
       }
     } else {
-      LogUtils.w(TAG, "getAccessibilityFocus, inputFocusedNode is null");
+      LogUtils.d(TAG, "getAccessibilityFocus, inputFocusedNode is null");
     }
 
     // If we can't find the focused node, return the last editable. This will occur if the
@@ -204,7 +204,7 @@ public class AccessibilityFocusMonitor {
       // the TODO above it questioned whether it belonged here at all.)
       return lastFocusedEditFieldInHistory;
     }
-    LogUtils.e(TAG, "getAccessibilityFocus, couldn't fallback from lastFocusedEditFieldInHistory");
+    LogUtils.d(TAG, "getAccessibilityFocus, couldn't fallback from lastFocusedEditFieldInHistory");
     return null;
   }
 

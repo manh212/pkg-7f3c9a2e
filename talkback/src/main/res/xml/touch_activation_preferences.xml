@@ -11,7 +11,6 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="@bool/pref_single_tap_default"
       android:key="@string/pref_single_tap_key"
-      android:summary="@string/summary_pref_single_tap"
       android:title="@string/title_pref_single_tap" />
   <com.google.android.accessibility.talkback.preference.base.CommandSwitchPreference
       android:defaultValue="@bool/pref_fix_stuck_touch_exploration_default"

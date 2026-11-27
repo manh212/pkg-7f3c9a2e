@@ -6,10 +6,6 @@
       android:defaultValue="ocr"
       android:entries="@array/screen_recognition_method_entries"
       android:entryValues="@array/screen_recognition_method_values" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:key="pref_screen_recognition_ocr_settings"
-      android:fragment="com.google.android.accessibility.talkback.preference.base.OcrSettingsFragment"
-      android:title="@string/title_pref_ocr_settings" />
   <Preference
       android:key="screen_recognition_privacy"
       android:selectable="false"

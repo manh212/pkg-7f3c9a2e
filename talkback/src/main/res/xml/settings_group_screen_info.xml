@@ -5,7 +5,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.AutomaticDescriptionsFragment"
         android:key="@string/pref_auto_image_captioning_key"
-        android:summary="@string/summary_pref_auto_image_captioning"
         android:title="@string/title_pref_auto_image_captioning" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.AiServicesFragment"
@@ -14,7 +13,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.actor.gemini.local.OnDeviceAiFragment"
         android:key="@string/pref_on_device_ai_key"
-        android:summary="@string/summary_pref_on_device_ai"
         android:title="@string/title_pref_on_device_ai" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.screenrecognition.ScreenRecognitionSettingsFragment"

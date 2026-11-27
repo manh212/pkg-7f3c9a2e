@@ -1280,3 +1280,95 @@ B	tiếp	xúc	82
 B	đặc	trưng	82
 B	đột	ngột	82
 B	tiếp	đãi	78
+# Confusable Vietnamese unigrams & bigrams (l/n, tr/ch, s/x, r/d/gi, hỏi/ngã)
+U	trung	90
+U	chung	89
+U	tranh	88
+U	chanh	84
+U	chuyện	92
+U	truyện	86
+U	trả	90
+U	trời	90
+U	chính	92
+U	tả	86
+U	lỗi	90
+U	nỗi	88
+U	buồn	86
+U	lầm	85
+U	trường	90
+U	chương	89
+U	trình	90
+U	sản	88
+U	xuất	89
+U	xử	88
+U	sử	88
+U	giúp	92
+U	đỡ	88
+U	làm	95
+U	nói	94
+U	lên	93
+U	nên	93
+U	chuẩn	88
+U	chuyển	89
+U	chuyên	88
+U	trách	88
+U	trạng	87
+U	trực	88
+U	triển	88
+U	chiến	87
+U	bức	85
+B	tập	trung	92
+B	nói	chuyện	93
+B	chính	tả	94
+B	kiểm	tra	93
+B	trả	lời	93
+B	đi	lên	91
+B	bạn	nên	91
+B	nên	làm	91
+B	làm	việc	93
+B	bức	tranh	90
+B	chiến	tranh	90
+B	chương	trình	92
+B	trường	học	92
+B	mặt	trời	91
+B	nỗi	buồn	90
+B	lỗi	lầm	90
+B	lỗi	chính	92
+B	sản	xuất	92
+B	sử	dụng	93
+B	xử	lý	93
+B	giúp	đỡ	92
+B	sẵn	sàng	91
+B	trách	nhiệm	91
+B	trung	tâm	91
+B	chung	cư	90
+B	chung	tay	89
+B	trạng	thái	90
+B	trực	tiếp	91
+B	phát	triển	92
+B	chuẩn	bị	91
+B	chuyển	đổi	91
+B	chuyên	nghiệp	90
+B	chính	xác	92
+B	chất	lượng	92
+B	rõ	ràng	92
+B	dễ	dàng	92
+B	dữ	liệu	91
+B	gia	đình	92
+B	giáo	dục	91
+B	lời	nói	91
+B	năng	lực	90
+B	nội	dung	92
+B	lịch	sử	91
+B	liên	hệ	92
+B	lựa	chọn	91
+B	lưu	ý	91
+B	lắng	nghe	91
+B	miễn	phí	91
+B	kỹ	thuật	91
+B	quản	lý	92
+B	trải	nghiệm	91
+B	đọc	truyện	90
+B	kể	chuyện	91
+B	nước	chanh	89
+B	quả	chanh	88

@@ -49,10 +49,6 @@
         android:max="45"
         android:title="@string/title_pref_dictation_speech_threshold"
         app:showSeekBarValue="false" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="pref_dictation_google_download"
-        android:persistent="false"
-        android:title="@string/dictation_google_download" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
@@ -71,8 +67,7 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_dictation_online_ai_emoji"
-        android:title="@string/dictation_ai_emoji_title"
-        android:summary="@string/dictation_ai_emoji_summary" />
+        android:title="@string/dictation_ai_emoji_title" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
@@ -95,11 +90,6 @@
         android:entries="@array/dictation_translation_language_names"
         android:entryValues="@array/dictation_translation_language_codes"
         android:summary="%s" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:key="pref_dictation_translation_note"
-        android:persistent="false"
-        android:selectable="false"
-        android:title="@string/dictation_translation_note" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
 </PreferenceScreen>

@@ -31,6 +31,9 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Clock;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /** Utility class to get the current time and date. */
 public final class DateTimeUtils {
@@ -49,6 +52,11 @@ public final class DateTimeUtils {
   public static final int TIME_FEEDBACK_FORMAT_12_HOURS = 1;
   public static final int TIME_FEEDBACK_FORMAT_24_HOURS = 2;
 
+  private static final Pattern VI_AM_PATTERN =
+      Pattern.compile("[\\s\\u00A0\\u202F]+SA(?=$|[\\s,.;:!?])");
+  private static final Pattern VI_PM_PATTERN =
+      Pattern.compile("[\\s\\u00A0\\u202F]+CH(?=$|[\\s,.;:!?])");
+
   private static Clock clock = Clock.systemUTC();
 
   /** Returns the current time in text using the local format. */
@@ -61,6 +69,27 @@ public final class DateTimeUtils {
   /** Returns the current time in text using the time format in advanced settings. */
   public static String getCurrentTime(Context context) {
     return getCurrentTime(context, getTimeFeedbackFormat(context));
+  }
+
+  /** Formats an arbitrary timestamp using Meridian's configured 12h/24h time format for speech. */
+  public static String formatTime(Context context, long millis) {
+    int timeFlags = DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_CAP_NOON_MIDNIGHT;
+    return formatCurrentTime(context, millis, timeFlags, getTimeFeedbackFormat(context));
+  }
+
+  /** Returns whether Meridian's effective time format is 24-hour. */
+  public static boolean is24HourMode(Context context) {
+    return resolve24Hour(context, getTimeFeedbackFormat(context));
+  }
+
+  /** Replaces Vietnamese ICU SA/CH abbreviations with spoken "sáng"/"chiều" for TTS clarity. */
+  public static String normalizeVietnameseAmPm(Context context, String text) {
+    if (text == null || text.isEmpty() || !isVietnameseLocale(context)) {
+      return text;
+    }
+    String result = VI_AM_PATTERN.matcher(text).replaceAll(" sáng");
+    result = VI_PM_PATTERN.matcher(result).replaceAll(" chiều");
+    return result;
   }
 
   /** Returns the current time and date in text using the local format. */
@@ -108,20 +137,66 @@ public final class DateTimeUtils {
             String.format("%s %s", timeString, dateString), TextDirectionHeuristics.LOCALE);
   }
 
+  private static boolean resolve24Hour(Context context, @TimeFeedbackFormat int timeFormat) {
+    return switch (timeFormat) {
+      case DateTimeUtils.TIME_FEEDBACK_FORMAT_12_HOURS -> false;
+      case DateTimeUtils.TIME_FEEDBACK_FORMAT_24_HOURS -> true;
+      default -> DateFormat.is24HourFormat(context);
+    };
+  }
+
+  private static boolean isVietnameseLocale(Context context) {
+    Locale locale = null;
+    if (context != null && context.getResources() != null) {
+      locale = context.getResources().getConfiguration().getLocales().get(0);
+    }
+    if (locale == null) {
+      locale = Locale.getDefault();
+    }
+    return locale != null && "vi".equalsIgnoreCase(locale.getLanguage());
+  }
+
+  private static String formatVietnameseSpokenTime(long millis, boolean use24Hour) {
+    Calendar cal = Calendar.getInstance();
+    cal.setTimeInMillis(millis);
+    int hour24 = cal.get(Calendar.HOUR_OF_DAY);
+    int minute = cal.get(Calendar.MINUTE);
+    if (use24Hour) {
+      return minute == 0
+          ? String.format(Locale.ROOT, "%d giờ", hour24)
+          : String.format(Locale.ROOT, "%d giờ %d phút", hour24, minute);
+    }
+    int hour12 = hour24 % 12;
+    if (hour12 == 0) {
+      hour12 = 12;
+    }
+    final String period;
+    if (hour24 == 0) {
+      period = "đêm";
+    } else if (hour24 < 12) {
+      period = "sáng";
+    } else if (hour24 == 12) {
+      period = "trưa";
+    } else if (hour24 < 18) {
+      period = "chiều";
+    } else {
+      period = "tối";
+    }
+    return minute == 0
+        ? String.format(Locale.ROOT, "%d giờ %s", hour12, period)
+        : String.format(Locale.ROOT, "%d giờ %d phút %s", hour12, minute, period);
+  }
+
   private static String formatCurrentTime(
       Context context, long millis, int timeFlags, @TimeFeedbackFormat int timeFormat) {
     int currentTimeFlags = timeFlags & DateUtils.FORMAT_SHOW_TIME;
     String timeString = "";
     if (currentTimeFlags != 0) {
-      currentTimeFlags |=
-          switch (timeFormat) {
-            case DateTimeUtils.TIME_FEEDBACK_FORMAT_12_HOURS -> DateUtils.FORMAT_12HOUR;
-            case DateTimeUtils.TIME_FEEDBACK_FORMAT_24_HOURS -> DateUtils.FORMAT_24HOUR;
-            default ->
-                DateFormat.is24HourFormat(context)
-                    ? DateUtils.FORMAT_24HOUR
-                    : DateUtils.FORMAT_12HOUR;
-          };
+      boolean use24Hour = resolve24Hour(context, timeFormat);
+      if (isVietnameseLocale(context)) {
+        return formatVietnameseSpokenTime(millis, use24Hour);
+      }
+      currentTimeFlags |= use24Hour ? DateUtils.FORMAT_24HOUR : DateUtils.FORMAT_12HOUR;
       timeString = DateUtils.formatDateTime(context, millis, currentTimeFlags);
     }
     return timeString;

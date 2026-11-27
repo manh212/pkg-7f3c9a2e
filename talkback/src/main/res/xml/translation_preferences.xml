@@ -25,8 +25,7 @@
 
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
       android:key="pref_translation_auto_category"
-      android:order="50"
-      android:title="@string/title_pref_translation_auto">
+      android:order="50">
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_translation_auto"

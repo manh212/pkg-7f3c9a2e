@@ -916,6 +916,7 @@ public final class GestureListPreference extends AccessibilitySuiteDialogPrefere
             resources.getString(R.string.shortcut_value_clear_all_text),
             TYPE_ACTION_ITEM));
     builder.add(new ActionItem(resources.getString(R.string.correction_title), resources.getString(R.string.shortcut_value_correct_text), TYPE_ACTION_ITEM));
+    builder.add(new ActionItem(resources.getString(R.string.editor_action_check_spelling_all), resources.getString(R.string.shortcut_value_check_spelling_all), TYPE_ACTION_ITEM));
     builder.add(new ActionItem(resources.getString(R.string.shortcut_submit_text), resources.getString(R.string.shortcut_value_submit_text), TYPE_ACTION_ITEM));
     return builder.build();
   }

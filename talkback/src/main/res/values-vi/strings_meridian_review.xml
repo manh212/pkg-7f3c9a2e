@@ -25,8 +25,8 @@
   <string name="keycombo_menu_focus_review_cursor">Đưa tiêu điểm Meridian đến mục đang đọc</string>
   <string name="keycombo_menu_review_cursor_on">Bật con trỏ đọc riêng</string>
   <string name="keycombo_menu_review_cursor_off">Tắt con trỏ đọc riêng</string>
-  <string name="commands_category_object_navigation">Điều hướng đối tượng</string>
-  <string name="commands_category_screen_review">Con trỏ đọc riêng</string>
+  <string name="commands_category_object_navigation">Điều hướng theo cấu trúc màn hình</string>
+  <string name="commands_category_screen_review">Con trỏ đọc độc lập (duyệt màn hình)</string>
   <string name="review_top">Đầu</string>
   <string name="review_bottom">Cuối</string>
   <string name="review_blank">Trống</string>

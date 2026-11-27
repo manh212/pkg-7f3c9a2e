@@ -90,6 +90,7 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.view.KeyEvent;
@@ -1088,6 +1089,11 @@ public class GestureController {
     } else if (action.equals(service.getString(R.string.shortcut_value_correct_text))) {
       result = com.google.android.accessibility.talkback.textcorrection.TextCorrection.open(
           service, fromCustomMenu && menuTarget != null ? menuTarget : findEditorTarget());
+    } else if (action.equals(service.getString(R.string.shortcut_value_check_spelling_all))) {
+      AccessibilityNodeInfoCompat target =
+          fromCustomMenu && menuTarget != null ? menuTarget : findEditorTarget();
+      result = com.google.android.accessibility.talkback.menurules.VietnameseTextActionsMenu
+          .checkSpellingFullField(service, target, pipeline);
     } else if (action.equals(service.getString(R.string.shortcut_value_granular_editing))) {
       AccessibilityNodeInfoCompat focus =
           accessibilityFocusMonitor.getAccessibilityFocus(/* useInputFocusIfEmpty= */ true);
@@ -1385,6 +1391,11 @@ public class GestureController {
 
   @SuppressWarnings("NewApi")
   public void onGesture(int gestureId, EventId eventId) {
+    PowerManager powerManager = service.getSystemService(PowerManager.class);
+    if (powerManager != null && !powerManager.isInteractive()) {
+      LogUtils.v(LOG_TAG, "Ignoring touch gesture %d while screen is non-interactive", gestureId);
+      return;
+    }
     SmartContextGestures.cancel();
     RecentUserInput.mark();
     if (gestureHandledByTraining(gestureId, /* isFingerprintGesture= */ false)) {

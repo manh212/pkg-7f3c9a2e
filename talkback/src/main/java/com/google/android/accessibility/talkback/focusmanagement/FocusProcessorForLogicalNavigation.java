@@ -6888,21 +6888,30 @@ public class FocusProcessorForLogicalNavigation {
         }
       }
 
-      nodeToFocus = TraversalStrategyUtils.searchFocus(
-          localTraversalStrategy, searchPivot, sourceAction.searchDirection, nodeFilter);
-      // A RecyclerView can show another row in the pivot's view by now, so only a node holding the
-      // pivot on screen, such as its own card, counts as a step back here.
-      nodeToFocus =
-          skipBackSteps(
-              localTraversalStrategy,
-              nodeToFocus,
-              focusBeforeScroll,
-              sourceAction.searchDirection,
-              nodeFilter,
-              /* holdingOnly= */ true);
-      if (nodeToFocus == null && !validAccessibilityFocus) {
-        nodeToFocus = TraversalStrategyUtils.findFirstFocusInNodeTree(
-            localTraversalStrategy, scrolledNode, sourceAction.searchDirection, nodeFilter);
+      boolean pivotInLocalTree =
+          !(localTraversalStrategy instanceof OrderedTraversalStrategy orderedLocal)
+              || orderedLocal.containsNode(searchPivot);
+      if (validAccessibilityFocus && pivotInLocalTree) {
+        nodeToFocus = TraversalStrategyUtils.searchFocus(
+            localTraversalStrategy, searchPivot, sourceAction.searchDirection, nodeFilter);
+        // A RecyclerView can show another row in the pivot's view by now, so only a node holding the
+        // pivot on screen, such as its own card, counts as a step back here.
+        nodeToFocus =
+            skipBackSteps(
+                localTraversalStrategy,
+                nodeToFocus,
+                focusBeforeScroll,
+                sourceAction.searchDirection,
+                nodeFilter,
+                /* holdingOnly= */ true);
+      }
+      if (nodeToFocus == null && (!validAccessibilityFocus || !pivotInLocalTree)) {
+        nodeToFocus = findFocusAfterInvalidPivot(
+            localTraversalStrategy,
+            scrolledNode,
+            sourceAction.searchDirection,
+            nodeFilter,
+            focusBeforeScroll);
       }
     }
     if (validAccessibilityFocus) {

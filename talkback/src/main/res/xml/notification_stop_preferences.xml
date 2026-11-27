@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:key="pref_notification_access"
-      android:title="@string/notification_list_grant_access" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="false"
       android:key="pref_notification_shake_to_stop"
@@ -18,13 +15,11 @@
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="false"
       android:key="pref_notification_wave_to_stop"
-      android:summary="@string/notification_wave_summary"
       android:title="@string/notification_wave_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
       android:defaultValue="true"
       android:dependency="pref_notification_wave_to_stop"
       android:key="pref_notification_pocket_mode"
-      android:summary="@string/notification_pocket_summary"
       android:title="@string/notification_pocket_title" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.commands.InputSettingsFragment"

@@ -40,7 +40,4 @@
         android:key="pref_notification_url_text"
         android:title="@string/notification_url_text_title" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:key="pref_notification_test"
-      android:title="@string/notification_test_title" />
 </PreferenceScreen>

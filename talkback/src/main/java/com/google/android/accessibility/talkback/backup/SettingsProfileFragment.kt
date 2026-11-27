@@ -24,6 +24,8 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.notifications.NotificationReader
 import com.google.android.accessibility.talkback.preference.TalkBackPreferencesActivity
+import com.google.android.accessibility.talkback.preference.base.ActionablePreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 
 /**
  * One settings profile: Use now or Stop using, Change settings, when it is used automatically, in
@@ -100,11 +102,17 @@ class SettingsProfileFragment : NotificationCodeFragment(R.string.title_pref_set
     val names = triggers.apps.associateWith { NotificationReader.appName(context, it) }
     for (packageName in triggers.apps.sortedBy { names.getValue(it).lowercase() }) {
       val name = names.getValue(packageName)
-      apps.action(name) {
-        confirm(getString(R.string.settings_profile_remove_confirm, name, profile.name), R.string.quick_settings_remove) {
-          setTriggers(profile, triggers.copy(apps = triggers.apps - packageName))
-        }
-      }
+      apps.addPreference(
+        ActionablePreference(context) {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.quick_settings_remove)) {
+              confirm(getString(R.string.settings_profile_remove_confirm, name, profile.name), R.string.quick_settings_remove) {
+                setTriggers(profile, triggers.copy(apps = triggers.apps - packageName))
+              }
+            }
+          )
+        }.apply { title = name }
+      )
     }
 
     keyboards(screen, profile)
@@ -116,18 +124,24 @@ class SettingsProfileFragment : NotificationCodeFragment(R.string.title_pref_set
       }
       // Meridian has no settings index, so each setting is shown by its key.
       for (key in settings.keys.sortedBy { SettingsBackup.keyOf(it).lowercase() }) {
-        val title = SettingsBackup.keyOf(key)
-        list.action(title, null) {
-          confirm(getString(R.string.settings_profile_remove_confirm, title, profile.name), R.string.quick_settings_remove) {
-            SettingsProfiles.inBackground(requireContext(), {
-              SettingsProfiles.removeSetting(it, profile.id, key)
-              SettingsProfiles.settingsOf(it, profile.id)
-            }) {
-              profileSettings = it
-              done(null)
-            }
-          }
-        }
+        val itemTitle = SettingsBackup.keyOf(key)
+        list.addPreference(
+          ActionablePreference(context) {
+            listOf(
+              PreferenceCustomActions.Entry(getString(R.string.quick_settings_remove)) {
+                confirm(getString(R.string.settings_profile_remove_confirm, itemTitle, profile.name), R.string.quick_settings_remove) {
+                  SettingsProfiles.inBackground(requireContext(), {
+                    SettingsProfiles.removeSetting(it, profile.id, key)
+                    SettingsProfiles.settingsOf(it, profile.id)
+                  }) {
+                    profileSettings = it
+                    done(null)
+                  }
+                }
+              }
+            )
+          }.apply { title = itemTitle }
+        )
       }
     }
 

@@ -57,8 +57,4 @@
         android:summary="@string/summary_pref_volume_keys_move_cursor"
         android:title="@string/title_pref_volume_keys_move_cursor" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
-  <com.google.android.accessibility.talkback.preference.base.AccessibilityFooterPreference
-      android:key="pref_volume_keys_footer"
-      android:selectable="false"
-      android:title="@string/volume_keys_footer" />
 </PreferenceScreen>

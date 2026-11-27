@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.Feedback
 import com.google.android.accessibility.talkback.Pipeline
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.utils.DateTimeUtils
 import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.compositor.rule.EventTypeNotificationStateChangedFeedbackRule
 import com.google.android.accessibility.talkback.notificationlist.NotificationListService
@@ -594,7 +595,7 @@ object NotificationReader {
     val categoryName =
       EventTypeNotificationStateChangedFeedbackRule.getNotificationCategoryStateText(context, notification)
         .toString()
-    val time = DateFormat.getTimeFormat(context).format(Date(info.postedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis()))
+    val time = DateTimeUtils.formatTime(context, info.postedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis())
     val decision =
       decider.decide(info, settings, stateReader.read(settings), System.currentTimeMillis(), categoryName, time)
     var text: CharSequence = decision.text

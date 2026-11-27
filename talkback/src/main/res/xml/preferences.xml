@@ -5,10 +5,6 @@
       android:key="pref_updates_screen"
       android:title="@string/title_pref_updates" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.notifications.InitialSetupFragment"
-      android:key="pref_initial_setup_screen"
-      android:title="@string/timer_setup_title" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.TextToSpeechSettingsFragment"
       android:key="@string/pref_tts_settings_key"
       android:title="@string/title_pref_voice_settings" />
@@ -16,10 +12,6 @@
       android:fragment="com.google.android.accessibility.talkback.preference.base.SpeechGroupFragment"
       android:key="@string/pref_settings_group_speech_key"
       android:title="@string/title_pref_reading_content" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.calls.CallSettingsFragment"
-      android:key="pref_call_settings"
-      android:title="@string/title_pref_calls" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.NavigationGroupFragment"
       android:key="@string/pref_settings_group_navigation_key"
@@ -49,6 +41,10 @@
       android:key="@string/pref_settings_group_typing_key"
       android:title="@string/title_pref_group_typing" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.calls.CallSettingsFragment"
+      android:key="pref_call_settings"
+      android:title="@string/title_pref_calls" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.ScreenInfoGroupFragment"
       android:key="@string/pref_settings_group_screen_info_key"
       android:title="@string/title_pref_recognition_ai" />
@@ -57,6 +53,10 @@
       android:key="@string/pref_settings_group_tools_key"
       android:title="@string/title_pref_group_tools" />
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.backup.SettingsProfilesFragment"
+      android:key="@string/pref_settings_profiles_key"
+      android:title="@string/title_pref_settings_profiles" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
       android:fragment="com.google.android.accessibility.talkback.preference.base.AdvancedGroupFragment"
       android:key="@string/pref_settings_group_advanced_key"
       android:title="@string/title_pref_advanced_settings" />
@@ -64,8 +64,4 @@
       android:fragment="com.google.android.accessibility.talkback.preference.base.HelpCenterGroupFragment"
       android:key="@string/pref_settings_group_help_center_key"
       android:title="@string/title_pref_group_help_center" />
-  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-      android:fragment="com.google.android.accessibility.talkback.backup.SettingsProfilesFragment"
-      android:key="@string/pref_settings_profiles_key"
-      android:title="@string/title_pref_settings_profiles" />
 </PreferenceScreen>

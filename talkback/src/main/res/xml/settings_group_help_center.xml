@@ -4,6 +4,10 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_help_center_key">
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:fragment="com.google.android.accessibility.talkback.notifications.InitialSetupFragment"
+        android:key="pref_initial_setup_screen"
+        android:title="@string/timer_setup_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="@string/pref_tutorial_and_help_key"
         android:title="@string/title_pref_tutorial" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
@@ -19,7 +23,7 @@
         android:title="@string/forum_title" />
     <com.google.android.accessibility.talkback.licensing.OwnerChatEntryPreference
         android:key="meridian_owner_private_chat"
-        android:title="Nhắn tin" />
+        android:title="Nhắn tin với nhà phát triển" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:key="pref_open_accessibility_settings"
         android:title="@string/title_open_accessibility_settings">

@@ -29,6 +29,7 @@ import com.google.android.accessibility.talkback.keyboard.KeyComboModel
 import com.google.android.accessibility.talkback.notifications.NotificationCodeFragment
 import com.google.android.accessibility.talkback.notifications.NotificationReader
 import com.google.android.accessibility.talkback.preference.base.KeyboardShortcutDialogPreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 
 /**
  * Gestures > Gestures in apps, and Keyboard shortcuts > Keyboard shortcuts in apps: the apps in
@@ -51,7 +52,19 @@ class AppGesturesFragment : NotificationCodeFragment(R.string.title_pref_app_ges
     apps.entries
       .sortedBy { it.value.name.lowercase() }
       .forEach { (packageName, app) ->
-        screen.link(app.name, null, AppGestureFragment::class.java) {
+        screen.actionableLink(
+          title = app.name,
+          summary = null,
+          screen = AppGestureFragment::class.java,
+          actions = {
+            listOf(
+              PreferenceCustomActions.Entry(getString(R.string.app_gestures_remove_app)) {
+                AppGestures.write(prefs, AppGestures.read(prefs) - packageName)
+                rebuild()
+              }
+            )
+          },
+        ) {
           putString(AppGestureFragment.ARG_PACKAGE, packageName)
         }
       }
@@ -148,13 +161,20 @@ class AppGestureFragment : NotificationCodeFragment(R.string.title_pref_app_gest
     remove: () -> Unit,
   ) {
     val title = getString(R.string.command_gesture_assigned, name, label(value))
-    group.action(title) {
-      choose(
-        title,
-        listOf(getString(R.string.app_gestures_choose_command), getString(R.string.notification_remove)),
-      ) {
-        if (it == 0) change() else remove()
-      }
+    group.actionable(
+      title = title,
+      actions = {
+        listOf(
+          PreferenceCustomActions.Entry(getString(R.string.app_gestures_choose_command)) {
+            change()
+          },
+          PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+            remove()
+          },
+        )
+      },
+    ) {
+      change()
     }
   }
 

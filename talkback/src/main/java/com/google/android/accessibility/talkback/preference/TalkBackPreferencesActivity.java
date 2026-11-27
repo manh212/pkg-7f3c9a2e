@@ -270,7 +270,7 @@ public class TalkBackPreferencesActivity extends PreferencesActivity
     String fragmentName = intent.getStringExtra(FRAGMENT_NAME);
     PreferenceFragmentCompat fragment = getFragmentByName(fragmentName);
     fragment.setArguments(argumentsOf(intent));
-    LogUtils.e(TAG, "onNewIntent/getContainerId()= %s", getContainerId());
+    LogUtils.d(TAG, "onNewIntent/getContainerId()= %s", getContainerId());
     FragmentManager manager = getSupportFragmentManager();
     if (fragment instanceof TalkBackPreferenceFragment) {
       // The app icon, or another intent for the main screen, while settings are open: Back from the

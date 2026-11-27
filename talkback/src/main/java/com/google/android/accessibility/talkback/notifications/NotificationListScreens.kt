@@ -37,6 +37,8 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.preference.base.ActionablePreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.preference.base.SearchMatcher
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -208,6 +210,39 @@ abstract class NotificationCodeFragment(@StringRes private val title: Int) : Tal
         onClick()
         true
       }
+      addPreference(it)
+    }
+
+  protected fun PreferenceGroup.actionable(
+    title: CharSequence,
+    summary: CharSequence? = null,
+    actions: () -> List<PreferenceCustomActions.Entry>,
+    onClick: () -> Unit,
+  ): Preference =
+    ActionablePreference(context, actions).also {
+      it.title = title
+      it.summary = summary
+      it.layoutResource = R.layout.listitem_2texts
+      it.setOnPreferenceClickListener {
+        onClick()
+        true
+      }
+      addPreference(it)
+    }
+
+  protected fun PreferenceGroup.actionableLink(
+    title: CharSequence,
+    summary: CharSequence?,
+    screen: Class<out Fragment>,
+    actions: () -> List<PreferenceCustomActions.Entry>,
+    arguments: Bundle.() -> Unit,
+  ): Preference =
+    ActionablePreference(context, actions).also {
+      it.title = title
+      it.summary = summary
+      it.layoutResource = R.layout.listitem_2texts
+      it.fragment = screen.name
+      it.extras.arguments()
       addPreference(it)
     }
 
@@ -496,7 +531,41 @@ class NotificationAppsFragment : NotificationCodeFragment(R.string.notification_
             },
           )
           .joinToString(", ")
-      apps.link(label, summary, NotificationAppFragment::class.java) { putString(ARG_PACKAGE, packageName) }
+      apps.actionableLink(
+        title = label,
+        summary = summary,
+        screen = NotificationAppFragment::class.java,
+        actions = {
+          buildList {
+            add(
+              PreferenceCustomActions.Entry(getString(R.string.notification_app_screen_off_title)) {
+                setApp(packageName) { it.copy(readWhenScreenOff = !it.readWhenScreenOff) }
+                rebuild()
+              }
+            )
+            for (mode in listOf(AppMode.READ, AppMode.PRIVATE, AppMode.PRIORITY, AppMode.IGNORE)) {
+              if (mode != app.mode) {
+                add(
+                  PreferenceCustomActions.Entry(modeText(context, mode)) {
+                    setApp(packageName) { it.copy(mode = mode) }
+                    rebuild()
+                  }
+                )
+              }
+            }
+            if (!app.isEmpty) {
+              add(
+                PreferenceCustomActions.Entry(getString(R.string.notification_app_reset)) {
+                  val updated = settings.apps.toMutableMap()
+                  updated.remove(packageName)
+                  saveApps(updated)
+                  rebuild()
+                }
+              )
+            }
+          }
+        },
+      ) { putString(ARG_PACKAGE, packageName) }
     }
   }
 
@@ -613,14 +682,11 @@ class NotificationAppFragment : NotificationCodeFragment(R.string.notification_a
         rebuild()
       }
     }
-    screen.action(
+    screen.switch(
       getString(R.string.notification_app_screen_off_title),
-      getString(
-        if (app.readWhenScreenOff) R.string.notification_app_screen_off_on
-        else R.string.notification_app_screen_off_off
-      ),
-    ) {
-      setApp(packageName) { it.copy(readWhenScreenOff = !it.readWhenScreenOff) }
+      app.readWhenScreenOff,
+    ) { checked ->
+      setApp(packageName) { it.copy(readWhenScreenOff = checked) }
       rebuild()
     }
     screen.action(
@@ -701,11 +767,21 @@ class NotificationWordsFragment : NotificationCodeFragment(R.string.notification
     replacements.createAction(getString(R.string.notification_add_replacement)) { editReplacement(settings.replacements, -1) }
     settings.replacements.forEachIndexed { index, replacement ->
       val title = getString(R.string.notification_replacement_item, replacement.find, replacement.replace)
-      replacements.action(title, if (replacement.regex) getString(R.string.notification_regex) else null) {
-        choose(title, listOf(getString(R.string.notification_edit), getString(R.string.notification_remove))) {
-          if (it == 0) editReplacement(settings.replacements, index)
-          else saveReplacements(settings.replacements.filterIndexed { i, _ -> i != index })
-        }
+      replacements.actionable(
+        title = title,
+        summary = if (replacement.regex) getString(R.string.notification_regex) else null,
+        actions = {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.notification_edit)) {
+              editReplacement(settings.replacements, index)
+            },
+            PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+              saveReplacements(settings.replacements.filterIndexed { i, _ -> i != index })
+            },
+          )
+        },
+      ) {
+        editReplacement(settings.replacements, index)
       }
     }
   }
@@ -734,11 +810,21 @@ class NotificationWordsFragment : NotificationCodeFragment(R.string.notification
     }
     category.createAction(getString(R.string.notification_add_word)) { editMatch(key, list, -1) }
     list.forEachIndexed { index, match ->
-      category.action(match.text, if (match.regex) getString(R.string.notification_regex) else null) {
-        choose(match.text, listOf(getString(R.string.notification_edit), getString(R.string.notification_remove))) {
-          if (it == 0) editMatch(key, list, index)
-          else saveMatches(key, list.filterIndexed { i, _ -> i != index })
-        }
+      category.actionable(
+        title = match.text,
+        summary = if (match.regex) getString(R.string.notification_regex) else null,
+        actions = {
+          listOf(
+            PreferenceCustomActions.Entry(getString(R.string.notification_edit)) {
+              editMatch(key, list, index)
+            },
+            PreferenceCustomActions.Entry(getString(R.string.notification_remove)) {
+              saveMatches(key, list.filterIndexed { i, _ -> i != index })
+            },
+          )
+        },
+      ) {
+        editMatch(key, list, index)
       }
     }
   }
@@ -853,7 +939,67 @@ class NotificationHistoryFragment : NotificationCodeFragment(R.string.notificati
         listOf(time.format(Date(entry.arrivedAtMillis)), outcomeText(context, entry.outcome), entry.spoken)
           .filter { it.isNotBlank() }
           .joinToString(". ")
-      list.action(title, summary) { entryActions(entry) }
+      list.actionable(
+        title = title,
+        summary = summary,
+        actions = { buildEntryActionEntries(entry) },
+      ) { entryActions(entry) }
+    }
+  }
+
+  private fun buildEntryActionEntries(
+    entry: NotificationHistory.Entry
+  ): List<PreferenceCustomActions.Entry> {
+    val context = requireContext()
+    val app = entry.info.appName
+    val packageName = entry.info.packageName
+    val similar = entry.info.text.ifBlank { entry.info.title }
+    return buildList {
+      add(
+        PreferenceCustomActions.Entry(getString(R.string.notification_history_copy)) {
+          context.getSystemService(ClipboardManager::class.java)
+            ?.setPrimaryClip(
+              ClipData.newPlainText(
+                app,
+                listOf(entry.info.title, entry.info.content)
+                  .filter { it.isNotBlank() }
+                  .joinToString("
+"),
+              )
+            )
+          toast(R.string.notification_copied)
+        }
+      )
+      add(
+        PreferenceCustomActions.Entry(getString(R.string.notification_history_ignore_app, app)) {
+          openAppSettings(packageName, AppMode.IGNORE)
+        }
+      )
+      add(
+        PreferenceCustomActions.Entry(getString(R.string.notification_history_private_app, app)) {
+          openAppSettings(packageName, AppMode.PRIVATE)
+        }
+      )
+      add(
+        PreferenceCustomActions.Entry(getString(R.string.notification_history_priority_app, app)) {
+          openAppSettings(packageName, AppMode.PRIORITY)
+        }
+      )
+      if (similar.isNotBlank()) {
+        add(
+          PreferenceCustomActions.Entry(getString(R.string.notification_history_block_similar)) {
+            val preference =
+              Preference(requireContext()).apply {
+                fragment = NotificationWordsFragment::class.java.name
+                extras.putString(
+                  NotificationWordsFragment.ARG_PREFILL_BLOCKED_PATTERN,
+                  NotificationText.similarPattern(similar),
+                )
+              }
+            onPreferenceTreeClick(preference)
+          }
+        )
+      }
     }
   }
 

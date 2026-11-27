@@ -13,7 +13,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="true"
         android:key="pref_screen_off_ringer_mode"
-        android:summary="@string/summary_pref_announce_ringer_mode"
         android:title="@string/title_pref_announce_ringer_mode" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
@@ -27,27 +26,22 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_screen_on_battery"
-        android:summary="@string/status_item_battery_summary"
         android:title="@string/status_item_battery" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_screen_on_wifi"
-        android:summary="@string/status_item_wifi_summary"
         android:title="@string/status_item_wifi" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_screen_on_mobile_network"
-        android:summary="@string/status_item_mobile_summary"
         android:title="@string/status_item_mobile" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_screen_on_ringer"
-        android:summary="@string/status_item_ringer_summary"
         android:title="@string/status_item_ringer" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_screen_on_airplane_mode"
-        android:summary="@string/status_item_airplane_mode_summary"
         android:title="@string/status_item_airplane_mode" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 

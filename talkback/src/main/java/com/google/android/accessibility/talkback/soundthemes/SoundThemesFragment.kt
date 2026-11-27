@@ -42,6 +42,8 @@ import com.google.android.accessibility.material.preference.AccessibilitySuitePr
 import com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.controlsounds.ControlSoundsSettings
+import com.google.android.accessibility.talkback.preference.base.ActionablePreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 import java.io.IOException
@@ -129,9 +131,49 @@ class SoundThemesFragment : TalkbackBaseFragment() {
     val installed = category(context, getString(R.string.sound_themes_installed_category))
     screen.addPreference(installed)
     for (theme in SoundThemes.installed(context)) {
+      val isInUse = theme.id == active.id
       installed.addPreference(
-        action(context, nameOf(context, theme), summaryOf(context, theme, theme.id == active.id)) {
-          showChoices(theme)
+        ActionablePreference(context) {
+          buildList {
+            if (!isInUse) {
+              add(
+                PreferenceCustomActions.Entry(getString(R.string.sound_theme_use)) {
+                  SoundThemes.activate(context, prefs, theme.id)
+                  rebuild()
+                }
+              )
+            }
+            add(
+              PreferenceCustomActions.Entry(getString(R.string.sound_theme_about)) {
+                showAbout(theme)
+              }
+            )
+            add(
+              PreferenceCustomActions.Entry(getString(R.string.sound_theme_export)) {
+                exporting = theme.id
+                launch { exportFile.launch("${nameOf(context, theme)}.zip") }
+              }
+            )
+            if (!theme.isBuiltIn) {
+              add(
+                PreferenceCustomActions.Entry(getString(R.string.sound_theme_remove)) {
+                  confirmRemove(theme)
+                }
+              )
+            }
+          }
+        }.apply {
+          title = nameOf(context, theme)
+          summary = summaryOf(context, theme, isInUse)
+          setOnPreferenceClickListener {
+            if (!isInUse) {
+              SoundThemes.activate(context, prefs, theme.id)
+              rebuild()
+            } else {
+              showAbout(theme)
+            }
+            true
+          }
         }
       )
     }

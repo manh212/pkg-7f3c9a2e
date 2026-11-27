@@ -9,10 +9,14 @@
         android:fragment="com.google.android.accessibility.talkback.preference.base.SoundOutputFragment"
         android:key="@string/pref_sound_output_screen_key"
         android:title="@string/title_pref_sound_output" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.SoundDuckingFragment"
-        android:key="@string/pref_sound_ducking_screen_key"
-        android:title="@string/title_pref_sound_ducking" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_use_audio_focus_default"
+        android:key="@string/pref_use_audio_focus_key"
+        android:title="@string/title_pref_use_audio_focus" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="@bool/pref_proximity_default"
+        android:key="@string/pref_proximity_key"
+        android:title="@string/title_pref_cover_proximity_sensor" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.soundthemes.SoundThemesFragment"
         android:key="pref_sound_themes"
@@ -21,8 +25,7 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.individualfeedback.IndividualFeedbackFragment"
         android:key="pref_individual_feedback"
-        android:title="@string/title_pref_individual_feedback"
-        android:summary="@string/summary_pref_individual_feedback" />
+        android:title="@string/title_pref_individual_feedback" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.SoundVibrationFragment"
         android:key="@string/pref_sound_vibration_screen_key"
@@ -32,8 +35,4 @@
         android:key="@string/pref_sound_feature_sounds_screen_key"
         android:title="@string/title_pref_sound_feature_sounds" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
-  <com.google.android.accessibility.talkback.preference.base.AccessibilityFooterPreference
-      android:key="@string/pref_speech_footer_key"
-      android:title="@string/title_pref_speech_footer"
-      android:selectable="false" />
 </PreferenceScreen>

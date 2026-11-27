@@ -46,4 +46,8 @@
       android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardTypingFragment"
       android:key="pref_vietnamese_keyboard_typing_screen"
       android:title="@string/vietnamese_ime_typing" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+      android:fragment="com.google.android.accessibility.talkback.vietnameseime.VietnameseKeyboardShortcutsFragment"
+      android:key="pref_vietnamese_keyboard_shortcuts_screen"
+      android:title="@string/vietnamese_ime_shortcuts" />
 </PreferenceScreen>

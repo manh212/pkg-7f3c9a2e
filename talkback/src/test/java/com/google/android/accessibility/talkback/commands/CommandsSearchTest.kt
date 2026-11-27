@@ -1,11 +1,11 @@
 package com.google.android.accessibility.talkback.commands
 
 import android.os.Looper
-import android.os.Bundle
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SearchView
+import android.widget.Spinner
 import androidx.fragment.app.FragmentActivity
-import androidx.preference.SwitchPreferenceCompat
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.preference.base.SearchMatcher
@@ -17,6 +17,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +56,16 @@ class CommandsSearchTest {
   }
 
   @Test
+  fun topHeaderOrderIsSearchMoreOptionsAndGroupFilterSpinner() {
+    val root = fragment().requireView() as LinearLayout
+    assertTrue(root.getChildAt(0) is SearchView)
+    assertTrue(root.getChildAt(1) is Button)
+    val spinner = root.getChildAt(2) as Spinner
+    assertTrue(spinner.count > 1)
+    assertTrue(spinner.getItemAtPosition(0).toString().startsWith("Tất cả"))
+  }
+
+  @Test
   fun typingFiltersImmediatelyAndComposingVietnameseKeepsResults() {
     val fragment = fragment()
     val search = search()
@@ -74,20 +85,20 @@ class CommandsSearchTest {
     assertNull(fragment.findPreference<Preference>("pref_commands_no_results"))
     assertNotNull(fragment.findPreference<Preference>("pref_cmd_row_$value"))
     search.setQuery("", false)
-    assertNotNull(fragment.findPreference<Preference>("pref_commands_groups"))
+    assertNotNull(fragment.findPreference<Preference>("pref_commands_results"))
+    assertNotNull(fragment.findPreference<Preference>("pref_cmd_row_$value"))
   }
 
   @Test
   fun queryAndAssignedFilterSurviveActivityRecreation() {
     val query = SearchMatcher.normalize(controller.get().getString(R.string.shortcut_take_screenshot))
     search().setQuery(query, false)
-    val filter = fragment().findPreference<SwitchPreferenceCompat>("pref_commands_filter_assigned")!!
-    filter.callChangeListener(true)
+    fragment().setShowAssignedOnlyForTest(true)
     assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$value"))
     controller.recreate()
     shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
     assertEquals(query, search().query.toString())
-    assertEquals(true, fragment().findPreference<SwitchPreferenceCompat>("pref_commands_filter_assigned")!!.isChecked)
+    assertEquals(true, fragment().showAssignedOnly)
     assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$value"))
   }
 
@@ -98,7 +109,7 @@ class CommandsSearchTest {
 }
 
 class CommandsSearchActivity : FragmentActivity() {
-  override fun onCreate(savedInstanceState: Bundle?) {
+  override fun onCreate(savedInstanceState: android.os.Bundle?) {
     setTheme(R.style.TalkBackSettings)
     FormFactorUtils.initialize(this)
     super.onCreate(savedInstanceState)

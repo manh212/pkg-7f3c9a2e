@@ -1,11 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
   <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory android:key="@string/pref_category_group_speech_key">
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.ReadingStyleFragment"
-        android:key="pref_reading_style_screen"
-        android:persistent="false"
-        android:title="@string/title_pref_reading_style" />
+    <ListPreference
+        android:key="@string/pref_verbosity_preset_key"
+        android:title="@string/title_pref_reading_style"
+        android:summary="%s"
+        android:defaultValue="@string/pref_verbosity_preset_value_default"
+        android:entries="@array/pref_verbosity_preset_entries"
+        android:entryValues="@array/pref_verbosity_preset_values" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
+        android:defaultValue="@string/pref_time_feedback_format_default"
+        android:dialogTitle="@string/pref_time_feedback_format_title"
+        android:entries="@array/pref_time_feedback_format_entries"
+        android:entryValues="@array/pref_time_feedback_format_values"
+        android:key="@string/pref_time_feedback_format_key"
+        android:summary="%s"
+        android:title="@string/pref_time_feedback_format_title" />
+    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+        android:defaultValue="true"
+        android:title="@string/title_pref_always_interrupt_speech"
+        android:key="pref_always_interrupt_speech" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.ReadingItemInfoFragment"
         android:key="pref_reading_item_info_screen"
@@ -19,7 +33,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.preference.base.ScreenAnnouncementsFragment"
         android:key="pref_screen_announcements"
-        android:summary="@string/summary_pref_screen_announcements"
         android:title="@string/title_pref_screen_announcements" />
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
         android:fragment="com.google.android.accessibility.talkback.status.StatusReadoutFragment"

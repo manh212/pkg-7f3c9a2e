@@ -11,7 +11,6 @@
         <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
             android:defaultValue="@bool/pref_selection_mode_reading_control_default"
             android:key="@string/pref_selection_mode_reading_control_key"
-            android:summary="@string/summary_pref_selection_mode_reading_control"
             android:title="@string/title_pref_selection_mode_reading_control"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
@@ -22,8 +21,7 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_actions_default"
             android:key="@string/pref_selector_actions_key"
-            android:title="@string/actions"
-            android:summary="@string/summary_actions"/>
+            android:title="@string/actions"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_copy_mode_default"
@@ -38,8 +36,7 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_typo_default"
             android:key="@string/pref_selector_granularity_typo_key"
-            android:title="@string/title_pref_selector_typo_granularity"
-            android:summary="@string/summary_spell_check"/>
+            android:title="@string/title_pref_selector_typo_granularity"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:defaultValue="@bool/pref_selector_clipboard_history_default"
             android:key="@string/pref_selector_clipboard_history_key"
@@ -48,44 +45,37 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_characters_default"
             android:key="@string/pref_selector_granularity_characters_key"
-            android:title="@string/granularity_character"
-            android:summary="@string/summary_characters"/>
+            android:title="@string/granularity_character"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_words_default"
             android:key="@string/pref_selector_granularity_words_key"
-            android:title="@string/granularity_word"
-            android:summary="@string/summary_words"/>
+            android:title="@string/granularity_word"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_lines_default"
             android:key="@string/pref_selector_granularity_lines_key"
-            android:title="@string/granularity_line"
-            android:summary="@string/summary_lines"/>
+            android:title="@string/granularity_line"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_paragraphs_default"
             android:key="@string/pref_selector_granularity_paragraphs_key"
-            android:title="@string/granularity_paragraph"
-            android:summary="@string/summary_paragraphs"/>
+            android:title="@string/granularity_paragraph"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_headings_default"
             android:key="@string/pref_selector_granularity_headings_key"
-            android:title="@string/granularity_web_heading"
-            android:summary="@string/summary_headings"/>
+            android:title="@string/granularity_web_heading"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_controls_default"
             android:key="@string/pref_selector_granularity_controls_key"
-            android:title="@string/granularity_web_control"
-            android:summary="@string/summary_controls"/>
+            android:title="@string/granularity_web_control"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_links_default"
             android:key="@string/pref_selector_granularity_links_key"
-            android:title="@string/granularity_web_link"
-            android:summary="@string/summary_links"/>
+            android:title="@string/granularity_web_link"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
             android:defaultValue="@bool/pref_selector_links_controls_web_only_default"
             android:key="@string/pref_selector_links_controls_web_only_key"
@@ -94,74 +84,62 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_windows_default"
             android:key="@string/pref_selector_granularity_windows_key"
-            android:title="@string/granularity_window"
-            android:summary="@string/summary_windows"/>
+            android:title="@string/granularity_window"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_containers_default"
             android:key="@string/pref_selector_granularity_containers_key"
-            android:title="@string/granularity_container"
-            android:summary="@string/summary_containers"/>
+            android:title="@string/granularity_container"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_vertical_navigation_default"
             android:key="@string/pref_selector_vertical_navigation_key"
-            android:title="@string/title_selector_vertical_navigation"
-            android:summary="@string/summary_selector_vertical_navigation"/>
+            android:title="@string/title_selector_vertical_navigation"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_row_column_default"
             android:key="@string/pref_selector_granularity_row_column_key"
-            android:title="@string/granularity_row_column"
-            android:summary="@string/summary_row_column"/>
+            android:title="@string/granularity_row_column"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_row_default"
             android:key="@string/pref_selector_granularity_row_key"
-            android:title="@string/granularity_row"
-            android:summary="@string/summary_row"/>
+            android:title="@string/granularity_row"/>
         <com.google.android.accessibility.utils.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_column_default"
             android:key="@string/pref_selector_granularity_column_key"
-            android:title="@string/granularity_column"
-            android:summary="@string/summary_column"/>
+            android:title="@string/granularity_column"/>
         <com.google.android.accessibility.utils.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_search_default"
             android:key="@string/pref_selector_granularity_search_key"
-            android:title="@string/granularity_search"
-            android:summary="@string/summary_search"/>
+            android:title="@string/granularity_search"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_default"
             android:key="@string/pref_selector_granularity_key"
-            android:title="@string/title_granularity_default"
-            android:summary="@string/summary_granularity_default"/>
+            android:title="@string/title_granularity_default"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_speech_rate_default"
             android:key="@string/pref_selector_speech_rate_key"
-            android:title="@string/title_pref_selector_speech_rate"
-            android:summary="@string/summary_speech_rate"/>
+            android:title="@string/title_pref_selector_speech_rate"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_verbosity_default"
             android:key="@string/pref_selector_verbosity_key"
-            android:title="@string/pref_verbosity_title"
-            android:summary="@string/summary_selector_menu_verbosity"/>
+            android:title="@string/pref_verbosity_title"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_punctuation_default"
             android:key="@string/pref_selector_punctuation_key"
-            android:title="@string/pref_punctuation_title"
-            android:summary="@string/summary_selector_menu_punctuation"/>
+            android:title="@string/pref_punctuation_title"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_emoji_default"
             android:key="@string/pref_selector_emoji_key"
-            android:title="@string/title_pref_emoji_speech"
-            android:summary="@string/summary_selector_menu_emoji"/>
+            android:title="@string/title_pref_emoji_speech"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_keyboard_echo_default"
@@ -176,26 +154,22 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_text_formatting_inline_default"
             android:key="@string/pref_selector_text_formatting_inline_key"
-            android:title="@string/title_switch_text_formatting"
-            android:summary="@string/summary_text_formatting_selector"/>
+            android:title="@string/title_switch_text_formatting"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_language_default"
             android:key="@string/pref_selector_language_key"
-            android:title="@string/spoken_language"
-            android:summary="@string/summary_language"/>
+            android:title="@string/spoken_language"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_switch_tts_engine_default"
             android:key="@string/pref_selector_switch_tts_engine_key"
-            android:title="@string/title_selector_switch_tts_engine"
-            android:summary="@string/summary_selector_switch_tts_engine"/>
+            android:title="@string/title_selector_switch_tts_engine"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_speech_stream_default"
             android:key="@string/pref_selector_speech_stream_key"
-            android:title="@string/title_pref_speech_stream"
-            android:summary="@string/summary_selector_speech_stream"/>
+            android:title="@string/title_pref_speech_stream"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_speech_volume_default"
@@ -214,116 +188,97 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_landmarks_default"
             android:key="@string/pref_selector_granularity_landmarks_key"
-            android:title="@string/granularity_web_landmark"
-            android:summary="@string/summary_landmarks"/>
+            android:title="@string/granularity_web_landmark"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_buttons_default"
             android:key="@string/pref_selector_granularity_buttons_key"
-            android:title="@string/granularity_web_button"
-            android:summary="@string/summary_buttons"/>
+            android:title="@string/granularity_web_button"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_checkboxes_default"
             android:key="@string/pref_selector_granularity_checkboxes_key"
-            android:title="@string/granularity_web_checkbox"
-            android:summary="@string/summary_checkboxes"/>
+            android:title="@string/granularity_web_checkbox"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_editfields_default"
             android:key="@string/pref_selector_granularity_editfields_key"
-            android:title="@string/granularity_web_editfield"
-            android:summary="@string/summary_editfields"/>
+            android:title="@string/granularity_web_editfield"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_focusables_default"
             android:key="@string/pref_selector_granularity_focusables_key"
-            android:title="@string/granularity_web_focusable"
-            android:summary="@string/summary_focusables"/>
+            android:title="@string/granularity_web_focusable"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_h1_default"
             android:key="@string/pref_selector_granularity_h1_key"
-            android:title="@string/granularity_web_h1"
-            android:summary="@string/summary_h1"/>
+            android:title="@string/granularity_web_h1"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_h2_default"
             android:key="@string/pref_selector_granularity_h2_key"
-            android:title="@string/granularity_web_h2"
-            android:summary="@string/summary_h2"/>
+            android:title="@string/granularity_web_h2"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_h3_default"
             android:key="@string/pref_selector_granularity_h3_key"
-            android:title="@string/granularity_web_h3"
-            android:summary="@string/summary_h3"/>
+            android:title="@string/granularity_web_h3"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_h4_default"
             android:key="@string/pref_selector_granularity_h4_key"
-            android:title="@string/granularity_web_h4"
-            android:summary="@string/summary_h4"/>
+            android:title="@string/granularity_web_h4"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_h5_default"
             android:key="@string/pref_selector_granularity_h5_key"
-            android:title="@string/granularity_web_h5"
-            android:summary="@string/summary_h5"/>
+            android:title="@string/granularity_web_h5"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_h6_default"
             android:key="@string/pref_selector_granularity_h6_key"
-            android:title="@string/granularity_web_h6"
-            android:summary="@string/summary_h6"/>
+            android:title="@string/granularity_web_h6"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_graphics_default"
             android:key="@string/pref_selector_granularity_graphics_key"
-            android:title="@string/granularity_web_graphic"
-            android:summary="@string/summary_graphics"/>
+            android:title="@string/granularity_web_graphic"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_lists_default"
             android:key="@string/pref_selector_granularity_lists_key"
-            android:title="@string/granularity_web_list"
-            android:summary="@string/summary_lists"/>
+            android:title="@string/granularity_web_list"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_listitems_default"
             android:key="@string/pref_selector_granularity_listitems_key"
-            android:title="@string/granularity_web_listitem"
-            android:summary="@string/summary_listitems"/>
+            android:title="@string/granularity_web_listitem"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_tables_default"
             android:key="@string/pref_selector_granularity_tables_key"
-            android:title="@string/granularity_web_table"
-            android:summary="@string/summary_tables"/>
+            android:title="@string/granularity_web_table"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_comboboxes_default"
             android:key="@string/pref_selector_granularity_comboboxes_key"
-            android:title="@string/granularity_web_combobox"
-            android:summary="@string/summary_comboboxes"/>
+            android:title="@string/granularity_web_combobox"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_visited_links_default"
             android:key="@string/pref_selector_granularity_visited_links_key"
-            android:title="@string/granularity_web_visited_link"
-            android:summary="@string/summary_visited_links"/>
+            android:title="@string/granularity_web_visited_link"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_unvisited_links_default"
             android:key="@string/pref_selector_granularity_unvisited_links_key"
-            android:title="@string/granularity_web_unvisited_link"
-            android:summary="@string/summary_unvisited_links"/>
+            android:title="@string/granularity_web_unvisited_link"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_granularity_radios_default"
             android:key="@string/pref_selector_granularity_radios_key"
-            android:title="@string/granularity_web_radio"
-            android:summary="@string/summary_radios"/>
+            android:title="@string/granularity_web_radio"/>
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
     <com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
         android:key="@string/pref_show_selector_menu_special_features_category_key"
@@ -336,26 +291,22 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_hide_screen_default"
             android:key="@string/pref_selector_hide_screen_key"
-            android:title="@string/shortcut_enable_dimming"
-            android:summary="@string/summary_hide_screen"/>
+            android:title="@string/shortcut_enable_dimming"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_audio_focus_default"
             android:key="@string/pref_selector_audio_focus_key"
-            android:title="@string/title_pref_use_audio_focus"
-            android:summary="@string/summary_audio_ducking"/>
+            android:title="@string/title_pref_use_audio_focus"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_scroll_seq_default"
             android:key="@string/pref_selector_scroll_seq_key"
-            android:title="@string/title_pref_support_scroll_seq"
-            android:summary="@string/summary_support_scroll_seq"/>
+            android:title="@string/title_pref_support_scroll_seq"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_a11y_volume_default"
             android:key="@string/pref_selector_change_a11y_volume_key"
-            android:title="@string/title_pref_a11y_volume"
-            android:summary="@string/summary_support_change_a11y_volume"/>
+            android:title="@string/title_pref_a11y_volume"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:defaultValue="@bool/pref_selector_stream_volume_default"
             android:key="@string/pref_selector_media_volume_key"
@@ -392,19 +343,16 @@
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_brightness_default"
             android:key="@string/pref_selector_change_brightness_key"
-            android:title="@string/title_pref_brightness"
-            android:summary="@string/summary_support_change_brightness"/>
+            android:title="@string/title_pref_brightness"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_lift_to_activate_default"
             android:key="@string/pref_selector_change_lift_to_activate_key"
-            android:title="@string/title_pref_lift_to_activate"
-            android:summary="@string/summary_support_change_lift_to_activate"/>
+            android:title="@string/title_pref_lift_to_activate"/>
         <com.google.android.accessibility.material.preference.AccessibilitySuiteCheckBoxPreference
             android:layout="@layout/listitem_2texts"
             android:defaultValue="@bool/pref_selector_wrap_around_default"
             android:key="@string/pref_selector_wrap_around_key"
-            android:title="@string/title_pref_wrap_around"
-            android:summary="@string/summary_support_wrap_around"/>
+            android:title="@string/title_pref_wrap_around"/>
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 </PreferenceScreen>

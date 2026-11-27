@@ -21,18 +21,17 @@ import android.os.Bundle
 import android.text.format.Formatter
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.ViewCompat
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
-import androidx.core.view.accessibility.AccessibilityViewCommand
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.actor.gemini.local.LocalModelManager.State
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 
 /**
- * Lists the models on the phone, including downloads that were never finished, and deletes the ones
- * that the user no longer wants. Each delete asks first, because a model is a large download.
+ * Lists the models on the phone, including unfinished downloads. Tapping an unfinished model
+ * resumes downloading; deleting any model lives safely in Custom Actions (swipe up/down) and
+ * long-press so screen-reader users never delete multi-gigabyte models by accidental double-tap.
  */
 class ManageModelsFragment : TalkbackBaseFragment() {
   private lateinit var manager: LocalModelManager
@@ -59,7 +58,6 @@ class ManageModelsFragment : TalkbackBaseFragment() {
     super.onStop()
   }
 
-  /** Rebuilds the list, but only when it has changed, so that download progress does not reset it. */
   private fun refresh(force: Boolean = false) {
     val context = requireContext()
     val store = manager.store
@@ -86,11 +84,11 @@ class ManageModelsFragment : TalkbackBaseFragment() {
       )
     )
     for (model in installed) {
-      screen.addPreference(entry(context, model.name, model, model.sizeBytes))
+      screen.addPreference(entry(context, model.name, model, model.sizeBytes, isUnfinished = false))
     }
     for ((model, bytes) in unfinished) {
       screen.addPreference(
-        entry(context, getString(R.string.manage_models_unfinished, model.name), model, bytes)
+        entry(context, getString(R.string.manage_models_unfinished, model.name), model, bytes, isUnfinished = true)
       )
     }
   }
@@ -103,40 +101,54 @@ class ManageModelsFragment : TalkbackBaseFragment() {
       title = text
     }
 
-  private fun entry(context: Context, title: String, model: LocalModel, bytes: Long) =
-    ModelPreference(context) { confirmDelete(model, bytes) }
-      .apply {
-        this.title = title
-        summary = Formatter.formatShortFileSize(context, bytes)
-      }
+  private fun entry(
+    context: Context,
+    title: String,
+    model: LocalModel,
+    bytes: Long,
+    isUnfinished: Boolean,
+  ) =
+    ModelPreference(
+      context = context,
+      onPrimaryClick = {
+        if (isUnfinished) {
+          manager.startDownload(model)
+        }
+      },
+      actionsProvider = {
+        buildList {
+          if (isUnfinished) {
+            add(PreferenceCustomActions.Entry(context.getString(R.string.on_device_ai_download)) {
+              manager.startDownload(model)
+            })
+          }
+          add(PreferenceCustomActions.Entry(context.getString(R.string.manage_models_delete)) {
+            confirmDelete(model, bytes)
+          })
+        }
+      },
+    ).apply {
+      this.title = title
+      summary = Formatter.formatShortFileSize(context, bytes)
+    }
 
-  /**
-   * A model in the list. The row says its name and size, and its click action is named "Delete", so
-   * that TalkBack says "double tap to delete" instead of the row spelling that out.
-   */
-  private class ModelPreference(context: Context, private val onDelete: () -> Unit) :
-    Preference(context) {
+  private class ModelPreference(
+    context: Context,
+    private val onPrimaryClick: () -> Unit,
+    private val actionsProvider: () -> List<PreferenceCustomActions.Entry>,
+  ) : Preference(context) {
     init {
       isPersistent = false
       layoutResource = R.layout.listitem_2texts
       setOnPreferenceClickListener {
-        onDelete()
+        onPrimaryClick()
         true
       }
     }
 
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
       super.onBindViewHolder(holder)
-      // Rows are reused, so every bind names the action again.
-      ViewCompat.replaceAccessibilityAction(
-        holder.itemView,
-        AccessibilityActionCompat.ACTION_CLICK,
-        context.getString(R.string.manage_models_delete),
-        AccessibilityViewCommand { _, _ ->
-          onDelete()
-          true
-        },
-      )
+      PreferenceCustomActions.bind(holder.itemView, title, actionsProvider())
     }
   }
 

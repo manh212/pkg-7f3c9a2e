@@ -97,10 +97,10 @@ class FeedbackFragmentsIterator {
    */
   void onFragmentCompleted(String utteranceId, boolean success) {
     if (!TextUtils.equals(utteranceId, feedBackItemUtteranceId)) {
-      // Assume it's failed.
-      LogUtils.w(
+      // Expected when fast navigation interrupts the previous utterance before its callback arrives.
+      LogUtils.v(
           TAG,
-          "onFragmentCompleted -- utteranceId = %s,feedBackItemUtteranceId =  %s",
+          "onFragmentCompleted -- stale utteranceId = %s, current = %s",
           utteranceId,
           feedBackItemUtteranceId);
       return;

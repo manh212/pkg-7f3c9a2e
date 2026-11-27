@@ -1371,12 +1371,16 @@ public class FailoverTextToSpeech {
   public void stopFromTalkBack() {
     stopBilingualSpeech();
     dropAfterCallSpeech();
+    boolean hadActiveSpeech = hasActiveLowLatencyStream() || !unfinishedUtterances.isEmpty();
     if (holdLowLatencySpeech()) {
+      if (hadActiveSpeech) {
+        BatteryUsageTracker.onTtsInterrupted();
+      }
       // The engine keeps making the held speech, so it can carry on if speech is paused.
       allowDeviceSleep();
       return;
     }
-    if (!unfinishedUtterances.isEmpty()) {
+    if (hadActiveSpeech) {
       BatteryUsageTracker.onTtsInterrupted();
     }
     stopLowLatencySpeech();
@@ -2276,6 +2280,15 @@ public class FailoverTextToSpeech {
    * Then the engine synthesizes the speech and Backtalk plays it, so that it reaches the speaker
    * sooner than the engine's own playback.
    */
+  private boolean hasActiveLowLatencyStream() {
+    for (LowLatencyAudio.SpeechStream s : lowLatencyStreams.values()) {
+      if (!s.isFinished()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private int ttsSpeak(
       CharSequence text, int queueMode, Bundle bundle, @Nullable String utteranceId,
       int chunkIndex) {
@@ -2319,7 +2332,13 @@ public class FailoverTextToSpeech {
           text, ttsEngine, getUsedLocale(), bundle, player.getSampleRate(), chunkIndex, voiceName);
       Performance.getInstance().onNavigationPcmCacheResult(utteranceId, prepared != null);
       if (prepared != null) {
-        if (queueMode != QUEUE_ADD) LowLatencyAudio.stopAllStreams();
+        BatteryUsageTracker.onTtsCacheHitReclassify();
+        if (queueMode != QUEUE_ADD) {
+          if (hasActiveLowLatencyStream() || !unfinishedUtterances.isEmpty()) {
+            BatteryUsageTracker.onTtsInterrupted();
+          }
+          LowLatencyAudio.stopAllStreams();
+        }
         LowLatencyAudio.SpeechStream stream = player.openStream(utteranceId,
             floatParam(bundle, SpeechParam.VOLUME, 1f),
             floatParam(bundle, Engine.KEY_PARAM_PAN, 0f), null, null, lowLatencyListener);
@@ -2341,6 +2360,9 @@ public class FailoverTextToSpeech {
     }
     watchForEngineHang(queueMode, utteranceId);
     if (queueMode != QUEUE_ADD) {
+      if (hasActiveLowLatencyStream() || !unfinishedUtterances.isEmpty()) {
+        BatteryUsageTracker.onTtsInterrupted();
+      }
       // The engine flushes its own queue for this queue mode. Every player, since the player for
       // speech changes with the speech volume setting.
       LowLatencyAudio.stopAllStreams();

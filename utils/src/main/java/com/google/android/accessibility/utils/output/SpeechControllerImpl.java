@@ -2052,8 +2052,8 @@ public class SpeechControllerImpl implements SpeechController {
 
     // If TTS isn't ready, this should be the only item in the queue.
     if (!failoverTts.isReady()) {
-      LogUtils.e(
-          TAG, "TTS is not ready. Attempted to speak before TTS was initialized. Item: " + item);
+      LogUtils.w(
+          TAG, "TTS is not ready; queued item until initialized: " + item);
       return;
     }
 

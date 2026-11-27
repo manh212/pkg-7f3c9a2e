@@ -36,6 +36,7 @@
         android:title="@string/edge_gestures_enabled" />
     <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
         android:defaultValue="24"
+        android:dependency="pref_edge_gestures_enabled"
         android:key="pref_edge_gestures_width"
         android:max="48"
         android:title="@string/edge_gestures_width"
@@ -44,6 +45,7 @@
         app:showSeekBarValue="true" />
     <com.google.android.accessibility.material.preference.AccessibilitySeekBarPreference
         android:defaultValue="32"
+        android:dependency="pref_edge_gestures_enabled"
         android:key="pref_edge_gestures_distance"
         android:max="72"
         android:title="@string/edge_gestures_distance"
@@ -58,10 +60,10 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="true"
         android:key="pref_back_tap_enabled"
-        android:summary="@string/pref_back_tap_enabled_summary"
         android:title="@string/pref_back_tap_enabled_title" />
     <ListPreference
         android:defaultValue="@string/pref_back_tap_sensitivity_default"
+        android:dependency="pref_back_tap_enabled"
         android:dialogTitle="@string/title_pref_back_tap_sensitivity"
         android:entries="@array/pref_back_tap_sensitivity_entries"
         android:entryValues="@array/pref_back_tap_sensitivity_values"
@@ -76,7 +78,6 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_volume_keys_managed"
-        android:summary="@string/volume_keys_managed_summary"
         android:title="@string/volume_keys_managed_title" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteListPreference
         android:defaultValue="1500"
@@ -101,17 +102,14 @@
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_volume_keys_adjust_sliders_default"
         android:key="@string/pref_volume_keys_adjust_sliders_key"
-        android:summary="@string/summary_pref_volume_keys_adjust_sliders"
         android:title="@string/title_pref_volume_keys_adjust_sliders" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="@bool/pref_volume_keys_move_cursor_default"
         android:key="@string/pref_volume_keys_move_cursor_key"
-        android:summary="@string/summary_pref_volume_keys_move_cursor"
         android:title="@string/title_pref_volume_keys_move_cursor" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="false"
         android:key="pref_notification_volume_keys_stop"
-        android:summary="@string/input_settings_volume_stop_notifications_summary"
         android:title="@string/input_settings_volume_stop_notifications_title" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
@@ -147,19 +145,6 @@
         android:key="pref_app_gestures_screen"
         android:summary="@string/input_settings_app_gestures_summary"
         android:title="@string/title_pref_app_gestures" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.ContextMenuFragment"
-        android:key="@string/pref_category_manage_context_menu_key"
-        android:title="@string/title_pref_category_context_menu" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.CustomMenusFragment"
-        android:key="pref_custom_menus_screen"
-        android:summary="@string/input_settings_custom_menus_summary"
-        android:title="@string/custom_menus_title" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.quicksettings.QuickSettingsItemsFragment"
-        android:key="pref_quick_settings_items_screen"
-        android:title="@string/title_pref_quick_settings_items" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
 </PreferenceScreen>

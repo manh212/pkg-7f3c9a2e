@@ -10,6 +10,7 @@ import androidx.preference.PreferenceScreen;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.gesture.CustomMenus;
 import com.google.android.accessibility.utils.widget.KeyboardSafeEditText;
+import java.util.Arrays;
 
 public final class CustomMenusFragment extends TalkbackBaseFragment {
   @Override
@@ -35,7 +36,27 @@ public final class CustomMenusFragment extends TalkbackBaseFragment {
     PreferenceScreen screen = getPreferenceScreen();
     screen.removeAll();
     for (CustomMenus.Menu menu : CustomMenus.menus(context)) {
-      Preference row = new Preference(context);
+      Preference row = new ActionablePreference(context, () -> Arrays.asList(
+          new PreferenceCustomActions.Entry(
+              getString(R.string.voice_profile_rename),
+              () -> {
+                askForRename(menu);
+                return kotlin.Unit.INSTANCE;
+              }),
+          new PreferenceCustomActions.Entry(
+              getString(R.string.notification_remove),
+              () -> {
+                new AlertDialog.Builder(context)
+                    .setTitle(menu.name)
+                    .setMessage(getString(R.string.voice_profile_delete_confirm, menu.name))
+                    .setPositiveButton(R.string.notification_remove, (d, w) -> {
+                      CustomMenus.delete(context, menu.id);
+                      refresh();
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+                return kotlin.Unit.INSTANCE;
+              })));
       row.setTitle(menu.name);
       row.setKey("custom_menu_" + menu.id);
       row.setSummary(getString(R.string.custom_menu_item_count, menu.items.size()));
@@ -52,6 +73,40 @@ public final class CustomMenusFragment extends TalkbackBaseFragment {
           return true;
         });
     screen.addPreference(CreateNewShortcut.mark(add));
+  }
+
+  private void askForRename(CustomMenus.Menu menu) {
+    Context context = requireContext();
+    KeyboardSafeEditText field = new KeyboardSafeEditText(context);
+    field.setHint(R.string.custom_menu_name);
+    field.setText(menu.name);
+    field.setSelection(menu.name.length());
+    field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+    field.setSingleLine(true);
+    field.setFilters(new InputFilter[] {new InputFilter.LengthFilter(60)});
+    AlertDialog dialog = new AlertDialog.Builder(context)
+        .setTitle(R.string.voice_profile_rename)
+        .setView(field)
+        .setPositiveButton(android.R.string.ok, null)
+        .setNegativeButton(android.R.string.cancel, null)
+        .create();
+    dialog.setOnShowListener(shown ->
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+          String name = field.getText().toString().trim();
+          if (name.isEmpty()) {
+            field.setError(getString(R.string.custom_menu_name_required));
+            return;
+          }
+          if (CustomMenus.nameTaken(context, menu.id, name)) {
+            field.setError(getString(R.string.custom_menu_name_taken));
+            return;
+          }
+          if (CustomMenus.rename(context, menu.id, name)) {
+            dialog.dismiss();
+            refresh();
+          }
+        }));
+    dialog.show();
   }
 
   private void askForNewName() {

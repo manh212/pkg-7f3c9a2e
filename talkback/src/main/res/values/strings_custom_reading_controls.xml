@@ -29,6 +29,6 @@
     <string translatable="false" name="command_rc_brightness">Độ sáng màn hình</string>
     <string translatable="false" name="command_rc_lift_to_activate">Nhấc ngón tay để kích hoạt</string>
     <string translatable="false" name="command_rc_wrap_around">Cuộn vòng</string>
-    <string translatable="false" name="command_rc_tts_engine">Bộ máy đọc TTS</string>
+    <string translatable="false" name="command_rc_tts_engine">Bộ máy giọng đọc</string>
     <string translatable="false" name="command_rc_clipboard_history">Lịch sử bộ nhớ tạm</string>
 </resources>

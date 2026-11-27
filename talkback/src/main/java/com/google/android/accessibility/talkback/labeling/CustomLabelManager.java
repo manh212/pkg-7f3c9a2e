@@ -617,8 +617,11 @@ public class CustomLabelManager extends TalkBackLabelManager {
 
     final String[] splitId = RESOURCE_NAME_SPLIT_PATTERN.split(resourceName, 2);
     if (splitId.length != 2 || TextUtils.isEmpty(splitId[0]) || TextUtils.isEmpty(splitId[1])) {
-      // Invalid input
-      LogUtils.w(TAG, "Failed to parse resource: %s", resourceName);
+      if (splitId.length == 2 && !TextUtils.isEmpty(splitId[0]) && TextUtils.isEmpty(splitId[1])) {
+        LogUtils.v(TAG, "Ignoring resource name with empty ID suffix: %s", resourceName);
+      } else {
+        LogUtils.w(TAG, "Failed to parse resource: %s", resourceName);
+      }
       return null;
     }
 

@@ -23,12 +23,17 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.SearchView
+import android.widget.Spinner
 import androidx.appcompat.app.AlertDialog
-import androidx.preference.Preference
+import androidx.core.view.ViewCompat
 import androidx.preference.PreferenceCategory
-import androidx.preference.SwitchPreferenceCompat
+import androidx.preference.PreferenceViewHolder
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreference
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory
 import com.google.android.accessibility.talkback.R
@@ -47,18 +52,35 @@ import com.google.android.accessibility.talkback.preference.base.SearchMatcher
 import com.google.android.accessibility.talkback.preference.base.TalkBackGestureShortcutPreferenceFragment
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import java.text.Collator
+import java.util.Locale
 
 /**
- * Unified Commands List: single entry point to search, browse, assign, edit, remove, and reset
- * every command across all 10 input and menu surfaces.
+ * Unified Commands List: single-window interface with top Search, More Options menu, A-Z group
+ * filter dropdown ("Tất cả" default), and flat command list. Tapping any command opens add-binding
+ * directly; editing and removing existing bindings live in Accessibility Custom Actions and
+ * long-press.
  */
 class CommandsFragment : TalkbackBaseFragment() {
 
+  private data class GroupFilterOption(
+    val id: Int,
+    val title: String,
+    val totalCount: Int,
+    val displayLabel: String,
+  )
+
   private var allGestureSlots: List<CommandBindings.GestureSlot> = emptyList()
-  private var showAssignedOnly: Boolean = false
+  internal var showAssignedOnly: Boolean = false
+    private set
   private var searchQuery: String = ""
   private var selectedCommandValue: String? = null
+  private var selectedFilterId: Int = FILTER_ALL
   private var search: SearchView? = null
+  private var moreOptionsButton: Button? = null
+  private var groupFilterSpinner: Spinner? = null
+  private var filterOptions: List<GroupFilterOption> = emptyList()
+  private var updatingSpinner: Boolean = false
   private var categories: List<Commands.Category> = emptyList()
   private var bindingIndex: Map<String, List<BindingEntry>> = emptyMap()
   private var tapTextCommands: List<Commands.Command> = emptyList()
@@ -76,6 +98,7 @@ class CommandsFragment : TalkbackBaseFragment() {
         ?: arguments?.getString(TalkBackGestureShortcutPreferenceFragment.ACTION_SEARCH_QUERY)
         ?: ""
     showAssignedOnly = savedInstanceState?.getBoolean(STATE_ASSIGNED_ONLY) ?: false
+    selectedFilterId = savedInstanceState?.getInt(STATE_SELECTED_FILTER, FILTER_ALL) ?: FILTER_ALL
     selectedCommandValue =
       if (savedInstanceState != null) savedInstanceState.getString(ARG_COMMAND_VALUE)
       else arguments?.getString(ARG_COMMAND_VALUE)
@@ -89,6 +112,10 @@ class CommandsFragment : TalkbackBaseFragment() {
   ): View {
     val preferences = super.onCreateView(inflater, container, savedInstanceState)
     val context = requireContext()
+    val horizontalPad = (16 * context.resources.displayMetrics.density).toInt()
+    val verticalPad = (6 * context.resources.displayMetrics.density).toInt()
+
+    // 1. Search (first)
     val searchView =
       SearchView(context).apply {
         setIconifiedByDefault(true)
@@ -115,6 +142,39 @@ class CommandsFragment : TalkbackBaseFragment() {
         )
       }
     search = searchView
+
+    // 2. More Options button (second)
+    val moreBtn =
+      Button(context).apply {
+        text = getString(R.string.commands_more_options)
+        contentDescription = getString(R.string.commands_more_options)
+        isAllCaps = false
+        setOnClickListener { showMoreOptionsMenu(this) }
+      }
+    moreOptionsButton = moreBtn
+
+    // 3. Group Filter Dropdown (third)
+    val spinner =
+      Spinner(context, Spinner.MODE_DROPDOWN).apply {
+        contentDescription = getString(R.string.commands_category_filter_label)
+        setPadding(horizontalPad, verticalPad, horizontalPad, verticalPad)
+        onItemSelectedListener =
+          object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+              if (updatingSpinner) return
+              val chosen = filterOptions.getOrNull(position) ?: return
+              if (selectedFilterId != chosen.id) {
+                selectedFilterId = chosen.id
+                selectedCommandValue = null
+                renderCommands()
+              }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+          }
+      }
+    groupFilterSpinner = spinner
+
     return LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
       addView(
@@ -123,6 +183,24 @@ class CommandsFragment : TalkbackBaseFragment() {
           ViewGroup.LayoutParams.MATCH_PARENT,
           ViewGroup.LayoutParams.WRAP_CONTENT,
         ),
+      )
+      addView(
+        moreBtn,
+        LinearLayout.LayoutParams(
+          ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply {
+          setMargins(horizontalPad, verticalPad / 2, horizontalPad, verticalPad / 2)
+        },
+      )
+      addView(
+        spinner,
+        LinearLayout.LayoutParams(
+          ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply {
+          setMargins(horizontalPad, 0, horizontalPad, verticalPad)
+        },
       )
       addView(
         preferences,
@@ -135,18 +213,88 @@ class CommandsFragment : TalkbackBaseFragment() {
     super.onSaveInstanceState(outState)
     outState.putString(ARG_SEARCH_QUERY, searchQuery)
     outState.putBoolean(STATE_ASSIGNED_ONLY, showAssignedOnly)
+    outState.putInt(STATE_SELECTED_FILTER, selectedFilterId)
     outState.putString(ARG_COMMAND_VALUE, selectedCommandValue)
   }
 
   override fun onDestroyView() {
     search?.setOnQueryTextListener(null)
     search = null
+    moreOptionsButton?.setOnClickListener(null)
+    moreOptionsButton = null
+    groupFilterSpinner?.onItemSelectedListener = null
+    groupFilterSpinner = null
     super.onDestroyView()
   }
 
   override fun onResume() {
     super.onResume()
     rebuild()
+  }
+
+  internal fun setShowAssignedOnlyForTest(enabled: Boolean) {
+    showAssignedOnly = enabled
+    renderCommands()
+  }
+
+  internal fun selectGroupFilterForTest(filterId: Int) {
+    selectedFilterId = filterId
+    selectedCommandValue = null
+    updateFilterSpinner()
+    renderCommands()
+  }
+
+  private fun showMoreOptionsMenu(anchor: View) {
+    val context = requireContext()
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    val manager = keyComboManager ?: CommandBindings.keyComboManager(context)
+    val popup = PopupMenu(context, anchor)
+    val menu = popup.menu
+
+    menu.add(0, MENU_FILTER_ASSIGNED, 0, getString(R.string.commands_filter_assigned_only)).apply {
+      isCheckable = true
+      isChecked = showAssignedOnly
+    }
+    menu.add(0, MENU_ADD_TAP_TEXT, 1, getString(R.string.tap_text_add))
+    menu.add(0, MENU_RESET_DEFAULTS, 2, getString(R.string.commands_reset_defaults))
+
+    popup.setOnMenuItemClickListener { item ->
+      when (item.itemId) {
+        MENU_FILTER_ASSIGNED -> {
+          showAssignedOnly = !showAssignedOnly
+          renderCommands()
+          true
+        }
+        MENU_ADD_TAP_TEXT -> {
+          TapTextEditor.show(context, null) { composedValue ->
+            val label = TapTextActions.label(context, composedValue) ?: composedValue
+            val cmd = Commands.Command(composedValue, label, keyboardAction = null)
+            UnifiedCommandDialogs.showChooseTargetDialog(
+              fragment = this@CommandsFragment,
+              context = context,
+              prefs = prefs,
+              allGestureSlots = allGestureSlots,
+              keyComboManager = manager,
+              command = cmd,
+              onChanged = { rebuild() },
+            )
+          }
+          true
+        }
+        MENU_RESET_DEFAULTS -> {
+          UnifiedCommandDialogs.showResetDialog(
+            context = context,
+            prefs = prefs,
+            allGestureSlots = allGestureSlots,
+            keyComboManager = manager,
+            onChanged = { rebuild() },
+          )
+          true
+        }
+        else -> false
+      }
+    }
+    popup.show()
   }
 
   private fun rebuild() {
@@ -181,165 +329,131 @@ class CommandsFragment : TalkbackBaseFragment() {
         ))
       }
     }
+    updateFilterSpinner()
     renderCommands()
+  }
+
+  private fun updateFilterSpinner() {
+    val context = context ?: return
+    val spinner = groupFilterSpinner ?: return
+    val staticCount = categories.sumOf { it.commands.size }
+    val totalCount = staticCount + tapTextCommands.size
+    val viCollator = Collator.getInstance(Locale("vi", "VN")).apply {
+      strength = Collator.PRIMARY
+    }
+
+    val groupEntries = mutableListOf<GroupFilterOption>()
+    for (category in categories) {
+      val title = getString(category.titleRes)
+      val count = category.commands.size
+      groupEntries += GroupFilterOption(
+        id = category.titleRes,
+        title = title,
+        totalCount = count,
+        displayLabel = getString(R.string.commands_filter_group_count, title, count),
+      )
+    }
+    if (tapTextCommands.isNotEmpty()) {
+      val title = getString(R.string.tap_text_title)
+      val count = tapTextCommands.size
+      groupEntries += GroupFilterOption(
+        id = FILTER_TAP_TEXT,
+        title = title,
+        totalCount = count,
+        displayLabel = getString(R.string.commands_filter_group_count, title, count),
+      )
+    }
+    groupEntries.sortWith { a, b -> viCollator.compare(a.title, b.title) }
+
+    val options = buildList {
+      add(
+        GroupFilterOption(
+          id = FILTER_ALL,
+          title = getString(R.string.commands_filter_all, totalCount),
+          totalCount = totalCount,
+          displayLabel = getString(R.string.commands_filter_all, totalCount),
+        )
+      )
+      addAll(groupEntries)
+    }
+    filterOptions = options
+
+    val selectedIndex = options.indexOfFirst { it.id == selectedFilterId }.let {
+      if (it >= 0) it else {
+        selectedFilterId = FILTER_ALL
+        0
+      }
+    }
+
+    updatingSpinner = true
+    try {
+      val adapter = ArrayAdapter(
+        context,
+        android.R.layout.simple_spinner_item,
+        options.map { it.displayLabel },
+      ).apply {
+        setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+      }
+      spinner.adapter = adapter
+      spinner.setSelection(selectedIndex, false)
+    } finally {
+      updatingSpinner = false
+    }
   }
 
   private fun renderCommands() {
     val keyComboManager = keyComboManager ?: return
     val context = requireContext()
     val prefs = SharedPreferencesUtils.getSharedPreferences(context)
-    val staticCommands = categories.flatMap { it.commands }
-    val allCommands = staticCommands + tapTextCommands
+
+    val scopedCommands: List<Commands.Command> =
+      when {
+        selectedCommandValue != null -> categories.flatMap { it.commands } + tapTextCommands
+        selectedFilterId == FILTER_ALL -> categories.flatMap { it.commands } + tapTextCommands
+        selectedFilterId == FILTER_TAP_TEXT -> tapTextCommands
+        else -> categories.firstOrNull { it.titleRes == selectedFilterId }?.commands.orEmpty()
+      }
+
+    val q = SearchMatcher.normalize(searchQuery)
+    val matched =
+      scopedCommands.filter { cmd ->
+        val bindings = bindingIndex[cmd.value].orEmpty()
+        val matchesFilter = !showAssignedOnly || bindings.isNotEmpty()
+        val matchesQuery =
+          selectedCommandValue?.let { cmd.value == it }
+            ?: (q.isEmpty() ||
+              SearchMatcher.matchesNormalized(
+                q,
+                searchableCommands[cmd.value].orEmpty(),
+              ))
+        matchesFilter && matchesQuery
+      }
 
     val screen = preferenceScreen
     screen.removeAll()
 
-    // Top controls category
-    val controls =
+    val resultsCat =
       AccessibilitySuitePreferenceCategory(context).apply {
-        key = "pref_commands_controls"
-        title = getString(R.string.commands_controls_header)
+        key = "pref_commands_results"
+        title = getString(R.string.commands_results_header, matched.size)
         isIconSpaceReserved = false
       }
-    screen.addPreference(controls)
+    screen.addPreference(resultsCat)
 
-    controls.addPreference(
-      SwitchPreferenceCompat(context).apply {
-        key = "pref_commands_filter_assigned"
-        isPersistent = false
-        isIconSpaceReserved = false
-        title = getString(R.string.commands_filter_assigned_only)
-        isChecked = showAssignedOnly
-        setOnPreferenceChangeListener { _, newValue ->
-          showAssignedOnly = newValue as Boolean
-          renderCommands()
-          true
-        }
-      }
-    )
-
-    controls.addPreference(
-      AccessibilitySuitePreference(context).apply {
-        key = "pref_commands_add_tap_text"
-        isPersistent = false
-        isIconSpaceReserved = false
-        title = getString(R.string.tap_text_add)
-        setOnPreferenceClickListener {
-          TapTextEditor.show(context, null) { composedValue ->
-            val label = TapTextActions.label(context, composedValue) ?: composedValue
-            val cmd = Commands.Command(composedValue, label, keyboardAction = null)
-            UnifiedCommandDialogs.showChooseTargetDialog(
-              fragment = this@CommandsFragment,
-              context = context,
-              prefs = prefs,
-              allGestureSlots = allGestureSlots,
-              keyComboManager = keyComboManager,
-              command = cmd,
-              onChanged = { rebuild() },
-            )
-          }
-          true
-        }
-      }
-    )
-
-    controls.addPreference(
-      AccessibilitySuitePreference(context).apply {
-        key = "pref_commands_reset"
-        isPersistent = false
-        isIconSpaceReserved = false
-        title = getString(R.string.commands_reset_defaults)
-        setOnPreferenceClickListener {
-          UnifiedCommandDialogs.showResetDialog(
-            context = context,
-            prefs = prefs,
-            allGestureSlots = allGestureSlots,
-            keyComboManager = keyComboManager,
-            onChanged = { rebuild() },
-          )
-          true
-        }
-      }
-    )
-
-    // Flat filtered list when searching or filtering assigned-only
-    if (searchQuery.isNotBlank() || showAssignedOnly || selectedCommandValue != null) {
-      val q = SearchMatcher.normalize(searchQuery)
-      val matched =
-        allCommands.filter { cmd ->
-          val bindings = bindingIndex[cmd.value].orEmpty()
-          val matchesFilter = !showAssignedOnly || bindings.isNotEmpty()
-          val matchesQuery =
-            selectedCommandValue?.let { cmd.value == it }
-              ?: SearchMatcher.matchesNormalized(
-                q,
-                searchableCommands[cmd.value].orEmpty(),
-              )
-          matchesFilter && matchesQuery
-        }
-      val resultsCat =
-        AccessibilitySuitePreferenceCategory(context).apply {
-          key = "pref_commands_results"
-          title = getString(R.string.commands_results_header, matched.size)
-          isIconSpaceReserved = false
-        }
-      screen.addPreference(resultsCat)
-      if (matched.isEmpty()) {
-        resultsCat.addPreference(
-          AccessibilitySuitePreference(context).apply {
-            key = "pref_commands_no_results"
-            isPersistent = false
-            isIconSpaceReserved = false
-            isSelectable = false
-            title = getString(R.string.commands_no_results)
-          }
-        )
-      } else {
-        for (cmd in matched) {
-          addCommandRow(resultsCat, cmd, bindingIndex[cmd.value].orEmpty(), prefs, keyComboManager)
-        }
-      }
-      return
-    }
-
-    // Category list
-    val groupsCat =
-      AccessibilitySuitePreferenceCategory(context).apply {
-        key = "pref_commands_groups"
-        title = getString(R.string.commands_categories_header)
-        isIconSpaceReserved = false
-      }
-    screen.addPreference(groupsCat)
-
-    if (tapTextCommands.isNotEmpty()) {
-      val assignedCount = tapTextCommands.count { !bindingIndex[it.value].isNullOrEmpty() }
-      groupsCat.addPreference(
+    if (matched.isEmpty()) {
+      resultsCat.addPreference(
         AccessibilitySuitePreference(context).apply {
-          key = "pref_commands_tap_text_category"
+          key = "pref_commands_no_results"
           isPersistent = false
           isIconSpaceReserved = false
-          title = getString(R.string.tap_text_title)
-          summary = getString(R.string.commands_category_summary, assignedCount, tapTextCommands.size)
-          fragment = CommandCategoryFragment::class.java.name
-          extras.putInt(CommandCategoryFragment.ARG_CATEGORY, CommandCategoryFragment.CATEGORY_TAP_TEXT)
+          isSelectable = false
+          title = getString(R.string.commands_no_results)
         }
       )
-    }
-
-    for (category in categories) {
-      val assignedCount = category.commands.count { !bindingIndex[it.value].isNullOrEmpty() }
-      groupsCat.addPreference(
-        AccessibilitySuitePreference(context).apply {
-          key = "pref_commands_${category.titleRes}"
-          isPersistent = false
-          isIconSpaceReserved = false
-          title = getString(category.titleRes)
-          summary =
-            getString(R.string.commands_category_summary, assignedCount, category.commands.size)
-          fragment = CommandCategoryFragment::class.java.name
-          extras.putInt(CommandCategoryFragment.ARG_CATEGORY, category.titleRes)
-        }
-      )
+    } else {
+      for (cmd in matched) {
+        addCommandRow(resultsCat, cmd, bindingIndex[cmd.value].orEmpty(), prefs, keyComboManager)
+      }
     }
   }
 
@@ -352,7 +466,33 @@ class CommandsFragment : TalkbackBaseFragment() {
   ) {
     val context = requireContext()
     parent.addPreference(
-      AccessibilitySuitePreference(context).apply {
+      CommandRowPreference(
+        context = context,
+        hasBindings = bindings.isNotEmpty(),
+        canEdit = bindings.any { it.kind != TargetKind.MERIDIAN_MENU && it.kind != TargetKind.CUSTOM_MENU },
+        onEditAction = {
+          UnifiedCommandDialogs.onCommandEditClicked(
+            fragment = this@CommandsFragment,
+            context = context,
+            prefs = prefs,
+            allGestureSlots = allGestureSlots,
+            keyComboManager = keyComboManager,
+            command = command,
+            bindings = bindings,
+            onChanged = { rebuild() },
+          )
+        },
+        onRemoveAction = {
+          UnifiedCommandDialogs.onCommandRemoveClicked(
+            context = context,
+            prefs = prefs,
+            keyComboManager = keyComboManager,
+            command = command,
+            bindings = bindings,
+            onChanged = { rebuild() },
+          )
+        },
+      ).apply {
         key = "pref_cmd_row_${command.value}"
         isPersistent = false
         isIconSpaceReserved = false
@@ -362,14 +502,14 @@ class CommandsFragment : TalkbackBaseFragment() {
             getString(R.string.commands_unassigned_summary)
           }
         setOnPreferenceClickListener {
-          UnifiedCommandDialogs.onCommandClicked(
+          // Tapping any command (assigned or unassigned) directly opens Add Binding.
+          UnifiedCommandDialogs.onCommandAddClicked(
             fragment = this@CommandsFragment,
             context = context,
             prefs = prefs,
             allGestureSlots = allGestureSlots,
             keyComboManager = keyComboManager,
             command = command,
-            bindings = bindings,
             onChanged = { rebuild() },
           )
           true
@@ -389,12 +529,93 @@ class CommandsFragment : TalkbackBaseFragment() {
     const val ARG_SEARCH_QUERY = "commands_search_query"
     const val ARG_COMMAND_VALUE = "commands_command_value"
     private const val STATE_ASSIGNED_ONLY = "commands_assigned_only"
+    private const val STATE_SELECTED_FILTER = "commands_selected_filter"
+    internal const val FILTER_ALL = 0
+    internal const val FILTER_TAP_TEXT = -101
+    private const val MENU_FILTER_ASSIGNED = 1
+    private const val MENU_ADD_TAP_TEXT = 2
+    private const val MENU_RESET_DEFAULTS = 3
   }
 }
 
 /**
- * The commands of one category, each displaying all assigned inputs/menus and supporting direct
- * assign (if unassigned) or add/edit/remove (if already assigned).
+ * Preference row for a single command: tapping adds a new binding; for assigned commands, Edit and
+ * Remove are exposed as TalkBack custom accessibility actions (swipe up/down) and on long-press.
+ */
+private class CommandRowPreference(
+  context: Context,
+  private val hasBindings: Boolean,
+  private val canEdit: Boolean,
+  private val onEditAction: () -> Unit,
+  private val onRemoveAction: () -> Unit,
+) : AccessibilitySuitePreference(context) {
+
+  override fun onBindViewHolder(holder: PreferenceViewHolder) {
+    super.onBindViewHolder(holder)
+    val itemView = holder.itemView
+
+    @Suppress("UNCHECKED_CAST")
+    val previousActionIds = itemView.getTag(TAG_CUSTOM_ACTION_IDS) as? List<Int>
+    if (previousActionIds != null) {
+      for (actionId in previousActionIds) {
+        ViewCompat.removeAccessibilityAction(itemView, actionId)
+      }
+      itemView.setTag(TAG_CUSTOM_ACTION_IDS, null)
+    }
+
+    if (!hasBindings) {
+      itemView.setOnLongClickListener(null)
+      itemView.isLongClickable = false
+      return
+    }
+
+    val registeredIds = mutableListOf<Int>()
+    if (canEdit) {
+      registeredIds +=
+        ViewCompat.addAccessibilityAction(
+          itemView,
+          context.getString(R.string.commands_action_edit_binding),
+        ) { _, _ ->
+          onEditAction()
+          true
+        }
+    }
+    registeredIds +=
+      ViewCompat.addAccessibilityAction(
+        itemView,
+        context.getString(R.string.commands_action_remove_binding),
+      ) { _, _ ->
+        onRemoveAction()
+        true
+      }
+    itemView.setTag(TAG_CUSTOM_ACTION_IDS, registeredIds)
+
+    itemView.isLongClickable = true
+    itemView.setOnLongClickListener {
+      val options = mutableListOf<Pair<String, () -> Unit>>()
+      if (canEdit) {
+        options += context.getString(R.string.commands_action_edit_binding) to onEditAction
+      }
+      options += context.getString(R.string.commands_action_remove_binding) to onRemoveAction
+      AlertDialog.Builder(context)
+        .setTitle(title)
+        .setItems(options.map { it.first }.toTypedArray()) { _, which ->
+          options[which].second()
+        }
+        .setNegativeButton(android.R.string.cancel, null)
+        .show()
+      true
+    }
+  }
+
+  companion object {
+    private const val TAG_CUSTOM_ACTION_IDS = 0x7f0b7123
+  }
+}
+
+/**
+ * Legacy category fragment kept for binary/deep-link compatibility; [CommandsFragment] now filters
+ * categories inline via its top dropdown without launching a separate window.
  */
 class CommandCategoryFragment : TalkbackBaseFragment() {
 
@@ -446,14 +667,12 @@ class CommandCategoryFragment : TalkbackBaseFragment() {
           getString(R.string.commands_unassigned_summary)
         }
       screen.addPreference(
-        AccessibilitySuitePreference(context).apply {
-          key = "pref_command_${command.value}"
-          isPersistent = false
-          isIconSpaceReserved = false
-          title = command.label
-          summary = summaryText
-          setOnPreferenceClickListener {
-            UnifiedCommandDialogs.onCommandClicked(
+        CommandRowPreference(
+          context = context,
+          hasBindings = bindings.isNotEmpty(),
+          canEdit = bindings.any { it.kind != TargetKind.MERIDIAN_MENU && it.kind != TargetKind.CUSTOM_MENU },
+          onEditAction = {
+            UnifiedCommandDialogs.onCommandEditClicked(
               fragment = this@CommandCategoryFragment,
               context = context,
               prefs = prefs,
@@ -461,6 +680,33 @@ class CommandCategoryFragment : TalkbackBaseFragment() {
               keyComboManager = manager,
               command = command,
               bindings = bindings,
+              onChanged = { fill() },
+            )
+          },
+          onRemoveAction = {
+            UnifiedCommandDialogs.onCommandRemoveClicked(
+              context = context,
+              prefs = prefs,
+              keyComboManager = manager,
+              command = command,
+              bindings = bindings,
+              onChanged = { fill() },
+            )
+          },
+        ).apply {
+          key = "pref_command_${command.value}"
+          isPersistent = false
+          isIconSpaceReserved = false
+          title = command.label
+          summary = summaryText
+          setOnPreferenceClickListener {
+            UnifiedCommandDialogs.onCommandAddClicked(
+              fragment = this@CommandCategoryFragment,
+              context = context,
+              prefs = prefs,
+              allGestureSlots = allGestureSlots,
+              keyComboManager = manager,
+              command = command,
               onChanged = { fill() },
             )
             true
@@ -479,14 +725,13 @@ class CommandCategoryFragment : TalkbackBaseFragment() {
 /** Shared assignment, edit, remove, and reset dialogs for [CommandsFragment] and [CommandCategoryFragment]. */
 internal object UnifiedCommandDialogs {
 
-  fun onCommandClicked(
+  fun onCommandAddClicked(
     fragment: TalkbackBaseFragment,
     context: Context,
     prefs: SharedPreferences,
     allGestureSlots: List<CommandBindings.GestureSlot>,
     keyComboManager: KeyComboManager,
     command: Commands.Command,
-    bindings: List<BindingEntry>,
     onChanged: () -> Unit,
   ) {
     if (TapTextActions.isSentinel(command.value)) {
@@ -498,55 +743,48 @@ internal object UnifiedCommandDialogs {
       }
       return
     }
-    if (bindings.isEmpty()) {
-      showChooseTargetDialog(
-        fragment,
-        context,
-        prefs,
-        allGestureSlots,
-        keyComboManager,
-        command,
-        onChanged,
+    showChooseTargetDialog(
+      fragment,
+      context,
+      prefs,
+      allGestureSlots,
+      keyComboManager,
+      command,
+      onChanged,
+    )
+  }
+
+  fun onCommandEditClicked(
+    fragment: TalkbackBaseFragment,
+    context: Context,
+    prefs: SharedPreferences,
+    allGestureSlots: List<CommandBindings.GestureSlot>,
+    keyComboManager: KeyComboManager,
+    command: Commands.Command,
+    bindings: List<BindingEntry>,
+    onChanged: () -> Unit,
+  ) {
+    val editable =
+      bindings.filter { it.kind != TargetKind.MERIDIAN_MENU && it.kind != TargetKind.CUSTOM_MENU }
+    if (editable.isEmpty()) return
+    if (editable.size == 1) {
+      editSingleBinding(
+        fragment, context, prefs, allGestureSlots, keyComboManager, command, editable[0], onChanged,
       )
       return
     }
-    val labels = mutableListOf<String>()
-    labels.add(context.getString(R.string.commands_add_binding))
-    for (b in bindings) {
-      labels.add(b.displayLabel)
-    }
     AlertDialog.Builder(context)
-      .setTitle(command.label)
-      .setItems(labels.toTypedArray()) { _, which ->
-        if (which == 0) {
-          showChooseTargetDialog(
-            fragment,
-            context,
-            prefs,
-            allGestureSlots,
-            keyComboManager,
-            command,
-            onChanged,
-          )
-        } else {
-          val selected = bindings[which - 1]
-          showManageSingleBindingDialog(
-            fragment,
-            context,
-            prefs,
-            allGestureSlots,
-            keyComboManager,
-            command,
-            selected,
-            onChanged,
-          )
-        }
+      .setTitle(context.getString(R.string.commands_edit_choose_title))
+      .setItems(editable.map { it.displayLabel }.toTypedArray()) { _, which ->
+        editSingleBinding(
+          fragment, context, prefs, allGestureSlots, keyComboManager, command, editable[which], onChanged,
+        )
       }
       .setNegativeButton(android.R.string.cancel, null)
       .show()
   }
 
-  private fun showManageSingleBindingDialog(
+  private fun editSingleBinding(
     fragment: TalkbackBaseFragment,
     context: Context,
     prefs: SharedPreferences,
@@ -556,38 +794,58 @@ internal object UnifiedCommandDialogs {
     entry: BindingEntry,
     onChanged: () -> Unit,
   ) {
-    val canEditSlot =
-      entry.kind != TargetKind.MERIDIAN_MENU && entry.kind != TargetKind.CUSTOM_MENU
-    val actions =
-      if (canEditSlot) {
-        arrayOf(
-          context.getString(R.string.commands_edit_binding),
-          context.getString(R.string.commands_remove_binding),
-        )
-      } else {
-        arrayOf(context.getString(R.string.commands_remove_binding))
-      }
+    if (entry.kind == TargetKind.KEYBOARD_SHORTCUT) {
+      openKeyboardShortcutScreen(fragment, command)
+    } else {
+      UnifiedCommandBindings.removeBinding(context, prefs, keyComboManager, command.value, entry)
+      dispatchTargetAssignment(
+        fragment,
+        context,
+        prefs,
+        allGestureSlots,
+        keyComboManager,
+        command,
+        entry.kind,
+        onChanged,
+      )
+    }
+  }
+
+  fun onCommandRemoveClicked(
+    context: Context,
+    prefs: SharedPreferences,
+    keyComboManager: KeyComboManager,
+    command: Commands.Command,
+    bindings: List<BindingEntry>,
+    onChanged: () -> Unit,
+  ) {
+    if (bindings.isEmpty()) return
+    if (bindings.size == 1) {
+      val entry = bindings[0]
+      UnifiedCommandBindings.removeBinding(context, prefs, keyComboManager, command.value, entry)
+      onChanged()
+      PreferencesActivityUtils.announceText(
+        context.getString(R.string.commands_binding_removed, entry.displayLabel),
+        context,
+      )
+      return
+    }
+    val labels =
+      bindings.map { it.displayLabel } + context.getString(R.string.commands_remove_all_bindings)
     AlertDialog.Builder(context)
-      .setTitle(entry.displayLabel)
-      .setItems(actions) { _, which ->
-        if (canEditSlot && which == 0) {
-          // Edit: pick a new slot of the same kind, then clear the old one if different
-          if (entry.kind == TargetKind.KEYBOARD_SHORTCUT) {
-            openKeyboardShortcutScreen(fragment, command)
-          } else {
+      .setTitle(context.getString(R.string.commands_remove_choose_title))
+      .setItems(labels.toTypedArray()) { _, which ->
+        if (which == bindings.size) {
+          for (entry in bindings) {
             UnifiedCommandBindings.removeBinding(context, prefs, keyComboManager, command.value, entry)
-            dispatchTargetAssignment(
-              fragment,
-              context,
-              prefs,
-              allGestureSlots,
-              keyComboManager,
-              command,
-              entry.kind,
-              onChanged,
-            )
           }
+          onChanged()
+          PreferencesActivityUtils.announceText(
+            context.getString(R.string.commands_all_bindings_removed, command.label),
+            context,
+          )
         } else {
+          val entry = bindings[which]
           UnifiedCommandBindings.removeBinding(context, prefs, keyComboManager, command.value, entry)
           onChanged()
           PreferencesActivityUtils.announceText(

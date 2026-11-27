@@ -3,11 +3,12 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
- * the License at http://www.apache.org/licenses/LICENSE-2.0. Unless required by
- * applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied. See the License for the specific language
- * governing permissions and limitations under the License.
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0. Unless required by applicable law or agreed to in
+ * writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 
 package com.google.android.accessibility.talkback.actor.voicecommands
@@ -16,11 +17,13 @@ import android.os.Bundle
 import androidx.appcompat.app.AlertDialog
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.preference.base.ActionablePreference
+import com.google.android.accessibility.talkback.preference.base.PreferenceCustomActions
 import com.google.android.accessibility.talkback.preference.base.TalkbackBaseFragment
 
 /**
- * Lists the phrases the user taught for voice commands, each with its action's name;
- * tapping one offers to delete it. Phrases are taught by voice, never typed here.
+ * Lists the phrases the user taught for voice commands. Deleting a phrase lives in Accessibility
+ * Custom Actions (swipe up/down) and long-press to prevent accidental deletion on double-tap.
  */
 class VoiceCommandPhraseListFragment : TalkbackBaseFragment() {
 
@@ -52,15 +55,15 @@ class VoiceCommandPhraseListFragment : TalkbackBaseFragment() {
     val labels = VoiceCommandCatalog.entries(context).associate { it.value to it.phrase }
     for (phrase in phrases) {
       val label = phrase.values.joinToString(" → ") { value -> labels[value] ?: value }
-      val row = AccessibilitySuitePreference(context)
+      val row = ActionablePreference(context) {
+        listOf(
+          PreferenceCustomActions.Entry(getString(R.string.voice_command_phrase_delete_title)) {
+            confirmDelete(phrase, label)
+          }
+        )
+      }
       row.title = phrase.phrase
       row.summary = label
-      row.isPersistent = false
-      row.isIconSpaceReserved = false
-      row.setOnPreferenceClickListener {
-        confirmDelete(phrase, label)
-        true
-      }
       screen.addPreference(row)
     }
   }
