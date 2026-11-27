@@ -95,14 +95,7 @@ object MeridianNavigationPreferencesRouter {
           R.bool.pref_focus_new_windows_default,
         )
     )
-    EventFilter.setSpeakItemsBeforeScroll(
-      SharedPreferencesUtils.getBooleanPref(
-        prefs,
-        res,
-        R.string.pref_speak_items_before_scroll_key,
-        R.bool.pref_speak_items_before_scroll_default,
-      )
-    )
+    EventFilter.setSpeakItemsBeforeScroll(true)
     AccessibilityNodeInfoUtils.setFocusTextInsideItems(FocusTextInsideItems.isOn(context))
     UniversalAccessibilityHelper.init(context)
     val focusContentFilterEnabled =
