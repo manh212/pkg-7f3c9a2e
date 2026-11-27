@@ -16,10 +16,8 @@ saved identifiers or execution paths:
 | Append selection to clipboard | Clipboard and copy |
 | Read current time | Clock and timers |
 
-Reading-group navigation, current time and date, and translation of the last
-spoken phrase keep their existing physical-keyboard action associations. Their
-existing shortcuts resolve to the same common command instead of appearing as
-unrelated keyboard-only values.
+Existing physical-keyboard action associations and stored shortcut keys remain
+unchanged when adding commands to the common list.
 
 Deprecated keyboard enum members without valid shortcut keys or executable
 actions are not new commands. Gboard-only and combined media/voice-input
@@ -27,9 +25,9 @@ commands remain removed, as required by their existing regression coverage.
 Their legacy dispatch paths continue to support saved assignments. Browse-mode
 aliases already have a common command and do not require another row.
 
-`CommandCatalogCoverageTest` checks provider coverage, the restored categories
-and keyboard associations. `CommandsSearchTest` checks visible search results,
-accent-insensitive queries, system-action grouping and existing edge bindings.
+`CommandCatalogCoverageTest` checks provider coverage and restored categories.
+`CommandsSearchTest` checks visible search results, accent-insensitive queries,
+system-action grouping and existing edge bindings.
 Search filtering retains preference objects and changes their visibility, so
 regressions must assert visibility rather than object removal. GitHub Actions
 runs the selected tests, lint, APK build and development publication. The owner

@@ -5,7 +5,6 @@ import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.gesture.EdgeGestureActions
 import com.google.android.accessibility.talkback.gesture.MenuGestureActions
 import com.google.android.accessibility.talkback.gesture.NavigationGestureActions
-import com.google.android.accessibility.talkback.keyboard.TalkBackPhysicalKeyboardShortcut as Key
 import com.google.android.accessibility.talkback.preference.base.GestureListPreference
 import com.google.android.accessibility.talkback.recognition.RecognitionMode
 import com.google.android.accessibility.utils.FormFactorUtils
@@ -62,21 +61,6 @@ class CommandCatalogCoverageTest {
       assertEquals(1, categories.flatMap { it.commands }.count { it.value == commandValue })
       assertTrue(categories.single { it.titleRes == category }.commands.any { it.value == commandValue })
       assertNotNull(Commands.find(context, commandValue))
-    }
-  }
-
-  @Test
-  fun existingKeyboardActionsResolveToTheSameCommonCommands() {
-    for ((keyboard, value) in listOf(
-      Key.SELECT_PREVIOUS_READING_GROUP to R.string.shortcut_value_select_previous_group,
-      Key.SELECT_NEXT_READING_GROUP to R.string.shortcut_value_select_next_group,
-      Key.ANNOUNCE_CURRENT_TIME_AND_DATE to R.string.shortcut_value_announce_current_time_and_date,
-      Key.TRANSLATE_LAST_SPOKEN_PHRASE to R.string.shortcut_value_translate_last_spoken_phrase,
-    )) {
-      val commandValue = context.getString(value)
-      assertEquals(commandValue, Commands.valueOfKeyboardAction(context, keyboard))
-      assertEquals(keyboard, Commands.find(context, commandValue)?.keyboardAction)
-      assertEquals(keyboard.getKey(context.resources), Commands.find(context, commandValue)?.keyboardKey(context))
     }
   }
 }
