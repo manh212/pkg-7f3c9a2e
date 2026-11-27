@@ -963,8 +963,7 @@ class NotificationHistoryFragment : NotificationCodeFragment(R.string.notificati
                 app,
                 listOf(entry.info.title, entry.info.content)
                   .filter { it.isNotBlank() }
-                  .joinToString("
-"),
+                  .joinToString("\n"),
               )
             )
           toast(R.string.notification_copied)

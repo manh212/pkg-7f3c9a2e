@@ -118,7 +118,7 @@ class ManageModelsFragment : TalkbackBaseFragment() {
       actionsProvider = {
         buildList {
           if (isUnfinished) {
-            add(PreferenceCustomActions.Entry(context.getString(R.string.on_device_ai_download)) {
+            add(PreferenceCustomActions.Entry(context.getString(R.string.manage_models_download)) {
               manager.startDownload(model)
             })
           }

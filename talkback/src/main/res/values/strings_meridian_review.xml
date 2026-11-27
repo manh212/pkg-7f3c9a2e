@@ -67,4 +67,5 @@
   <string name="keycombo_shortcut_focus_review_cursor" translatable="false">keycombo_shortcut_focus_review_cursor</string>
   <string name="keycombo_shortcut_review_cursor_on" translatable="false">keycombo_shortcut_review_cursor_on</string>
   <string name="keycombo_shortcut_review_cursor_off" translatable="false">keycombo_shortcut_review_cursor_off</string>
+  <string name="manage_models_download">Download</string>
 </resources>

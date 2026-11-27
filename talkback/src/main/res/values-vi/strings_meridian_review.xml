@@ -42,4 +42,5 @@
   <string name="no_focusable_item">Không có mục nhận tiêu điểm</string>
   <string name="review_object">Đối tượng, %1$d mục con</string>
   <plurals name="object_navigation_group"><item quantity="other">Nhóm, %d mục</item></plurals>
+  <string name="manage_models_download">Tải xuống</string>
 </resources>
