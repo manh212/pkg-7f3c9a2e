@@ -179,6 +179,11 @@
       android:persistent="false"
       android:title="@string/title_pref_recalibrate_audio_path"
       android:summary="@string/summary_pref_recalibrate_audio_path" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="true"
+      android:key="pref_fix_lockscreen_clock_repeat"
+      android:title="@string/title_pref_fix_lockscreen_clock_repeat"
+      android:summary="@string/summary_pref_fix_lockscreen_clock_repeat" />
   <PreferenceCategory
       android:key="pref_category_battery_management"
       android:title="@string/title_pref_category_battery_management">
