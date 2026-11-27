@@ -16,14 +16,21 @@
 
 package com.google.android.accessibility.utils.output
 
+import android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
 import android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
 import android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
 import android.media.AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
 import android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
 import android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE
+import android.media.AudioDeviceInfo.TYPE_HEARING_AID
+import android.media.AudioDeviceInfo.TYPE_USB_DEVICE
+import android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+import android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+import android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
 import android.media.AudioManager.MODE_IN_CALL
 import android.media.AudioManager.MODE_IN_COMMUNICATION
 import android.media.AudioManager.MODE_NORMAL
+import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.isHeadphoneDeviceType
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.sendToMedia
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldAttemptRecovery
 import com.google.android.accessibility.utils.output.LowLatencyAudio.Companion.shouldRecreateForSpeakerFastPath
@@ -152,5 +159,21 @@ class LowLatencyAudioRouteTest {
         yieldingForExternalAudio = false,
       )
     )
+  }
+
+  @Test
+  fun headphoneDeviceTypes_routeToAudioTrackInsteadOfAAudio() {
+    assertTrue(isHeadphoneDeviceType(TYPE_WIRED_HEADSET))
+    assertTrue(isHeadphoneDeviceType(TYPE_WIRED_HEADPHONES))
+    assertTrue(isHeadphoneDeviceType(TYPE_USB_HEADSET))
+    assertTrue(isHeadphoneDeviceType(TYPE_USB_DEVICE))
+    assertTrue(isHeadphoneDeviceType(TYPE_BLUETOOTH_A2DP))
+    assertTrue(isHeadphoneDeviceType(TYPE_BLUETOOTH_SCO))
+    assertTrue(isHeadphoneDeviceType(TYPE_HEARING_AID))
+    assertTrue(isHeadphoneDeviceType(TYPE_BLE_HEADSET))
+    assertFalse(isHeadphoneDeviceType(TYPE_BUILTIN_SPEAKER))
+    assertFalse(isHeadphoneDeviceType(TYPE_BUILTIN_EARPIECE))
+    assertFalse(isHeadphoneDeviceType(TYPE_BUILTIN_SPEAKER_SAFE))
+    assertFalse(isHeadphoneDeviceType(null))
   }
 }
