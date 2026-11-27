@@ -32,6 +32,6 @@
   <string name="edge_gestures_failed">Không khởi động được bộ nhận cử chỉ cạnh. Đã tạm tắt cử chỉ cạnh.</string>
   <string name="edge_gesture_previous_sentence">Đọc câu trước</string>
   <string name="edge_gesture_next_sentence">Đọc câu sau</string>
-  <string name="edge_gesture_previous_recent">Mục trước trong Ứng dụng gần đây</string>
-  <string name="edge_gesture_next_recent">Mục sau trong Ứng dụng gần đây</string>
+  <string name="edge_gesture_previous_recent">Ứng dụng gần đây trước</string>
+  <string name="edge_gesture_next_recent">Ứng dụng gần đây tiếp theo</string>
 </resources>

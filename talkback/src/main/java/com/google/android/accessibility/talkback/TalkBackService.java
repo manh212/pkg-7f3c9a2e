@@ -242,6 +242,7 @@ import com.google.android.accessibility.talkback.volume.VolumeKeyVolume;
 import com.google.android.accessibility.talkback.notifications.NotificationSettings;
 import com.google.android.accessibility.talkback.speechdictionary.SpeechDictionary;
 import com.google.android.accessibility.talkback.gesture.AppGestures;
+import com.google.android.accessibility.talkback.gesture.RecentAppSwitcher;
 import com.google.android.accessibility.talkback.gesture.GestureProfiles;
 import com.google.android.accessibility.talkback.dictation.SandflyDictation;
 import com.google.android.accessibility.talkback.focusmanagement.record.FocusActionInfo;
@@ -834,6 +835,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   private @Nullable ProcessorMagnification processorMagnification;
   /** The app of the last window that came up, for the turn-off log. */
   private @Nullable CharSequence lastWindowPackage;
+  private final RecentAppSwitcher recentAppSwitcher = new RecentAppSwitcher(this);
 
   private volatile boolean latencyExtrasEnabled = true;
   private BackgroundEventGate backgroundEventGate;
@@ -1107,6 +1109,7 @@ public class TalkBackService extends AccessibilityServiceCompat
 
   @Override
   public void onDestroy() {
+    recentAppSwitcher.close();
     unregisterBatteryStateReceiver();
     PerformanceHintHelper.close();
     fullScreenMonitor.stop();
@@ -1334,6 +1337,9 @@ public class TalkBackService extends AccessibilityServiceCompat
     if (gestureController != null) {
       updateEditBoxDoubleTap(event);
       gestureController.onRawAccessibilityEvent(event);
+    }
+    if (isServiceActive() && !PauseController.isPaused() && !yieldingToOtherScreenReader) {
+      recentAppSwitcher.onAccessibilityEvent(event);
     }
     boolean strict = backgroundEventGate != null && backgroundEventGate.isStrict();
     if (strict && !backgroundEventGate.onAccessibilityEvent(event, receivedAt)) {
@@ -2680,6 +2686,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
 
     return feedbackController;
+  }
+
+  public RecentAppSwitcher getRecentAppSwitcher() {
+    return recentAppSwitcher;
   }
 
   public VoiceActionMonitor getVoiceActionMonitor() {

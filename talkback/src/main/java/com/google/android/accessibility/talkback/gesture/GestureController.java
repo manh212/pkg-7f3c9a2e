@@ -437,7 +437,7 @@ public class GestureController {
           yield sentence != null;
         }
         case PREVIOUS_RECENT, NEXT_RECENT ->
-            edgeGestureActions.stepRecent(edgeAction == EdgeGestureActions.Action.NEXT_RECENT);
+            edgeGestureActions.stepRecent();
       };
     } else if (menuAction != 0) {
       result = menuManager.showMenuAction(menuAction, eventId);

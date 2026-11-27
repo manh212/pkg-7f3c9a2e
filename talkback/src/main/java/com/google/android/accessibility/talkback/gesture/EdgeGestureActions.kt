@@ -41,11 +41,7 @@ class EdgeGestureActions(private val service: TalkBackService) {
     return cursor.source.text.substring(piece.coreStart, piece.coreEnd)
   }
 
-  fun stepRecent(forward: Boolean): Boolean = withRecents(service) { carousel ->
-    val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-      else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-    carousel.performAction(action)
-  }
+  fun stepRecent(): Boolean = service.recentAppSwitcher.switchToPrevious()
 
   companion object {
     @JvmStatic
@@ -66,13 +62,13 @@ class EdgeGestureActions(private val service: TalkBackService) {
         action == context.getString(R.string.shortcut_value_speech_rate_decrease) ||
         action == context.getString(R.string.shortcut_value_speech_pitch_increase) ||
         action == context.getString(R.string.shortcut_value_speech_pitch_decrease) ||
-        find(context, action) != null
+        find(context, action).let { it == Action.PREVIOUS_SENTENCE || it == Action.NEXT_SENTENCE }
 
     @JvmStatic
     fun isAvailable(service: TalkBackService, action: String): Boolean =
       when (find(service, action)) {
         Action.PREVIOUS_SENTENCE, Action.NEXT_SENTENCE -> focusedText(service) != null
-        Action.PREVIOUS_RECENT, Action.NEXT_RECENT -> withRecents(service) { true }
+        Action.PREVIOUS_RECENT, Action.NEXT_RECENT -> service.recentAppSwitcher.isAvailable()
         null -> true
       }
 
@@ -87,28 +83,6 @@ class EdgeGestureActions(private val service: TalkBackService) {
         return FocusedText(node.windowId, node.hashCode(), text, node.textSelectionStart)
       } finally {
         node.recycle()
-      }
-    }
-
-    private fun withRecents(
-      service: TalkBackService,
-      operation: (AccessibilityNodeInfo) -> Boolean,
-    ): Boolean {
-      val root = service.rootInActiveWindow ?: return false
-      try {
-        val launcher = root.packageName ?: return false
-        for (id in listOf("overview_panel", "recents_view", "recents_panel")) {
-          val nodes = root.findAccessibilityNodeInfosByViewId("$launcher:id/$id")
-          try {
-            val carousel = nodes.firstOrNull { it.isVisibleToUser && it.isScrollable }
-            if (carousel != null) return operation(carousel)
-          } finally {
-            nodes.forEach { it.recycle() }
-          }
-        }
-        return false
-      } finally {
-        root.recycle()
       }
     }
   }
