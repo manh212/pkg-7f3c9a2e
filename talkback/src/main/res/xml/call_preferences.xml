@@ -24,6 +24,11 @@
       android:key="pref_call_voice_profile"
       android:summary="%s"
       android:title="@string/call_voice_title" />
+  <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
+      android:defaultValue="false"
+      android:key="pref_call_auto_boost_volume"
+      android:summary="@string/call_auto_boost_volume_summary"
+      android:title="@string/call_auto_boost_volume_title" />
   <com.google.android.accessibility.talkback.preference.base.CommandSwitchPreference
       android:defaultValue="false"
       android:key="@string/pref_speakerphone_away_from_ear_key"
