@@ -20,8 +20,9 @@ public class AutoScrollSettleTest {
 
   @Test
   public void repeatedEventsCannotExtendTheWaitPastTheDeadline() {
-    assertEquals(40, AutoScrollInterpreter.AutoScrollHandler.settleDelay(1000, 1180, 110));
-    assertEquals(0, AutoScrollInterpreter.AutoScrollHandler.settleDelay(1000, 1300, 110));
+    assertEquals(110, AutoScrollInterpreter.AutoScrollHandler.settleDelay(1000, 1180, 110));
+    assertEquals(50, AutoScrollInterpreter.AutoScrollHandler.settleDelay(1000, 1300, 110));
+    assertEquals(0, AutoScrollInterpreter.AutoScrollHandler.settleDelay(1000, 1350, 110));
   }
 
   @Test
