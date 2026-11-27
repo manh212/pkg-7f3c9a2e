@@ -259,6 +259,10 @@ class CommandsFragment : TalkbackBaseFragment() {
   internal fun selectGroupFilterForTest(filterId: Int) {
     selectedFilterId = filterId
     selectedCommandValue = null
+    val context = requireContext()
+    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
+    val manager = keyComboManager ?: CommandBindings.keyComboManager(context)
+    val staticCommands = categories.flatMap { it.commands }
     val screen = preferenceScreen
     screen.removeAll()
     commandRows.clear()
