@@ -587,6 +587,8 @@ object Commands {
     private fun textNavigation() =
       category(R.string.shortcut_title_navigate_by_text) {
         navigationActions(0)
+        gesture(R.string.edge_gesture_value_previous_sentence, R.string.edge_gesture_previous_sentence)
+        gesture(R.string.edge_gesture_value_next_sentence, R.string.edge_gesture_next_sentence)
         readingControlPair(Setting.GRANULARITY_TYPO, R.string.command_rc_typo)
       }
 
@@ -806,8 +808,16 @@ object Commands {
           R.string.shortcut_select_previous_setting,
           Key.SELECT_PREVIOUS_READING_MENU,
         )
-        gesture(R.string.shortcut_value_select_next_group, R.string.shortcut_select_next_group)
-        gesture(R.string.shortcut_value_select_previous_group, R.string.shortcut_select_previous_group)
+        gesture(
+          R.string.shortcut_value_select_next_group,
+          R.string.shortcut_select_next_group,
+          Key.SELECT_NEXT_READING_GROUP,
+        )
+        gesture(
+          R.string.shortcut_value_select_previous_group,
+          R.string.shortcut_select_previous_group,
+          Key.SELECT_PREVIOUS_READING_GROUP,
+        )
         gesture(
           R.string.shortcut_value_selected_setting_next_action,
           R.string.shortcut_selected_setting_next_action,
@@ -1105,6 +1115,7 @@ object Commands {
     private fun clipboardAndCopy() =
       category(R.string.commands_category_clipboard_copy) {
         gesture(R.string.shortcut_value_copy, android.R.string.copy)
+        gesture(R.string.shortcut_value_add_to_clipboard, R.string.shortcut_add_to_clipboard)
         gesture(R.string.shortcut_value_clipboard_history, R.string.title_clipboard_history)
         gesture(
           R.string.shortcut_value_copy_last_spoken_phrase,
@@ -1119,9 +1130,11 @@ object Commands {
 
     private fun clockAndTimers() =
       category(R.string.commands_category_clock_timer) {
+        gesture(R.string.shortcut_value_read_current_time, R.string.shortcut_read_current_time)
         gesture(
           R.string.shortcut_value_announce_current_time_and_date,
           R.string.shortcut_announce_current_time_and_date,
+          Key.ANNOUNCE_CURRENT_TIME_AND_DATE,
         )
         gesture(
           R.string.shortcut_value_control_telling_time,
@@ -1151,6 +1164,7 @@ object Commands {
         gesture(
           R.string.shortcut_value_translate_last_spoken_phrase,
           R.string.title_translate_last_spoken_phrase,
+          Key.TRANSLATE_LAST_SPOKEN_PHRASE,
         )
         gesture(R.string.shortcut_value_auto_translate, R.string.shortcut_auto_translate)
         gesture(R.string.shortcut_value_translate_dictation, R.string.shortcut_translate_dictation)

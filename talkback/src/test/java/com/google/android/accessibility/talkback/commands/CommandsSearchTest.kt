@@ -17,6 +17,7 @@ import java.text.Normalizer
 import java.time.Duration
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -109,16 +110,14 @@ class CommandsSearchTest {
     for (query in listOf("ứng dụng gần đây", "ung dung gan day")) {
       search().setQuery(query, false)
       for (command in listOf("EDGE_GESTURE_PREVIOUS_RECENT", "EDGE_GESTURE_NEXT_RECENT")) {
-        assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$command"))
+        assertTrue(isCommandVisible(command))
       }
-      assertNull(fragment().findPreference<Preference>(
-        "pref_cmd_row_${controller.get().getString(R.string.shortcut_value_previous_window)}"))
-      assertNull(fragment().findPreference<Preference>(
-        "pref_cmd_row_${controller.get().getString(R.string.shortcut_value_next_window)}"))
+      assertFalse(isCommandVisible(controller.get().getString(R.string.shortcut_value_previous_window)))
+      assertFalse(isCommandVisible(controller.get().getString(R.string.shortcut_value_next_window)))
     }
     fragment().selectGroupFilterForTest(R.string.shortcut_title_system_actions)
-    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_EDGE_GESTURE_PREVIOUS_RECENT"))
-    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_EDGE_GESTURE_NEXT_RECENT"))
+    assertTrue(isCommandVisible("EDGE_GESTURE_PREVIOUS_RECENT"))
+    assertTrue(isCommandVisible("EDGE_GESTURE_NEXT_RECENT"))
   }
 
   @Test
@@ -154,11 +153,28 @@ class CommandsSearchTest {
     shadowOf(Looper.getMainLooper()).idle()
     search().setQuery("ung dung gan day", false)
     fragment().setShowAssignedOnlyForTest(true)
-    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$previous"))
-    assertNull(fragment().findPreference<Preference>("pref_cmd_row_$next"))
+    assertTrue(isCommandVisible(previous))
+    assertFalse(isCommandVisible(next))
     fragment().setShowAssignedOnlyForTest(false)
-    assertNotNull(fragment().findPreference<Preference>("pref_cmd_row_$next"))
+    assertTrue(isCommandVisible(next))
   }
+
+  @Test
+  fun commandsMissingFromSpecializedListsAreVisibleInCommonSearch() {
+    for ((query, commands) in listOf(
+      "doc cau" to listOf("EDGE_GESTURE_PREVIOUS_SENTENCE", "EDGE_GESTURE_NEXT_SENTENCE"),
+      "noi them vao bo nho tam" to listOf(controller.get().getString(R.string.shortcut_value_add_to_clipboard)),
+      "doc gio hien tai" to listOf(controller.get().getString(R.string.shortcut_value_read_current_time)),
+    )) {
+      search().setQuery(query, false)
+      for (command in commands) {
+        assertTrue("Command is not visible for query $query: $command", isCommandVisible(command))
+      }
+    }
+  }
+
+  private fun isCommandVisible(command: String): Boolean =
+    fragment().findPreference<Preference>("pref_cmd_row_$command")?.isVisible == true
 
   private fun fragment(): CommandsFragment =
     controller.get().supportFragmentManager.findFragmentByTag("commands") as CommandsFragment

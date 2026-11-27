@@ -10,7 +10,8 @@ Both commands are registered in the common Commands list under system actions
 and are available in general gesture assignment lists. Searching for their
 Vietnamese names, with or without accents, finds them even when no gesture has
 been assigned. Existing edge assignments also appear in the assigned-only
-filter. Sentence-stepping commands remain limited to edge gesture pickers.
+filter. Sentence-stepping commands are also in the common catalog and remain
+available in edge gesture pickers.
 
 Meridian records the two most recently focused, launchable application packages
 while its accessibility service is active. Opening a third app replaces the
