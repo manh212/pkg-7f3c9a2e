@@ -218,21 +218,21 @@ public class FocusProcessorForLogicalNavigation {
   /** Set while searching again after showing an off-screen item, so it is tried only once. */
   private boolean revealingOffscreen;
 
-  // Checks once a frame for about 100 ms, when Android would send the scroll event anyway.
-  private static final long EARLY_SCROLL_RETRY_MS = 16;
-  private static final int EARLY_SCROLL_RETRIES = 6;
-  private static final int FAST_SCROLL_RETRIES = 8;
+  // System-wide fast reveal for already-attached off-screen list items (ACTION_SHOW_ON_SCREEN).
+  private static final int ATTACHED_REVEAL_MAX_NODES = 250;
+  private static final long ATTACHED_REVEAL_POLL_MS = 24;
+  private static final int ATTACHED_REVEAL_MAX_POLLS = 5;
 
   /** Most items that previous container steps back over to reach the start of a container. */
   private static final int MAX_CONTAINER_START_STEPS = 500;
 
-  // Checks whether a page scroll has already moved the list, before its scroll event arrives.
+  // Unified handler for scroll tracking and settle verification.
   private final Handler earlyScrollCheckHandler = new Handler(Looper.getMainLooper());
-  private static final long SETTLE_CHECK_MS = 16;
-  private static final int SETTLE_CHECKS = 20;
-  private static final int FILLS_LIST_SETTLE_CHECKS = 1;
-  private static final long FILLS_LIST_QUIET_MS = 48L;
-  private static final long MAX_AUTO_SCROLL_SETTLE_MS = 360L;
+  private static final long SETTLE_CHECK_MS = 32;
+  private static final int SETTLE_CHECKS = 12;
+  private static final int FILLS_LIST_SETTLE_CHECKS = 6;
+  private static final long FILLS_LIST_QUIET_MS = 120L;
+  private static final long MAX_AUTO_SCROLL_SETTLE_MS = 450L;
   private int navigationSerial;
 
   // A consumed scroll callback can still have its focus search posted for the next frame.
@@ -377,6 +377,7 @@ public class FocusProcessorForLogicalNavigation {
     this.compositor = compositor;
     this.globalVariables = globalVariables;
     scrollAhead = new ScrollAhead(this);
+    ScrollAhead.setEnabled(false);
     isWindowNavigationSupported = !FormFactorUtils.isAndroidTv();
     filterWindowForWindowNavigation = new WindowNavigationFilter(service, searchState);
   }
@@ -395,6 +396,11 @@ public class FocusProcessorForLogicalNavigation {
   /** Whether the item after a list's last one on screen is focused as soon as a scroll shows it. */
   // Hardcoded on: no setting gates this and there is deliberately no setter for it.
   private static volatile boolean speakWhileScrolling = true;
+
+  /** Whether the unified ScrollTrack is actively owning the in-flight auto-scroll callback. */
+  public boolean isTrackingActiveAutoScroll() {
+    return trackedCallback != null && trackedCallback == scrollCallback;
+  }
 
   /** The vertical deltas of all scroll events so far, added up. */
   static int scrollDeltaSumY() {
@@ -4122,6 +4128,225 @@ public class FocusProcessorForLogicalNavigation {
   }
 
   /**
+   * System-wide fast reveal for RecyclerView/ListView/Compose lists: if the next focusable node
+   * (such as action buttons below a tall message/post, or the next attached row) is already
+   * attached off-screen in the node tree, reveal it directly with {@code ACTION_SHOW_ON_SCREEN}
+   * instead of blind {@code ACTION_SCROLL_FORWARD} page scrolling.
+   */
+  private @RevealResult int revealNextAttachedListItem(
+      @NonNull ScrollableNodeInfo scrollableNodeInfo,
+      @NonNull AccessibilityNodeInfoCompat pivot,
+      @NonNull NavigationAction navigationAction,
+      @SearchDirection int logicalDirection,
+      EventId eventId) {
+    AccessibilityNodeInfoCompat scrollable = scrollableNodeInfo.getNode();
+    if (scrollable.equals(pivot)
+        || OffscreenContent.keepsAllContent(scrollable)
+        || AccessibilityNodeInfoUtils.scrollsOnlySideways(scrollable)
+        || (logicalDirection != SEARCH_FOCUS_FORWARD && logicalDirection != SEARCH_FOCUS_BACKWARD)) {
+      return REVEAL_NONE;
+    }
+    boolean forward = logicalDirection == SEARCH_FOCUS_FORWARD;
+    AccessibilityNodeInfoCompat target = findAttachedOffscreenTarget(scrollable, pivot, forward);
+    if (target == null) {
+      return REVEAL_NONE;
+    }
+    AccessibilityNodeInfoCompat actionNode = findShowOnScreenNode(target, scrollable);
+    if (actionNode == null) {
+      return REVEAL_NONE;
+    }
+    if (!showOnScreen(actionNode, eventId)) {
+      return REVEAL_NONE;
+    }
+    if (BuildVersionUtils.isAtLeastT()) {
+      service.clearCachedSubtree(scrollable.unwrap());
+    }
+    TraversalTreeCache.clear("revealed attached list item");
+    if (target.refresh() && AccessibilityNodeInfoUtils.isVisible(target)) {
+      LogUtils.d(TAG, "revealNextAttachedListItem: revealed synchronously via ACTION_SHOW_ON_SCREEN.");
+      return REVEAL_SHOWN;
+    }
+    // RecyclerView often animates ACTION_SHOW_ON_SCREEN over a few frames. Poll briefly until
+    // the target slides on screen, then focus it directly; fall back to autoScroll if it doesn't.
+    final int serial = navigationSerial;
+    final AccessibilityNodeInfoCompat trackedTarget = AccessibilityNodeInfoCompat.obtain(target);
+    final AccessibilityNodeInfoCompat trackedPivot = AccessibilityNodeInfoCompat.obtain(pivot);
+    earlyScrollCheckHandler.postDelayed(
+        () ->
+            watchAttachedReveal(
+                serial,
+                scrollableNodeInfo,
+                trackedPivot,
+                trackedTarget,
+                navigationAction,
+                eventId,
+                ATTACHED_REVEAL_MAX_POLLS),
+        ATTACHED_REVEAL_POLL_MS);
+    return REVEAL_MOVED;
+  }
+
+  private void watchAttachedReveal(
+      int serial,
+      ScrollableNodeInfo scrollableNodeInfo,
+      AccessibilityNodeInfoCompat pivot,
+      AccessibilityNodeInfoCompat target,
+      NavigationAction navigationAction,
+      EventId eventId,
+      int pollsLeft) {
+    if (serial != navigationSerial) {
+      return;
+    }
+    if (target.refresh() && AccessibilityNodeInfoUtils.isVisible(target)) {
+      LogUtils.d(TAG, "watchAttachedReveal: target visible, focusing directly.");
+      setAccessibilityFocusInternal(target, navigationAction, eventId);
+      return;
+    }
+    if (pollsLeft > 1) {
+      earlyScrollCheckHandler.postDelayed(
+          () ->
+              watchAttachedReveal(
+                  serial,
+                  scrollableNodeInfo,
+                  pivot,
+                  target,
+                  navigationAction,
+                  eventId,
+                  pollsLeft - 1),
+          ATTACHED_REVEAL_POLL_MS);
+      return;
+    }
+    LogUtils.d(TAG, "watchAttachedReveal: target still off-screen; falling back to autoScroll.");
+    AccessibilityNodeInfoCompat scrollable = scrollableNodeInfo.getNode();
+    if (scrollable.refresh() && pivot.refresh()) {
+      autoScroll(scrollableNodeInfo, pivot, navigationAction, eventId);
+    }
+  }
+
+  private static @Nullable AccessibilityNodeInfoCompat findShowOnScreenNode(
+      AccessibilityNodeInfoCompat target, AccessibilityNodeInfoCompat scrollable) {
+    AccessibilityNodeInfoCompat cur = target;
+    for (int depth = 0; cur != null && !cur.equals(scrollable) && depth < 4; depth++) {
+      if (AccessibilityNodeInfoUtils.supportsAction(
+          cur, AccessibilityActionCompat.ACTION_SHOW_ON_SCREEN.getId())) {
+        return cur;
+      }
+      cur = cur.getParent();
+    }
+    return null;
+  }
+
+  private static @Nullable AccessibilityNodeInfoCompat findAttachedOffscreenTarget(
+      AccessibilityNodeInfoCompat scrollable,
+      AccessibilityNodeInfoCompat pivot,
+      boolean forward) {
+    Rect listBounds = new Rect();
+    scrollable.getBoundsInScreen(listBounds);
+    Rect pivotBounds = new Rect();
+    pivot.getBoundsInScreen(pivotBounds);
+    if (listBounds.isEmpty()) {
+      return null;
+    }
+    List<AccessibilityNodeInfoCompat> nodes = new ArrayList<>();
+    List<Integer> subtreeEnds = new ArrayList<>();
+    if (!collectAttachedNodes(scrollable, nodes, subtreeEnds)) {
+      return null;
+    }
+    int pivotIndex = nodes.indexOf(pivot);
+    if (pivotIndex < 0) {
+      return null;
+    }
+    Rect bounds = new Rect();
+    if (forward) {
+      for (int i = subtreeEnds.get(pivotIndex); i < nodes.size(); i++) {
+        AccessibilityNodeInfoCompat candidate = nodes.get(i);
+        if (isOffscreenAttachedCandidate(candidate, listBounds, pivotBounds, true, bounds)) {
+          return candidate;
+        }
+      }
+    } else {
+      for (int i = pivotIndex - 1; i >= 0; i--) {
+        if (subtreeEnds.get(i) > pivotIndex) {
+          continue;
+        }
+        AccessibilityNodeInfoCompat candidate = nodes.get(i);
+        if (isOffscreenAttachedCandidate(candidate, listBounds, pivotBounds, false, bounds)) {
+          return candidate;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static boolean collectAttachedNodes(
+      AccessibilityNodeInfoCompat root,
+      List<AccessibilityNodeInfoCompat> nodes,
+      List<Integer> subtreeEnds) {
+    int index = nodes.size();
+    if (index >= ATTACHED_REVEAL_MAX_NODES) {
+      return false;
+    }
+    nodes.add(root);
+    subtreeEnds.add(index + 1);
+    int childCount = root.getChildCount();
+    for (int i = 0; i < childCount; i++) {
+      AccessibilityNodeInfoCompat child = root.getChild(i);
+      if (child == null) {
+        continue;
+      }
+      // Do not descend into nested scrollable containers.
+      if (index > 0 && child.isScrollable()) {
+        int childIndex = nodes.size();
+        if (childIndex >= ATTACHED_REVEAL_MAX_NODES) {
+          return false;
+        }
+        nodes.add(child);
+        subtreeEnds.add(childIndex + 1);
+        continue;
+      }
+      if (!collectAttachedNodes(child, nodes, subtreeEnds)) {
+        return false;
+      }
+    }
+    subtreeEnds.set(index, nodes.size());
+    return true;
+  }
+
+  private static boolean isOffscreenAttachedCandidate(
+      AccessibilityNodeInfoCompat node,
+      Rect listBounds,
+      Rect pivotBounds,
+      boolean forward,
+      Rect outBounds) {
+    if (!node.isEnabled()) {
+      return false;
+    }
+    node.getBoundsInScreen(outBounds);
+    if (outBounds.isEmpty()) {
+      return false;
+    }
+    boolean offscreenOrClipped =
+        !node.isVisibleToUser()
+            || (forward
+                ? outBounds.bottom > listBounds.bottom + 2
+                : outBounds.top < listBounds.top - 2);
+    if (!offscreenOrClipped) {
+      return false;
+    }
+    if (!pivotBounds.isEmpty()) {
+      // Avoid jumping backward to a sticky header or an item on the wrong side of the pivot.
+      if (forward && outBounds.bottom <= pivotBounds.top) {
+        return false;
+      }
+      if (!forward && outBounds.top >= pivotBounds.bottom) {
+        return false;
+      }
+    }
+    boolean hasLabel =
+        !TextUtils.isEmpty(node.getText()) || !TextUtils.isEmpty(node.getContentDescription());
+    return (node.isFocusable() || node.isClickable()) && (hasLabel || node.getChildCount() == 0);
+  }
+
+  /**
    * Tries to perform scroll if the pivot is at the edge of a scrollable container and suitable
    * autoscroll.
    */
@@ -4207,6 +4432,13 @@ public class FocusProcessorForLogicalNavigation {
       int reveal = revealNextOffscreenItem(scrollableNode, pivot, logicalDirection, eventId);
       if (reveal != REVEAL_NONE) {
         return reveal;
+      }
+      @RevealResult
+      int attachedReveal =
+          revealNextAttachedListItem(
+              scrollableNodeInfo, pivot, navigationAction, logicalDirection, eventId);
+      if (attachedReveal != REVEAL_NONE) {
+        return attachedReveal;
       }
     }
     // A carousel that only scrolls sideways and shows one page at a time works as a pager: a swipe
@@ -4323,23 +4555,14 @@ public class FocusProcessorForLogicalNavigation {
       // Items of a sideways list come beside the pivot's, which the watch doesn't look for.
       boolean watchItems =
           speakWhileScrolling && navigationAction.shouldScroll && !scrollsSideways(scrollable);
-      if (tracker != null || watchItems) {
-        ScrollTrack track = new ScrollTrack(callback, scrollable, tracker, eventId);
-        track.quietAtStart = scrollStartedQuiet;
-        track.actionCountAtStart = scrollActionCount;
-        if (watchItems) {
-          track.watchItems(pivot, contentUp);
-        }
-        trackedCallback = callback;
-        earlyScrollCheckHandler.postDelayed(() -> trackScroll(track), FIRST_TRACK_CHECK_MS);
-      } else {
-        earlyScrollCheckHandler.post(
-            () ->
-                checkScrollEarly(
-                    callback, scrollable, pivotBefore, eventId,
-                    LatencyExperiments.Feature.FAST_SCROLL.enabled()
-                        ? FAST_SCROLL_RETRIES : EARLY_SCROLL_RETRIES));
+      ScrollTrack track = new ScrollTrack(callback, scrollable, tracker, eventId);
+      track.quietAtStart = scrollStartedQuiet;
+      track.actionCountAtStart = scrollActionCount;
+      if (watchItems) {
+        track.watchItems(pivot, contentUp);
       }
+      trackedCallback = callback;
+      earlyScrollCheckHandler.postDelayed(() -> trackScroll(track), FIRST_TRACK_CHECK_MS);
     }
     return scrolled;
   }
@@ -6158,54 +6381,6 @@ public class FocusProcessorForLogicalNavigation {
         traversalStrategy, scrolledNode, searchDirection, nodeFilter);
   }
 
-  /**
-   * Continues the navigation as soon as the pivot has moved, instead of waiting for the scroll
-   * event. Android sends scroll events at most every 100 ms, but lists usually scroll before the
-   * action returns or within a few frames. If nothing has moved yet, checks again every {@link
-   * #EARLY_SCROLL_RETRY_MS}, up to {@code retries} times, and then leaves it to the scroll event,
-   * which is ignored if this check already handled the scroll.
-   */
-  private void checkScrollEarly(
-      AutoScrollCallback callback,
-      AccessibilityNodeInfoCompat scrollable,
-      Rect pivotBefore,
-      EventId eventId,
-      int retries) {
-    if (scrollCallback != callback) {
-      return;
-    }
-    AccessibilityNodeInfoCompat pivotNow = AccessibilityNodeInfoCompat.obtain(callback.pivot);
-    Rect pivotAfter = new Rect();
-    boolean pivotPresent;
-    try {
-      pivotPresent = pivotNow.refresh();
-      if (pivotPresent) pivotNow.getBoundsInScreen(pivotAfter);
-    } finally {
-      pivotNow.recycle();
-    }
-    if (pivotPresent && pivotAfter.equals(pivotBefore)) {
-      if (retries > 0) {
-        earlyScrollCheckHandler.postDelayed(
-            () -> checkScrollEarly(callback, scrollable, pivotBefore, eventId, retries - 1),
-            LatencyExperiments.Feature.FAST_SCROLL.enabled() && retries > EARLY_SCROLL_RETRIES
-                ? 8 : EARLY_SCROLL_RETRY_MS);
-      }
-      return;
-    }
-    int deltaX =
-        pivotPresent
-            ? edgeShift(pivotBefore.left, pivotAfter.left, pivotBefore.right, pivotAfter.right)
-            : DELTA_UNDEFINED;
-    int deltaY =
-        pivotPresent
-            ? edgeShift(pivotBefore.top, pivotAfter.top, pivotBefore.bottom, pivotAfter.bottom)
-            : DELTA_UNDEFINED;
-    LogUtils.d(TAG, "checkScrollEarly: scrolled, deltaX=%s deltaY=%s", deltaX, deltaY);
-    scrollable.refresh();
-    readListAgain(scrollable);
-    onAutoScrolled(scrollable, eventId, deltaX, deltaY);
-  }
-
   @VisibleForTesting
   static int edgeShift(int startBefore, int startAfter, int endBefore, int endAfter) {
     int shift = startBefore - startAfter;
@@ -6791,9 +6966,8 @@ public class FocusProcessorForLogicalNavigation {
             .setAutoScrollAttempt(sourceAction.autoScrollAttempt + 1)
             .build();
 
-    boolean fastScroll = LatencyExperiments.Feature.FAST_SCROLL.enabled();
     AccessibilityNodeInfoCompat nodeToFocus = null;
-    if (fastScroll && validAccessibilityFocus
+    if (validAccessibilityFocus
         && TraversalTreeCache.shouldUseLiveTraversal(scrolledNode.getWindowId())
         && isMoveToNextOrPreviousItem(sourceAction)
         && TraversalStrategyUtils.isLogicalDirection(sourceAction.searchDirection)
@@ -6920,11 +7094,16 @@ public class FocusProcessorForLogicalNavigation {
         long nowUptime = SystemClock.uptimeMillis();
         boolean withinSettleBudget =
             (nowUptime - lastAutoScrollUptime) < MAX_AUTO_SCROLL_SETTLE_MS;
+        boolean pivotFillsList = fillsList(newRect, scrolledNode);
+        boolean hadScrollMovement =
+            sourceAction.isPrevScrolled
+                || (scrollDeltaSumY != scrollStartDeltaSumY)
+                || (scrollEventCount != scrollStartEventCount);
         boolean pivotMoved = !previousRect.equals(newRect);
         boolean fillingListStillScrolling =
             !pivotMoved
-                && fillsList(newRect, scrolledNode)
-                && !listSettled
+                && pivotFillsList
+                && (!listSettled || listStillMoving())
                 && (nowUptime - lastScrollEventUptime) < FILLS_LIST_QUIET_MS
                 && settleChecksLeft > (SETTLE_CHECKS - FILLS_LIST_SETTLE_CHECKS);
         if ((pivotMoved || fillingListStillScrolling)
@@ -6942,7 +7121,7 @@ public class FocusProcessorForLogicalNavigation {
         boolean listDidNotMove =
             newRect.equals(pivotBoundsAtScrollStart)
                 && previousRect.equals(newRect)
-                && !fillsList(newRect, scrolledNode)
+                && !pivotFillsList
                 && AccessibilityNodeInfoUtils.hasAncestor(focusBeforeScroll, scrolledNode);
         if (listDidNotMove && sourceAction.shouldScroll) {
           LogUtils.d(TAG, "After the scroll: the pivot inside the list didn't move; not scrolling it again.");
@@ -6950,8 +7129,12 @@ public class FocusProcessorForLogicalNavigation {
               NavigationAction.Builder.copy(navigationAction).setShouldScroll(false).build();
         }
         if (!listDidNotMove && previousRect.equals(newRect) && sourceAction.shouldScroll) {
-          if (sourceAction.isPrevScrolled) {
-            LogUtils.d(TAG, "Pivot didn't move but has scrolls. Repeat until to find the next.");
+          // A tall item filling the viewport has its screen bounds clamped to the list bounds even
+          // while the list scrolls normally; rely on real scroll deltas rather than rect equality.
+          if (hadScrollMovement) {
+            LogUtils.d(TAG, "Pivot bounds unchanged (tall item) but list scrolled; continuing scroll.");
+            navigationAction =
+                NavigationAction.Builder.copy(navigationAction).setIsPrevScrolled(true).build();
           } else {
             LogUtils.d(TAG, "Pivot didn't move and no scrolls, do not repeat.");
             navigationAction =

@@ -123,7 +123,7 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
     }
     long scrollDeltaX = AccessibilityEventUtils.getScrollDeltaX(scrolledEvent);
     long scrollDeltaY = AccessibilityEventUtils.getScrollDeltaY(scrolledEvent);
-    if (reachEdge(scrollDeltaX, scrollDeltaY, scrolledEvent)) {
+    if (reachEdge(scrolledNodeInRecord, scrollDeltaX, scrollDeltaY, scrolledEvent)) {
       return true;
     }
 
@@ -134,9 +134,8 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
 
     if (scrollDeltaX == 0 && scrollDeltaY == 0) {
       consecutiveZeroDeltaEvents++;
-      // RecyclerView không báo cáo maxScroll (ví dụ Nekogram, Gemini, com.toan.game):
-      // khi danh sách đã phát sự kiện dừng (delta = 0) sau khi dịch chuyển hoặc lặp 2 khung hình
-      // liên tiếp không đổi, coi như cuộn đã ổn định để tránh kẹt vòng lặp và nuốt cú vuốt kế tiếp.
+      // RecyclerView does not report maxScroll: treat an explicit zero-delta stop event after
+      // actual movement (or two consecutive zero-delta events) as settled.
       if (missingMaxScroll
           && (totalScrollDeltaX != 0
               || totalScrollDeltaY != 0
@@ -145,19 +144,6 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
       }
     } else {
       consecutiveZeroDeltaEvents = 0;
-      if (missingMaxScroll) {
-        // Tránh kết luận thành công quá sớm ở khung hình đầu tiên (ví dụ deltaY = 4 px trên
-        // Nekogram) gây kích hoạt 2-3 nhịp tự cuộn lặp liên tiếp; yêu cầu quãng cuộn tích lũy
-        // đạt tối thiểu 1/3 ngưỡng (hoặc 72 px) trước khi hoàn tất sớm.
-        long minDeltaX = Math.max(REACH_EDGE_MIN_TOLERANCE_DISTANCE_PX, threshold.x / 3L);
-        long minDeltaY = Math.max(REACH_EDGE_MIN_TOLERANCE_DISTANCE_PX, threshold.y / 3L);
-        if ((scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD
-                && (totalScrollDeltaX >= minDeltaX || totalScrollDeltaY >= minDeltaY))
-            || (scrollAction == AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD
-                && (totalScrollDeltaX <= -minDeltaX || totalScrollDeltaY <= -minDeltaY))) {
-          return true;
-        }
-      }
     }
 
     LogUtils.d(
@@ -189,7 +175,10 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
    * and the scroll position is less than {@link #REACH_EDGE_MIN_TOLERANCE_DISTANCE_PX}.
    */
   private boolean reachEdge(
-      long scrollDeltaX, long scrollDeltaY, AccessibilityEvent scrolledEvent) {
+      AccessibilityNodeInfoCompat scrolledNode,
+      long scrollDeltaX,
+      long scrollDeltaY,
+      AccessibilityEvent scrolledEvent) {
     int maxScrollX = scrolledEvent.getMaxScrollX();
     int maxScrollY = scrolledEvent.getMaxScrollY();
     int scrollX = scrolledEvent.getScrollX();
@@ -206,8 +195,7 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
         maxScrollX,
         maxScrollY);
     if (maxScrollX == 0 && maxScrollY == 0) {
-      LogUtils.w(TAG, "invalid maxScroll");
-      return reachEdgeByIndex(scrolledEvent);
+      return reachEdgeByIndex(scrolledNode, scrolledEvent);
     }
     if (scrollAction == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) {
       if (scrollDeltaY > 0) {
@@ -233,7 +221,8 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
    * than the threshold and was only accepted after the 110 ms wait. It does report which items
    * show, so the end is reached once the first or last item does.
    */
-  private boolean reachEdgeByIndex(AccessibilityEvent scrolledEvent) {
+  private boolean reachEdgeByIndex(
+      AccessibilityNodeInfoCompat scrolledNode, AccessibilityEvent scrolledEvent) {
     int itemCount = scrolledEvent.getItemCount();
     int fromIndex = scrolledEvent.getFromIndex();
     int toIndex = scrolledEvent.getToIndex();
@@ -242,13 +231,44 @@ public class AutoScrollSuccessCheckerImpl implements AutoScrollSuccessChecker {
     if (itemCount <= 0 || fromIndex < 0 || toIndex < 0) {
       return false;
     }
-    boolean towardLastItem =
-        (scrollAction == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) != reverseOrder;
     if (scrollAction != AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
         && scrollAction != AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
       return false;
     }
-    return towardLastItem ? toIndex >= itemCount - 1 : fromIndex == 0;
+    boolean towardLastItem =
+        (scrollAction == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) != reverseOrder;
+    boolean indexAtEdge = towardLastItem ? toIndex >= itemCount - 1 : fromIndex == 0;
+    if (!indexAtEdge) {
+      return false;
+    }
+    // Even when the last/first adapter index is visible, a tall item (e.g. a long post or message)
+    // can still extend past the list edge and have more content to scroll into view.
+    if (scrolledNode != null && scrolledNode.refresh()) {
+      Rect listBounds = new Rect();
+      scrolledNode.getBoundsInScreen(listBounds);
+      int childCount = scrolledNode.getChildCount();
+      if (!listBounds.isEmpty() && childCount > 0) {
+        boolean forward = scrollAction == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
+        AccessibilityNodeInfoCompat edgeChild =
+            scrolledNode.getChild(forward ? childCount - 1 : 0);
+        if (edgeChild != null) {
+          Rect childBounds = new Rect();
+          edgeChild.getBoundsInScreen(childBounds);
+          if (!childBounds.isEmpty()) {
+            boolean fillsList =
+                childBounds.top <= listBounds.top + 2 && childBounds.bottom >= listBounds.bottom - 2;
+            boolean clippedPastEdge =
+                forward
+                    ? childBounds.bottom > listBounds.bottom + 2
+                    : childBounds.top < listBounds.top - 2;
+            if (fillsList || clippedPastEdge) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+    return true;
   }
 
   @Override
