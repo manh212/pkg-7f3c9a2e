@@ -67,7 +67,6 @@ public final class LatencyExperiments {
     FAST_SINGLE_FINGER_SWIPE("fast_single_finger_swipe", true),
     EARLY_TOUCH_SPEECH("touch_speech_with_rotation", true),
     FAST_WINDOW_TRANSITIONS("fast_window_transitions", true),
-    FAST_SCROLL("fast_scroll", true),
     LIVE_EDGE_REUSE("live_edge_reuse", true),
     AUDIO_RESAMPLE("audio_resample", true),
     AUDIO_KEEP_WARM("audio_keep_warm", true),
@@ -130,7 +129,7 @@ public final class LatencyExperiments {
       editor.putBoolean(OVERHAUL_MIGRATION_V2_KEY, true);
     }
     if (!v3Done) {
-      editor.putBoolean("pref_speak_items_before_scroll_key", true);
+      editor.remove("pref_latency_fast_scroll");
       editor.putBoolean("pref_reduce_window_delay_key", true);
       editor.putBoolean(OVERHAUL_MIGRATION_V3_KEY, true);
     }
