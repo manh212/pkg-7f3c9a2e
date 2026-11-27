@@ -355,4 +355,8 @@
             android:key="@string/pref_selector_wrap_around_key"
             android:title="@string/title_pref_wrap_around"/>
     </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
+    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
+        android:key="pref_selector_groups_screen"
+        android:fragment="com.google.android.accessibility.talkback.preference.base.SelectorGroupsFragment"
+        android:title="@string/selector_groups_title" />
 </PreferenceScreen>
