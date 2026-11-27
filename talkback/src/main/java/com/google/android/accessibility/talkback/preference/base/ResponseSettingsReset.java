@@ -47,7 +47,6 @@ final class ResponseSettingsReset {
         context.getString(R.string.pref_typing_confirmation_key),
         context.getString(R.string.pref_typing_long_press_duration_key),
         context.getString(R.string.pref_cache_keyboard_keys),
-        context.getString(R.string.pref_speak_items_before_scroll_key),
         FailoverTextToSpeech.PREF_LOW_LATENCY_AUDIO_KEY,
         FailoverTextToSpeech.PREF_ALWAYS_INTERRUPT_SPEECH_KEY);
   }
