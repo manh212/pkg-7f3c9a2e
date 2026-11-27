@@ -2500,15 +2500,27 @@ public class TalkBackService extends AccessibilityServiceCompat
         R.string.pref_speak_volume_changes_key, R.bool.pref_speak_volume_changes_default)) {
       return;
     }
-    int min =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-            ? audioManager.getStreamMinVolume(stream)
-            : 0;
-    int max = audioManager.getStreamMaxVolume(stream);
+    int min = 0;
+    int max;
+    int current;
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        try {
+          min = audioManager.getStreamMinVolume(stream);
+        } catch (IllegalArgumentException e) {
+          min = 0;
+        }
+      }
+      max = audioManager.getStreamMaxVolume(stream);
+      current = audioManager.getStreamVolume(stream);
+    } catch (IllegalArgumentException e) {
+      LogUtils.w(TAG, "Cannot read volume for stream %d: %s", stream, e);
+      return;
+    }
     if (max <= min) {
       return;
     }
-    int percent = Math.round(100f * (audioManager.getStreamVolume(stream) - min) / (max - min));
+    int percent = Math.round(100f * (current - min) / (max - min));
     pipeline
         .getFeedbackReturner()
         .returnFeedback(
