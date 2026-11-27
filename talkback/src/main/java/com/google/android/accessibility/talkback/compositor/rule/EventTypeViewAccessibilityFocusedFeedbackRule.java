@@ -25,7 +25,6 @@ import static com.google.android.accessibility.utils.output.SpeechController.QUE
 
 import android.app.KeyguardManager;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.text.style.AbsoluteSizeSpan;
 import android.view.accessibility.AccessibilityEvent;
@@ -59,7 +58,6 @@ import com.google.android.accessibility.utils.AccessibilityNodeInfoUtils;
 import com.google.android.accessibility.utils.Filter;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.Role;
-import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.SpannableUtils;
 import com.google.android.accessibility.utils.WebInterfaceUtils;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
@@ -499,10 +497,6 @@ public final class EventTypeViewAccessibilityFocusedFeedbackRule {
   }
 
   private static boolean isLockscreenClockRepeat(Context context, CharSequence ttsOutput) {
-    SharedPreferences prefs = SharedPreferencesUtils.getSharedPreferences(context);
-    if (!prefs.getBoolean("pref_fix_lockscreen_clock_repeat", true)) {
-      return false;
-    }
     KeyguardManager keyguardManager =
         (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
     if (keyguardManager == null || !keyguardManager.isKeyguardLocked()) {
