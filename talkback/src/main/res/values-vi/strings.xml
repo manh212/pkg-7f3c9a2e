@@ -1951,6 +1951,4 @@
   <string name="title_pref_continue_reading_screen_off">Tiếp tục đọc khi khóa màn hình</string>
   <string name="title_pref_recalibrate_audio_path">Đo lại nguồn âm thanh tốt nhất</string>
   <string name="summary_pref_recalibrate_audio_path">Đo thủ công đường dẫn âm thanh độ trễ thấp cho thiết bị này</string>
-  <string name="title_pref_fix_lockscreen_clock_repeat">Sửa lỗi đồng hồ màn hình khoá lặp lại giờ</string>
-  <string name="summary_pref_fix_lockscreen_clock_repeat">Khi bật màn hình, thông báo đã đọc giờ rồi nên đồng hồ trên màn hình khoá sẽ không đọc lại khi nhận tiêu điểm</string>
 </resources>
