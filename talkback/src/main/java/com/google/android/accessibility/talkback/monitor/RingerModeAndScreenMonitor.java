@@ -389,6 +389,16 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
             televisionNavigationController.resetToNavigateMode();
           }
 
+          boolean continueReading =
+              prefs.getBoolean("pref_continue_reading_screen_off", false)
+                  && service.getSpeechController() != null
+                  && service.getSpeechController().isSpeaking();
+          if (continueReading) {
+            // Keep active reading speech playing across screen lock without interrupting or
+            // speaking "screen off" over it.
+            return;
+          }
+
           // Stop queued speech and events. AccessibilityEventProcessor will block new events.
           service.clearQueues();
 
