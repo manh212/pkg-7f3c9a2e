@@ -41,6 +41,7 @@ import com.google.android.accessibility.utils.AccessibilityEventUtils;
 import com.google.android.accessibility.utils.AccessibilityMessageFormat;
 import com.google.android.accessibility.utils.BuildVersionUtils;
 import com.google.android.accessibility.utils.FeatureSupport;
+import com.google.android.accessibility.utils.output.LowLatencyAudio;
 import com.google.android.accessibility.utils.FormFactorUtils;
 import com.google.android.accessibility.utils.LatencyExperiments;
 import com.google.android.accessibility.utils.SharedPreferencesUtils;
@@ -92,6 +93,13 @@ public class DeveloperPrefFragment extends TalkbackBaseFragment {
     // Remove preferences for features that are not supported by device.
     initTouchExplorationPreference();
     initLatencyPreparationPreferences();
+    Preference recalibrateAudioPref = findPreference("pref_recalibrate_audio_path");
+    if (recalibrateAudioPref != null) {
+      recalibrateAudioPref.setOnPreferenceClickListener(preference -> {
+        LowLatencyAudio.recalibrateAudioPathNow(requireContext());
+        return true;
+      });
+    }
     DiagnosticsPreferenceActions.bindBatteryPreferences(this);
     if (!BuildVersionUtils.isAtLeastT()) {
       getPreferenceScreen().removePreferenceRecursively(LatencyExperiments.STATIONARY_TOUCH_DELAY_KEY);

@@ -69,13 +69,39 @@ public final class SelectorGroupItemsFragment extends TalkbackBaseFragment {
     screen.addPreference(present);
 
     List<ItemInfo> available = SelectorGroupManager.availableItems(context);
-    for (int index = 0; index < group.items.size(); index++) {
+    int totalItems = group.items.size();
+    for (int index = 0; index < totalItems; index++) {
       String itemId = group.items.get(index);
       String title = titleFor(available, itemId);
-      Preference row = new Preference(context);
+      int itemIndex = index;
+      Preference row = new ActionablePreference(context, () -> {
+        List<PreferenceCustomActions.Entry> actions = new ArrayList<>();
+        if (itemIndex > 0) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.sgm_move_up),
+              () -> {
+                moveItem(itemId, -1, title);
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        if (itemIndex < totalItems - 1) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.sgm_move_down),
+              () -> {
+                moveItem(itemId, 1, title);
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        actions.add(new PreferenceCustomActions.Entry(
+            getString(R.string.sgm_remove_item),
+            () -> {
+              removeItem(itemId, title, itemIndex);
+              return kotlin.Unit.INSTANCE;
+            }));
+        return actions;
+      });
       row.setKey("sgm_current_" + itemId);
       row.setTitle(title);
-      row.setIconSpaceReserved(false);
       row.setOnPreferenceClickListener(
           preference -> {
             showItemActions(itemId);

@@ -44,10 +44,39 @@ public final class CustomMenuEditorFragment extends TalkbackBaseFragment {
     PreferenceScreen screen = getPreferenceScreen();
     screen.removeAll();
     if (menu == null) return;
-    for (int i = 0; i < menu.items.size(); i++) {
+    int total = menu.items.size();
+    for (int i = 0; i < total; i++) {
       CustomMenus.Item item = menu.items.get(i);
       int index = i;
-      Preference row = new Preference(context);
+      Preference row = new ActionablePreference(context, () -> {
+        List<PreferenceCustomActions.Entry> actions = new ArrayList<>();
+        if (index > 0) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.custom_menu_move_up),
+              () -> {
+                CustomMenus.moveItem(context, menuId, index, -1);
+                refresh();
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        if (index < total - 1) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(R.string.custom_menu_move_down),
+              () -> {
+                CustomMenus.moveItem(context, menuId, index, 1);
+                refresh();
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        actions.add(new PreferenceCustomActions.Entry(
+            getString(R.string.custom_menu_remove_item),
+            () -> {
+              CustomMenus.removeItem(context, menuId, index);
+              refresh();
+              return kotlin.Unit.INSTANCE;
+            }));
+        return actions;
+      });
       row.setTitle(item.label);
       row.setKey("custom_menu_item_" + i);
       row.setOnPreferenceClickListener(

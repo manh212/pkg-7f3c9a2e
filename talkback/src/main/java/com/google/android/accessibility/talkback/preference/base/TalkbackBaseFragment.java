@@ -16,17 +16,21 @@
 package com.google.android.accessibility.talkback.preference.base;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.core.view.ViewCompat;
 import androidx.annotation.StringRes;
 import androidx.preference.Preference;
+import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceScreen;
+import androidx.preference.TwoStatePreference;
 import com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory;
 import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.preference.TalkBackPreferenceFilter;
 import com.google.android.accessibility.talkback.quickactions.SettingsQuickActions;
+import com.google.android.accessibility.utils.SharedPreferencesUtils;
 import com.google.android.accessibility.utils.preference.BasePreferencesFragment;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -39,6 +43,9 @@ public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
   private @Nullable String returnFocusKey;
 
   private final int xmlResId;
+
+  private final SharedPreferences.OnSharedPreferenceChangeListener dependencyVisibilityListener =
+      (sharedPreferences, key) -> syncDependentPreferencesVisibility();
 
   public TalkbackBaseFragment() {
     xmlResId = INVALID_VALUE;
@@ -74,6 +81,11 @@ public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
   @Override
   public void onResume() {
     super.onResume();
+    if (getContext() != null) {
+      SharedPreferencesUtils.getSharedPreferences(getContext())
+          .registerOnSharedPreferenceChangeListener(dependencyVisibilityListener);
+    }
+    syncDependentPreferencesVisibility();
     if (getContext() != null) com.google.android.accessibility.talkback.licensing.SupportClient.opened(getContext());
     View view = getView();
     if (view != null) {
@@ -95,6 +107,10 @@ public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
 
   @Override
   public void onPause() {
+    if (getContext() != null) {
+      SharedPreferencesUtils.getSharedPreferences(getContext())
+          .unregisterOnSharedPreferenceChangeListener(dependencyVisibilityListener);
+    }
     SettingsQuickActions.setCurrentSection(null);
     super.onPause();
   }
@@ -128,6 +144,38 @@ public abstract class TalkbackBaseFragment extends BasePreferencesFragment {
       }
       TalkBackPreferenceFilter talkBackPreferenceFilter = new TalkBackPreferenceFilter(context);
       talkBackPreferenceFilter.filterPreferences(getPreferenceScreen());
+      syncDependentPreferencesVisibility();
+    }
+  }
+
+  /**
+   * Hides preferences whose android:dependency points to an unchecked switch/checkbox on this
+   * screen so screen-reader users do not swipe through unavailable disabled controls.
+   */
+  protected void syncDependentPreferencesVisibility() {
+    PreferenceScreen screen = getPreferenceScreen();
+    if (screen == null) {
+      return;
+    }
+    syncGroupDependencyVisibility(screen);
+  }
+
+  private void syncGroupDependencyVisibility(PreferenceGroup group) {
+    for (int i = 0; i < group.getPreferenceCount(); i++) {
+      Preference pref = group.getPreference(i);
+      String depKey = pref.getDependency();
+      if (depKey != null && !depKey.isEmpty()) {
+        Preference parent = findPreference(depKey);
+        if (parent instanceof TwoStatePreference) {
+          boolean parentChecked = ((TwoStatePreference) parent).isChecked();
+          if (pref.isVisible() != parentChecked) {
+            pref.setVisible(parentChecked);
+          }
+        }
+      }
+      if (pref instanceof PreferenceGroup) {
+        syncGroupDependencyVisibility((PreferenceGroup) pref);
+      }
     }
   }
 

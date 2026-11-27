@@ -2,6 +2,9 @@ package com.google.android.accessibility.talkback.preference.base;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.text.InputType;
+import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceScreen;
@@ -10,6 +13,7 @@ import com.google.android.accessibility.talkback.R;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager;
 import com.google.android.accessibility.talkback.quicksettings.QuickSettingsItemsFragment;
 import com.google.android.accessibility.talkback.selector.SelectorGroupManager.Group;
+import com.google.android.accessibility.utils.widget.KeyboardSafeEditText;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -83,9 +87,23 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
       int total = allGroups.size();
       Preference row = new ActionablePreference(context, () -> {
         List<PreferenceCustomActions.Entry> actions = new ArrayList<>();
+        if (!group.enabled || SelectorGroupManager.canDisableGroup(context, group.id)) {
+          actions.add(new PreferenceCustomActions.Entry(
+              getString(group.enabled ? R.string.notification_off : R.string.notification_on),
+              () -> {
+                toggleGroupEnabled(group.id, !group.enabled);
+                return kotlin.Unit.INSTANCE;
+              }));
+        }
+        actions.add(new PreferenceCustomActions.Entry(
+            getString(R.string.sgm_rename),
+            () -> {
+              showRenameDialog(group);
+              return kotlin.Unit.INSTANCE;
+            }));
         if (index > 0) {
           actions.add(new PreferenceCustomActions.Entry(
-              getString(R.string.voice_profile_move_up),
+              getString(R.string.sgm_move_up),
               () -> {
                 SelectorGroupManager.moveGroup(context, group.id, -1);
                 refresh();
@@ -94,7 +112,7 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
         }
         if (index < total - 1) {
           actions.add(new PreferenceCustomActions.Entry(
-              getString(R.string.voice_profile_move_down),
+              getString(R.string.sgm_move_down),
               () -> {
                 SelectorGroupManager.moveGroup(context, group.id, 1);
                 refresh();
@@ -103,10 +121,9 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
         }
         if (allGroups.size() > 1 && SelectorGroupManager.canDisableGroup(context, group.id)) {
           actions.add(new PreferenceCustomActions.Entry(
-              getString(R.string.notification_remove),
+              getString(R.string.sgm_delete),
               () -> {
-                SelectorGroupManager.removeGroup(context, group.id);
-                refresh();
+                confirmDeleteGroup(group);
                 return kotlin.Unit.INSTANCE;
               }));
         }
@@ -126,7 +143,7 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
       row.setOnPreferenceClickListener(preference -> {
         Bundle args = new Bundle();
         args.putString(SelectorGroupScreenUi.GROUP_ID, group.id);
-        SelectorGroupScreenUi.open(this, new SelectorGroupEditorFragment(), args);
+        SelectorGroupScreenUi.open(this, new SelectorGroupItemsFragment(), args);
         return true;
       });
       groupsCategory.addPreference(row);
@@ -180,6 +197,87 @@ public final class SelectorGroupsFragment extends TalkbackBaseFragment {
     quickSettings.setIconSpaceReserved(false);
     quickSettings.setFragment(QuickSettingsItemsFragment.class.getName());
     menus.addPreference(quickSettings);
+  }
+
+  private void toggleGroupEnabled(String groupId, boolean newValue) {
+    Context context = requireContext();
+    if (!newValue && !SelectorGroupManager.canDisableGroup(context, groupId)) {
+      Toast.makeText(context, R.string.sgm_minimum_enabled, Toast.LENGTH_SHORT).show();
+      return;
+    }
+    ArrayList<Group> updated = new ArrayList<>();
+    for (Group item : SelectorGroupManager.getGroups(context)) {
+      Group copy = item.copy();
+      if (copy.id.equals(groupId)) {
+        copy.enabled = newValue;
+      }
+      updated.add(copy);
+    }
+    if (SelectorGroupManager.saveGroups(context, updated)) {
+      refresh();
+    } else {
+      Toast.makeText(context, R.string.sgm_save_failed, Toast.LENGTH_SHORT).show();
+    }
+  }
+
+  private void showRenameDialog(Group group) {
+    Context context = requireContext();
+    KeyboardSafeEditText field = new KeyboardSafeEditText(context);
+    field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+    field.setSingleLine(true);
+    field.setHint(R.string.sgm_group_name);
+    field.setText(group.name);
+    field.setSelection(field.length());
+    AlertDialog dialog =
+        new AlertDialog.Builder(context)
+            .setTitle(R.string.sgm_rename)
+            .setView(field)
+            .setPositiveButton(R.string.sgm_save, null)
+            .setNegativeButton(R.string.sgm_cancel, null)
+            .create();
+    dialog.setOnShowListener(
+        ignored ->
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(
+                    view -> {
+                      String name = field.getText().toString().trim();
+                      if (name.isEmpty()) {
+                        field.setError(getString(R.string.sgm_name_required));
+                        return;
+                      }
+                      if (SelectorGroupManager.isNameTaken(context, name, group.id)) {
+                        field.setError(getString(R.string.sgm_name_exists));
+                        return;
+                      }
+                      ArrayList<Group> updated = new ArrayList<>();
+                      for (Group item : SelectorGroupManager.getGroups(context)) {
+                        Group copy = item.copy();
+                        if (copy.id.equals(group.id)) {
+                          copy.name = name;
+                        }
+                        updated.add(copy);
+                      }
+                      if (SelectorGroupManager.saveGroups(context, updated)) {
+                        dialog.dismiss();
+                        refresh();
+                      } else {
+                        Toast.makeText(context, R.string.sgm_save_failed, Toast.LENGTH_SHORT).show();
+                      }
+                    }));
+    dialog.show();
+  }
+
+  private void confirmDeleteGroup(Group group) {
+    Context context = requireContext();
+    new AlertDialog.Builder(context)
+        .setTitle(R.string.sgm_delete)
+        .setMessage(getString(R.string.voice_profile_delete_confirm, group.name))
+        .setPositiveButton(R.string.sgm_delete, (dialog, which) -> {
+          SelectorGroupManager.removeGroup(context, group.id);
+          refresh();
+        })
+        .setNegativeButton(R.string.sgm_cancel, null)
+        .show();
   }
 
   private void addExistingSwitch(
