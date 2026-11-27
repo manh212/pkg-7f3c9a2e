@@ -192,7 +192,7 @@ public final class QuickActionPerformer {
       return toggleSpeakingClock(context, action, prefs, returner, analytics);
     }
     if (PERFORMER_FULL_SCREEN_MONITOR.equals(action.performerId)) {
-      FullScreenMonitor.INSTANCE.toggle(context);
+      FullScreenMonitor.toggle(context);
       boolean next = prefs.getBoolean(FullScreenMonitor.KEY_MANUAL, false);
       logChange(analytics, FullScreenMonitor.KEY_MANUAL);
       return speakToggleState(context, action, returner, next);
