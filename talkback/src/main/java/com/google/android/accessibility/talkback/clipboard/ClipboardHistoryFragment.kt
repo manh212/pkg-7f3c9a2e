@@ -102,10 +102,9 @@ class ClipboardHistoryFragment : NotificationCodeFragment(R.string.title_clipboa
     }
 
   override fun onResume() {
-    super.onResume()
     val context = requireContext()
-    ClipboardHistory.init(context.filesDir)
     ClipboardHistory.restoreLegacyHistory(context)
+    super.onResume()
     ClipboardHistory.addListener(onChange)
     view?.viewTreeObserver?.addOnWindowFocusChangeListener(onFocus)
     if (view?.hasWindowFocus() == true && !ShizukuClipboard.isWatching()) {

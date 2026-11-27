@@ -21,56 +21,100 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.AtomicFile;
+import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONException;
 
 public final class ClipboardHistory {
 
+  private static final String TAG = "ClipboardHistory";
   private static final String STORE_FILE_NAME = "clipboard-history.json";
-
-  private static final Deque<String> entries = new ArrayDeque<>();
+  private static final List<String> entries = new ArrayList<>();
   private static final List<Runnable> listeners = new ArrayList<>();
   private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-  private static File storeFile;
+  private static AtomicFile store;
+  private static boolean readable;
+  private static boolean pending;
+  private static boolean recovering;
 
   private ClipboardHistory() {}
 
   public static void init(File directory) {
     synchronized (entries) {
-      storeFile = null;
       if (directory == null) {
+        store = null;
+        readable = false;
+        pending = false;
+        recovering = false;
         return;
       }
-      try {
-        storeFile = new File(directory, STORE_FILE_NAME);
+      File file = new File(directory, STORE_FILE_NAME);
+      boolean sameStore = store != null && store.getBaseFile().equals(file);
+      boolean keepPending = pending && (store == null || sameStore);
+      List<String> unsaved = keepPending ? new ArrayList<>(entries) : List.of();
+      if (!keepPending && (store == null || !store.getBaseFile().equals(file))) {
         entries.clear();
-        if (storeFile.exists()) {
-          String content = new String(Files.readAllBytes(storeFile.toPath()), StandardCharsets.UTF_8);
-          JSONArray stored = new JSONArray(content);
-          for (int i = 0; i < stored.length(); i++) {
-            String value = stored.optString(i, null);
-            if (value != null) {
-              entries.addLast(value);
+      }
+      store = new AtomicFile(file);
+      readable = false;
+      recovering = false;
+      try {
+        List<String> restored = parse(new String(store.readFully(), StandardCharsets.UTF_8));
+        readable = true;
+        if (keepPending) {
+          for (String value : restored) {
+            if (!unsaved.contains(value)) {
+              unsaved.add(value);
             }
           }
+          pending = !saveLocked(unsaved);
+        } else {
+          entries.clear();
+          entries.addAll(restored);
+          pending = false;
         }
-      } catch (IOException | JSONException | RuntimeException e) {
-        entries.clear();
-        storeFile = null;
+      } catch (FileNotFoundException e) {
+        readable = !file.exists();
+        if (readable) {
+          if (keepPending || (sameStore && !entries.isEmpty())) {
+            pending = !saveLocked(new ArrayList<>(entries));
+          } else {
+            entries.clear();
+            pending = false;
+          }
+        } else {
+          logFailure("read", e);
+        }
+      } catch (JSONException e) {
+        logFailure("parse", e);
+        try {
+          File damaged = new File(directory, STORE_FILE_NAME + ".corrupt-" + System.currentTimeMillis());
+          Files.copy(file.toPath(), damaged.toPath());
+          readable = true;
+          recovering = true;
+          pending = !saveLocked(new ArrayList<>(entries));
+        } catch (IOException | RuntimeException failure) {
+          logFailure("preserve damaged history", failure);
+        }
+      } catch (IOException | RuntimeException e) {
+        logFailure("read", e);
       }
     }
+    notifyListeners();
   }
 
-  /** Imports entries from the newer preference store into the original file-backed history. */
   public static void restoreLegacyHistory(Context context) {
     if (context == null) {
       return;
@@ -81,57 +125,50 @@ public final class ClipboardHistory {
             .createDeviceProtectedStorageContext()
             .getSharedPreferences("clipboard_history", Context.MODE_PRIVATE);
     synchronized (entries) {
-      if (preferences.getBoolean("sandfly_history_restored", false)) {
+      if (preferences.getBoolean("sandfly_history_restored", false) && !recovering) {
         return;
       }
       String content = preferences.getString("entries", null);
       if (TextUtils.isEmpty(content)) {
-        preferences.edit().putBoolean("sandfly_history_restored", true).apply();
+        if (readable) {
+          preferences.edit().putBoolean("sandfly_history_restored", true).apply();
+          recovering = false;
+        }
         return;
       }
-      List<String> previous = new ArrayList<>(entries);
-      Deque<String> merged = new ArrayDeque<>();
+      List<String> merged;
       try {
-        JSONArray stored = new JSONArray(content);
-        for (int i = 0; i < stored.length(); i++) {
-          String value = stored.optString(i, null);
-          if (!TextUtils.isEmpty(value) && !merged.contains(value)) {
-            merged.addLast(value);
-          }
-        }
+        merged = parse(content);
       } catch (JSONException | RuntimeException e) {
-        preferences.edit().putBoolean("sandfly_history_restored", true).apply();
+        logFailure("import", e);
         return;
       }
-      for (String value : previous) {
+      for (String value : entries) {
         if (!merged.contains(value)) {
-          merged.addLast(value);
+          merged.add(value);
         }
       }
-      List<String> imported = new ArrayList<>(merged);
-      if (!previous.equals(imported)) {
-        entries.clear();
-        entries.addAll(merged);
-        if (!saveLocked()) {
-          entries.clear();
-          entries.addAll(previous);
-          return;
-        }
+      if (!saveLocked(merged)) {
+        return;
       }
       preferences.edit().putBoolean("sandfly_history_restored", true).apply();
+      recovering = false;
     }
+    notifyListeners();
   }
 
-  /** Records {@code text} as the newest entry, moving an existing copy of it to the front. */
   public static void record(CharSequence text) {
     if (TextUtils.isEmpty(text)) {
       return;
     }
-    String value = text.toString();
     synchronized (entries) {
-      entries.remove(value);
-      entries.addFirst(value);
-      saveLocked();
+      List<String> updated = new ArrayList<>(entries);
+      String value = text.toString();
+      updated.remove(value);
+      updated.add(0, value);
+      if (!saveLocked(updated)) {
+        return;
+      }
     }
     notifyListeners();
   }
@@ -140,43 +177,31 @@ public final class ClipboardHistory {
     if (text == null) {
       return;
     }
-    boolean changed;
     synchronized (entries) {
-      changed = entries.remove(text);
-      if (changed) {
-        saveLocked();
+      List<String> updated = new ArrayList<>(entries);
+      if (!updated.remove(text) || !saveLocked(updated)) {
+        return;
       }
     }
-    if (changed) {
-      notifyListeners();
-    }
+    notifyListeners();
   }
 
-  /**
-   * Replaces one saved entry in place, preserving its position and every other entry.
-   * Rejects blank text and duplicates, and restores the old value if writing fails.
-   */
   public static boolean replace(String original, CharSequence replacement) {
     if (original == null || replacement == null || replacement.toString().trim().isEmpty()) {
       return false;
     }
     String value = replacement.toString();
     synchronized (entries) {
-      List<String> previous = new ArrayList<>(entries);
-      int position = previous.indexOf(original);
-      if (position < 0 || (!original.equals(value) && previous.contains(value))) {
+      List<String> updated = new ArrayList<>(entries);
+      int position = updated.indexOf(original);
+      if (position < 0 || (!original.equals(value) && updated.contains(value))) {
         return false;
       }
       if (original.equals(value)) {
         return true;
       }
-      List<String> updated = new ArrayList<>(previous);
       updated.set(position, value);
-      entries.clear();
-      entries.addAll(updated);
-      if (!saveLocked()) {
-        entries.clear();
-        entries.addAll(previous);
+      if (!saveLocked(updated)) {
         return false;
       }
     }
@@ -184,97 +209,69 @@ public final class ClipboardHistory {
     return true;
   }
 
-  /** Removes the selected entries as one saved operation, notifying listeners only once. */
-  public static int removeAll(java.util.Collection<String> selected) {
+  public static int removeAll(Collection<String> selected) {
     if (selected == null || selected.isEmpty()) {
       return 0;
     }
-    int removed = 0;
+    int removed;
     synchronized (entries) {
-      for (String text : selected) {
-        if (text != null && entries.remove(text)) {
-          removed++;
-        }
-      }
-      if (removed > 0) {
-        saveLocked();
+      List<String> updated = new ArrayList<>(entries);
+      updated.removeAll(selected);
+      removed = entries.size() - updated.size();
+      if (removed == 0 || !saveLocked(updated)) {
+        return 0;
       }
     }
-    if (removed > 0) {
-      notifyListeners();
-    }
+    notifyListeners();
     return removed;
   }
 
-  /** The recorded texts, newest first. */
   public static List<String> getEntries() {
     synchronized (entries) {
       return new ArrayList<>(entries);
     }
   }
 
-  /** Forgets every recorded text. */
   public static void clear() {
     boolean changed;
     synchronized (entries) {
       changed = !entries.isEmpty();
-      entries.clear();
-      saveLocked();
+      if (!saveLocked(new ArrayList<>())) {
+        return;
+      }
     }
     if (changed) {
       notifyListeners();
     }
   }
 
-  /** The recorded texts as the settings backup carries them, or null before first unlock. */
   public static String backupJson(Context context) {
     synchronized (entries) {
-      if (storeFile == null) {
+      if (store == null) {
         init(context.getFilesDir());
-        if (storeFile == null) {
-          return null;
-        }
       }
-      JSONArray stored = new JSONArray();
-      for (String entry : entries) {
-        stored.put(entry);
-      }
-      return stored.toString();
+      return store != null && readable ? new JSONArray(entries).toString() : null;
     }
   }
 
-  /**
-   * Replaces the recorded texts with the ones in a settings backup. Returns false if the
-   * backup's texts cannot be read, and then changes nothing.
-   */
   public static boolean restoreBackup(Context context, String json) {
-    List<String> restored = new ArrayList<>();
+    List<String> restored;
     try {
-      JSONArray stored = new JSONArray(json);
-      for (int i = 0; i < stored.length(); i++) {
-        String value = stored.optString(i, null);
-        if (value != null) {
-          restored.add(value);
-        }
-      }
+      restored = parse(json);
     } catch (JSONException | RuntimeException e) {
       return false;
     }
     boolean changed;
     synchronized (entries) {
-      if (storeFile == null) {
+      if (store == null) {
         init(context.getFilesDir());
-        if (storeFile == null) {
+        if (store == null) {
           return false;
         }
       }
-      List<String> previous = new ArrayList<>(entries);
-      changed = !previous.equals(restored);
-      entries.clear();
-      entries.addAll(restored);
-      if (!saveLocked()) {
-        entries.clear();
-        entries.addAll(previous);
+      changed = !entries.equals(restored);
+      readable = true;
+      if (!saveLocked(restored)) {
         return false;
       }
     }
@@ -298,6 +295,18 @@ public final class ClipboardHistory {
     }
   }
 
+  private static List<String> parse(String json) throws JSONException {
+    JSONArray stored = new JSONArray(json);
+    List<String> restored = new ArrayList<>();
+    for (int i = 0; i < stored.length(); i++) {
+      String value = stored.optString(i, null);
+      if (!TextUtils.isEmpty(value) && !restored.contains(value)) {
+        restored.add(value);
+      }
+    }
+    return restored;
+  }
+
   private static void notifyListeners() {
     List<Runnable> snapshot;
     synchronized (listeners) {
@@ -314,19 +323,42 @@ public final class ClipboardHistory {
         });
   }
 
-  private static boolean saveLocked() {
-    if (storeFile == null) {
+  private static boolean saveLocked(List<String> updated) {
+    if (store == null) {
+      entries.clear();
+      entries.addAll(updated);
+      pending = true;
+      return true;
+    }
+    if (!readable) {
+      LogUtils.w(TAG, "History is unavailable; saved entries were kept");
       return false;
     }
+    FileOutputStream output = null;
     try {
-      JSONArray stored = new JSONArray();
-      for (String entry : entries) {
-        stored.put(entry);
+      byte[] data = new JSONArray(updated).toString().getBytes(StandardCharsets.UTF_8);
+      output = store.startWrite();
+      output.write(data);
+      store.finishWrite(output);
+      output = null;
+      if (!Arrays.equals(data, store.readFully())) {
+        LogUtils.w(TAG, "History verification failed");
+        return false;
       }
-      Files.write(storeFile.toPath(), stored.toString().getBytes(StandardCharsets.UTF_8));
+      entries.clear();
+      entries.addAll(updated);
+      pending = false;
       return true;
     } catch (IOException | RuntimeException e) {
+      if (output != null) {
+        store.failWrite(output);
+      }
+      logFailure("write", e);
       return false;
     }
+  }
+
+  private static void logFailure(String operation, Exception exception) {
+    LogUtils.w(TAG, "Could not %s history (%s)", operation, exception.getClass().getSimpleName());
   }
 }

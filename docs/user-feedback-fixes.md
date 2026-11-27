@@ -24,10 +24,18 @@ bridge already running, the existing corrected Caps Lock behavior is retained.
 
 History and favorite rows show two lines with full accessible text and a minimum
 48 dp height. The list gets the available space inside a dialog bounded by the
-screen and keyboard-resized viewport. Up/down buttons provide activation-based
-scrolling without changing screen-reader swipe gestures. Accessibility actions
+screen and keyboard-resized viewport. Separate up/down buttons are removed;
+the list retains its normal scrolling and accessibility actions. Accessibility actions
 open full text and the existing item menu. Existing paste, search and selection
 semantics are preserved.
+
+History uses the same AtomicFile write, sync and read-back verification as
+favorites. Changes become visible only after saving succeeds. Interrupted writes
+recover the last complete file, and copies collected before storage initialization
+are merged with saved entries. Malformed legacy files are preserved separately so
+new copies can be saved; the preference history is retried as a recovery source.
+The settings page loads history before building its rows. Entries retain their full
+text and have no count limit.
 
 ## Engine voice switching
 

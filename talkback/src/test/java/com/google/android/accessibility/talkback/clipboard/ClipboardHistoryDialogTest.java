@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.clipboard;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 import android.app.AlertDialog;
@@ -101,6 +102,10 @@ public class ClipboardHistoryDialogTest {
     Button add = findButton(parent.getWindow().getDecorView(),
         context.getString(R.string.favorites_add));
     assertNotNull(add);
+    assertNull(findButton(parent.getWindow().getDecorView(),
+        context.getString(R.string.clipboard_history_scroll_up)));
+    assertNull(findButton(parent.getWindow().getDecorView(),
+        context.getString(R.string.clipboard_history_scroll_down)));
     add.performClick();
     AlertDialog editor = ShadowAlertDialog.getLatestAlertDialog();
     editor.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
@@ -321,9 +326,9 @@ public class ClipboardHistoryDialogTest {
     assertTrue(row.performAccessibilityAction(R.id.clipboard_history_preview, null));
     AlertDialog preview = ShadowAlertDialog.getLatestAlertDialog();
     assertEquals(content, ((android.widget.TextView) preview.findViewById(android.R.id.message)).getText().toString());
-    assertNotNull(findButton(parent.getWindow().getDecorView(),
+    assertNull(findButton(parent.getWindow().getDecorView(),
         context.getString(R.string.clipboard_history_scroll_up)));
-    assertNotNull(findButton(parent.getWindow().getDecorView(),
+    assertNull(findButton(parent.getWindow().getDecorView(),
         context.getString(R.string.clipboard_history_scroll_down)));
     preview.dismiss();
     parent.dismiss();

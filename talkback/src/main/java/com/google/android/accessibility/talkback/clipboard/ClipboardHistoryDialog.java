@@ -251,19 +251,6 @@ public class ClipboardHistoryDialog {
       deleteSelected.setOnClickListener(v -> confirmDeleteSelected(eventId));
     }
 
-    LinearLayout scrollButtons = new LinearLayout(context);
-    Button previousPage = new Button(context);
-    previousPage.setText(R.string.clipboard_history_scroll_up);
-    previousPage.setOnClickListener(v -> list.smoothScrollBy(-list.getHeight(), 200));
-    scrollButtons.addView(previousPage, new LinearLayout.LayoutParams(
-        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-    Button nextPage = new Button(context);
-    nextPage.setText(R.string.clipboard_history_scroll_down);
-    nextPage.setOnClickListener(v -> list.smoothScrollBy(list.getHeight(), 200));
-    scrollButtons.addView(nextPage, new LinearLayout.LayoutParams(
-        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-    layout.addView(scrollButtons);
-
     LinearLayout buttons = new LinearLayout(context);
     buttons.setOrientation(LinearLayout.HORIZONTAL);
     layout.addView(buttons);
