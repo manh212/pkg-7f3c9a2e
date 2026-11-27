@@ -31,6 +31,7 @@ import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.text.SpannableStringBuilder;
@@ -63,12 +64,15 @@ import com.google.android.accessibility.utils.output.SpeechController;
 import com.google.android.accessibility.utils.output.SpeechController.SpeakOptions;
 import com.google.android.libraries.accessibility.utils.log.LogUtils;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 // TODO: Refactor this class into two separate receivers
@@ -79,6 +83,13 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
     implements DisplayStateChangedListener {
 
   private static final String TAG = "RingerModeAndScreenMon";
+
+  private static final long LOCKSCREEN_CLOCK_REPEAT_WINDOW_MS = 3000L;
+
+  private static final Pattern LOCKSCREEN_CLOCK_TEXT_PATTERN =
+      Pattern.compile("^(\\d{1,2}):(\\d{2})\\s*([aApP][mM])?$");
+
+  private static volatile long lastScreenOnTimeAnnouncementUptimeMs = -1L;
 
   /** The intent filter to match phone and screen state changes. */
   private static final IntentFilter STATE_CHANGE_FILTER = new IntentFilter();
@@ -158,6 +169,58 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
 
   static boolean shouldAnnounceForScreenOn(boolean displayOn, boolean alreadyAnnounced) {
     return displayOn && !alreadyAnnounced;
+  }
+
+  public static boolean shouldSuppressLockscreenClockRepeat(CharSequence focusedText) {
+    Calendar now = Calendar.getInstance();
+    return isLockscreenClockRepeat(
+        focusedText,
+        lastScreenOnTimeAnnouncementUptimeMs,
+        SystemClock.uptimeMillis(),
+        now.get(Calendar.HOUR_OF_DAY),
+        now.get(Calendar.MINUTE));
+  }
+
+  static boolean isLockscreenClockRepeat(
+      CharSequence focusedText,
+      long announcementUptimeMs,
+      long nowUptimeMs,
+      int hourOfDay,
+      int minute) {
+    if (announcementUptimeMs < 0
+        || nowUptimeMs < announcementUptimeMs
+        || nowUptimeMs - announcementUptimeMs > LOCKSCREEN_CLOCK_REPEAT_WINDOW_MS) {
+      return false;
+    }
+    return isCurrentTimeText(focusedText, hourOfDay, minute);
+  }
+
+  static boolean isCurrentTimeText(CharSequence text, int hourOfDay, int minute) {
+    if (text == null) {
+      return false;
+    }
+    Matcher matcher = LOCKSCREEN_CLOCK_TEXT_PATTERN.matcher(text.toString().trim());
+    if (!matcher.matches()) {
+      return false;
+    }
+    int textHour = Integer.parseInt(matcher.group(1));
+    int textMinute = Integer.parseInt(matcher.group(2));
+    String amPm = matcher.group(3);
+    int nowMinutes = hourOfDay * 60 + minute;
+    if (amPm != null) {
+      int textHour24 = (textHour % 12) + (amPm.equalsIgnoreCase("pm") ? 12 : 0);
+      return minutesApart(nowMinutes, textHour24 * 60 + textMinute) <= 1;
+    }
+    if (minutesApart(nowMinutes, textHour * 60 + textMinute) <= 1) {
+      return true;
+    }
+    int textHourSameHalfDay = (textHour % 12) + (hourOfDay >= 12 ? 12 : 0);
+    return minutesApart(nowMinutes, textHourSameHalfDay * 60 + textMinute) <= 1;
+  }
+
+  private static int minutesApart(int firstMinutesOfDay, int secondMinutesOfDay) {
+    int diff = Math.abs(firstMinutesOfDay - secondMinutesOfDay);
+    return Math.min(diff, 24 * 60 - diff);
   }
 
   /** Creates a new instance. */
@@ -553,6 +616,7 @@ public class RingerModeAndScreenMonitor extends SameThreadBroadcastReceiver
     } else {
       StringBuilderUtils.appendWithSeparator(builder, currentTime);
     }
+    lastScreenOnTimeAnnouncementUptimeMs = SystemClock.uptimeMillis();
   }
 
   /**
