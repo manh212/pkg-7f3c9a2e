@@ -147,9 +147,5 @@
         android:title="@string/title_pref_app_gestures" />
   </com.google.android.accessibility.material.preference.AccessibilitySuitePreferenceCategory>
 
-    <com.google.android.accessibility.material.preference.AccessibilitySuitePreference
-        android:fragment="com.google.android.accessibility.talkback.preference.base.ContextMenuFragment"
-        android:key="@string/pref_category_manage_context_menu_key"
-        android:title="@string/title_pref_category_context_menu" />
 </PreferenceScreen>
 
