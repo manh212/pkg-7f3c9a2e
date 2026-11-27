@@ -144,7 +144,6 @@ pref_latency_audio_resample
 pref_latency_cached_text
 pref_latency_early_controls
 pref_latency_experiment_category
-pref_latency_fast_scroll
 pref_latency_fast_single_finger_swipe
 pref_latency_fast_window_transitions
 pref_latency_fresh_prepared
@@ -409,7 +408,6 @@ pref_sound_vibration_screen
 pref_soundback
 pref_soundback_volume_seekbar_int
 pref_speak_container_element_positions_key
-pref_speak_items_before_scroll_key
 pref_speak_list_item_ordinals
 pref_speak_nav_bar_buttons
 pref_speak_notifications
