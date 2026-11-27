@@ -19,8 +19,6 @@ package com.google.android.accessibility.talkback.commands
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -90,12 +88,6 @@ class CommandsFragment : TalkbackBaseFragment() {
   private var resultsCategory: AccessibilitySuitePreferenceCategory? = null
   private var noResultsPref: AccessibilitySuitePreference? = null
   private val commandRows = LinkedHashMap<String, CommandRowPreference>()
-  private val searchHandler = Handler(Looper.getMainLooper())
-  private val pendingSearchRunnable = Runnable {
-    if (isAdded) {
-      renderCommands()
-    }
-  }
   private var keyComboManager: KeyComboManager? = null
 
   override fun getTitle(): CharSequence = getString(R.string.title_pref_commands)
@@ -137,7 +129,6 @@ class CommandsFragment : TalkbackBaseFragment() {
         setOnQueryTextListener(
           object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String): Boolean {
-              searchHandler.removeCallbacks(pendingSearchRunnable)
               if (searchQuery != query) {
                 searchQuery = query
                 selectedCommandValue = null
@@ -151,8 +142,7 @@ class CommandsFragment : TalkbackBaseFragment() {
               if (searchQuery != query) {
                 searchQuery = query
                 selectedCommandValue = null
-                searchHandler.removeCallbacks(pendingSearchRunnable)
-                searchHandler.postDelayed(pendingSearchRunnable, SEARCH_DEBOUNCE_MS)
+                renderCommands()
               }
               return true
             }
@@ -236,7 +226,6 @@ class CommandsFragment : TalkbackBaseFragment() {
   }
 
   override fun onDestroyView() {
-    searchHandler.removeCallbacks(pendingSearchRunnable)
     search?.setOnQueryTextListener(null)
     search = null
     moreOptionsButton?.setOnClickListener(null)
@@ -259,41 +248,6 @@ class CommandsFragment : TalkbackBaseFragment() {
   internal fun selectGroupFilterForTest(filterId: Int) {
     selectedFilterId = filterId
     selectedCommandValue = null
-    val context = requireContext()
-    val prefs = SharedPreferencesUtils.getSharedPreferences(context)
-    val manager = keyComboManager ?: CommandBindings.keyComboManager(context)
-    val staticCommands = categories.flatMap { it.commands }
-    val screen = preferenceScreen
-    screen.removeAll()
-    commandRows.clear()
-    val resultsCat =
-      AccessibilitySuitePreferenceCategory(context).apply {
-        key = "pref_commands_results"
-        title = getString(R.string.commands_results_header, 0)
-        isIconSpaceReserved = false
-      }
-    screen.addPreference(resultsCat)
-    resultsCategory = resultsCat
-
-    val emptyRow =
-      AccessibilitySuitePreference(context).apply {
-        key = "pref_commands_no_results"
-        isPersistent = false
-        isIconSpaceReserved = false
-        isSelectable = false
-        title = getString(R.string.commands_no_results)
-        isVisible = false
-      }
-    resultsCat.addPreference(emptyRow)
-    noResultsPref = emptyRow
-
-    val allCommands = staticCommands + tapTextCommands
-    for (cmd in allCommands) {
-      val row = createCommandRow(cmd, bindingIndex[cmd.value].orEmpty(), prefs, manager)
-      resultsCat.addPreference(row)
-      commandRows[cmd.value] = row
-    }
-
     updateFilterSpinner()
     renderCommands()
   }
@@ -382,6 +336,31 @@ class CommandsFragment : TalkbackBaseFragment() {
             bindingIndex[command.value].orEmpty().joinToString(" ") { it.displayLabel }
         ))
       }
+    }
+    val screen = preferenceScreen
+    screen.removeAll()
+    commandRows.clear()
+    val resultsCat =
+      AccessibilitySuitePreferenceCategory(context).apply {
+        key = "pref_commands_results"
+        title = getString(R.string.commands_results_header, 0)
+        isIconSpaceReserved = false
+      }
+    screen.addPreference(resultsCat)
+    resultsCategory = resultsCat
+    noResultsPref =
+      AccessibilitySuitePreference(context).apply {
+        key = "pref_commands_no_results"
+        isPersistent = false
+        isIconSpaceReserved = false
+        isSelectable = false
+        title = getString(R.string.commands_no_results)
+      }
+    val allCommands = staticCommands + tapTextCommands
+    for (cmd in allCommands) {
+      val row = createCommandRow(cmd, bindingIndex[cmd.value].orEmpty(), prefs, manager)
+      resultsCat.addPreference(row)
+      commandRows[cmd.value] = row
     }
     updateFilterSpinner()
     renderCommands()
@@ -490,9 +469,12 @@ class CommandsFragment : TalkbackBaseFragment() {
     if (resultsCat.title != newTitle) {
       resultsCat.title = newTitle
     }
-    val showEmpty = matchedValues.isEmpty()
-    if (emptyRow.isVisible != showEmpty) {
-      emptyRow.isVisible = showEmpty
+    if (matchedValues.isEmpty()) {
+      if (emptyRow.parent == null) {
+        resultsCat.addPreference(emptyRow)
+      }
+    } else if (emptyRow.parent != null) {
+      resultsCat.removePreference(emptyRow)
     }
     for ((cmdValue, row) in commandRows) {
       val visible = cmdValue in matchedValues
@@ -572,7 +554,6 @@ class CommandsFragment : TalkbackBaseFragment() {
     const val ARG_COMMAND_VALUE = "commands_command_value"
     private const val STATE_ASSIGNED_ONLY = "commands_assigned_only"
     private const val STATE_SELECTED_FILTER = "commands_selected_filter"
-    private const val SEARCH_DEBOUNCE_MS = 250L
     internal const val FILTER_ALL = 0
     internal const val FILTER_TAP_TEXT = -101
     private const val MENU_FILTER_ASSIGNED = 1
