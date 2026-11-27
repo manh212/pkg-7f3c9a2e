@@ -34,7 +34,6 @@ public class LatencyExperimentsTest {
   private static final Set<LatencyExperiments.Feature> DEFAULT_ON = EnumSet.of(
       LatencyExperiments.Feature.CACHED_TEXT,
       LatencyExperiments.Feature.EARLY_CONTROLS,
-      LatencyExperiments.Feature.FAST_SCROLL,
       LatencyExperiments.Feature.FAST_SINGLE_FINGER_SWIPE,
       LatencyExperiments.Feature.FAST_WINDOW_TRANSITIONS,
       LatencyExperiments.Feature.IMMEDIATE_SPEECH,
