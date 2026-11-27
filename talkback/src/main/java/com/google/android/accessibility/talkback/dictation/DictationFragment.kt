@@ -42,7 +42,6 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
   private lateinit var aiServicePref: Preference
   private lateinit var zipformerModelPref: Preference
   private lateinit var onlineRoutePref: Preference
-  private lateinit var googleDownloadPref: Preference
   private lateinit var advancedPref: Preference
   private var advancedExpanded = false
   private var zipformerAnnouncedMilestone = -1
@@ -67,8 +66,6 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       refresh()
     }
     aiServicePref = onClick("pref_dictation_ai_service_choice") { chooseAiService() }
-    googleDownloadPref =
-      onClick("pref_dictation_google_download") { GoogleSpeechLanguages.download(requireContext()) }
     findPreference<Preference>(DictationSettings.PREF_SPEECH_THRESHOLD)?.onPreferenceChangeListener =
       Preference.OnPreferenceChangeListener { preference, value ->
         preference.summary = speechThresholdSummary((value as Int) - 60)
@@ -86,7 +83,6 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
     super.onStart()
     zipformerModels.addListener(zipformerListener)
     refresh()
-    GoogleSpeechLanguages.refresh(requireContext()) { if (isAdded) refresh() }
   }
 
   override fun onStop() {
@@ -123,13 +119,6 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       "pref_dictation_ai",
       "pref_dictation_translation",
     ).forEach { key -> findPreference<Preference>(key)?.isVisible = advancedExpanded }
-    googleDownloadPref.title =
-      getString(R.string.dictation_google_download, GoogleSpeechLanguages.appLocale().displayLanguage)
-    googleDownloadPref.isVisible =
-      advancedExpanded &&
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-        DictationSettings.googleInstalled(context) &&
-        GoogleSpeechLanguages.hasAppLanguage() == false
 
     findPreference<Preference>(DictationSettings.PREF_SPEECH_THRESHOLD)?.summary =
       speechThresholdSummary(DictationSettings.speechThresholdDbfs(prefs))
