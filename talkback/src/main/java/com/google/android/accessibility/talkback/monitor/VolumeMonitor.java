@@ -546,7 +546,11 @@ public class VolumeMonitor extends SameThreadBroadcastReceiver {
     // https://developer.android.com/reference/android/media/AudioManager#getStreamMinVolume(int),
     // AudioManager will trap the getStreamMinVolume.
     if (STREAM_NAMES.get(streamType) > 0) {
-      minVolume = audioManager.getStreamMinVolume(streamType);
+      try {
+        minVolume = audioManager.getStreamMinVolume(streamType);
+      } catch (IllegalArgumentException e) {
+        minVolume = 0;
+      }
     }
     final int totalVolume = audioManager.getStreamMaxVolume(streamType) - minVolume;
     final int currentVolume = audioManager.getStreamVolume(streamType) - minVolume;
