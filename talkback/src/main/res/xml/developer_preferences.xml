@@ -133,10 +133,6 @@
         android:title="@string/title_latency_fast_window_transitions" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
         android:defaultValue="true"
-        android:key="pref_latency_fast_scroll"
-        android:title="@string/title_latency_fast_scroll" />
-    <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
-        android:defaultValue="true"
         android:key="pref_latency_live_edge_reuse"
         android:title="@string/title_latency_live_edge_reuse" />
     <com.google.android.accessibility.material.preference.AccessibilitySuiteSwitchPreference
