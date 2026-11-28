@@ -431,18 +431,19 @@ static int inspect_process_maps(const char *expected_pkg, char *apk_path_out, si
   unmask_str(MASKED_HOOK_EDXPOSED, sizeof(MASKED_HOOK_EDXPOSED), 0xA3u, 19u, h_edxposed);
   unmask_str(MASKED_HOOK_RIRU, sizeof(MASKED_HOOK_RIRU), 0xB5u, 23u, h_riru);
 
-  char line[512];
+  (void) h_xposed;
+  (void) h_lsposed;
+  (void) h_zygisk;
+  (void) h_gadget;
+  (void) h_edxposed;
+  (void) h_riru;
+
+  char line[1024];
   int matched_pkg = 0;
   int hook_detected = 0;
   while (fgets(line, sizeof(line), fp) != NULL) {
     if (contains_icase(line, h_frida) ||
-        contains_icase(line, h_xposed) ||
-        contains_icase(line, h_lsposed) ||
-        contains_icase(line, h_substrate) ||
-        contains_icase(line, h_zygisk) ||
-        contains_icase(line, h_gadget) ||
-        contains_icase(line, h_edxposed) ||
-        contains_icase(line, h_riru)) {
+        contains_icase(line, h_substrate)) {
       hook_detected = 1;
       break;
     }
@@ -450,9 +451,14 @@ static int inspect_process_maps(const char *expected_pkg, char *apk_path_out, si
     if (path != NULL && strstr(path, ext_apk) != NULL) {
       if (strstr(path, expected_pkg) != NULL) {
         matched_pkg = 1;
-        if (apk_path_out != NULL && apk_path_out[0] == '\0' && strstr(path, base_apk) != NULL) {
+        if (apk_path_out != NULL && apk_path_out[0] == '\0' &&
+            strstr(path, base_apk) != NULL &&
+            strstr(path, "(deleted)") == NULL) {
           size_t plen = strcspn(path, "\r\n");
-          if (plen < apk_path_cap) {
+          while (plen > 0 && (path[plen - 1] == ' ' || path[plen - 1] == '\t')) {
+            --plen;
+          }
+          if (plen > 0 && plen < apk_path_cap) {
             memcpy(apk_path_out, path, plen);
             apk_path_out[plen] = '\0';
           }
@@ -480,7 +486,6 @@ static jint check_env_internal(void) {
         && check_process_cmdline(expected_pkg)
         && inspect_process_maps(expected_pkg, NULL, 0);
   if (!ok) {
-    atomic_store_explicit(&g_env_state, -1, memory_order_release);
     return 0;
   }
   atomic_store_explicit(&g_env_last_ns, now, memory_order_relaxed);
@@ -495,15 +500,14 @@ static int ensure_native_seal_ok(void) {
 
   char expected_pkg[sizeof(MASKED_PACKAGE_NAME) + 1];
   unmask_str(MASKED_PACKAGE_NAME, sizeof(MASKED_PACKAGE_NAME), 0x53u, 17u, expected_pkg);
-  char apk_path[512];
+  char apk_path[1024];
   int ok = check_tracer_pid()
         && check_process_cmdline(expected_pkg)
         && inspect_process_maps(expected_pkg, apk_path, sizeof(apk_path))
         && apk_path[0] != '\0'
         && verify_apk_file_signature(apk_path);
-  atomic_store_explicit(&g_seal_state, ok ? 1 : -1, memory_order_release);
-  if (!ok) {
-    atomic_store_explicit(&g_env_state, -1, memory_order_release);
+  if (ok) {
+    atomic_store_explicit(&g_seal_state, 1, memory_order_release);
   }
   return ok;
 }
@@ -538,11 +542,10 @@ static jint verify_seal_bytes(const char *pkg, size_t pkg_len,
     return 0;
   }
 
-  char apk_path[512];
+  char apk_path[1024];
   if (!inspect_process_maps(expected_pkg, apk_path, sizeof(apk_path)) ||
       apk_path[0] == '\0' ||
       !verify_apk_file_signature(apk_path)) {
-    atomic_store_explicit(&g_seal_state, -1, memory_order_release);
     return 0;
   }
 
