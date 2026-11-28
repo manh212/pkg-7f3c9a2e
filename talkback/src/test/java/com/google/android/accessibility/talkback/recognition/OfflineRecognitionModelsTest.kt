@@ -13,15 +13,22 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class OfflineRecognitionModelsTest {
-  @Test fun modelWeightsAreAbsentFromTheApk() {
+  @Test fun downloadedModelWeightsAreAbsentAndOnlyApprovedFaceWeightsAreBundled() {
     val context = RuntimeEnvironment.getApplication()
     fun files(path: String): List<String> = context.assets.list(path).orEmpty().flatMap { name ->
       val child = if (path.isEmpty()) name else "$path/$name"
       if (context.assets.list(child).isNullOrEmpty()) listOf(child) else files(child)
     }
-    assertTrue(files("").none { path ->
+    val weights = files("").filter { path ->
       listOf(".onnx", ".tflite", ".traineddata", ".pth", ".pt", ".task").any(path::endsWith)
-    })
+    }.toSet()
+    val faceWeights = setOf(
+      "models_bundled/fssd_25_8bit_gray_v2.tflite",
+      "models_bundled/fssd_25_8bit_v2.tflite",
+      "models_bundled/fssd_medium_8bit_gray_v5.tflite",
+      "models_bundled/fssd_medium_8bit_v5.tflite",
+    )
+    assertEquals(faceWeights, weights)
   }
 
   @Test fun featureGroupsDownloadOnlyTheirRequiredModels() {

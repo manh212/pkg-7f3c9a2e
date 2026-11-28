@@ -297,7 +297,11 @@ internal class GuidedPhotoDialog(
             }
           } catch (error: Exception) {
             LogUtils.w(TAG, "Subject detection failed (%s)", error.javaClass.simpleName)
-            handler.post { if (!dismissed && token == generation) fail(R.string.guided_photo_detector_error) }
+            handler.post {
+              if (!dismissed && !finished && !capturing && token == generation) {
+                fail(R.string.guided_photo_detector_error)
+              }
+            }
           } finally {
             bitmap.recycle()
             processing.set(false)

@@ -27,6 +27,7 @@ class GuidedPhotoOutputTest {
   @Before fun setUp() {
     context = RuntimeEnvironment.getApplication()
     provider = PhotoProvider(File.createTempFile("guided-photo", ".jpg", context.cacheDir))
+    provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "media" })
     ShadowContentResolver.registerProviderInternal("media", provider)
   }
 

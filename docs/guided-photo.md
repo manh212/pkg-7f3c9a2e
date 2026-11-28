@@ -23,6 +23,9 @@ manually. Leaving the screen, pausing Meridian or locking the device stops the m
 
 Face detection uses the bundled ML Kit face detector. Objects use the existing
 EfficientDet-Lite0 model, downloaded and verified on first use if unavailable.
+The bundled face detector is an explicit exception to the downloaded-model asset
+policy; the asset test permits only its four named TFLite weights and continues
+to reject other packaged model weights.
 Document edges use the existing OpenCV scanner. Analysis runs on the device; this
 mode does not upload camera images to an AI service. Detection covers the model's
 COCO classes, including common animals, vehicles and some foods. It cannot
