@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class SodaService : Service() {
   private val worker = Executors.newSingleThreadExecutor { Thread(it, "soda-recognizer") }
@@ -49,6 +50,16 @@ class SodaService : Service() {
       val file = File(cacheDir, "soda-last-error.txt")
       if (detail == null) file.delete() else file.writeText(detail.take(512))
     } catch (_: IOException) {
+    }
+  }
+
+  private fun reportStage(reply: Messenger, id: Int, stage: String) {
+    try {
+      reply.send(Message.obtain(null, STAGE).apply {
+        arg1 = id
+        data = Bundle().apply { putString(STAGE_NAME, stage) }
+      })
+    } catch (_: RemoteException) {
     }
   }
 
@@ -80,15 +91,25 @@ class SodaService : Service() {
     val failure = AtomicBoolean(false)
     val started = CountDownLatch(1)
     val stopped = CountDownLatch(1)
+    val events = AtomicInteger(0)
     val text = SodaTranscript()
     var engine: Soda? = null
     var errorDetail: String? = null
+    var stage = "start"
+    fun setStage(next: String) {
+      stage = next
+      reportStage(reply, id, next)
+    }
+
     val answer = try {
       val models = SodaModels.get(this)
       if (!models.isInstalled()) throw IOException("SODA data unavailable")
+      setStage("load")
       ensureLibraryLoaded(models)
+      setStage("alloc")
       val native = Soda(
         onEvent = { data ->
+          events.incrementAndGet()
           try {
             SodaWire.result(data)?.let(text::update)
           } catch (e: IOException) {
@@ -104,16 +125,19 @@ class SodaService : Service() {
       engine = native
       val modelPath = models.languagePack.absolutePath + "/"
       val cache = File(cacheDir, "soda-runtime").apply { mkdirs() }
+      setStage("init")
       SodaWire.requireSuccess(
         native.initialize(SodaWire.coreConfig(modelPath, cache.absolutePath + "/", Build.MODEL.orEmpty()))
       )
+      setStage("capture_start")
       SodaWire.requireSuccess(native.start(SodaWire.captureConfig()))
-      started.await(START_WAIT_MS, TimeUnit.MILLISECONDS)
+      val gotStart = started.await(START_WAIT_MS, TimeUnit.MILLISECONDS)
+      setStage(if (gotStart) "push" else "push_no_start_cb")
       val buffer = ByteBuffer.allocateDirect(CHUNK_BYTES)
       val bytes = ByteArray(CHUNK_BYTES)
       var carry = 0
+      var total = 0L
       ParcelFileDescriptor.AutoCloseInputStream(audio).use { input ->
-        var total = 0L
         while (true) {
           if (Thread.currentThread().isInterrupted) throw InterruptedException()
           val count = input.read(bytes, carry, bytes.size - carry)
@@ -144,50 +168,56 @@ class SodaService : Service() {
         }
       }
       // Signal MIC_END_OF_DATA in-order at the end of the audio stream (matching SodaAudioPusher).
+      setStage("eof")
       if (stopped.count > 0L) {
         buffer.clear()
         buffer.flip()
         native.addAudio(buffer, 0)
       }
-      if (!stopped.await(FINALIZE_WAIT_SECONDS, TimeUnit.SECONDS)) {
+      if (!stopped.await(EOF_WAIT_SECONDS, TimeUnit.SECONDS)) {
+        setStage("stop_capture")
         native.stop()
-        if (!stopped.await(FINALIZE_WAIT_SECONDS, TimeUnit.SECONDS)) {
-          throw IOException("SODA finalization timed out")
+        if (!stopped.await(STOP_WAIT_SECONDS, TimeUnit.SECONDS)) {
+          val partialOrFinal = text.value()
+          if (partialOrFinal.isNotEmpty()) {
+            Log.w(TAG, "SODA stop timed out with text ready (events=${events.get()})")
+          } else {
+            throw IOException("SODA finalization timed out (bytes=$total, events=${events.get()})")
+          }
         }
       }
       if (failure.get()) throw IOException("SODA result decoding failed")
+      setStage("done")
       recordError(null)
       text.value()
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
       errorDetail = "${e.javaClass.simpleName}: ${e.message}"
-      recordError(errorDetail)
-      Log.w(TAG, "SODA recognition failed", e)
-      null
-    } catch (e: LinkageError) {
-      errorDetail = "${e.javaClass.simpleName}: ${e.message}"
-      recordError(errorDetail)
-      Log.w(TAG, "SODA library unavailable", e)
+      recordError("$stage: $errorDetail")
+      Log.w(TAG, "SODA recognition failed at stage=$stage", e)
       null
     } finally {
       audio.close()
-      try {
-        engine?.close()
-      } catch (e: Exception) {
-        Log.w(TAG, "SODA cleanup failed", e)
-      } catch (e: LinkageError) {
-        Log.w(TAG, "SODA cleanup unavailable", e)
-      }
     }
+
+    // Send the recognition result before native teardown so a slow/blocked nativeDelete
+    // cannot stall the client waiting for a reply.
     try {
       reply.send(Message.obtain(null, RESULT).apply {
         arg1 = id
         data = Bundle().apply {
           putString(TEXT, answer)
+          putString(STAGE_NAME, stage)
           if (errorDetail != null) putString(ERROR, errorDetail)
         }
       })
     } catch (e: RemoteException) {
       Log.w(TAG, "SODA client disconnected", e)
+    }
+
+    try {
+      engine?.close()
+    } catch (e: Throwable) {
+      Log.w(TAG, "SODA cleanup failed", e)
     }
   }
 
@@ -198,13 +228,16 @@ class SodaService : Service() {
     private const val START_WAIT_MS = 2_000L
     private const val ADD_AUDIO_RETRIES = 20
     private const val ADD_AUDIO_BACKOFF_MS = 25L
-    private const val FINALIZE_WAIT_SECONDS = 15L
+    private const val EOF_WAIT_SECONDS = 2L
+    private const val STOP_WAIT_SECONDS = 6L
     @Volatile private var libraryLoaded = false
     const val RECOGNIZE = 1
     const val RESULT = 2
+    const val STAGE = 3
     const val AUDIO = "audio"
     const val TEXT = "text"
     const val ERROR = "error"
+    const val STAGE_NAME = "stage"
   }
 }
 
