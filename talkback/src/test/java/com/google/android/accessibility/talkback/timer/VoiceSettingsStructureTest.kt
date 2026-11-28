@@ -64,6 +64,7 @@ class VoiceSettingsStructureTest {
 
   @Test
   fun profileScreen_holdsEngineAndPhraseSettings() {
+    com.google.android.accessibility.utils.FormFactorUtils.initialize(context)
     val activity =
       Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
     val fragment = VoiceProfileFragment()
