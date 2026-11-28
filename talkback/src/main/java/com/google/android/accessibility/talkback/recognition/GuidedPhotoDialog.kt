@@ -169,7 +169,9 @@ internal class GuidedPhotoDialog(
     } else bindCamera()
   }
 
-  fun dismiss() { dialog?.dismiss() }
+  fun dismiss() {
+    if (dialog?.isShowing == true) dialog?.dismiss() else cleanup()
+  }
 
   private fun allowed(): Boolean = !dismissed && !activity.isFinishing &&
     activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
@@ -244,7 +246,17 @@ internal class GuidedPhotoDialog(
   private fun bindCamera() {
     if (!allowed() || finished || camera != null) return
     val token = ++generation
-    val future = ProcessCameraProvider.getInstance(activity)
+    val future = try {
+      ProcessCameraProvider.getInstance(activity)
+    } catch (error: RuntimeException) {
+      LogUtils.w(TAG, "Camera provider failed (%s)", error.javaClass.simpleName)
+      fail(R.string.live_recognition_camera_error)
+      return
+    } catch (error: LinkageError) {
+      LogUtils.w(TAG, "Camera provider library unavailable (%s)", error.javaClass.simpleName)
+      fail(R.string.live_recognition_camera_error)
+      return
+    }
     future.addListener({
       if (!allowed() || token != generation || finished) return@addListener
       try {
@@ -264,7 +276,7 @@ internal class GuidedPhotoDialog(
           .setTargetRotation(rotation)
           .build()
         val frames = ImageAnalysis.Builder()
-          .setTargetResolution(Size(960, 720))
+          .setTargetResolution(Size(640, 480))
           .setTargetRotation(rotation)
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
           .build()
@@ -292,11 +304,25 @@ internal class GuidedPhotoDialog(
               if (allowed() && token == generation && !finished && !capturing && guidanceEnabled) {
                 if (SystemClock.elapsedRealtime() - now > GuidedPhotoController.MAX_FRAME_GAP_MS) {
                   resetGuidance()
-                } else process(result, now)
+                } else {
+                  try {
+                    process(result, now)
+                  } catch (error: RuntimeException) {
+                    LogUtils.w(TAG, "Camera guidance failed (%s)", error.javaClass.simpleName)
+                    fail(R.string.live_recognition_camera_error)
+                  }
+                }
               }
             }
           } catch (error: Exception) {
             LogUtils.w(TAG, "Subject detection failed (%s)", error.javaClass.simpleName)
+            handler.post {
+              if (!dismissed && !finished && !capturing && token == generation) {
+                fail(R.string.guided_photo_detector_error)
+              }
+            }
+          } catch (error: LinkageError) {
+            LogUtils.w(TAG, "Subject detection library unavailable (%s)", error.javaClass.simpleName)
             handler.post {
               if (!dismissed && !finished && !capturing && token == generation) {
                 fail(R.string.guided_photo_detector_error)
@@ -313,11 +339,15 @@ internal class GuidedPhotoDialog(
         camera = p.bindToLifecycle(activity, selector, pv, frames, photo)
         cameraState = camera?.cameraInfo?.cameraState
         cameraState?.observe(activity, cameraObserver)
+        if (finished || camera == null) return@addListener
         captureButton.isEnabled = true
         flashButton.isEnabled = camera?.cameraInfo?.hasFlashUnit() == true
         applyFlash()
       } catch (error: Exception) {
         LogUtils.w(TAG, "Guided camera failed (%s)", error.javaClass.simpleName)
+        fail(R.string.live_recognition_camera_error)
+      } catch (error: LinkageError) {
+        LogUtils.w(TAG, "Guided camera library unavailable (%s)", error.javaClass.simpleName)
         fail(R.string.live_recognition_camera_error)
       }
     }, mainExecutor)
@@ -514,7 +544,17 @@ internal class GuidedPhotoDialog(
     unbindCamera()
     output?.discard()
     output = null
-    worker.execute { detector?.close(); detector = null }
+    worker.execute {
+      try {
+        detector?.close()
+      } catch (error: Exception) {
+        LogUtils.w(TAG, "Detector cleanup failed (%s)", error.javaClass.simpleName)
+      } catch (error: LinkageError) {
+        LogUtils.w(TAG, "Detector cleanup library unavailable (%s)", error.javaClass.simpleName)
+      } finally {
+        detector = null
+      }
+    }
     worker.shutdown()
     onClosed()
   }

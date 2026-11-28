@@ -15,6 +15,7 @@ Download `meridian.apk` from the [development release](https://github.com/manh21
 - [Firebase data cleanup and connection policy](docs/firebase-cleanup.md)
 - [Scripts](docs/scripting.md)
 - [Guided photo](docs/guided-photo.md)
+- [Offline Vietnamese spelling](docs/offline-vietnamese-spelling.md)
 
 ## Development
 

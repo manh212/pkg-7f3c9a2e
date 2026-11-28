@@ -103,12 +103,12 @@
     <string name="vietnamese_ime_spelling_error_with_fix">Lỗi chính tả: %1$s. Gợi ý: %2$s</string>
     <string name="editor_action_check_spelling_all">Rà soát chính tả toàn ô nhập liệu</string>
     <string name="vietnamese_ime_ai_spell_model">Mô hình AI rà soát chính tả ngoại tuyến</string>
-    <string name="vietnamese_ime_ai_spell_model_summary_not_downloaded">Chưa tải (~307 MB, lưu riêng ngoài APK). Chạm để tải xuống cho nút Rà soát chính tả toàn ô nhập liệu</string>
+    <string name="vietnamese_ime_ai_spell_model_summary_not_downloaded">Chưa tải (~191 MB, lưu riêng ngoài APK). Chạm để tải xuống cho nút Rà soát chính tả toàn ô nhập liệu</string>
     <string name="vietnamese_ime_ai_spell_model_summary_downloading">Đang tải mô hình AI: %1$d%% (Chạm để hủy)</string>
     <string name="vietnamese_ime_ai_spell_model_summary_ready">Đã sẵn sàng (%1$d MB) · Dùng cho nút Rà soát chính tả toàn ô nhập liệu (Chạm để xóa)</string>
-    <string name="vietnamese_ime_ai_spell_model_summary_failed">Tải thất bại. Chạm để thử lại (~307 MB)</string>
+    <string name="vietnamese_ime_ai_spell_model_summary_failed">Tải thất bại. Chạm để thử lại (~191 MB)</string>
     <string name="vietnamese_ime_ai_spell_model_download_title">Tải mô hình AI rà soát chính tả?</string>
-    <string name="vietnamese_ime_ai_spell_model_download_message">Mô hình nặng khoảng 307 MB, được tải riêng vào bộ nhớ ứng dụng để chạy hoàn toàn ngoại tuyến và rà soát sâu theo ngữ cảnh cả câu (l/n, tr/ch, s/x, hỏi/ngã). Nên dùng Wi-Fi.</string>
+    <string name="vietnamese_ime_ai_spell_model_download_message">Mô hình nặng khoảng 191 MB, được tải riêng vào bộ nhớ ứng dụng để chạy hoàn toàn ngoại tuyến và rà soát sâu theo ngữ cảnh cả câu (l/n, tr/ch, s/x, hỏi/ngã). Nên dùng Wi-Fi.</string>
     <string name="vietnamese_ime_ai_spell_model_download_confirm">Tải xuống</string>
     <string name="vietnamese_ime_ai_spell_model_delete_title">Xóa mô hình AI rà soát chính tả?</string>
     <string name="vietnamese_ime_ai_spell_model_delete_message">Giải phóng %1$d MB dung lượng. Lỗi trước và Lỗi tiếp theo vẫn hoạt động bình thường bằng từ điển ngoại tuyến.</string>

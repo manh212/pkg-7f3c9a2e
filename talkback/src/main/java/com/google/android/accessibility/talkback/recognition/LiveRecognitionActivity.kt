@@ -495,10 +495,22 @@ class LiveRecognitionActivity : ComponentActivity() {
       return
     }
     prepareForDialog()
-    activePhotoDialog = GuidedPhotoDialog(this) {
+    val photo = GuidedPhotoDialog(this) {
       dialogOpen = false
       activePhotoDialog = null
-    }.also { it.show() }
+    }
+    activePhotoDialog = photo
+    try {
+      photo.show()
+    } catch (error: RuntimeException) {
+      photo.dismiss()
+      LogUtils.e(TAG, "Guided photo startup failed: %s", error.javaClass.simpleName)
+      report(R.string.live_recognition_camera_error)
+    } catch (error: LinkageError) {
+      photo.dismiss()
+      LogUtils.e(TAG, "Guided photo camera library unavailable: %s", error.javaClass.simpleName)
+      report(R.string.live_recognition_camera_error)
+    }
   }
 
   /**

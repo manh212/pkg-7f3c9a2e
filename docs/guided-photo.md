@@ -12,6 +12,14 @@ provide the subject candidates. The interface guides left/right/up/down movement
 distance, face direction, document alignment, low light, sharpness, stability and
 focus. Front-camera horizontal directions account for the mirrored preview.
 
+Frame ownership stays with MediaPipe until object detection, document scanning
+and quality measurements all finish. Closing an MPImage recycles its Bitmap, so
+no analyzer reads the frame after that close. ML Kit face processing finishes
+before the frame can be released. Camera analysis requests 640 by 480 pixels;
+saved photos retain the separate ImageCapture resolution. Startup, asynchronous
+binding and missing native-library errors are reported inside recognition rather
+than escaping through the settings activity.
+
 After the announcement finishes and the image settles, Meridian says **Hai**, then
 **Một**, and takes one photo after at least two seconds. Both numbers must finish
 speaking. Each new observation must remain suitable: movement, framing or subject
@@ -47,6 +55,11 @@ round. Other tests cover image quality measurements, permission order, command
 discovery and MediaStore/legacy save cleanup. CI also compiles and lints the camera
 integration. These tests do not establish recognition accuracy or camera behavior
 on physical devices.
+
+Frame pipeline tests check that document scanning and quality measurement still
+have a live Bitmap after object detection and that failure releases the frame.
+Dialog lifecycle tests cover Android 8 and Android 14, including repeated cleanup
+and cleanup before opening the window.
 
 On a phone, check both cameras in portrait and landscape, Vietnamese direction
 prompts, faces and supported objects near each edge, documents, darkness, torch,

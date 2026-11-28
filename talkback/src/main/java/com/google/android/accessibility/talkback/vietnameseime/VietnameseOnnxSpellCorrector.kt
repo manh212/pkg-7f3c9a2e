@@ -20,10 +20,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
-import org.json.JSONObject
-import java.io.File
 import java.nio.LongBuffer
-import java.text.Normalizer
 import java.util.Locale
 
 /**
@@ -32,9 +29,7 @@ import java.util.Locale
  * Loaded lazily on demand when the user triggers full-field spell checking.
  */
 object VietnameseOnnxSpellCorrector {
-  private const val MAX_INPUT_TOKENS = 256
   private const val MAX_DECODE_STEPS = 256
-  private const val SPIECE_UNDERLINE = '\u2581'
 
   data class CorrectionResult(
     val correctedText: String,
@@ -42,83 +37,10 @@ object VietnameseOnnxSpellCorrector {
     val usedAiModel: Boolean,
   )
 
-  private class SimpleTokenizer(
-    private val tokenToId: Map<String, Int>,
-    private val idToToken: Map<Int, String>,
-    val unkId: Int,
-    val eosId: Int,
-    val padId: Int,
-    val bosId: Int,
-    val decoderStartId: Int,
-    private val isSentencePiece: Boolean,
-  ) {
-    fun encode(text: String): LongArray {
-      val normalized = Normalizer.normalize(text.trim(), Normalizer.Form.NFC)
-      if (normalized.isEmpty()) return longArrayOf(eosId.toLong())
-      val ids = ArrayList<Long>(normalized.length)
-      if (bosId >= 0 && bosId != decoderStartId) {
-        ids += bosId.toLong()
-      }
-      val words = normalized.split(Regex("\\s+"))
-      for ((idx, rawWord) in words.withIndex()) {
-        if (rawWord.isEmpty()) continue
-        val piece = if (isSentencePiece) "$SPIECE_UNDERLINE$rawWord" else if (idx > 0) " $rawWord" else rawWord
-        val exact = tokenToId[piece]
-        if (exact != null) {
-          ids += exact.toLong()
-        } else {
-          encodeGreedySubwords(piece, ids)
-        }
-        if (ids.size >= MAX_INPUT_TOKENS - 1) break
-      }
-      ids += eosId.toLong()
-      return ids.toLongArray()
-    }
-
-    private fun encodeGreedySubwords(word: String, out: MutableList<Long>) {
-      var pos = 0
-      val len = word.length
-      while (pos < len && out.size < MAX_INPUT_TOKENS - 1) {
-        var matchedId: Int? = null
-        var matchedEnd = pos + 1
-        var end = len
-        while (end > pos) {
-          val sub = word.substring(pos, end)
-          val id = tokenToId[sub] ?: if (pos > 0 && !isSentencePiece) tokenToId["##$sub"] else null
-          if (id != null) {
-            matchedId = id
-            matchedEnd = end
-            break
-          }
-          end--
-        }
-        out += (matchedId ?: unkId).toLong()
-        pos = matchedEnd
-      }
-    }
-
-    fun decode(ids: List<Int>): String {
-      val sb = StringBuilder()
-      for (id in ids) {
-        if (id == padId || id == eosId || id == bosId || id == decoderStartId) continue
-        val tok = idToToken[id] ?: continue
-        if (tok.startsWith("<") && tok.endsWith(">")) continue
-        if (isSentencePiece) {
-          sb.append(tok.replace(SPIECE_UNDERLINE, ' '))
-        } else if (tok.startsWith("##")) {
-          sb.append(tok.substring(2))
-        } else {
-          sb.append(tok)
-        }
-      }
-      return sb.toString().replace(Regex("\\s+"), " ").trim()
-    }
-  }
-
   private val lock = Any()
   @Volatile private var encoderSession: OrtSession? = null
   @Volatile private var decoderSession: OrtSession? = null
-  @Volatile private var tokenizer: SimpleTokenizer? = null
+  @Volatile private var tokenizer: BartphoTokenizer? = null
 
   fun release() {
     synchronized(lock) {
@@ -162,81 +84,27 @@ object VietnameseOnnxSpellCorrector {
       setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
     }
     opts.use { sessionOptions ->
-      encoderSession = env.createSession(VietnameseSpellModelManager.encoderFile(context).absolutePath, sessionOptions)
-      decoderSession = env.createSession(VietnameseSpellModelManager.decoderFile(context).absolutePath, sessionOptions)
-    }
-    tokenizer = loadTokenizer(
-      VietnameseSpellModelManager.tokenizerFile(context),
-      VietnameseSpellModelManager.configFile(context),
-    )
-  }
-
-  private fun loadTokenizer(tokFile: File, cfgFile: File): SimpleTokenizer {
-    val cfgJson = JSONObject(cfgFile.readText(Charsets.UTF_8))
-    val tokJson = JSONObject(tokFile.readText(Charsets.UTF_8))
-    val tokenToId = HashMap<String, Int>(32768)
-    val idToToken = HashMap<Int, String>(32768)
-    var isSentencePiece = false
-
-    val modelObj = tokJson.optJSONObject("model")
-    val vocabAny = modelObj?.opt("vocab")
-    if (vocabAny is JSONObject) {
-      val keys = vocabAny.keys()
-      while (keys.hasNext()) {
-        val k = keys.next()
-        val id = vocabAny.optInt(k, -1)
-        if (id >= 0) {
-          tokenToId[k] = id
-          idToToken[id] = k
-          if (k.startsWith(SPIECE_UNDERLINE)) isSentencePiece = true
-        }
-      }
-    } else if (vocabAny is org.json.JSONArray) {
-      isSentencePiece = true
-      for (i in 0 until vocabAny.length()) {
-        val entry = vocabAny.optJSONArray(i) ?: continue
-        val token = entry.optString(0, "")
-        if (token.isNotEmpty()) {
-          tokenToId[token] = i
-          idToToken[i] = token
-        }
+      val preparedTokenizer = BartphoTokenizer.load(
+        VietnameseSpellModelManager.tokenizerFile(context),
+        VietnameseSpellModelManager.vocabularyFile(context),
+      )
+      val encoder = env.createSession(VietnameseSpellModelManager.encoderFile(context).absolutePath, sessionOptions)
+      try {
+        val decoder = env.createSession(VietnameseSpellModelManager.decoderFile(context).absolutePath, sessionOptions)
+        encoderSession = encoder
+        decoderSession = decoder
+        tokenizer = preparedTokenizer
+      } catch (error: Exception) {
+        encoder.close()
+        throw error
       }
     }
-    val added = tokJson.optJSONArray("added_tokens")
-    if (added != null) {
-      for (i in 0 until added.length()) {
-        val item = added.optJSONObject(i) ?: continue
-        val content = item.optString("content", "")
-        val id = item.optInt("id", -1)
-        if (content.isNotEmpty() && id >= 0) {
-          tokenToId[content] = id
-          idToToken[id] = content
-        }
-      }
-    }
-
-    val padId = cfgJson.optInt("pad_token_id", tokenToId["<pad>"] ?: 0)
-    val eosId = cfgJson.optInt("eos_token_id", tokenToId["</s>"] ?: 1)
-    val bosId = cfgJson.optInt("bos_token_id", tokenToId["<s>"] ?: -1)
-    val unkId = tokenToId["<unk>"] ?: tokenToId["[UNK]"] ?: 2
-    val decoderStartId = cfgJson.optInt("decoder_start_token_id", if (bosId >= 0) bosId else padId)
-
-    return SimpleTokenizer(
-      tokenToId = tokenToId,
-      idToToken = idToToken,
-      unkId = unkId,
-      eosId = eosId,
-      padId = padId,
-      bosId = bosId,
-      decoderStartId = decoderStartId,
-      isSentencePiece = isSentencePiece,
-    )
   }
 
   private fun correctLine(
     encoder: OrtSession,
     decoder: OrtSession,
-    tok: SimpleTokenizer,
+    tok: BartphoTokenizer,
     line: String,
   ): String {
     val env = OrtEnvironment.getEnvironment()
@@ -258,6 +126,7 @@ object VietnameseOnnxSpellCorrector {
           val generated = ArrayList<Int>(inputIds.size + 16)
           generated += tok.decoderStartId
           val maxSteps = minOf(MAX_DECODE_STEPS, inputIds.size * 2 + 16)
+          var ended = false
 
           for (step in 0 until maxSteps) {
             val decIds = LongArray(generated.size) { generated[it].toLong() }
@@ -271,14 +140,19 @@ object VietnameseOnnxSpellCorrector {
                   name.contains("input_ids", ignoreCase = true) -> decInputs[name] = decTensor
                 }
               }
-              decoder.run(decInputs).use { decOut ->
+              decoder.run(decInputs, setOf("logits")).use { decOut ->
                 val logits = decOut[0].value
                 argmaxLastStep(logits)
               }
             }
-            if (nextToken < 0 || nextToken == tok.eosId) break
+            if (nextToken < 0) return line
+            if (nextToken == tok.eosId) {
+              ended = true
+              break
+            }
             generated += nextToken
           }
+          if (!ended) return line
           val decoded = tok.decode(generated)
           return if (decoded.isBlank()) line else decoded
         }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="vietnamese_ime_ai_spell_input_changed">Nội dung đã thay đổi. Hãy rà soát chính tả lại.</string>
+  <string name="vietnamese_ime_ai_spell_error_network">Kết nối bị gián đoạn. Lần thử lại sẽ tiếp tục tệp đang tải dở.</string>
+  <string name="vietnamese_ime_ai_spell_error_source">Máy chủ chưa cung cấp được tệp mô hình.</string>
+  <string name="vietnamese_ime_ai_spell_error_integrity">Tệp tải về chưa đầy đủ hoặc không khớp mã xác thực.</string>
+  <string name="vietnamese_ime_ai_spell_error_storage">Không ghi được tệp. Hãy kiểm tra dung lượng trống.</string>
+</resources>

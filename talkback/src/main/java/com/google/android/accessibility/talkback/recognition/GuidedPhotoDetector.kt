@@ -6,14 +6,12 @@ import android.graphics.Color
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import com.google.android.gms.tasks.Tasks
-import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetector
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.nio.ByteBuffer
-import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -24,7 +22,7 @@ internal class GuidedPhotoDetector(private val context: Context) : AutoCloseable
     .enableTracking()
     .build())
   private val objects: ObjectDetector
-  private val quality = PhotoQualityAnalyzer()
+  private val frames = GuidedPhotoFrameAnalyzer(context.getString(R.string.guided_photo_document))
 
   init {
     objects = try {
@@ -38,13 +36,16 @@ internal class GuidedPhotoDetector(private val context: Context) : AutoCloseable
     } catch (error: Exception) {
       faces.close()
       throw error
+    } catch (error: LinkageError) {
+      faces.close()
+      throw error
     }
   }
 
   fun analyze(bitmap: Bitmap): PhotoObservation {
     val width = bitmap.width.toFloat()
     val height = bitmap.height.toFloat()
-    val foundFaces = Tasks.await(faces.process(InputImage.fromBitmap(bitmap, 0)), 2, TimeUnit.SECONDS)
+    val foundFaces = Tasks.await(faces.process(InputImage.fromBitmap(bitmap, 0)))
       .map { face ->
         val b = face.boundingBox
         val extraX = b.width() * .18f
@@ -57,7 +58,7 @@ internal class GuidedPhotoDetector(private val context: Context) : AutoCloseable
           facingCamera = abs(face.headEulerAngleY) < 25 && abs(face.headEulerAngleX) < 25,
         )
       }
-    val foundObjects = BitmapImageBuilder(bitmap).build().use { image ->
+    return frames.analyze(bitmap, foundFaces) { image ->
       objects.detect(image).detections().mapNotNull { detection ->
         val category = detection.categories().maxByOrNull { it.score() } ?: return@mapNotNull null
         val name = category.categoryName()
@@ -70,19 +71,6 @@ internal class GuidedPhotoDetector(private val context: Context) : AutoCloseable
         PhotoSubject("object:$name", label, box, PhotoSubjectKind.OBJECT, category.score())
       }
     }
-    val subjects = (foundFaces + foundObjects).toMutableList()
-    val document = DocumentAlignmentScanner.analyze(bitmap)
-    document.observedCorners?.let { corners ->
-      val box = PhotoBox(corners.minOf { it.x }.toFloat() / width,
-        corners.minOf { it.y }.toFloat() / height,
-        corners.maxOf { it.x }.toFloat() / width, corners.maxOf { it.y }.toFloat() / height)
-      val conflicts = subjects.any { it.key != "object:book" && it.box.overlaps(box) > .5f }
-      if (!conflicts) {
-        subjects.add(PhotoSubject("document", context.getString(R.string.guided_photo_document), box,
-          PhotoSubjectKind.DOCUMENT, documentState = document.state))
-      }
-    }
-    return quality.analyze(bitmap, subjects)
   }
 
   override fun close() {

@@ -5,6 +5,7 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.actor.gemini.local.ModelFiles
 import com.google.android.accessibility.talkback.preference.base.TalkBackPreferenceFragment
 
 class VietnameseKeyboardTypingFragment :
@@ -62,7 +63,17 @@ class VietnameseKeyboardTypingFragment :
         val sizeMb = ((st.downloadedBytes + 524_288L) / 1_048_576L).toInt().coerceAtLeast(1)
         getString(R.string.vietnamese_ime_ai_spell_model_summary_ready, sizeMb)
       }
-      st.failed -> getString(R.string.vietnamese_ime_ai_spell_model_summary_failed)
+      st.failed -> {
+        val reason = when (st.failure) {
+          ModelFiles.Failure.NETWORK, ModelFiles.Failure.TIME_LIMIT -> R.string.vietnamese_ime_ai_spell_error_network
+          ModelFiles.Failure.HTTP -> R.string.vietnamese_ime_ai_spell_error_source
+          ModelFiles.Failure.SIZE_MISMATCH, ModelFiles.Failure.HASH_MISMATCH -> R.string.vietnamese_ime_ai_spell_error_integrity
+          ModelFiles.Failure.STORAGE, ModelFiles.Failure.LOW_SPACE -> R.string.vietnamese_ime_ai_spell_error_storage
+          null -> null
+        }
+        getString(R.string.vietnamese_ime_ai_spell_model_summary_failed) +
+          (reason?.let { " " + getString(it) } ?: "")
+      }
       else -> getString(R.string.vietnamese_ime_ai_spell_model_summary_not_downloaded)
     }
   }

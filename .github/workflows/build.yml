@@ -127,10 +127,46 @@ jobs:
           restore-keys: |
             robolectric-android-runtime-${{ runner.os }}-
 
+      - name: Select offline spelling model verification
+        id: spell_model
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          import os
+          from pathlib import Path
+          changed = json.loads(Path('ci-selection/test-plan.json').read_text())['changed']
+          names = {'BartphoTokenizer.kt', 'VietnameseSpellModels.kt', 'VietnameseSpellModelManager.kt', 'VietnameseOnnxSpellCorrector.kt', 'BartphoTokenizerReferenceTest.kt', 'validate_vi_spell_model.py', 'build.yml'}
+          required = any(Path(path).name in names for path in changed)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('required=' + str(required).lower() + '\n')
+          PYEOF
+
+      - uses: actions/setup-python@v6
+        if: steps.spell_model.outputs.required == 'true'
+        with:
+          python-version: '3.12'
+
+      - name: Verify real spelling model downloads and inference
+        if: steps.spell_model.outputs.required == 'true'
+        run: |
+          set -o pipefail
+          python3 -m pip install sentencepiece==0.2.1 onnxruntime==1.25.1 numpy==2.2.6 2>&1 | tee "$RUNNER_TEMP/vi-spell-reference.log"
+          python3 scripts/validate_vi_spell_model.py "$RUNNER_TEMP/vi-spell-reference" 2>&1 | tee -a "$RUNNER_TEMP/vi-spell-reference.log"
+          echo "VI_SPELL_REFERENCE_FILE=$RUNNER_TEMP/vi-spell-reference/fixture.json" >> "$GITHUB_ENV"
+
       - name: Run selected unit tests
         run: |
           set -o pipefail
           python3 scripts/run_ci_tests.py ci-selection/test-plan.json 2>&1 | tee "$RUNNER_TEMP/tests.log"
+
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.spell_model.outputs.required == 'true'
+        with:
+          name: vi-spell-model-validation
+          path: |
+            ${{ runner.temp }}/vi-spell-reference/report.json
+            ${{ runner.temp }}/vi-spell-reference/fixture.json
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -144,7 +180,7 @@ jobs:
         run: |
           out=gradle-log-tail-tests.txt
           : > "$out"
-          for pair in repository-checks:repository-checks.log settings-key-contract:settings-key-contract.log tests:tests.log; do
+          for pair in repository-checks:repository-checks.log settings-key-contract:settings-key-contract.log spelling-model:vi-spell-reference.log tests:tests.log; do
             log="$RUNNER_TEMP/${pair#*:}"
             if [ -f "$log" ]; then
               {

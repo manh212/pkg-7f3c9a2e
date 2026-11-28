@@ -305,6 +305,12 @@ class VietnameseTextActionsMenu(
           val aiResult = VietnameseOnnxSpellCorrector.correctFullText(app, text)
           mainHandler.post {
             try {
+              if (!nodeCopy.refresh() || !nodeCopy.isEditable || !nodeCopy.isEnabled ||
+                nodeCopy.isPassword || extractEditableText(nodeCopy) != text) {
+                pipeline.returnFeedback(EVENT_ID_UNTRACKED,
+                  Feedback.speech(app.getString(R.string.vietnamese_ime_ai_spell_input_changed)))
+                return@post
+              }
               if (aiResult != null) {
                 if (aiResult.changedWords > 0 && aiResult.correctedText != text) {
                   val ok = applyFullTextReplacement(nodeCopy, aiResult.correctedText)
