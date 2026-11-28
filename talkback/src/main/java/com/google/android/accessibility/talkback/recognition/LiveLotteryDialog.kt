@@ -21,7 +21,6 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
-import android.util.Size
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
@@ -35,8 +34,6 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -275,7 +272,7 @@ internal class LiveLotteryDialog(
   }
 
   private fun encodeForOnlineQuery(image: ImageProxy): String {
-    val rotated = LiveTextRecognitionDialog.imageToRotatedBitmap(image, MAX_UPLOAD_DIM)
+    val rotated = LiveTextRecognitionDialog.imageToRotatedBitmap(image)
     val maxSide = max(rotated.width, rotated.height)
     val scaled = if (maxSide > MAX_UPLOAD_DIM) {
       val ratio = MAX_UPLOAD_DIM.toFloat() / maxSide
@@ -312,13 +309,6 @@ internal class LiveLotteryDialog(
         val newPreview = Preview.Builder().build().also { it.setSurfaceProvider(pv.surfaceProvider) }
         val newCapture = ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-          .setResolutionSelector(
-            ResolutionSelector.Builder()
-              .setResolutionStrategy(
-                ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
-              )
-              .build()
-          )
           .build()
         preview = newPreview
         imageCapture = newCapture

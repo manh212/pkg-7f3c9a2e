@@ -231,13 +231,6 @@ internal class LiveCurrencyDialog(
         val newPreview = Preview.Builder().build().also { it.setSurfaceProvider(pv.surfaceProvider) }
         val newCapture = ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-          .setResolutionSelector(
-            ResolutionSelector.Builder()
-              .setResolutionStrategy(
-                ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
-              )
-              .build()
-          )
           .build()
         preview = newPreview
         imageCapture = newCapture

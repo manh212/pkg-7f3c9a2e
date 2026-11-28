@@ -19,8 +19,6 @@ package com.google.android.accessibility.talkback.recognition
 import android.app.AlertDialog
 import android.content.SharedPreferences
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.os.Handler
 import android.os.Looper
@@ -510,13 +508,6 @@ internal class LiveTextRecognitionDialog(
         val newPreview = Preview.Builder().build().also { it.setSurfaceProvider(pv.surfaceProvider) }
         val newCapture = ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-          .setResolutionSelector(
-            ResolutionSelector.Builder()
-              .setResolutionStrategy(
-                ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
-              )
-              .build()
-          )
           .build()
         preview = newPreview
         imageCapture = newCapture
@@ -690,33 +681,15 @@ internal class LiveTextRecognitionDialog(
     private const val MAX_TEXT_LENGTH = 1_200
     private const val MAX_ONLINE_TEXT_LENGTH = 4_000
 
-    internal fun imageToRotatedBitmap(image: ImageProxy, maxDim: Int = 0): Bitmap {
-      val raw = decodeImageProxy(image, maxDim)
+    internal fun imageToRotatedBitmap(image: ImageProxy): Bitmap {
+      val raw = image.toBitmap()
       val rotation = image.imageInfo.rotationDegrees
       if (rotation == 0) return raw
       val rotated = Bitmap.createBitmap(
-        raw, 0, 0, raw.width, raw.height, Matrix().apply { postRotate(rotation.toFloat()) }, true,
+        raw, 0, 0, raw.width, raw.height, Matrix().apply { postRotate(rotation.toFloat()) }, true
       )
       if (rotated !== raw) raw.recycle()
       return rotated
-    }
-
-    private fun decodeImageProxy(image: ImageProxy, maxDim: Int): Bitmap {
-      if (maxDim > 0 && image.format == ImageFormat.JPEG && image.planes.isNotEmpty()) {
-        val buf = image.planes[0].buffer
-        val bytes = ByteArray(buf.remaining())
-        buf.get(bytes)
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        val longest = max(bounds.outWidth, bounds.outHeight)
-        var sample = 1
-        while (longest / (sample * 2) >= maxDim) {
-          sample *= 2
-        }
-        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.let { return it }
-      }
-      return image.toBitmap()
     }
   }
 }

@@ -28,7 +28,7 @@ internal object OnlineRecognitionImageEncoder {
   private const val JPEG_QUALITY = 85
 
   fun encodeForOnlineQuery(image: ImageProxy): String {
-    val rotated = LiveTextRecognitionDialog.imageToRotatedBitmap(image, MAX_DIM)
+    val rotated = LiveTextRecognitionDialog.imageToRotatedBitmap(image)
     val longest = max(rotated.width, rotated.height)
     val bitmap = if (longest > MAX_DIM) {
       val scale = MAX_DIM.toFloat() / longest.toFloat()

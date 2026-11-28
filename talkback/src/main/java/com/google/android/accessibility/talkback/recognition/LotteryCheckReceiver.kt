@@ -29,6 +29,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.concurrent.Executors
 
@@ -37,6 +38,10 @@ class LotteryCheckReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
     val action = intent?.action ?: return
     val appContext = context.applicationContext
+    if (!TalkBackService.isServiceActive()) {
+      cancelAlarm(appContext)
+      return
+    }
     if (action == Intent.ACTION_BOOT_COMPLETED) {
       rescheduleAllPending(appContext)
       return
@@ -165,8 +170,13 @@ class LotteryCheckReceiver : BroadcastReceiver() {
     private const val MAX_RETRIES = 8
     private val executor = Executors.newSingleThreadExecutor()
 
+    @JvmStatic
     fun rescheduleAllPending(context: Context) {
       val appContext = context.applicationContext
+      if (!TalkBackService.isServiceActive()) {
+        cancelAlarm(appContext)
+        return
+      }
       val pending = LotteryTicketStore.list(appContext)
         .filter { it.status == SavedTicketStatus.PENDING && it.retryCount <= MAX_RETRIES }
       if (pending.isEmpty()) {
@@ -191,7 +201,8 @@ class LotteryCheckReceiver : BroadcastReceiver() {
       }
     }
 
-    private fun cancelAlarm(context: Context) {
+    @JvmStatic
+    fun cancelAlarm(context: Context) {
       val alarms = context.getSystemService(AlarmManager::class.java) ?: return
       alarms.cancel(alarmPendingIntent(context))
     }
