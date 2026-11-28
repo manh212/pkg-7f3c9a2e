@@ -18,6 +18,7 @@ dependencies {
     testPhoneRuntimeOnly "party.iroiro.luajava:lua54-platform:${libs.versions.luajava.get()}:natives-desktop"
     implementation libs.litertlm
     implementation libs.mlkit.translate
+    implementation libs.mlkit.face
     implementation libs.tesseract4android
     implementation libs.onnxruntime.android
     implementation libs.opencv

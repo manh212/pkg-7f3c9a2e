@@ -31,6 +31,7 @@ enum class RecognitionMode(val label: Int, val usesAi: Boolean) {
   LOTTERY_TICKET(R.string.live_recognition_lottery, false),
   FIND_OBJECT(R.string.live_recognition_find_object, false),
   DOCUMENT_LABEL(R.string.live_recognition_document_label, false),
+  GUIDED_PHOTO(R.string.guided_photo_title, false),
   LIGHT(R.string.live_recognition_light, false);
 
   val usesCamera: Boolean

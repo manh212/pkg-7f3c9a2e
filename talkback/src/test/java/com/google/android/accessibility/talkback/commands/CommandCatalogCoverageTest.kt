@@ -49,6 +49,15 @@ class CommandCatalogCoverageTest {
   }
 
   @Test
+  fun guidedPhotoHasOneSearchableCommandWithItsOwnName() {
+    val action = ExtendedCommandActions.liveRecognitionModeAction(RecognitionMode.GUIDED_PHOTO)
+    val matches = Commands.categoriesWithoutApps(context).flatMap { it.commands }.filter { it.value == action }
+    assertEquals(1, matches.size)
+    assertEquals(context.getString(R.string.guided_photo_title), ExtendedCommandActions.labelFor(context, action))
+    assertNotNull(Commands.find(context, action))
+  }
+
+  @Test
   fun restoredCommandsHaveOneEntryInTheirFunctionalCategory() {
     val categories = Commands.categoriesWithoutApps(context)
     for ((value, category) in listOf(

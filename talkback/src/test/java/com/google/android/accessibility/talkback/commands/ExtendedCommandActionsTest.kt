@@ -25,8 +25,8 @@ import org.junit.Test
 class ExtendedCommandActionsTest {
 
   @Test
-  fun liveRecognitionModeActionsRoundTripAll12Modes() {
-    assertEquals(12, RecognitionMode.entries.size)
+  fun liveRecognitionModeActionsRoundTripAllModes() {
+    assertEquals(13, RecognitionMode.entries.size)
     for (mode in RecognitionMode.entries) {
       val action = ExtendedCommandActions.liveRecognitionModeAction(mode)
       assertEquals(mode, ExtendedCommandActions.parseLiveRecognitionMode(action))

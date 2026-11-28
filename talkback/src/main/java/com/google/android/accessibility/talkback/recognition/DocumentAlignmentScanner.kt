@@ -54,6 +54,7 @@ internal data class DocumentAlignmentResult(
   val guidance: String,
   val corners: Array<Point>? = null,
   val sharpness: Double = 0.0,
+  val observedCorners: Array<Point>? = corners,
 )
 
 internal object DocumentAlignmentScanner {
@@ -180,6 +181,7 @@ internal object DocumentAlignmentScanner {
         guidance = guidanceFor(state),
         corners = if (state == DocumentAlignmentState.READY) fullCorners else null,
         sharpness = sharpness,
+        observedCorners = fullCorners,
       )
     } finally {
       srcMat.release()

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="guided_photo_title">Chụp ảnh có hướng dẫn</string>
+  <string name="guided_photo_instructions">Hướng camera vào chủ thể muốn chụp. Meridian tự phát hiện chủ thể ở giữa và hướng dẫn căn máy. Khi đủ khung, đủ nét và giữ yên, máy đếm hai, một rồi tự chụp.</string>
+  <string name="guided_photo_listen">Nghe hướng dẫn</string>
+  <string name="guided_photo_search">Chưa thấy rõ chủ thể. Hãy hướng camera vào đối tượng và dịch máy chậm.</string>
+  <string name="guided_photo_found">Phát hiện %1$s.</string>
+  <string name="guided_photo_low_light">Ánh sáng yếu. Hãy tìm nơi sáng hơn hoặc bật đèn.</string>
+  <string name="guided_photo_blur">Ảnh chưa rõ nét. Hãy giữ yên máy.</string>
+  <string name="guided_photo_steady">Giữ yên máy để chuẩn bị chụp.</string>
+  <string name="guided_photo_focus">Đang lấy nét. Hãy giữ yên máy.</string>
+  <string name="guided_photo_closer">Chủ thể quá nhỏ. Hãy đưa điện thoại lại gần hơn.</string>
+  <string name="guided_photo_away">Chủ thể bị cắt hoặc quá gần. Hãy đưa điện thoại ra xa hơn.</string>
+  <string name="guided_photo_left">Hãy dịch điện thoại sang trái một chút.</string>
+  <string name="guided_photo_right">Hãy dịch điện thoại sang phải một chút.</string>
+  <string name="guided_photo_up">Hãy dịch điện thoại lên trên một chút.</string>
+  <string name="guided_photo_down">Hãy dịch điện thoại xuống dưới một chút.</string>
+  <string name="guided_photo_flat">Hãy giữ điện thoại song song với tài liệu.</string>
+  <string name="guided_photo_face_forward">Hãy hướng mặt thẳng về camera.</string>
+  <string name="guided_photo_two">Hai</string>
+  <string name="guided_photo_one">Một</string>
+  <string name="guided_photo_cancelled">Đã hủy đếm. Hãy căn lại và giữ yên máy.</string>
+  <string name="guided_photo_capturing">Đang chụp ảnh.</string>
+  <string name="guided_photo_saved">Đã lưu ảnh vào thư mục Ảnh/Meridian.</string>
+  <string name="guided_photo_save_failed">Không lưu được ảnh. Hãy kiểm tra dung lượng rồi chọn Chụp ảnh khác để thử lại.</string>
+  <string name="guided_photo_again">Chụp ảnh khác</string>
+  <string name="guided_photo_now">Chụp ngay</string>
+  <string name="guided_photo_front">Chuyển sang camera trước</string>
+  <string name="guided_photo_back">Chuyển sang camera sau</string>
+  <string name="guided_photo_front_active">Đang dùng camera trước.</string>
+  <string name="guided_photo_back_active">Đang dùng camera sau.</string>
+  <string name="guided_photo_camera_missing">Thiết bị không có camera này.</string>
+  <string name="guided_photo_storage_permission">Cần cho phép lưu trữ để lưu ảnh trên phiên bản Android này.</string>
+  <string name="guided_photo_detector_error">Không khởi động được nhận diện chủ thể. Hãy đóng chế độ chụp và thử lại.</string>
+  <string name="guided_photo_paused">Đã dừng chụp vì Meridian đang tạm dừng hoặc màn hình đã khóa.</string>
+  <string name="guided_photo_face">khuôn mặt</string>
+  <string name="guided_photo_document">tài liệu</string>
+</resources>

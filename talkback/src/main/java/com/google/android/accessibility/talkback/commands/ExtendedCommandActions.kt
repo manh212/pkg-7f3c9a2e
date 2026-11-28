@@ -94,6 +94,7 @@ object ExtendedCommandActions {
       return context.getString(R.string.command_live_recognition_open)
     }
     parseLiveRecognitionMode(action)?.let { mode ->
+      if (mode == RecognitionMode.GUIDED_PHOTO) return context.getString(mode.label)
       return context.getString(R.string.command_live_recognition_mode_fmt, context.getString(mode.label))
     }
     when (action) {

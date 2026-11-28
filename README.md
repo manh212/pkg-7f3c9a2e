@@ -14,6 +14,7 @@ Download `meridian.apk` from the [development release](https://github.com/manh21
 - [Support setup](docs/support-feedback.md)
 - [Firebase data cleanup and connection policy](docs/firebase-cleanup.md)
 - [Scripts](docs/scripting.md)
+- [Guided photo](docs/guided-photo.md)
 
 ## Development
 

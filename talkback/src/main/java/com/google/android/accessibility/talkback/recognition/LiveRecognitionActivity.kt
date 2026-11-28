@@ -23,6 +23,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -109,6 +110,8 @@ class LiveRecognitionActivity : ComponentActivity() {
   private var activePointDialog: LivePointAndSpeakDialog? = null
   private var activeLightDialog: LiveLightDialog? = null
   private var activeObjectDialog: LiveFindObjectDialog? = null
+  private var activePhotoDialog: GuidedPhotoDialog? = null
+  private var pendingPhotoStorage = false
   private val pendingResults = linkedMapOf<String, Pair<String, Long>>()
   private val prefs by lazy { SharedPreferencesUtils.getSharedPreferences(this) }
   // Read by the camera thread, to encode a frame only when it can be described.
@@ -141,6 +144,13 @@ class LiveRecognitionActivity : ComponentActivity() {
     } else if (!granted) {
       report(R.string.live_recognition_camera_permission)
     }
+  }
+
+  private val photoStoragePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    pendingPhotoStorage = false
+    if (granted) {
+      if (resumed) toggle(RecognitionMode.GUIDED_PHOTO) else initialMode = RecognitionMode.GUIDED_PHOTO
+    } else report(R.string.guided_photo_storage_permission)
   }
 
   /** While a mode is on: speaks a result that waited for speech or navigation to end. */
@@ -268,7 +278,8 @@ class LiveRecognitionActivity : ComponentActivity() {
     super.onDestroy()
   }
 
-  internal fun canUseRotor(): Boolean = resumed && !dialogOpen && pendingPermission == null && !pendingFlashPermission
+  internal fun canUseRotor(): Boolean = resumed && !dialogOpen && pendingPermission == null &&
+    !pendingFlashPermission && !pendingPhotoStorage
 
   internal fun isEnabled(mode: RecognitionMode): Boolean = when (mode) {
     RecognitionMode.TEXT -> activeTextDialog != null
@@ -277,6 +288,7 @@ class LiveRecognitionActivity : ComponentActivity() {
     RecognitionMode.POINT_AND_SPEAK -> activePointDialog != null
     RecognitionMode.LIGHT -> activeLightDialog != null
     RecognitionMode.FIND_OBJECT -> activeObjectDialog != null
+    RecognitionMode.GUIDED_PHOTO -> activePhotoDialog != null
     else -> mode in enabled
   }
 
@@ -295,6 +307,8 @@ class LiveRecognitionActivity : ComponentActivity() {
     activeLightDialog = null
     activeObjectDialog?.dismiss()
     activeObjectDialog = null
+    activePhotoDialog?.dismiss()
+    activePhotoDialog = null
     dialogOpen = false
   }
 
@@ -364,6 +378,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       RecognitionMode.POINT_AND_SPEAK -> { openPointDialog(); return }
       RecognitionMode.LIGHT -> { openLightDialog(); return }
       RecognitionMode.FIND_OBJECT -> { openObjectDialog(); return }
+      RecognitionMode.GUIDED_PHOTO -> { openPhotoDialog(); return }
       else -> Unit
     }
     if (mode in enabled) {
@@ -468,6 +483,21 @@ class LiveRecognitionActivity : ComponentActivity() {
     activeObjectDialog = LiveFindObjectDialog(this, ::speak) {
       dialogOpen = false
       activeObjectDialog = null
+    }.also { it.show() }
+  }
+
+  private fun openPhotoDialog() {
+    if (!requireCameraPermission(RecognitionMode.GUIDED_PHOTO)) return
+    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+      checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+      pendingPhotoStorage = true
+      photoStoragePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+      return
+    }
+    prepareForDialog()
+    activePhotoDialog = GuidedPhotoDialog(this) {
+      dialogOpen = false
+      activePhotoDialog = null
     }.also { it.show() }
   }
 
@@ -937,6 +967,7 @@ class LiveRecognitionActivity : ComponentActivity() {
       RecognitionMode.LOTTERY_TICKET,
       RecognitionMode.FIND_OBJECT,
       RecognitionMode.LIGHT,
+      RecognitionMode.GUIDED_PHOTO,
     )
     /** The first part of the key that says the user agreed to images going to an AI service. */
     private const val SERVICE_CONSENT_PREF = "pref_live_recognition_consent_"

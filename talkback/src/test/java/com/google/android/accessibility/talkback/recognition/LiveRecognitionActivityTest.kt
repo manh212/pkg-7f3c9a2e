@@ -52,6 +52,7 @@ class LiveRecognitionActivityTest {
       RecognitionMode.LOTTERY_TICKET,
       RecognitionMode.FIND_OBJECT,
       RecognitionMode.LIGHT,
+      RecognitionMode.GUIDED_PHOTO,
     )
     RecognitionMode.entries.forEach { mode ->
       if (mode in dialogModes) {
@@ -109,6 +110,29 @@ class LiveRecognitionActivityTest {
     activity.toggle(RecognitionMode.TEXT)
     assertArrayEquals(arrayOf(Manifest.permission.CAMERA), shadowOf(activity).lastRequestedPermission.requestedPermissions)
     assertFalse(activity.isEnabled(RecognitionMode.TEXT))
+    controller.pause().stop().destroy()
+  }
+
+  @Test fun guidedPhotoRequestsCameraBeforeStartingDetection() {
+    val controller = Robolectric.buildActivity(LiveRecognitionActivity::class.java).setup()
+    val activity = controller.get()
+    activity.toggle(RecognitionMode.GUIDED_PHOTO)
+    assertArrayEquals(arrayOf(Manifest.permission.CAMERA), shadowOf(activity).lastRequestedPermission.requestedPermissions)
+    assertFalse(activity.isEnabled(RecognitionMode.GUIDED_PHOTO))
+    assertFalse(activity.canUseRotor())
+    controller.pause().stop().destroy()
+  }
+
+  @Test @Config(sdk = [28])
+  fun guidedPhotoRequestsLegacyStorageOnlyAfterCameraIsGranted() {
+    val controller = Robolectric.buildActivity(LiveRecognitionActivity::class.java).setup()
+    val activity = controller.get()
+    shadowOf(activity.application).grantPermissions(Manifest.permission.CAMERA)
+    activity.toggle(RecognitionMode.GUIDED_PHOTO)
+    assertArrayEquals(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+      shadowOf(activity).lastRequestedPermission.requestedPermissions)
+    assertFalse(activity.isEnabled(RecognitionMode.GUIDED_PHOTO))
+    assertFalse(activity.canUseRotor())
     controller.pause().stop().destroy()
   }
 
