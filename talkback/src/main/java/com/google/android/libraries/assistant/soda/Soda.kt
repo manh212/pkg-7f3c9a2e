@@ -6,10 +6,13 @@ import java.nio.ByteBuffer
 @Keep
 class Soda(private val onEvent: (ByteArray) -> Unit, private val onStopped: () -> Unit) : AutoCloseable {
   private var resources = nativeCreateSharedResources(this)
-  private var instance = nativeConstruct(resources)
+  private var instance = if (resources != 0L) nativeConstruct(resources) else 0L
 
   init {
-    check(resources != 0L && instance != 0L) { "SODA allocation failed" }
+    if (resources == 0L || instance == 0L) {
+      close()
+      throw IllegalStateException("SODA allocation failed")
+    }
   }
 
   fun initialize(config: ByteArray): ByteArray? = nativeInit(instance, config)
