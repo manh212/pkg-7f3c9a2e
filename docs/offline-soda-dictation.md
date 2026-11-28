@@ -36,7 +36,7 @@ checkpoint used by a particular PixelBoard installation. Native initialization,
 endpoint behavior and punctuation quality require owner testing on Android.
 CI protocol tests cannot establish native compatibility or recognition accuracy.
 
-The adapter preserves formatted hypotheses when the engine returns them. It does
+The adapter preserves punctuation in recognition hypotheses when the engine returns it. It does
 not substitute an unrelated model, emulate punctuation with fixed rules, or fall
 back to an external speech service. A native crash is confined to the recognition
 process. Cancellation, timeout and process death discard pending text; results
@@ -45,7 +45,7 @@ remain subject to the existing dictation generation and editor-target checks.
 The JNI surface and protobuf field numbers were identified from the published
 PixelBoard APK. `SodaWire` bounds message parsing and rejects malformed status
 and result payloads. Automated coverage includes Vietnamese text and punctuation
-preservation, formatted hypotheses, partial-to-final replacement, archive path
+preservation, language metadata separation, endpoint events, partial-to-final replacement, archive path
 validation and cancellation. Device acceptance must separately cover offline
 recognition, automatic punctuation, long pauses, multiple sentences, cancellation
 and compatibility with the engine's ARM64 native dependencies.

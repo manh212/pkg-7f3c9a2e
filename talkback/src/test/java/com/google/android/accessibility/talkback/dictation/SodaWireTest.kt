@@ -13,9 +13,9 @@ class SodaWireTest {
     assertEquals(SodaWire.Result(text, true), SodaWire.result(packet))
   }
 
-  @Test fun formattedHypothesisTakesPriorityOverRawText() {
+  @Test fun languageMetadataDoesNotReplaceRecognizedWords() {
     val packet = SodaWire.message(SodaWire.nested(2, SodaWire.nested(1,
-      SodaWire.text(1, "xin chào"), SodaWire.nested(4, SodaWire.text(2, "Xin chào!")))))
+      SodaWire.text(1, "Xin chào!"), SodaWire.nested(4, SodaWire.text(2, "vi-VN")))))
     assertEquals("Xin chào!", SodaWire.result(packet)?.text)
   }
 
@@ -28,12 +28,23 @@ class SodaWireTest {
     assertEquals("Xin chào! Bạn khỏe không?", transcript.value())
   }
 
-  @Test fun partialFormattedTextIsReadFromThePartialSchema() {
+  @Test fun partialLanguageMetadataDoesNotReplaceRecognizedWords() {
     val packet = SodaWire.message(SodaWire.nested(2, SodaWire.nested(2,
-      SodaWire.text(1, "xin"), SodaWire.nested(2, SodaWire.text(2, "Xin")))))
+      SodaWire.text(1, "Xin"), SodaWire.nested(2, SodaWire.text(2, "vi-VN")))))
     val result = requireNotNull(SodaWire.result(packet))
     assertEquals("Xin", result.text)
     assertFalse(result.final)
+  }
+
+  @Test fun speechEndpointsAreNotRecognitionFailures() {
+    val endpoint = SodaWire.message(SodaWire.nested(3, SodaWire.Field(1, 0)))
+    assertEquals(null, SodaWire.result(endpoint))
+  }
+
+  @Test fun enhancedPartialResultsUseTheirFirstHypothesis() {
+    val packet = SodaWire.message(SodaWire.nested(2, SodaWire.nested(4,
+      SodaWire.text(1, "Xin chào"), SodaWire.nested(5, SodaWire.text(2, "vi-VN")))))
+    assertEquals(SodaWire.Result("Xin chào", false), SodaWire.result(packet))
   }
 
   @Test(expected = IOException::class) fun truncatedLengthCannotBecomeAResult() {

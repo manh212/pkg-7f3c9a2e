@@ -99,11 +99,7 @@ internal object SodaWire {
     val final = details.firstOrNull { it.number == 1 }?.bytes
     val partial = details.firstOrNull { it.number == 2 || it.number == 4 }?.bytes
     val hypothesis = fields(final ?: partial ?: return null)
-    val formattedField = if (final != null) 4 else if (details.any { it.number == 4 }) 5 else 2
-    val formatted = hypothesis.firstOrNull { it.number == formattedField }?.bytes
-      ?.let(::fields)?.firstOrNull { it.number == 2 }?.bytes?.toString(Charsets.UTF_8)
-    val text = formatted?.takeIf { it.isNotBlank() }
-      ?: hypothesis.firstOrNull { it.number == 1 }?.bytes?.toString(Charsets.UTF_8)
+    val text = hypothesis.firstOrNull { it.number == 1 }?.bytes?.toString(Charsets.UTF_8)
       ?: return null
     return Result(text.trim(), final != null)
   }

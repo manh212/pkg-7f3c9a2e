@@ -57,7 +57,6 @@ class SodaService : Service() {
       val native = Soda(
         onEvent = { data ->
           try {
-            if (SodaWire.fields(data).any { it.number == 3 }) throw IOException("SODA recognition error")
             SodaWire.result(data)?.let(text::update)
           } catch (e: IOException) {
             failure.set(true)
