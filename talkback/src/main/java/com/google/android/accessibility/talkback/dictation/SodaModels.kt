@@ -11,10 +11,13 @@ import com.google.android.accessibility.talkback.actor.gemini.local.ModelDownloa
 import com.google.android.accessibility.talkback.actor.gemini.local.ModelFiles
 import java.io.File
 import java.io.IOException
+import java.io.BufferedInputStream
+import java.io.DataInputStream
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 
 internal class SodaModels private constructor(context: Context) {
   sealed interface State {
@@ -167,35 +170,64 @@ internal class SodaModels private constructor(context: Context) {
     internal fun extractModel(archive: File, target: File, cancelled: () -> Boolean) {
       var total = 0L
       var count = 0
-      ZipFile(archive).use { zip ->
-        zip.entries().asSequence().filter { !it.isDirectory && it.name.startsWith("SODAModels/") }.forEach { entry ->
+      openModelZip(archive, cancelled).use { zip ->
+        while (true) {
+          val entry = zip.nextEntry ?: break
           if (cancelled()) throw InterruptedException()
+          if (entry.isDirectory || !entry.name.startsWith("SODAModels/")) {
+            zip.closeEntry()
+            continue
+          }
           val file = File(target, entry.name).canonicalFile
           if (!file.path.startsWith(File(target, "SODAModels").canonicalPath + File.separator)) {
             throw IOException("Invalid SODA archive path")
           }
-          if (entry.size !in 1..40_000_000L) throw IOException("Invalid SODA model size")
-          total += entry.size
-          if (total > 56_000_000L || ++count > 40) throw IOException("Oversized SODA archive")
+          if (++count > 40) throw IOException("Oversized SODA archive")
           file.parentFile?.mkdirs()
-          zip.getInputStream(entry).use { input ->
-            file.outputStream().use { output ->
-              val buffer = ByteArray(65536)
-              var written = 0L
-              while (true) {
-                if (cancelled()) throw InterruptedException()
-                val length = input.read(buffer)
-                if (length < 0) break
-                written += length
-                if (written > entry.size) throw IOException("Invalid SODA entry")
-                output.write(buffer, 0, length)
-              }
-              if (written != entry.size) throw IOException("Truncated SODA model")
+          file.outputStream().use { output ->
+            val buffer = ByteArray(65536)
+            var written = 0L
+            while (true) {
+              if (cancelled()) throw InterruptedException()
+              val length = zip.read(buffer)
+              if (length < 0) break
+              written += length
+              total += length
+              if (written > 40_000_000L || total > 56_000_000L) throw IOException("Oversized SODA entry")
+              output.write(buffer, 0, length)
             }
+            if (written == 0L || (entry.size >= 0L && written != entry.size)) throw IOException("Truncated SODA model")
           }
+          zip.closeEntry()
         }
       }
       if (count != 24 || total != 55_237_690L) throw IOException("Incomplete SODA model")
+    }
+
+    private fun openModelZip(archive: File, cancelled: () -> Boolean): ZipInputStream {
+      val input = DataInputStream(BufferedInputStream(archive.inputStream()))
+      try {
+        input.mark(12)
+        val signature = input.readInt()
+        if (signature == 0x43723234) {
+          if (Integer.reverseBytes(input.readInt()) != 3) throw IOException("Unsupported SODA component format")
+          var header = Integer.reverseBytes(input.readInt())
+          if (header !in 1..1_048_576) throw IOException("Invalid SODA component header")
+          val buffer = ByteArray(8192)
+          while (header > 0) {
+            if (cancelled()) throw InterruptedException()
+            val read = input.read(buffer, 0, minOf(header, buffer.size))
+            if (read < 0) throw IOException("Truncated SODA component header")
+            header -= read
+          }
+        } else {
+          input.reset()
+        }
+        return ZipInputStream(input)
+      } catch (failure: Exception) {
+        input.close()
+        throw failure
+      }
     }
   }
 }
