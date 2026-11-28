@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.notifications
 
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 /** A quick settings tile that turns notification speech on and off. */
@@ -27,12 +28,21 @@ class NotificationSpeechTileService : TileService() {
   }
 
   override fun onClick() {
+    if (!TalkBackService.isServiceActive()) {
+      update()
+      return
+    }
     NotificationReader.setSpeechOn(this, null, announce = false)
     update()
   }
 
   private fun update() {
     val tile = qsTile ?: return
+    if (!TalkBackService.isServiceActive()) {
+      tile.state = Tile.STATE_UNAVAILABLE
+      tile.updateTile()
+      return
+    }
     val on =
       SharedPreferencesUtils.getSharedPreferences(this)
         .getBoolean(NotificationSettings.Companion.Keys.ENABLED, true)

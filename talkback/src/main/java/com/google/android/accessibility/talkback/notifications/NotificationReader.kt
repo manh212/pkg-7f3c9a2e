@@ -95,6 +95,10 @@ object NotificationReader {
   private val QUIET_TOKEN = Any()
   /** Marks the callbacks of notifications waiting for the listener's Do Not Disturb ranking. */
   private val DND_TOKEN = Any()
+  /** Marks delayed callbacks from the notification listener waiting for an accessibility event. */
+  private val LISTENER_POST_TOKEN = Any()
+  /** Marks language-detection timeouts so they are cancelled on stop or detach. */
+  private val DETECT_LANG_TOKEN = Any()
   private const val DND_CHECK_MS = 200L
   private const val DND_CHECKS = 5
   /** How long the notification listener waits for a notification's accessibility event. */
@@ -519,6 +523,7 @@ object NotificationReader {
   @JvmStatic
   @MainThread
   fun onListenerPosted(packageName: String, notification: Notification, importance: Int) {
+    if (!TalkBackService.isServiceActive()) return
     val context = context ?: return
     val flags = notification.flags
     if (packageName == context.packageName ||
@@ -533,15 +538,20 @@ object NotificationReader {
       return
     }
     val key = eventKey(packageName, notification)
-    handler.postDelayed(
+    val epoch = translationEpoch
+    handler.postAtTime(
       {
+        if (epoch != translationEpoch || this.context == null || !TalkBackService.isServiceActive()) {
+          return@postAtTime
+        }
         if (readsFromListener() || recentEvents.none { it.first == key }) {
           LogUtils.d(TAG, "No accessibility event for a notification of %s; handling it", packageName)
           val dnd = SettingsUtils.getDoNotDisturbState(context) > 0
           handle(packageName, null, notification, touching = isTouching(), dnd = dnd)
         }
       },
-      EVENT_WAIT_MS,
+      LISTENER_POST_TOKEN,
+      SystemClock.uptimeMillis() + EVENT_WAIT_MS,
     )
   }
 
@@ -650,7 +660,7 @@ object NotificationReader {
     val original = readout.text
     val epoch = translationEpoch
     AutomaticTranslation.translate(original) { text ->
-      if (epoch != translationEpoch || this.context == null) {
+      if (epoch != translationEpoch || this.context == null || !TalkBackService.isServiceActive()) {
         readout.cancelled = true
         readout.done = true
         record(readout, Outcome.CANCELLED)
@@ -911,7 +921,7 @@ object NotificationReader {
   private fun speak(readout: Readout, repeat: Boolean = false) {
     waiting.remove(readout)
     heldForSpeech.remove(readout)
-    if (readout.cancelled) return
+    if (readout.cancelled || !TalkBackService.isServiceActive()) return
     if (readout.automatic && context?.let { settings(it).enabled } != true) {
       readout.cancelled = true
       record(readout, Outcome.SPEECH_OFF)
@@ -1195,6 +1205,7 @@ object NotificationReader {
     profileId: String,
     stream: Int,
   ) {
+    if (!TalkBackService.isServiceActive()) return
     val ctx = context ?: return
     val prefs = SharedPreferencesUtils.getSharedPreferences(ctx)
     if (profileId.isEmpty() && stream == AudioManager.STREAM_ACCESSIBILITY) {
@@ -1224,6 +1235,7 @@ object NotificationReader {
   }
 
   private fun announce(text: CharSequence, interrupt: Boolean) {
+    if (!TalkBackService.isServiceActive()) return
     val context = context ?: return
     val settings = settings(context)
     val overMedia = settings.media != MediaBehavior.SKIP
@@ -1350,6 +1362,8 @@ object NotificationReader {
     heldForSpeech.clear()
     handler.removeCallbacksAndMessages(QUIET_TOKEN)
     handler.removeCallbacksAndMessages(DND_TOKEN)
+    handler.removeCallbacksAndMessages(LISTENER_POST_TOKEN)
+    handler.removeCallbacksAndMessages(DETECT_LANG_TOKEN)
     heldForTouch.forEach { record(it, Outcome.CANCELLED) }
     heldForTouch.clear()
     handler.removeCallbacks(releaseHeld)
@@ -1380,18 +1394,25 @@ object NotificationReader {
       then()
       return
     }
+    val epoch = translationEpoch
     var done = false
     val finish = Runnable {
       if (!done) {
         done = true
+        if (epoch != translationEpoch || this.context == null || readout.cancelled || !TalkBackService.isServiceActive()) {
+          readout.cancelled = true
+          readout.done = true
+          record(readout, Outcome.CANCELLED)
+          return@Runnable
+        }
         then()
       }
     }
-    handler.postDelayed(finish, LANGUAGE_WAIT_MS)
+    handler.postAtTime(finish, DETECT_LANG_TOKEN, SystemClock.uptimeMillis() + LANGUAGE_WAIT_MS)
     identifier
       .identifyLanguage(readout.text.toString())
       .addOnSuccessListener { tag ->
-        if (!done && tag != "und") {
+        if (!done && epoch == translationEpoch && this.context != null && TalkBackService.isServiceActive() && tag != "und") {
           val locale = Locale.forLanguageTag(tag)
           val current = context.resources.configuration.locales[0]
           if (locale.language != current.language) {

@@ -192,6 +192,11 @@ class NotificationVoice(
     val tts = tts
     if (tts == null || tts !== connection) return
     handler.removeCallbacks(initTimeout)
+    if (!TalkBackService.isServiceActive()) {
+      stop()
+      disconnect()
+      return
+    }
     if (status != TextToSpeech.SUCCESS) {
       LogUtils.e(TAG, "%s didn't start: %d", profile?.engine, status)
       unavailable()
@@ -386,6 +391,10 @@ class NotificationVoice(
     locale: Locale?,
     listener: Listener?,
   ) {
+    if (!TalkBackService.isServiceActive()) {
+      listener?.onDone(false)
+      return
+    }
     val waitEnabled = !parallelSpeech &&
       NotificationSettings.waitsForCurrentSpeech(SharedPreferencesUtils.getSharedPreferences(context))
     val request = Request("notification_${nextId++}", text, flush && !waitEnabled, locale, listener)
@@ -409,6 +418,11 @@ class NotificationVoice(
   }
 
   private fun releaseWhenSpeechEnds() {
+    if (!TalkBackService.isServiceActive()) {
+      stop()
+      disconnect()
+      return
+    }
     if (shouldWaitForSpeech()) {
       handler.postDelayed(releaseWaiting, WAIT_FOR_SPEECH_MS)
       return
@@ -440,6 +454,12 @@ class NotificationVoice(
   }
 
   private fun speakNow(request: Request) {
+    if (!TalkBackService.isServiceActive()) {
+      request.listener?.onDone(false)
+      stop()
+      disconnect()
+      return
+    }
     if (shouldWaitForSpeech()) {
       waitingForSpeech += request
       handler.removeCallbacks(releaseWaiting)

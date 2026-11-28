@@ -19,6 +19,7 @@ package com.google.android.accessibility.talkback.notifications
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 /**
@@ -29,6 +30,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
  */
 class NotificationAutomationReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
+    if (!TalkBackService.isServiceActive()) return
     val action = intent.action ?: return
     if (!SharedPreferencesUtils.getSharedPreferences(context).getBoolean(KEY_ALLOWED, false)) return
     when (action.removePrefix(context.packageName)) {
