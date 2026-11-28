@@ -12,6 +12,7 @@ import android.os.Message
 import android.os.Messenger
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -45,6 +46,8 @@ internal class SodaTranscriber(context: Context) : SpeechTranscriber {
               data = Bundle().apply { putParcelable(SodaService.AUDIO, it) }
               replyTo = Messenger(Handler(Looper.getMainLooper()) { reply ->
                 if (reply.what == SodaService.RESULT && reply.arg1 == 1) {
+                  val error = reply.data.getString(SodaService.ERROR)
+                  if (error != null) LogUtils.w(TAG, "SODA service error: %s", error)
                   result.set(reply.data.getString(SodaService.TEXT))
                   completion.countDown()
                 }
@@ -52,13 +55,23 @@ internal class SodaTranscriber(context: Context) : SpeechTranscriber {
               })
             })
           }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+          LogUtils.w(TAG, "Failed to send audio to SODA service: %s", e)
           completion.countDown()
         }
       }
-      override fun onServiceDisconnected(name: ComponentName) { completion.countDown() }
-      override fun onBindingDied(name: ComponentName) { completion.countDown() }
-      override fun onNullBinding(name: ComponentName) { completion.countDown() }
+      override fun onServiceDisconnected(name: ComponentName) {
+        LogUtils.w(TAG, "SODA service disconnected")
+        completion.countDown()
+      }
+      override fun onBindingDied(name: ComponentName) {
+        LogUtils.w(TAG, "SODA service binding died")
+        completion.countDown()
+      }
+      override fun onNullBinding(name: ComponentName) {
+        LogUtils.w(TAG, "SODA service returned null binding")
+        completion.countDown()
+      }
     }
     try {
       audio.outputStream().use { it.write(pcm) }
@@ -95,5 +108,9 @@ internal class SodaTranscriber(context: Context) : SpeechTranscriber {
   override fun cancel() {
     cancelled.set(true)
     completion.countDown()
+  }
+
+  companion object {
+    private const val TAG = "SodaTranscriber"
   }
 }

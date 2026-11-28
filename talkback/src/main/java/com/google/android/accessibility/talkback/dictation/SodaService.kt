@@ -2,6 +2,7 @@ package com.google.android.accessibility.talkback.dictation
 
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -51,8 +52,33 @@ class SodaService : Service() {
     }
   }
 
+  private fun ensureLibraryLoaded(models: SodaModels) {
+    if (libraryLoaded) return
+    if (models.library.inputStream().use(ModelFiles::sha256) != SodaModels.LIBRARY_HASH) {
+      throw IOException("SODA engine verification failed")
+    }
+    System.load(models.library.absolutePath)
+    libraryLoaded = true
+  }
+
+  private fun pushAudio(
+    native: Soda,
+    buffer: ByteBuffer,
+    length: Int,
+    stopped: CountDownLatch,
+  ) {
+    for (attempt in 0 until ADD_AUDIO_RETRIES) {
+      if (Thread.currentThread().isInterrupted) throw InterruptedException()
+      if (native.addAudio(buffer, length)) return
+      if (stopped.count == 0L) throw IOException("SODA stopped before accepting audio")
+      Thread.sleep(ADD_AUDIO_BACKOFF_MS)
+    }
+    throw IOException("SODA rejected audio")
+  }
+
   private fun recognize(id: Int, audio: ParcelFileDescriptor, reply: Messenger) {
     val failure = AtomicBoolean(false)
+    val started = CountDownLatch(1)
     val stopped = CountDownLatch(1)
     val text = SodaTranscript()
     var engine: Soda? = null
@@ -60,10 +86,7 @@ class SodaService : Service() {
     val answer = try {
       val models = SodaModels.get(this)
       if (!models.isInstalled()) throw IOException("SODA data unavailable")
-      if (models.library.inputStream().use(ModelFiles::sha256) != SodaModels.LIBRARY_HASH) {
-        throw IOException("SODA engine verification failed")
-      }
-      System.load(models.library.absolutePath)
+      ensureLibraryLoaded(models)
       val native = Soda(
         onEvent = { data ->
           try {
@@ -76,14 +99,18 @@ class SodaService : Service() {
           }
         },
         onStopped = { stopped.countDown() },
+        onStarted = { started.countDown() },
       )
       engine = native
       val modelPath = models.languagePack.absolutePath + "/"
       val cache = File(cacheDir, "soda-runtime").apply { mkdirs() }
-      SodaWire.requireSuccess(native.initialize(SodaWire.coreConfig(modelPath, cache.absolutePath + "/")))
+      SodaWire.requireSuccess(
+        native.initialize(SodaWire.coreConfig(modelPath, cache.absolutePath + "/", Build.MODEL.orEmpty()))
+      )
       SodaWire.requireSuccess(native.start(SodaWire.captureConfig()))
-      val buffer = ByteBuffer.allocateDirect(3200)
-      val bytes = ByteArray(3200)
+      started.await(START_WAIT_MS, TimeUnit.MILLISECONDS)
+      val buffer = ByteBuffer.allocateDirect(CHUNK_BYTES)
+      val bytes = ByteArray(CHUNK_BYTES)
       var carry = 0
       ParcelFileDescriptor.AutoCloseInputStream(audio).use { input ->
         var total = 0L
@@ -99,15 +126,35 @@ class SodaService : Service() {
             buffer.clear()
             buffer.put(bytes, 0, send)
             buffer.flip()
-            if (!native.addAudio(buffer, send)) throw IOException("SODA rejected audio")
+            pushAudio(native, buffer, send, stopped)
           }
           carry = available - send
           if (carry == 1) bytes[0] = bytes[send]
         }
         if (carry != 0) throw IOException("Invalid PCM recording")
       }
-      native.stop()
-      if (!stopped.await(30, TimeUnit.SECONDS)) throw IOException("SODA finalization timed out")
+      // Append short trailing silence so the streaming endpointer and punctuation model flush cleanly.
+      val silence = ByteArray(CHUNK_BYTES)
+      repeat(TRAILING_SILENCE_CHUNKS) {
+        if (stopped.count > 0L) {
+          buffer.clear()
+          buffer.put(silence)
+          buffer.flip()
+          pushAudio(native, buffer, CHUNK_BYTES, stopped)
+        }
+      }
+      // Signal MIC_END_OF_DATA in-order at the end of the audio stream (matching SodaAudioPusher).
+      if (stopped.count > 0L) {
+        buffer.clear()
+        buffer.flip()
+        native.addAudio(buffer, 0)
+      }
+      if (!stopped.await(FINALIZE_WAIT_SECONDS, TimeUnit.SECONDS)) {
+        native.stop()
+        if (!stopped.await(FINALIZE_WAIT_SECONDS, TimeUnit.SECONDS)) {
+          throw IOException("SODA finalization timed out")
+        }
+      }
       if (failure.get()) throw IOException("SODA result decoding failed")
       recordError(null)
       text.value()
@@ -146,6 +193,13 @@ class SodaService : Service() {
 
   companion object {
     private const val TAG = "SodaService"
+    private const val CHUNK_BYTES = 3200
+    private const val TRAILING_SILENCE_CHUNKS = 5
+    private const val START_WAIT_MS = 2_000L
+    private const val ADD_AUDIO_RETRIES = 20
+    private const val ADD_AUDIO_BACKOFF_MS = 25L
+    private const val FINALIZE_WAIT_SECONDS = 15L
+    @Volatile private var libraryLoaded = false
     const val RECOGNIZE = 1
     const val RESULT = 2
     const val AUDIO = "audio"

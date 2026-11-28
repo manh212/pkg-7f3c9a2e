@@ -67,11 +67,11 @@ internal object SodaWire {
 
   private fun audioFormat() = arrayOf(Field(2, 1), Field(3, 16000), Field(4, 1))
 
-  fun coreConfig(modelPath: String, cachePath: String): ByteArray = message(
+  fun coreConfig(modelPath: String, cachePath: String, deviceModel: String = ""): ByteArray = message(
     nested(1, nested(1, *audioFormat())),
     nested(3, Field(10, 0), text(13, modelPath)),
     text(7, cachePath),
-    nested(10, text(2, "Android"), text(4, "Meridian"), Field(6, 6)),
+    nested(10, text(2, "Android"), text(3, deviceModel), text(4, ""), Field(6, 6)),
   )
 
   fun captureConfig(): ByteArray = message(
