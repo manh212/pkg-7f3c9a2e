@@ -64,6 +64,7 @@ object DictationSettings {
   enum class Recognition(val id: String) {
     RAMBLER("rambler"),
     ZIPFORMER("zipformer"),
+    SODA("soda"),
     ANDROID("android");
 
     companion object {

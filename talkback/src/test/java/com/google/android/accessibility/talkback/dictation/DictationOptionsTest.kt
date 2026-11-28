@@ -8,7 +8,7 @@ import org.junit.Test
 class DictationOptionsTest {
   @Test fun speechServicesExcludeAutomaticAndGoogleOnDevice() {
     assertEquals(
-      listOf(Recognition.RAMBLER, Recognition.ZIPFORMER, Recognition.ANDROID),
+      listOf(Recognition.RAMBLER, Recognition.ZIPFORMER, Recognition.SODA, Recognition.ANDROID),
       Recognition.entries,
     )
   }

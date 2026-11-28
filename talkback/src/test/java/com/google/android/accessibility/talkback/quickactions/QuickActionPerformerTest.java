@@ -270,6 +270,14 @@ public class QuickActionPerformerTest {
             QuickActionPerformer.PERFORMER_DICTATION_RECOGNITION);
 
     assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
+    assertEquals("soda", prefs.getString(DictationSettings.PREF_RECOGNITION, null));
+    assertEquals(
+        context.getString(R.string.title_pref_dictation)
+            + ", "
+            + context.getString(R.string.dictation_soda_name),
+        spokenText());
+
+    assertTrue(QuickActionPerformer.perform(context, action, prefs, returner, null));
     assertEquals("rambler", prefs.getString(DictationSettings.PREF_RECOGNITION, null));
     assertEquals(
         context.getString(R.string.title_pref_dictation)

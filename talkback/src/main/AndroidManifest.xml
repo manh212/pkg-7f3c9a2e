@@ -257,6 +257,11 @@
             android:exported="false"
             android:process=":ocr" />
 
+        <service
+            android:name="com.google.android.accessibility.talkback.dictation.SodaService"
+            android:exported="false"
+            android:process=":soda" />
+
         <!-- The on-device model can run on the GPU when these are present. -->
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
         <uses-native-library android:name="libOpenCL.so" android:required="false" />

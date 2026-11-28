@@ -16,6 +16,7 @@ Download `meridian.apk` from the [development release](https://github.com/manh21
 - [Scripts](docs/scripting.md)
 - [Guided photo](docs/guided-photo.md)
 - [Offline Vietnamese spelling](docs/offline-vietnamese-spelling.md)
+- [Experimental standalone SODA dictation](docs/offline-soda-dictation.md)
 
 ## Development
 

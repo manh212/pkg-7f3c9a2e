@@ -391,10 +391,6 @@ public final class QuickActionPerformer {
             + KeyboardEchoSettings.choiceName(context.getResources(), echo));
   }
 
-  /**
-   * Advances the dictation service in the dialog's order: Zipformer, Rambler, Android. The
-   * labels mirror {@code DictationFragment.recognitionLabel()}, which is private.
-   */
   private static boolean cycleDictationRecognition(
       Context context,
       QuickAction action,
@@ -403,12 +399,12 @@ public final class QuickActionPerformer {
       @Nullable TalkBackAnalytics analytics) {
     DictationSettings.Recognition[] order = {
       DictationSettings.Recognition.ZIPFORMER,
+      DictationSettings.Recognition.SODA,
       DictationSettings.Recognition.RAMBLER,
       DictationSettings.Recognition.ANDROID,
     };
     DictationSettings.Recognition current = DictationSettings.INSTANCE.recognition(prefs);
-    // Android is the fallback when the stored id is unknown: advance from it.
-    int currentIndex = 2;
+    int currentIndex = order.length - 1;
     for (int i = 0; i < order.length; i++) {
       if (order[i] == current) {
         currentIndex = i;
@@ -428,6 +424,7 @@ public final class QuickActionPerformer {
   private static int dictationRecognitionLabel(DictationSettings.Recognition recognition) {
     return switch (recognition) {
       case ZIPFORMER -> R.string.dictation_recognition_zipformer;
+      case SODA -> R.string.dictation_soda_name;
       case RAMBLER -> R.string.dictation_compact_gemini;
       case ANDROID -> R.string.dictation_compact_android;
     };

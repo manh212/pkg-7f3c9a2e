@@ -38,6 +38,8 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
   private lateinit var prefs: SharedPreferences
   private lateinit var zipformerModels: ZipformerModels
+  private lateinit var sodaModels: SodaModels
+  private lateinit var sodaModelPref: Preference
   private lateinit var recognitionPref: Preference
   private lateinit var aiServicePref: Preference
   private lateinit var zipformerModelPref: Preference
@@ -46,8 +48,10 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
   private var advancedExpanded = false
   private var zipformerAnnouncedMilestone = -1
   private var zipformerDownloading = false
+  private var sodaMilestone = -1
 
   private val zipformerListener: () -> Unit = { if (isAdded) refresh() }
+  private val sodaListener: () -> Unit = { if (isAdded) refresh() }
 
   public override fun getTitle(): CharSequence = getText(R.string.title_pref_dictation)
 
@@ -56,10 +60,12 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
     val context = requireContext()
     prefs = SharedPreferencesUtils.getSharedPreferences(context)
     zipformerModels = ZipformerModels.get(context)
+    sodaModels = SodaModels.get(context)
     advancedExpanded = savedInstanceState?.getBoolean("dictation_advanced_expanded") ?: false
 
     recognitionPref = onClick("pref_dictation_recognition_choice") { chooseRecognition() }
     zipformerModelPref = onClick("pref_dictation_zipformer_model_choice") { chooseZipformerModel() }
+    sodaModelPref = onClick("pref_dictation_soda_model_choice") { chooseSodaData() }
     onlineRoutePref = onClick("pref_dictation_online_route_choice") { chooseOnlineRoute() }
     advancedPref = onClick("pref_dictation_advanced_toggle") {
       advancedExpanded = !advancedExpanded
@@ -82,11 +88,13 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
   override fun onStart() {
     super.onStart()
     zipformerModels.addListener(zipformerListener)
+    sodaModels.addListener(sodaListener)
     refresh()
   }
 
   override fun onStop() {
     zipformerModels.removeListener(zipformerListener)
+    sodaModels.removeListener(sodaListener)
     super.onStop()
   }
 
@@ -101,6 +109,28 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
     zipformerModelPref.title =
       getString(R.string.dictation_compact_model_selected, ZipformerModels.LABEL)
     zipformerModelPref.summary = null
+
+    sodaModelPref.isVisible = chosen == Recognition.SODA
+    sodaModelPref.summary = null
+    val sodaState = sodaModels.state
+    sodaModelPref.title = when {
+      sodaState is SodaModels.State.Downloading -> getString(R.string.dictation_soda_downloading, sodaState.percent)
+      sodaState is SodaModels.State.Failed -> getString(R.string.dictation_soda_retry)
+      sodaModels.isInstalled() -> getString(R.string.dictation_soda_installed)
+      else -> getString(R.string.dictation_soda_data)
+    }
+    if (sodaState is SodaModels.State.Downloading) {
+      val milestone = sodaState.percent / 25 * 25
+      if (milestone > sodaMilestone && chosen == Recognition.SODA) {
+        view?.announceForAccessibility(getString(R.string.on_device_ai_announce_progress, milestone))
+      }
+      sodaMilestone = milestone
+    } else {
+      if (sodaMilestone >= 0 && sodaModels.isInstalled() && chosen == Recognition.SODA) {
+        view?.announceForAccessibility(getString(R.string.dictation_soda_ready))
+      }
+      sodaMilestone = -1
+    }
 
     onlineRoutePref.isVisible = chosen == Recognition.RAMBLER
     onlineRoutePref.title = getString(
@@ -134,6 +164,7 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       when (recognition) {
         Recognition.RAMBLER -> R.string.dictation_compact_gemini
         Recognition.ZIPFORMER -> R.string.dictation_recognition_zipformer
+        Recognition.SODA -> R.string.dictation_soda_name
         Recognition.ANDROID -> R.string.dictation_compact_android
       }
     )
@@ -147,7 +178,7 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
     )
 
   private fun chooseRecognition() {
-    val choices = listOf(Recognition.ZIPFORMER, Recognition.RAMBLER, Recognition.ANDROID)
+    val choices = listOf(Recognition.ZIPFORMER, Recognition.SODA, Recognition.RAMBLER, Recognition.ANDROID)
     AlertDialog.Builder(requireContext())
       .setTitle(R.string.dictation_compact_service)
       .setSingleChoiceItems(
@@ -176,6 +207,27 @@ class DictationFragment : TalkbackBaseFragment(R.xml.dictation_preferences) {
       }
       .setNegativeButton(R.string.on_device_ai_cancel, null)
       .show()
+  }
+
+  private fun chooseSodaData() {
+    when {
+      !SodaModels.supported() -> AlertDialog.Builder(requireContext())
+        .setMessage(R.string.dictation_soda_unsupported)
+        .setPositiveButton(android.R.string.ok, null).show()
+      sodaModels.state is SodaModels.State.Downloading -> sodaModels.cancelDownload()
+      sodaModels.isInstalled() -> AlertDialog.Builder(requireContext())
+        .setTitle(R.string.dictation_soda_installed)
+        .setItems(arrayOf(getString(R.string.manage_models_delete))) { _, _ ->
+          sodaModels.delete()
+        }
+        .setNegativeButton(R.string.on_device_ai_cancel, null).show()
+      isMetered() -> AlertDialog.Builder(requireContext())
+        .setTitle(R.string.on_device_ai_metered_title)
+        .setMessage(size(SodaModels.DOWNLOAD_BYTES))
+        .setPositiveButton(R.string.on_device_ai_metered_download) { _, _ -> sodaModels.startDownload() }
+        .setNegativeButton(R.string.on_device_ai_cancel, null).show()
+      else -> sodaModels.startDownload()
+    }
   }
 
   /** [DictationSettings.AI_SAME], the services that are set up, and on-device AI when installed. */

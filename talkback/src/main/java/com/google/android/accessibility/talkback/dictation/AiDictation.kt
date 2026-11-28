@@ -124,6 +124,7 @@ class AiDictation(
   private var keyboardDictation = false
 
   private val zipformerAutoDownloader = ZipformerAutoDownloader.create(service, ::speak)
+  private var sodaDownloadListener: (() -> Unit)? = null
 
   init {
     SandflyDictation.instance = this
@@ -201,6 +202,7 @@ class AiDictation(
     if (engine == Recognition.ZIPFORMER && !zipformerAutoDownloader.ensureInstalledOrDownload()) {
       return false
     }
+    if (engine == Recognition.SODA && !ensureSodaReady(translating)) return false
     translateMode = translating
     if (!startRecording(engine)) {
       handler.removeCallbacks(autoStop)
@@ -265,6 +267,13 @@ class AiDictation(
       callback(null)
       return false
     }
+    if (engine == Recognition.SODA && !ensureSodaReady(false)) {
+      onText = null
+      offlineTask = false
+      keyboardDictation = false
+      callback(null)
+      return false
+    }
     if (!startRecording(engine)) {
       onText = null
       offlineTask = false
@@ -304,6 +313,7 @@ class AiDictation(
   /** Starts recording for [used]. Returns false when it can't. */
   private fun startRecording(used: Recognition): Boolean {
     if (used == Recognition.ZIPFORMER && !ZipformerModels.get(service).isInstalled()) return false
+    if (used == Recognition.SODA && !SodaModels.get(service).isInstalled()) return false
     if (used == Recognition.RAMBLER && DictationSettings.ramblerKey(prefs).isEmpty()) return false
     recognition = used
 
@@ -367,6 +377,44 @@ class AiDictation(
     capture = recorder
     live = session
     return true
+  }
+
+  private fun ensureSodaReady(translating: Boolean): Boolean {
+    if (!SodaModels.supported()) {
+      speak(service.getString(R.string.dictation_soda_unsupported))
+      return false
+    }
+    if (translating && DictationSettings.translationSource(prefs) != "vi") {
+      speak(service.getString(R.string.dictation_soda_vietnamese_only))
+      return false
+    }
+    val models = SodaModels.get(service)
+    if (models.isInstalled()) return true
+    if (sodaDownloadListener == null) {
+      val listener: () -> Unit = {
+        if (models.state !is SodaModels.State.Downloading) {
+          sodaDownloadListener?.let(models::removeListener)
+          sodaDownloadListener = null
+          speak(service.getString(
+            if (models.isInstalled()) R.string.dictation_soda_ready
+            else if ((models.state as? SodaModels.State.Failed)?.failure ==
+              com.google.android.accessibility.talkback.actor.gemini.local.ModelFiles.Failure.LOW_SPACE)
+              R.string.dictation_zipformer_download_low_space
+            else R.string.dictation_soda_retry
+          ))
+        }
+      }
+      sodaDownloadListener = listener
+      models.addListener(listener)
+    }
+    if (models.state is SodaModels.State.Downloading) {
+      speak(service.getString(R.string.dictation_soda_downloading,
+        (models.state as SodaModels.State.Downloading).percent))
+    } else {
+      models.startDownload()
+      speak(service.getString(R.string.dictation_soda_download_started))
+    }
+    return false
   }
 
   private fun heardSpeech() {
@@ -454,7 +502,8 @@ class AiDictation(
         tones.stop()
         if (result == null) {
           finish()
-          speak(service.getString(R.string.dictation_transcription_failed))
+          speak(service.getString(if (used == Recognition.SODA)
+            R.string.dictation_soda_failed else R.string.dictation_transcription_failed))
           deliver(null)
         } else {
           recognized(result.first, cleaned = result.second)
@@ -482,6 +531,15 @@ class AiDictation(
       transcriber = zipformer
       try {
         return zipformer.transcribe(AudioCapture.toFloats(pcm), "vi")?.let { it to false }
+      } finally {
+        transcriber = null
+      }
+    }
+    if (used == Recognition.SODA) {
+      val soda = SodaTranscriber(service)
+      transcriber = soda
+      try {
+        return soda.transcribePcm(pcm)?.let { it to true }
       } finally {
         transcriber = null
       }
@@ -522,7 +580,7 @@ class AiDictation(
     }
     val translating = translateMode && target != null
     // Online emoji enrichment is optional and is never sent for passwords.
-    val emoji = target != null && !target.isPassword && !translating && DictationSettings.addOnlineEmoji(prefs)
+    val emoji = recognition != Recognition.SODA && target != null && !target.isPassword && !translating && DictationSettings.addOnlineEmoji(prefs)
     val cloud = DictationSettings.onlineService(prefs)
     val corrector =
       when {
@@ -682,6 +740,8 @@ class AiDictation(
 
   fun shutdown() {
     zipformerAutoDownloader.detach()
+    sodaDownloadListener?.let { SodaModels.get(service).removeListener(it) }
+    sodaDownloadListener = null
     generation++
     giveUp?.let { handler.removeCallbacks(it) }
     continuous?.cancel()

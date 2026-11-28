@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="dictation_soda_name">SODA tiếng Việt ngoại tuyến (thử nghiệm)</string>
+  <string name="dictation_soda_data">Tải bộ nhận dạng SODA tiếng Việt (~183 MB)</string>
+  <string name="dictation_soda_installed">Bộ nhận dạng SODA tiếng Việt đã tải</string>
+  <string name="dictation_soda_downloading">Đang tải SODA: %1$d%%. Chạm để hủy</string>
+  <string name="dictation_soda_retry">Tải SODA thất bại. Chạm để thử lại</string>
+  <string name="dictation_soda_unsupported">Chế độ SODA cần ứng dụng chạy trên ARM 64 bit.</string>
+  <string name="dictation_soda_vietnamese_only">Chế độ SODA hiện chỉ nhận giọng nói tiếng Việt.</string>
+  <string name="dictation_soda_download_started">Đang tải bộ nhận dạng SODA tiếng Việt.</string>
+  <string name="dictation_soda_ready">Đã tải SODA. Bạn có thể bắt đầu nhập bằng giọng nói.</string>
+  <string name="dictation_soda_failed">Không thể nhận dạng bằng SODA. Bạn có thể thử lại hoặc chọn chế độ nhập khác.</string>
+</resources>
