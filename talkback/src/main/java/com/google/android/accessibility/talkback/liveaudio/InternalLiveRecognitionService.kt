@@ -87,6 +87,11 @@ class InternalLiveRecognitionService : Service() {
             return START_NOT_STICKY
         }
         if (intent?.action != ACTION_START) return START_NOT_STICKY
+        if (!TalkBackService.isServiceActive()) {
+            clearPendingStart()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // If the user cancelled through the subtitle gesture during consent, discard
         // a late start request rather than silently starting a new session.
         if (!hasPendingStart()) {
@@ -473,6 +478,16 @@ class InternalLiveRecognitionService : Service() {
             val started = pendingStartAt
             return started > 0L &&
                 SystemClock.elapsedRealtime() - started in 0L..600_000L
+        }
+
+        @JvmStatic
+        fun stopIfRunning(context: Context) {
+            clearPendingStart()
+            if (running) {
+                runCatching {
+                    context.stopService(Intent(context, InternalLiveRecognitionService::class.java))
+                }
+            }
         }
     }
 }
