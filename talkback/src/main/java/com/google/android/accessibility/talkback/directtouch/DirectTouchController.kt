@@ -483,7 +483,7 @@ class DirectTouchController(
     if (isVietnameseKeyboard(component)) return emptyList()
     if (component?.packageName == service.packageName &&
       component.className == "com.Braille.BrailleKeyboardService") {
-      return imeWindows
+      return imeWindows.filter { rootPackage(it) == service.packageName }
     }
     if (isSilentDirectTyping()) {
       return imeWindows
@@ -503,11 +503,17 @@ class DirectTouchController(
   ): Region {
     val region = Region()
     if (vietnameseKeyboardClosing) return region
+    val ownImeWindows = imeWindows.filter { rootPackage(it) == service.packageName }
+    val foreignImeVisible = imeWindows.any { window ->
+      val pkg = rootPackage(window)
+      pkg != null && pkg != service.packageName
+    }
+    if (foreignImeVisible && ownImeWindows.isEmpty()) return region
     val reported = vietnameseKeyboardBounds
     val silentTyping = isSilentDirectTyping()
     if (silentTyping && (reported == null || reported.isEmpty)) return region
     val windowRegion = Region()
-    for (window in imeWindows) {
+    for (window in ownImeWindows) {
       getWindowRegion(window, windowRegion)
       region.op(windowRegion, Region.Op.UNION)
     }
@@ -521,7 +527,7 @@ class DirectTouchController(
     if (region.isEmpty) return region
     val display = displayBounds()
     region.op(display, Region.Op.INTERSECT)
-    val imeLayer = imeWindows.maxOfOrNull { it.layer }
+    val imeLayer = ownImeWindows.maxOfOrNull { it.layer }
     for (window in windows) {
       val isSystem = window.type == AccessibilityWindowInfo.TYPE_SYSTEM
       if (!isSystem && window.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
