@@ -107,6 +107,15 @@
 -keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }
 -keep class com.google.android.gms.vision.** { *; }
 -keep class com.google.protobuf.** { *; }
+-keep class androidx.camera.** { *; }
+-keep class androidx.exifinterface.** { *; }
+-keep class com.android.volley.** { *; }
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep class com.google.gson.** { *; }
+-keep class com.google.android.gms.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keep class com.google.android.accessibility.talkback.compositor.parsetree.** { *; }
 
 # Keep EndpointCodec.decode obfuscated but callable.
 -keepclassmembers,allowobfuscation class io.meridian.licensing.EndpointCodec {
@@ -127,3 +136,7 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.datatransport.**
 -dontwarn com.google.android.gms.internal.mlkit_translate.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn androidx.camera.**
+-dontwarn com.google.android.gms.**
