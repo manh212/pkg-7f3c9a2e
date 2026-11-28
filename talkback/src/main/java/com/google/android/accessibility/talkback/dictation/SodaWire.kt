@@ -75,7 +75,10 @@ internal object SodaWire {
   )
 
   fun captureConfig(): ByteArray = message(
-    Field(2, 0),
+    // Field 2 is non-blocking/async capture: 0 blocks nativeStartCapture() on the calling thread
+    // forever (deadlocking audio push); PixelBoard/Gboard Soda.startCapture flips it to 1 before
+    // calling nativeStartCapture().
+    Field(2, 1),
     nested(4, nested(1, Field(1, 0), Field(2, 2), nested(4, *audioFormat()), Field(8, 0))),
     Field(12, 0),
   )
