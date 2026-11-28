@@ -198,6 +198,10 @@ class FocusActorForScreenStateChangeTest {
 
   /** Restores the last focus into [active], counting only the roots that fetches. */
   private fun restore(active: AccessibilityWindowInfo): Boolean {
+    val memoryRecorder = AccessibilityFocusActionHistory::class.java
+      .getDeclaredField("MEMORY_RECORD_EXECUTOR").apply { isAccessible = true }
+      .get(null) as java.util.concurrent.ExecutorService
+    memoryRecorder.submit {}.get(5, java.util.concurrent.TimeUnit.SECONDS)
     RootsShadow.rootRequests = 0
     return actor.restoreLastFocusedNode(screen(active), EVENT_ID_UNTRACKED)
   }
