@@ -2,8 +2,12 @@
 # Strips SourceFile, LineNumberTable, and LocalVariableTable while keeping only the
 # minimum runtime reflection/XML/JNI entry points required for stability.
 -keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,AnnotationDefault
+# Disable R8 bytecode optimization and horizontal lambda class merging while keeping
+# obfuscation and shrinking active. Prevents ART VerifyError ("expected to be within a
+# catch-all for an instruction where a monitor is held") in merged Kotlin Function1 classes
+# used by CameraX, SODA, Coroutines, and TalkBack.
+-dontoptimize
 -repackageclasses p
--allowaccessmodification
 -renamesourcefileattribute ""
 
 # Strip Android Log calls so licensing/activation log tags and messages cannot guide reverse engineering.
@@ -14,13 +18,6 @@
     public static int w(...);
     public static int e(...);
     public static int wtf(...);
-}
-
--assumenosideeffects class kotlin.jvm.internal.Intrinsics {
-    public static void checkNotNullParameter(java.lang.Object, java.lang.String);
-    public static void checkParameterIsNotNull(java.lang.Object, java.lang.String);
-    public static void checkNotNullExpressionValue(java.lang.Object, java.lang.String);
-    public static void checkExpressionValueIsNotNull(java.lang.Object, java.lang.String);
 }
 
 # Preserve Android XML-instantiated Fragment, Preference, and custom View class names and
