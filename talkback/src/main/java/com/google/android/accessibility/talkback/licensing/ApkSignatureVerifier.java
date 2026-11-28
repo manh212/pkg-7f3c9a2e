@@ -69,7 +69,6 @@ final class ApkSignatureVerifier {
       if (LuaMemory.INSTANCE.isAvailable()) {
         int nativeSeal = LuaMemory.verifyRuntimeSeal(context.getPackageName(), certBytes);
         if (nativeSeal != SEAL_OK) {
-          verifiedSeal = SEAL_FAILED;
           return 0;
         }
       } else if (!ROBO_FP.equalsIgnoreCase(Build.FINGERPRINT)) {
@@ -80,7 +79,6 @@ final class ApkSignatureVerifier {
       verifiedSeal = SEAL_OK;
       return SEAL_OK;
     } catch (PackageManager.NameNotFoundException | RuntimeException e) {
-      verifiedSeal = SEAL_FAILED;
       return 0;
     }
   }

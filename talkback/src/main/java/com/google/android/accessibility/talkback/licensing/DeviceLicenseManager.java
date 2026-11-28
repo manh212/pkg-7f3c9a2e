@@ -114,12 +114,11 @@ public final class DeviceLicenseManager {
     }
     if (!configured()) return false;
     int state = cachedIntegrityState;
-    if (state < 0) return false;
     long now = SystemClock.elapsedRealtime();
-    if (state == 0 || now < lastIntegrityElapsed || now - lastIntegrityElapsed >= INTEGRITY_REFRESH_MS) {
+    if (state <= 0 || now < lastIntegrityElapsed || now - lastIntegrityElapsed >= INTEGRITY_REFRESH_MS) {
       scheduleIntegrityRefresh(context);
     }
-    return true;
+    return state >= 0;
   }
 
   public static String recoveryRequest(Context context) throws Exception {
