@@ -231,6 +231,13 @@ internal class LiveCurrencyDialog(
         val newPreview = Preview.Builder().build().also { it.setSurfaceProvider(pv.surfaceProvider) }
         val newCapture = ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+          .setResolutionSelector(
+            ResolutionSelector.Builder()
+              .setResolutionStrategy(
+                ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+              )
+              .build()
+          )
           .build()
         preview = newPreview
         imageCapture = newCapture
@@ -333,6 +340,7 @@ internal class LiveCurrencyDialog(
     onlineCaptureInFlight = true
     updateButtons()
     updateResult(activity.getString(R.string.live_recognition_please_wait), interrupt = true)
+    try {
     capture.takePicture(
       worker,
       object : ImageCapture.OnImageCapturedCallback() {
@@ -392,6 +400,12 @@ internal class LiveCurrencyDialog(
         }
       },
     )
+    } catch (e: Throwable) {
+      LogUtils.e(TAG, "Online currency takePicture failed: %s", e.javaClass.simpleName)
+      onlineCaptureInFlight = false
+      updateButtons()
+      updateResult(activity.getString(R.string.live_recognition_camera_error), interrupt = true)
+    }
   }
 
   private fun updateButtons() {
