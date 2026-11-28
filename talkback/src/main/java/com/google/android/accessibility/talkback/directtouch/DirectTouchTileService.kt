@@ -18,6 +18,7 @@ package com.google.android.accessibility.talkback.directtouch
 
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.utils.SharedPreferencesUtils
 
 /** Quick settings tile that pauses and resumes direct touch without leaving the game. */
@@ -27,6 +28,10 @@ class DirectTouchTileService : TileService() {
   }
 
   override fun onClick() {
+    if (!TalkBackService.isServiceActive()) {
+      refresh()
+      return
+    }
     val prefs = SharedPreferencesUtils.getSharedPreferences(this)
     DirectTouchSettings.setMasterEnabled(prefs, !DirectTouchSettings.isMasterEnabled(prefs))
     refresh()
@@ -34,6 +39,11 @@ class DirectTouchTileService : TileService() {
 
   private fun refresh() {
     val tile = qsTile ?: return
+    if (!TalkBackService.isServiceActive()) {
+      tile.state = Tile.STATE_UNAVAILABLE
+      tile.updateTile()
+      return
+    }
     val enabled = DirectTouchSettings.isMasterEnabled(SharedPreferencesUtils.getSharedPreferences(this))
     tile.state = if (enabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
     tile.updateTile()
