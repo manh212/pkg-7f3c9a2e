@@ -132,6 +132,10 @@ class NotificationListService : NotificationListenerService() {
   private val postedTexts = LinkedHashMap<String, Posted>()
 
   override fun onNotificationPosted(notification: StatusBarNotification, ranking: RankingMap?) {
+    if (!TalkBackService.isServiceActive()) {
+      unbind()
+      return
+    }
     TalkBackService.getInstance()?.progressBarAnnouncer?.onNotificationPosted(notification)
     if (notification.notification.category == Notification.CATEGORY_CALL) {
       CallAnnouncements.onCallNotification(
@@ -162,6 +166,10 @@ class NotificationListService : NotificationListenerService() {
   }
 
   override fun onNotificationRemoved(notification: StatusBarNotification, ranking: RankingMap?) {
+    if (!TalkBackService.isServiceActive()) {
+      unbind()
+      return
+    }
     TalkBackService.getInstance()?.progressBarAnnouncer?.onNotificationRemoved(notification.key)
     if (notification.notification.category == Notification.CATEGORY_CALL) {
       CallAnnouncements.onCallNotificationRemoved(notification.packageName)
@@ -175,6 +183,10 @@ class NotificationListService : NotificationListenerService() {
     ranking: RankingMap?,
     reason: Int,
   ) {
+    if (!TalkBackService.isServiceActive()) {
+      unbind()
+      return
+    }
     onNotificationRemoved(notification, ranking)
     val title =
       notification.notification.extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
@@ -228,7 +240,7 @@ class NotificationListService : NotificationListenerService() {
      * off, which can leave another screen reader turned on then silent.
      */
     fun isNeeded(context: Context): Boolean =
-      TalkBackService.getInstance() != null &&
+      TalkBackService.isServiceActive() &&
         (NotificationList.isEnabled(context) ||
           SystemClock.uptimeMillis() < keepConnectedUntil ||
           SharedPreferencesUtils.getSharedPreferences(context).let {
@@ -249,6 +261,8 @@ class NotificationListService : NotificationListenerService() {
     /** Disconnects the listener when SandFly stops. */
     @JvmStatic
     fun onSandFlyStopped() {
+      rebindHandler.removeCallbacksAndMessages(null)
+      keepConnectedUntil = 0L
       instance?.unbind()
     }
 
@@ -256,6 +270,7 @@ class NotificationListService : NotificationListenerService() {
 
     /** Keeps the listener connected for [millis], such as to read a summary. */
     fun keepConnected(context: Context, millis: Long) {
+      if (!TalkBackService.isServiceActive()) return
       keepConnectedUntil = SystemClock.uptimeMillis() + millis
       instance?.checkLater() ?: rebind(context)
     }
@@ -264,6 +279,7 @@ class NotificationListService : NotificationListenerService() {
     fun isAccessGranted(context: Context): Boolean = NotificationList.isAccessGranted(context)
 
     fun rebind(context: Context) {
+      if (!TalkBackService.isServiceActive()) return
       val appContext = context.applicationContext
       val component = ComponentName(appContext, NotificationListService::class.java)
       runCatching { requestRebind(component) }.onFailure { Log.w(TAG, "Can't rebind", it) }
