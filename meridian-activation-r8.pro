@@ -4,8 +4,6 @@
 -keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,AnnotationDefault
 -repackageclasses p
 -allowaccessmodification
--overloadaggressively
--mergeinterfacesaggressively
 -renamesourcefileattribute ""
 
 # Strip Android Log calls so licensing/activation log tags and messages cannot guide reverse engineering.
@@ -82,16 +80,32 @@
     <init>(...);
 }
 
-# Preserve third-party native / JNI libraries.
+# Preserve third-party native / JNI, ML Kit, Firebase Components, CV, and TFLite libraries.
 -keep class com.google.android.accessibility.utils.output.NativeAAudioOutput { *; }
+-keep class com.google.android.libraries.assistant.soda.** { *; }
 -keep class ai.onnxruntime.** { *; }
 -keep class com.googlecode.tesseract.** { *; }
+-keep class com.googlecode.leptonica.** { *; }
+-keep class org.opencv.** { *; }
+-keep class org.tensorflow.lite.** { *; }
 -keep class com.k2fsa.sherpa.** { *; }
 -keep class party.iroiro.luajava.** { *; }
 -keep class org.luaj.** { *; }
 -keep class zxingcpp.** { *; }
 -keep class com.google.ai.edge.** { *; }
 -keep class com.google.mlkit.** { *; }
+-keep class com.google.firebase.components.** { *; }
+-keep class com.google.firebase.encoders.** { *; }
+-keep class com.google.android.datatransport.** { *; }
+-keep class com.google.android.gms.internal.mlkit_translate.** { *; }
+-keep class com.google.android.gms.internal.mlkit_common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_language_id.** { *; }
+-keep class com.google.android.gms.internal.mlkit_language_id_common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_language_id_bundled.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_face.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_face_bundled.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }
+-keep class com.google.android.gms.vision.** { *; }
 -keep class com.google.protobuf.** { *; }
 
 # Keep EndpointCodec.decode obfuscated but callable.
@@ -106,4 +120,10 @@
 -dontwarn party.iroiro.luajava.**
 -dontwarn ai.onnxruntime.**
 -dontwarn com.googlecode.tesseract.**
+-dontwarn com.googlecode.leptonica.**
+-dontwarn org.opencv.**
+-dontwarn org.tensorflow.lite.**
 -dontwarn com.k2fsa.sherpa.**
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.datatransport.**
+-dontwarn com.google.android.gms.internal.mlkit_translate.**
