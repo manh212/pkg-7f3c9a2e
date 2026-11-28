@@ -14,6 +14,7 @@ import android.os.RemoteException
 import android.util.Log
 import com.google.android.accessibility.talkback.actor.gemini.local.ModelFiles
 import com.google.android.libraries.assistant.soda.Soda
+import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
@@ -42,11 +43,20 @@ class SodaService : Service() {
     Process.killProcess(Process.myPid())
   }
 
+  private fun recordError(detail: String?) {
+    try {
+      val file = File(cacheDir, "soda-last-error.txt")
+      if (detail == null) file.delete() else file.writeText(detail.take(512))
+    } catch (_: IOException) {
+    }
+  }
+
   private fun recognize(id: Int, audio: ParcelFileDescriptor, reply: Messenger) {
     val failure = AtomicBoolean(false)
     val stopped = CountDownLatch(1)
     val text = SodaTranscript()
     var engine: Soda? = null
+    var errorDetail: String? = null
     val answer = try {
       val models = SodaModels.get(this)
       if (!models.isInstalled()) throw IOException("SODA data unavailable")
@@ -60,6 +70,7 @@ class SodaService : Service() {
             SodaWire.result(data)?.let(text::update)
           } catch (e: IOException) {
             failure.set(true)
+            errorDetail = "${e.javaClass.simpleName}: ${e.message}"
             Log.w(TAG, "Invalid SODA event", e)
             stopped.countDown()
           }
@@ -68,33 +79,46 @@ class SodaService : Service() {
       )
       engine = native
       val modelPath = models.languagePack.absolutePath + "/"
-      val cache = java.io.File(cacheDir, "soda-runtime").apply { mkdirs() }
+      val cache = File(cacheDir, "soda-runtime").apply { mkdirs() }
       SodaWire.requireSuccess(native.initialize(SodaWire.coreConfig(modelPath, cache.absolutePath + "/")))
       SodaWire.requireSuccess(native.start(SodaWire.captureConfig()))
       val buffer = ByteBuffer.allocateDirect(3200)
       val bytes = ByteArray(3200)
+      var carry = 0
       ParcelFileDescriptor.AutoCloseInputStream(audio).use { input ->
         var total = 0L
         while (true) {
           if (Thread.currentThread().isInterrupted) throw InterruptedException()
-          val count = input.read(bytes)
+          val count = input.read(bytes, carry, bytes.size - carry)
           if (count < 0) break
           total += count
-          if (total > AudioCapture.MAX_SECONDS * 32000L || count % 2 != 0) throw IOException("Invalid PCM recording")
-          buffer.clear()
-          buffer.put(bytes, 0, count)
-          buffer.flip()
-          if (!native.addAudio(buffer, count)) throw IOException("SODA rejected audio")
+          if (total > AudioCapture.MAX_SECONDS * 32000L) throw IOException("Invalid PCM recording")
+          val available = carry + count
+          val send = available and 1.inv()
+          if (send > 0) {
+            buffer.clear()
+            buffer.put(bytes, 0, send)
+            buffer.flip()
+            if (!native.addAudio(buffer, send)) throw IOException("SODA rejected audio")
+          }
+          carry = available - send
+          if (carry == 1) bytes[0] = bytes[send]
         }
+        if (carry != 0) throw IOException("Invalid PCM recording")
       }
       native.stop()
       if (!stopped.await(30, TimeUnit.SECONDS)) throw IOException("SODA finalization timed out")
       if (failure.get()) throw IOException("SODA result decoding failed")
+      recordError(null)
       text.value()
     } catch (e: Exception) {
+      errorDetail = "${e.javaClass.simpleName}: ${e.message}"
+      recordError(errorDetail)
       Log.w(TAG, "SODA recognition failed", e)
       null
     } catch (e: LinkageError) {
+      errorDetail = "${e.javaClass.simpleName}: ${e.message}"
+      recordError(errorDetail)
       Log.w(TAG, "SODA library unavailable", e)
       null
     } finally {
@@ -110,7 +134,10 @@ class SodaService : Service() {
     try {
       reply.send(Message.obtain(null, RESULT).apply {
         arg1 = id
-        data = Bundle().apply { putString(TEXT, answer) }
+        data = Bundle().apply {
+          putString(TEXT, answer)
+          if (errorDetail != null) putString(ERROR, errorDetail)
+        }
       })
     } catch (e: RemoteException) {
       Log.w(TAG, "SODA client disconnected", e)
@@ -123,6 +150,7 @@ class SodaService : Service() {
     const val RESULT = 2
     const val AUDIO = "audio"
     const val TEXT = "text"
+    const val ERROR = "error"
   }
 }
 
