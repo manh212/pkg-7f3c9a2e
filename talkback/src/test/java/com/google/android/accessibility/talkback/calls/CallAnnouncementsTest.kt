@@ -1,9 +1,14 @@
 package com.google.android.accessibility.talkback.calls
 
+import android.Manifest
 import android.app.Notification
+import android.content.Intent
 import android.media.AudioManager
 import android.os.Looper
+import android.telephony.TelephonyManager
+import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.utils.SharedPreferencesUtils
+import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.SpeechController
 import java.time.Duration
 import org.junit.After
@@ -163,5 +168,118 @@ class CallAnnouncementsTest {
     assertEquals(expectedBoost, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
     CallAnnouncements.onCallNotificationRemoved("phone")
     assertEquals(a11y30, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+  }
+
+  private fun prepareBoost(step: Int = 8, min: Int = 0, max: Int = 20,
+    stream: Int = AudioManager.STREAM_ACCESSIBILITY): AudioManager {
+    val audio = context.getSystemService(AudioManager::class.java)!!
+    shadowOf(audio).setStreamMinVolume(min)
+    shadowOf(audio).setStreamMaxVolume(max)
+    audio.setStreamVolume(AudioManager.STREAM_RING, max, 0)
+    audio.setStreamVolume(stream, step, 0)
+    prefs.edit().putBoolean(CallSettings.AUTO_BOOST_VOLUME, true).commit()
+    return audio
+  }
+
+  private fun phoneState(state: String) {
+    shadowOf(context).grantPermissions(Manifest.permission.READ_PHONE_STATE)
+    context.sendBroadcast(Intent(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
+      .putExtra(TelephonyManager.EXTRA_STATE, state))
+    shadowOf(Looper.getMainLooper()).idle()
+  }
+
+  @Test
+  @Config(sdk = [26, 34])
+  fun restoresExactFortyPercentEvenWhenTemporaryVolumeHasChanged() {
+    val audio = prepareBoost()
+    CallAnnouncements.onCallNotification("phone", incoming())
+    assertEquals(20, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 17, 0)
+    CallAnnouncements.onCallNotificationRemoved("phone")
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    assertEquals(8, prefs.getInt(context.getString(R.string.pref_a11y_volume_key), -1))
+  }
+
+  @Test fun restoresOriginalStepWithoutPercentageRoundingForNonzeroMinimum() {
+    val audio = prepareBoost(step = 6, min = 2, max = 13)
+    CallAnnouncements.onCallNotification("phone", incoming())
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 11, 0)
+    CallAnnouncements.onCallNotificationRemoved("phone")
+    assertEquals(6, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+  }
+
+  @Test fun overlappingCallsKeepTheFirstBaselineUntilEveryRingingCallEnds() {
+    val audio = prepareBoost()
+    CallAnnouncements.onCallNotification("first", incoming())
+    CallAnnouncements.onCallNotification("second", incoming())
+    CallAnnouncements.onCallNotificationRemoved("first")
+    assertEquals(20, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 16, 0)
+    CallAnnouncements.onCallNotificationRemoved("second")
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+  }
+
+  @Test fun notificationToPhoneHandoffDoesNotReplaceTheOriginalBaseline() {
+    val audio = prepareBoost()
+    CallAnnouncements.onCallNotification("phone", incoming())
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 17, 0)
+    phoneState(TelephonyManager.EXTRA_STATE_RINGING)
+    phoneState(TelephonyManager.EXTRA_STATE_OFFHOOK)
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 16, 0)
+    phoneState(TelephonyManager.EXTRA_STATE_IDLE)
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+  }
+
+  @Test fun keepsBaselineThroughVoipCallAndRestoresAgainAfterAudioRouteSettles() {
+    val audio = prepareBoost()
+    CallAnnouncements.onCallNotification("voip", incoming())
+    val ongoing = incoming().apply { extras.putInt("android.callType", 2) }
+    CallAnnouncements.onCallNotification("voip", ongoing)
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 15, 0)
+    CallAnnouncements.onCallNotificationRemoved("voip")
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 18, 0)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 19, 0)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    audio.setStreamVolume(AudioManager.STREAM_ACCESSIBILITY, 9, 0)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+    assertEquals(9, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+  }
+
+  @Test fun newIncomingCallCancelsOldRestoreCallbacksAndKeepsOriginalBaseline() {
+    val audio = prepareBoost()
+    CallAnnouncements.onCallNotification("first", incoming())
+    CallAnnouncements.onCallNotificationRemoved("first")
+    CallAnnouncements.onCallNotification("second", incoming())
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+    assertEquals(20, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+    CallAnnouncements.onCallNotificationRemoved("second")
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_ACCESSIBILITY))
+  }
+
+  @Test fun settingOffAndServiceDetachRestoreTheSavedStreamAndStep() {
+    prefs.edit().putString(FailoverTextToSpeech.PREF_SPEECH_STREAM_KEY,
+      FailoverTextToSpeech.STREAM_VALUE_MEDIA).commit()
+    val audio = prepareBoost(step = 8, stream = AudioManager.STREAM_MUSIC)
+    CallAnnouncements.onCallNotification("phone", incoming())
+    audio.setStreamVolume(AudioManager.STREAM_MUSIC, 17, 0)
+    prefs.edit().putBoolean(CallSettings.AUTO_BOOST_VOLUME, false).commit()
+    assertEquals(8, audio.getStreamVolume(AudioManager.STREAM_MUSIC))
+    CallAnnouncements.onCallNotificationRemoved("phone")
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+    audio.setStreamVolume(AudioManager.STREAM_MUSIC, 7, 0)
+    prefs.edit().putBoolean(CallSettings.AUTO_BOOST_VOLUME, true).commit()
+    CallAnnouncements.onCallNotification("phone", incoming())
+    audio.setStreamVolume(AudioManager.STREAM_MUSIC, 16, 0)
+    CallAnnouncements.detach()
+    assertEquals(7, audio.getStreamVolume(AudioManager.STREAM_MUSIC))
   }
 }

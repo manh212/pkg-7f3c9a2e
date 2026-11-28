@@ -30,6 +30,7 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.FailoverTextToSpeech
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.accessibility.utils.output.VoiceProfiles
+import com.google.android.libraries.accessibility.utils.log.LogUtils
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
@@ -53,13 +54,16 @@ object CallAnnouncements {
   private val utterances = mutableMapOf<SpeechController.UtteranceCompleteRunnable, () -> Boolean>()
   private const val PHONE = "phone"
   internal const val RING_VOLUME_BOOST_PERCENT = 20
-  private var boostedStream: Int? = null
-  private var previousSpeechVolume: Int? = null
-  private var appliedBoostVolume: Int? = null
+  private data class SpeechVolumeSnapshot(val stream: Int, val step: Int)
+  private var speechVolumeSnapshot: SpeechVolumeSnapshot? = null
+  private var speechVolumeRaised = false
+  private var volumeRestoreEpoch = 0
+  private var pendingVolumeRestore: Runnable? = null
 
   private class Session(val key: Any, var caller: String = "") {
     var ringing = false
     var active = false
+    var ongoing = false
     var readCount = 0
     var connectedAt = 0L
     var durationSaid = false
@@ -127,7 +131,7 @@ object CallAnnouncements {
     epoch++
     sessions.values.forEach(::cancel)
     sessions.clear()
-    restoreBoostedSpeechVolume()
+    restoreBoostedSpeechVolume(settle = false)
     stopSpeech()
     voice?.shutdown()
     voice = null
@@ -211,6 +215,7 @@ object CallAnnouncements {
     }
     val session = sessions.getOrPut(call) { Session(call) }
     session.active = state == Call.STATE_ACTIVE
+    session.ongoing = state != Call.STATE_DISCONNECTED
     if (session.caller.isBlank()) resolveCaller(session, call.details.handle?.schemeSpecificPart.orEmpty())
     if (state == Call.STATE_RINGING) {
       if (!session.ringing) {
@@ -330,7 +335,8 @@ object CallAnnouncements {
   private fun boostSpeechVolumeForIncomingCall() {
     val ctx = context ?: return
     if (!settings().autoBoostVolume) return
-    if (boostedStream != null) return
+    cancelPendingVolumeRestore()
+    if (speechVolumeRaised) return
     val audio = ctx.getSystemService(AudioManager::class.java) ?: return
     val speechStream = FailoverTextToSpeech.getSpeechAudioStream(ctx)
     if (speechStream == AudioManager.STREAM_RING) return
@@ -345,32 +351,57 @@ object CallAnnouncements {
       val currentSpeech = audio.getStreamVolume(speechStream)
       val targetStep = percentToStep(targetPercent, speechMin, speechMax)
       if (targetStep > currentSpeech) {
+        if (speechVolumeSnapshot == null) speechVolumeSnapshot = SpeechVolumeSnapshot(speechStream, currentSpeech)
+        if (speechVolumeSnapshot?.stream != speechStream) return@runCatching
         TalkBackService.getInstance()?.ignoreSelfVolumeChange(speechStream)
+        speechVolumeRaised = true
         audio.setStreamVolume(speechStream, targetStep, 0)
-        boostedStream = speechStream
-        previousSpeechVolume = currentSpeech
-        appliedBoostVolume = targetStep
       }
     }
   }
 
-  private fun restoreBoostedSpeechVolume() {
-    val stream = boostedStream ?: return
-    val previous = previousSpeechVolume
-    val applied = appliedBoostVolume
-    boostedStream = null
-    previousSpeechVolume = null
-    appliedBoostVolume = null
-    val ctx = context ?: return
+  private fun cancelPendingVolumeRestore() {
+    volumeRestoreEpoch++
+    pendingVolumeRestore?.let(main::removeCallbacks)
+    pendingVolumeRestore = null
+  }
+
+  private fun restoreBoostedSpeechVolume(keepBaseline: Boolean = false, settle: Boolean = true) {
+    val snapshot = speechVolumeSnapshot ?: return
+    val ctx = context?.applicationContext ?: return
     val audio = ctx.getSystemService(AudioManager::class.java) ?: return
-    if (previous != null && applied != null) {
-      runCatching {
-        if (audio.getStreamVolume(stream) == applied) {
-          TalkBackService.getInstance()?.ignoreSelfVolumeChange(stream)
-          audio.setStreamVolume(stream, previous, 0)
+    cancelPendingVolumeRestore()
+    if (keepBaseline && !speechVolumeRaised) return
+    val token = volumeRestoreEpoch
+    fun restore(attempt: Int) {
+      if (volumeRestoreEpoch != token || speechVolumeSnapshot !== snapshot) return
+      pendingVolumeRestore = null
+      val restored = runCatching {
+        if (audio.getStreamVolume(snapshot.stream) != snapshot.step) {
+          TalkBackService.getInstance()?.ignoreSelfVolumeChange(snapshot.stream)
+          audio.setStreamVolume(snapshot.stream, snapshot.step, 0)
         }
+        audio.getStreamVolume(snapshot.stream) == snapshot.step
+      }.getOrDefault(false)
+      if (restored) speechVolumeRaised = false
+      if (keepBaseline && restored) return
+      if (attempt < 2 && (settle || !restored)) {
+        val next = Runnable { restore(attempt + 1) }
+        pendingVolumeRestore = next
+        main.postDelayed(next, if (attempt == 0) 250L else 750L)
+      } else if (restored) {
+        if (!keepBaseline) {
+          speechVolumeSnapshot = null
+          if (snapshot.stream == AudioManager.STREAM_ACCESSIBILITY) {
+            SharedPreferencesUtils.putIntPref(SharedPreferencesUtils.getSharedPreferences(ctx),
+              ctx.resources, R.string.pref_a11y_volume_key, snapshot.step)
+          }
+        }
+      } else {
+        LogUtils.w("CallAnnouncements", "Speech volume restoration was not accepted")
       }
     }
+    restore(0)
   }
 
   private fun scheduleRing(session: Session, delay: Long) {
@@ -396,9 +427,6 @@ object CallAnnouncements {
     session.ringing = false
     session.runnable?.let(main::removeCallbacks)
     session.runnable = null
-    if (sessions.values.none { it.ringing }) {
-      restoreBoostedSpeechVolume()
-    }
   }
 
   private fun resolveCaller(session: Session, number: String) {
@@ -493,6 +521,10 @@ object CallAnnouncements {
   }
 
   private fun stopInvalidSpeech() {
+    if (sessions.values.none { it.ringing }) {
+      val ongoing = phoneState != TelephonyManager.CALL_STATE_IDLE || sessions.values.any { it.ongoing }
+      restoreBoostedSpeechVolume(keepBaseline = ongoing && settings().autoBoostVolume)
+    }
     utterances.toMap().forEach { (completion, valid) ->
       if (!valid()) {
         utterances.remove(completion)
@@ -525,13 +557,16 @@ object CallAnnouncements {
     val isOngoing = callType == 2 ||
       (callType == 0 && (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 && notification.fullScreenIntent == null)
     if (isOngoing) {
-      sessions.remove(key)?.let(::cancel)
+      sessions[key]?.let { session ->
+        session.ongoing = true
+        cancel(session)
+      }
       stopInvalidSpeech()
       return
     }
     if (phoneState != TelephonyManager.CALL_STATE_IDLE || sessions.keys.any { it is Call }) return
     if (!allowed()) return
-    if (sessions.containsKey(key)) return
+    if (sessions[key]?.ringing == true) return
     val caller = notification.extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
     val session = Session(key, caller)
     sessions[key] = session

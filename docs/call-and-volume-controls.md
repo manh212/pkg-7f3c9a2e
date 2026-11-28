@@ -34,6 +34,31 @@ and installer restrictions. Denial does not stop setup or crash announcement
 handling. Phone-state permission is requested through setup instead of again
 on service startup or tutorial completion.
 
+## Temporary incoming-call speech volume
+
+The optional incoming-call boost records the selected speech stream and its exact
+Android volume index before raising it. The saved index is retained across
+notification, phone-state and Telecom handoffs, overlapping calls and the active
+call. It is not reconstructed from a rounded percentage or replaced by the
+temporary boosted value. A level corresponding to 40 percent returns to the same
+original index, even if the temporary level changed in the meantime.
+
+Ringing completion restores the original level; the baseline remains available
+until the observed call ends. Final restoration checks the stream immediately,
+after 250 ms and after one second to cover delayed route changes. A new incoming
+call cancels old restoration callbacks. After successful settling, the baseline
+is released and the accessibility-volume preference is synchronized. Later user
+volume changes are left alone. Disabling the boost or detaching the service also
+restores its saved level. A rejected restoration keeps the baseline available for
+a subsequent cleanup attempt instead of silently discarding it.
+
+`CallAnnouncementsTest` covers exact 40-percent restoration on Android 8 and 14,
+changed temporary levels, nonzero minimums, overlapping callers, notification to
+phone-state handoff, VoIP call completion, delayed route changes, obsolete
+callbacks, the media speech stream, disabling the setting and service teardown.
+Actual audio routing, perceived loudness and device-specific volume limits still
+require phone testing; these tests validate the stored stream and index.
+
 ## Touch exploration and volume keys
 
 The existing resume setting now controls both paused Meridian and disabled touch
