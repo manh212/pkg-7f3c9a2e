@@ -1084,6 +1084,24 @@ public class TalkBackService extends AccessibilityServiceCompat
     }
     VolumeKeyManager.reset();
     CallLimitController.detach();
+    CallAnnouncements.detach();
+    NotificationReader.detach();
+    NotificationListService.onSandFlyStopped();
+    com.google.android.accessibility.talkback.timer.TimerKeepAliveService.Companion.stop(this);
+    com.google.android.accessibility.talkback.recognition.LotteryCheckReceiver.cancelAlarm(this);
+    com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService.stopIfRunning(this);
+    LiveRecognition.stop();
+    AutomaticTranslation.stop();
+    progressBarAnnouncer.stop();
+    SpeechControllerImpl.setParallelBilingualVoice(null);
+    if (bilingualParallelSpeaker != null) {
+      bilingualParallelSpeaker.shutdown();
+      bilingualParallelSpeaker = null;
+    }
+    com.google.android.accessibility.talkback.taskassistant.TaskAssistant.closeService();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      com.google.android.accessibility.talkback.speakerphone.SpeakerphoneInCallService.refreshAnnouncements();
+    }
     if (pipeline != null) {
       while (true) {
         synchronized (disableTalkBackCompleteAction) {
@@ -1192,6 +1210,10 @@ public class TalkBackService extends AccessibilityServiceCompat
     CallAnnouncements.detach();
     NotificationReader.detach();
     NotificationListService.onSandFlyStopped();
+    com.google.android.accessibility.talkback.timer.TimerKeepAliveService.Companion.stop(this);
+    com.google.android.accessibility.talkback.recognition.LotteryCheckReceiver.cancelAlarm(this);
+    com.google.android.accessibility.talkback.liveaudio.InternalLiveRecognitionService.stopIfRunning(this);
+    LiveRecognition.stop();
 
     if (audioDeviceRouter != null) {
       audioDeviceRouter.shutdown();
@@ -5240,6 +5262,7 @@ public class TalkBackService extends AccessibilityServiceCompat
   private void onPauseChanged(boolean paused) {
     paused = paused || yieldingToOtherScreenReader;
     if (paused) {
+      NotificationReader.stop();
       CallAnnouncements.stopSpeech();
       progressBarAnnouncer.stop();
       if (gestureController != null) {
@@ -5857,7 +5880,9 @@ public class TalkBackService extends AccessibilityServiceCompat
         // What silences SandFly's own speech silences the notification voice too, and nothing is
         // said while SandFly is paused.
         (overMedia, duringCalls) ->
-            speechController.isMute()
+            !isServiceActive()
+                || yieldingToOtherScreenReader
+                || speechController.isMute()
                 || speechController.getShouldSilentSpeech()
                 || PauseController.isPaused()
                 || (!duringCalls && isPhoneCallActive())
@@ -5901,13 +5926,16 @@ public class TalkBackService extends AccessibilityServiceCompat
             speechController.stopItem(completion);
             return kotlin.Unit.INSTANCE;
           },
-          () -> !speechController.isMute()
+          () -> isServiceActive()
+              && !yieldingToOtherScreenReader
+              && !speechController.isMute()
               && !speechController.getShouldSilentSpeech()
               && !PauseController.isPaused()
               && !isMicrophoneActiveAndHeadphoneOff()
               && !isSsbActive(),
           () -> speechController.isSpeaking());
       NotificationListService.onSandFlyStarted(this);
+      com.google.android.accessibility.talkback.recognition.LotteryCheckReceiver.rescheduleAllPending(this);
     }
     if (scriptHost != null || pipeline == null || !UserManagerCompat.isUserUnlocked(this)) {
       return;
