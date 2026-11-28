@@ -84,6 +84,18 @@ def dex_classes(data):
     return result
 
 
+def is_obfuscated_residual(name, entrypoints):
+    for entry in entrypoints:
+        if name == entry:
+            return True
+        if name.startswith(entry + "$"):
+            parts = name[len(entry) + 1:].split("$")
+            if all(len(part) == 1 and part.islower() for part in parts):
+                return True
+    parts = name.rsplit(".", 1)[-1].split("$")
+    return all(len(part) == 1 and part.islower() for part in parts)
+
+
 def verify(apk_path, mapping_path, namespace, entrypoints, members):
     prefixes = tuple(name + "." for name in namespace)
     mapping = Path(mapping_path).read_text(encoding="utf-8")
@@ -120,7 +132,8 @@ def verify(apk_path, mapping_path, namespace, entrypoints, members):
     if not protected:
         raise ValueError("No protected activation code was found in the R8 mapping")
     exposed = {name for name in defined
-               if name.startswith(prefixes) and name not in entrypoints}
+               if name.startswith(prefixes) and name not in entrypoints
+               and not is_obfuscated_residual(name, entrypoints)}
     if exposed:
         raise ValueError("Activation implementation class names remain in the APK: "
                          + ", ".join(sorted(exposed)))
