@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="guided_photo_title">Chụp ảnh có hướng dẫn</string>
-  <string name="guided_photo_instructions">Hướng camera vào chủ thể muốn chụp. Meridian tự phát hiện chủ thể ở giữa và hướng dẫn căn máy. Khi đủ khung, đủ nét và giữ yên, máy đếm hai, một rồi tự chụp.</string>
+  <string name="guided_photo_instructions">Hướng camera vào người hoặc đồ vật muốn chụp. Meridian tự nhận diện và đọc tên chủ thể hoặc số khuôn mặt. Không cần căn vào chính giữa. Nếu chủ thể bị cắt, máy sẽ hướng dẫn dịch điện thoại. Khi chủ thể đủ khung và đủ rõ, hãy giữ máy tương đối yên: máy nói hai, một rồi tự chụp sau ít nhất hai giây. Bạn cũng có thể chọn Chụp ngay.</string>
   <string name="guided_photo_listen">Nghe hướng dẫn</string>
   <string name="guided_photo_search">Chưa thấy rõ chủ thể. Hãy hướng camera vào đối tượng và dịch máy chậm.</string>
+  <string name="guided_photo_found_faces">Phát hiện %1$d khuôn mặt.</string>
+  <string name="guided_photo_processing">Đang phân tích hình ảnh. Hãy giữ máy hướng vào chủ thể.</string>
+  <string name="guided_photo_objects_downloading">Đang tải nhận diện đồ vật, khoảng 7,5 MB. Chụp khuôn mặt đã dùng được.</string>
+  <string name="guided_photo_objects_failed">Chưa tải được nhận diện đồ vật. Chụp khuôn mặt vẫn dùng được.</string>
+  <string name="guided_photo_objects_retry">Thử tải lại nhận diện đồ vật</string>
+  <string name="guided_photo_objects_ready">Nhận diện đồ vật đã sẵn sàng, dùng được ngoại tuyến.</string>
   <string name="guided_photo_found">Phát hiện %1$s.</string>
   <string name="guided_photo_low_light">Ánh sáng yếu. Hãy tìm nơi sáng hơn hoặc bật đèn.</string>
   <string name="guided_photo_blur">Ảnh chưa rõ nét. Hãy giữ yên máy.</string>

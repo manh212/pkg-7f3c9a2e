@@ -1,77 +1,133 @@
 # Guided photo
 
-Open **Chụp ảnh có hướng dẫn** from the common command list or the Live recognition
-screen in settings. The command can also be assigned through the existing command
-pickers. This mode opens Meridian's own camera; it does not control another camera
-application or require Pixel Guided Frame or Shizuku.
+Open **Chụp ảnh có hướng dẫn** from the common command list or Live recognition in
+settings. No category selection is required. The camera belongs to Meridian;
+Pixel Guided Frame and Shizuku are not required.
 
-Point the camera at the desired subject. No category selection is required. The
-supported subject nearest the center is selected automatically and announced after
-two matching observations. Face tracking, object detection and document edges
-provide the subject candidates. The interface guides left/right/up/down movement,
-distance, face direction, document alignment, low light, sharpness, stability and
-focus. Front-camera horizontal directions account for the mirrored preview.
+## Recognition and guidance
 
-Frame ownership stays with MediaPipe until object detection, document scanning
-and quality measurements all finish. Closing an MPImage recycles its Bitmap, so
-no analyzer reads the frame after that close. ML Kit face processing finishes
-before the frame can be released. Camera analysis requests 640 by 480 pixels;
-saved photos retain the separate ImageCapture resolution. Startup, asynchronous
-binding and missing native-library errors are reported inside recognition rather
-than escaping through the settings activity.
-The active-state check retries camera binding after the activity reaches RESUMED,
-including direct command launches with an already installed model. A pending-bind
-flag prevents overlapping provider requests.
+Faces take priority over objects. All detected faces form one group, and Meridian
+announces the number of faces. A face does not have to be centered or face exactly
+forward. Tracking IDs can change without restarting the round. Otherwise the
+nearest supported object is selected and retained while it remains visible;
+document edges provide a fallback. A new subject needs two observations spanning
+at least 250 ms before announcement. A changed group needs 650 ms of confirmation.
 
-After the announcement finishes and the image settles, Meridian says **Hai**, then
-**Một**, and takes one photo after at least two seconds. Both numbers must finish
-speaking. Each new observation must remain suitable: movement, framing or subject
-changes cancel the countdown. A frame gap over 900 ms cannot complete an old
-countdown. Select **Chụp ảnh khác** to start another round or **Chụp ngay** to capture
-manually. Leaving the screen, pausing Meridian or locking the device stops the mode.
+Guidance corrects actual clipping at the image edges, severe darkness, blur or
+strong motion. Horizontal directions account for the mirrored front preview.
+Distance is only a requirement for clipping or an extremely small analyzed region
+(less than 24 pixels on either axis). Quality is measured separately inside each
+face or the selected object, at up to 192 pixels on the longest side. Moving or
+dark backgrounds do not enter those measurements. Motion compares normalized
+subject crops after subtracting their average luminance, reducing false alarms
+from exposure adjustments. Sharpness and darkness thresholds remain heuristics;
+this is not a learned photographic-quality model.
 
-## Models and storage
+Autofocus and exposure target an actual face in the group, or the selected object.
+CameraX maps the cropped, rotated analysis coordinates into the preview, including
+mirroring. Preview, analysis and capture share a ViewPort. An unsuccessful or
+unsupported autofocus callback does not veto a visibly sharp subject. Analysis
+prefers 1280 by 960 with supported lower-resolution fallback; saved JPEG resolution
+is chosen separately by ImageCapture.
 
-Face detection uses the bundled ML Kit face detector. Objects use the existing
-EfficientDet-Lite0 model, downloaded and verified on first use if unavailable.
-The bundled face detector is an explicit exception to the downloaded-model asset
-policy; the asset test permits only its four named TFLite weights and continues
-to reject other packaged model weights.
-Document edges use the existing OpenCV scanner. Analysis runs on the device; this
-mode does not upload camera images to an AI service. Detection covers the model's
-COCO classes, including common animals, vehicles and some foods. It cannot
-identify every food, beverage, object or arbitrary scene.
+## Countdown and example
 
-Photos are JPEG files in `Pictures/Meridian`, visible in compatible gallery apps.
-Android 10 and later publish a pending MediaStore row only after successful
-capture. Failed or cancelled saves remove that row. Android 8 and 9 request the
-existing storage permission after camera permission and scan the saved file into
-the gallery. Camera choice is remembered; captured images remain until the user
-deletes them. There is no automatic sharing.
+After the announcement completes and suitable observations span 250 ms, Meridian
+queues **Hai**. The two-second clock starts from its actual speech-start callback,
+not from when the utterance entered the speech queue. **Một** follows after at
+least one second. Automatic capture requires both completed utterances, at least
+two elapsed seconds and a current suitable observation. It happens once per round.
+
+A missing subject for less than 650 ms or a quality fluctuation shorter than
+450 ms pauses eligibility without restarting the count. The shutter never fires
+on a missing, unsuitable or stale observation. A sustained problem cancels the
+count. An analysis result older than two seconds cannot capture; an observation
+gap over three seconds cancels an old count. Guidance must persist for 450 ms and
+has a repeat cooldown, reducing contradictory chatter. Ordinary guidance is queued
+without interrupting the subject announcement; cancellation stops obsolete counting.
+
+Expected interaction for a group photograph:
+
+1. Point either camera at the group. Hear **Phát hiện 3 khuôn mặt.**
+2. If a detected face is clipped on the left, hear **Hãy dịch điện thoại sang trái
+   một chút.** The front camera reverses the horizontal direction.
+3. Once every detected face is in the frame and sufficiently clear, hear **Hai**,
+   then **Một**. Small hand drift does not demand perfect centering.
+4. After at least two seconds and a fresh suitable observation, hear the shutter
+   and **Đã lưu ảnh vào thư mục Ảnh/Meridian.**
+5. Choose **Chụp ảnh khác** for another round, or **Chụp ngay** for manual capture.
+
+This describes implemented behavior, not a recorded physical-device demonstration.
+A person entirely outside the frame cannot be detected or counted. Face detections
+are not identity recognition. The mode cannot guarantee that everyone in a scene
+has been found, that nobody blinked, or that every photo is sharp.
+
+## Model choice
+
+| Component | Current choice | Reason and limit |
+| --- | --- | --- |
+| Faces | Bundled ML Kit, ACCURATE mode | Supports multiple faces; available immediately without network. Switches to FAST after three consecutive face passes over 400 ms. |
+| Objects | EfficientDet-Lite2 int8, input 448 square | Google documents greater general accuracy than Lite0, with more latency and memory. Still limited to 80 COCO classes. |
+| Object fallback | Previously installed EfficientDet-Lite0 | Used while Lite2 is absent or cannot initialize. Other object-recognition features keep their existing model. |
+| Documents | Existing OpenCV edge scanner | Runs only when faces and non-book objects are absent. It is a geometric heuristic, not general scene recognition. |
+
+Lite2 is downloaded separately on first opening (7,515,971 bytes), with a pinned
+SHA-256 verified by the existing downloader before publication of the file. Face
+photography starts immediately and keeps working if the object download fails.
+Download status and a retry control are accessible in the camera screen and do
+not interrupt counting. The bundled face detector remains the explicit exception
+to the downloaded-model asset policy; no new weights are packaged in the APK.
+
+Google's published Pixel 6 CPU benchmarks list approximately 29.31 ms for Lite0
+int8 and 70.91 ms for Lite2 int8. Those numbers are reference measurements, not
+Meridian measurements or promises for another phone. ML Kit recommends roughly
+100 by 100 face pixels for reliable detection; allowing smaller regions does not
+make small or occluded faces equally reliable.
+
+YuNet and newer YOLO variants were considered. There is no measured advantage over
+ML Kit on this application's target phones. The latest OpenCV Zoo YuNet integration
+and YOLO runtime/decoder or licensing differences add migration work without
+solving the old controller's quality and countdown errors. No claim of parity
+with Google's proprietary Guided Frame is made.
+
+## Storage and lifetime
+
+All image analysis runs on the device. Camera frames are not uploaded. JPEGs are
+saved under Pictures/Meridian. Android 10 and later publish the pending MediaStore
+row only after success; failed or cancelled saves discard it. Android 8 and 9 use
+the existing storage permission and gallery scan. There is no automatic sharing.
+
+ML Kit finishes before the frame can be released. MediaPipe's MPImage owns its
+Bitmap until optional object/document analysis and all quality measurements end.
+Camera startup and native-library failures are reported inside the camera screen.
+Binding is deferred until RESUMED and pending requests cannot overlap. Leaving the
+screen, pausing Meridian or locking the device stops the mode.
 
 ## Validation
 
-Controller tests cover subject selection and announcements, spoken countdown
-acknowledgements, the full two-second delay, cancellation, stale frames, cumulative
-movement, front-camera directions, quality gates, late callbacks and one photo per
-round. Other tests cover image quality measurements, permission order, command
-discovery and MediaStore/legacy save cleanup. CI also compiles and lints the camera
-integration. These tests do not establish recognition accuracy or camera behavior
-on physical devices.
+GitHub Actions runs controller, region-quality, frame-lifetime, focus-transform,
+dialog-lifecycle and model-group regression tests, plus existing permissions,
+command discovery and save-cleanup coverage selected for the affected module.
+Resource changes can widen the automatic selection to the talkback module.
 
-Frame pipeline tests check that document scanning and quality measurement still
-have a live Bitmap after object detection and that failure releases the frame.
-Dialog lifecycle tests cover Android 8 and Android 14, including repeated cleanup
-and cleanup before opening the window.
+The controller scenarios include groups, off-center faces, tracking-ID churn,
+moderate drift, delayed speech start/completion, brief detection loss, sustained
+clipping, membership changes, stale frames and bad quality at the shutter deadline.
+Image-quality tests cover dark/moving backgrounds, exposure changes and smaller
+face regions. Pipeline tests ensure faces skip both object and document analysis.
+Focus tests cover off-center coordinates, mirroring and rotation. Lifecycle tests
+cover Android 8 and 14 and camera startup without downloaded object weights.
 
-On a phone, check both cameras in portrait and landscape, Vietnamese direction
-prompts, faces and supported objects near each edge, documents, darkness, torch,
-blur, movement during both countdown numbers, camera interruption, screen lock,
-pause, closing during capture, gallery visibility, permission denial and storage
-failure. Confirm that TalkBack focus follows instructions, status, camera controls,
-capture/retry and close. Thresholds are initial heuristics and require device
-validation; no accuracy benchmark is claimed.
+The owner checks physical cameras: portrait/landscape, single/group faces, all four
+edges, supported objects, low light, torch, focus, blur, interruptions, speech rate,
+permission denial, gallery visibility and storage failure. CI cannot establish
+real-world detection accuracy, battery use, or equivalence to Pixel Guided Frame.
 
-- [ML Kit face detection for Android](https://developers.google.com/ml-kit/vision/face-detection/android)
-- [MediaPipe object detection](https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/android)
-- [CameraX image capture](https://developer.android.com/media/camera/camerax/take-photo)
+## References
+
+- [ML Kit face detection](https://developers.google.com/ml-kit/vision/face-detection/android)
+- [ML Kit detector options](https://developers.google.com/android/reference/com/google/mlkit/vision/face/FaceDetectorOptions.Builder)
+- [MediaPipe model comparison and benchmarks](https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector)
+- [CameraX coordinate transforms](https://developer.android.com/media/camera/camerax/transform-output)
+- [OpenCV Zoo YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)
+- [Ultralytics licensing](https://www.ultralytics.com/license)

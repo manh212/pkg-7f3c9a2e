@@ -2,9 +2,11 @@ package com.google.android.accessibility.talkback.recognition
 
 import android.app.AlertDialog
 import android.app.KeyguardManager
+import android.content.res.Configuration
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Rational
 import android.util.Size
 import android.view.View
 import android.widget.Button
@@ -13,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.annotation.OptIn
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -22,8 +25,15 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.ViewPort
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.camera.view.TransformExperimental
+import androidx.camera.view.transform.OutputTransform
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LiveData
@@ -42,6 +52,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+@OptIn(markerClass = [TransformExperimental::class])
 internal class GuidedPhotoDialog(
   private val activity: ComponentActivity,
   private val serviceReady: () -> Boolean = {
@@ -50,6 +61,7 @@ internal class GuidedPhotoDialog(
   private val requestProvider: () -> ListenableFuture<ProcessCameraProvider> = {
     ProcessCameraProvider.getInstance(activity)
   },
+  private val requestObjects: () -> Unit = { OfflineModels.request(activity, OfflineModels.Group.GUIDED_PHOTO) },
   private val onClosed: () -> Unit,
 ) {
   private val handler = Handler(Looper.getMainLooper())
@@ -70,7 +82,7 @@ internal class GuidedPhotoDialog(
   private var focusBox: PhotoBox? = null
   private var focusAttemptAt = Long.MIN_VALUE
   private var focusRequest = 0
-  private var lastModelBucket = -1
+  private var focusedSubject: PhotoSubject? = null
   @Volatile private var generation = 0
   private var dialog: AlertDialog? = null
   private var provider: ProcessCameraProvider? = null
@@ -91,23 +103,22 @@ internal class GuidedPhotoDialog(
   private lateinit var cameraButton: Button
   private lateinit var againButton: Button
   private lateinit var captureButton: Button
+  private lateinit var modelButton: Button
+  private lateinit var modelStatus: TextView
 
-  private val modelObserver = Observer<Map<OfflineModels.Group, OfflineModels.Status>> { states ->
-    if (!dismissed && !finished && camera == null) {
-      if (OfflineModels.isReady(activity, OfflineModels.Group.OBJECTS)) {
-        bindCamera()
-      } else {
-        val state = states[OfflineModels.Group.OBJECTS]
-        if (state?.failed == true) fail(R.string.live_recognition_model_download_failed)
-        else state?.progress?.let { progress ->
-          val bucket = progress / 25
-          if (bucket > lastModelBucket) {
-            lastModelBucket = bucket
-            message(activity.getString(R.string.live_recognition_model_download_progress, bucket * 25))
-          }
-        }
-      }
-    }
+  private val modelObserver = Observer<Map<OfflineModels.Group, OfflineModels.Status>> {
+    if (!dismissed) updateModelStatus()
+  }
+
+  private fun updateModelStatus() {
+    val ready = OfflineModels.isReady(activity, OfflineModels.Group.GUIDED_PHOTO)
+    val state = OfflineModels.state(OfflineModels.Group.GUIDED_PHOTO)
+    modelStatus.setText(when {
+      ready -> R.string.guided_photo_objects_ready
+      state.failed -> R.string.guided_photo_objects_failed
+      else -> R.string.guided_photo_objects_downloading
+    })
+    modelButton.visibility = if (!ready && state.failed) View.VISIBLE else View.GONE
   }
 
   private val activeCheck = object : Runnable {
@@ -118,8 +129,7 @@ internal class GuidedPhotoDialog(
         dismiss()
         return
       }
-      if (!finished && camera == null && !binding &&
-        OfflineModels.isReady(activity, OfflineModels.Group.OBJECTS)) bindCamera()
+      if (!finished && camera == null && !binding) bindCamera()
       handler.postDelayed(this, 250L)
     }
   }
@@ -163,6 +173,12 @@ internal class GuidedPhotoDialog(
     }
     column.addView(flashButton)
     captureButton = button(R.string.guided_photo_now) { takePhoto() }.apply { isEnabled = false }
+    modelStatus = TextView(activity).apply { textSize = 16f }
+    column.addView(modelStatus)
+    modelButton = button(R.string.guided_photo_objects_retry) {
+      requestObjects()
+      updateModelStatus()
+    }
     againButton = button(R.string.guided_photo_again) { restart() }.apply { isEnabled = false }
     dialog = AlertDialog.Builder(activity)
       .setTitle(R.string.guided_photo_title)
@@ -173,10 +189,9 @@ internal class GuidedPhotoDialog(
     handler.post(activeCheck)
     beginSpeech(R.string.guided_photo_instructions)
     OfflineModels.status.observe(activity, modelObserver)
-    if (!OfflineModels.isReady(activity, OfflineModels.Group.OBJECTS)) {
-      status.setText(R.string.live_recognition_model_download_started)
-      OfflineModels.request(activity, OfflineModels.Group.OBJECTS)
-    } else bindCamera()
+    updateModelStatus()
+    requestObjects()
+    bindCamera()
   }
 
   fun dismiss() {
@@ -204,6 +219,7 @@ internal class GuidedPhotoDialog(
     focusReady = false
     focusKey = null
     focusBox = null
+    focusedSubject = null
     focusRequest++
     TalkBackService.getInstance()?.speechController
       ?.stopUtteranceGroup(SpeechController.UTTERANCE_GROUP_LIVE_RECOGNITION)
@@ -217,11 +233,8 @@ internal class GuidedPhotoDialog(
     guidanceEnabled = true
     captureButton.isEnabled = capture != null
     flashButton.isEnabled = camera?.cameraInfo?.hasFlashUnit() == true
-    if (OfflineModels.isReady(activity, OfflineModels.Group.OBJECTS)) bindCamera()
-    else {
-      lastModelBucket = -1
-      OfflineModels.request(activity, OfflineModels.Group.OBJECTS)
-    }
+    bindCamera()
+    requestObjects()
   }
 
   private fun switchCamera() {
@@ -250,7 +263,7 @@ internal class GuidedPhotoDialog(
     message(activity.getString(if (front) R.string.guided_photo_front_active else R.string.guided_photo_back_active)) {
       if (!dismissed && guidanceEpoch == token) guidanceEnabled = true
     }
-    if (OfflineModels.isReady(activity, OfflineModels.Group.OBJECTS)) bindCamera()
+    bindCamera()
   }
 
   private fun bindCamera() {
@@ -282,16 +295,20 @@ internal class GuidedPhotoDialog(
           fail(R.string.guided_photo_camera_missing)
           return@addListener
         }
-        val pv = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3).build()
-        pv.setSurfaceProvider(previewView.surfaceProvider)
         val rotation = previewView.display?.rotation ?: 0
+        val pv = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+          .setTargetRotation(rotation).build()
+        pv.setSurfaceProvider(previewView.surfaceProvider)
         val photo = ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
           .setTargetAspectRatio(AspectRatio.RATIO_4_3)
           .setTargetRotation(rotation)
           .build()
         val frames = ImageAnalysis.Builder()
-          .setTargetResolution(Size(640, 480))
+          .setResolutionSelector(ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+            .setResolutionStrategy(ResolutionStrategy(Size(1280, 960),
+              ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
           .setTargetRotation(rotation)
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
           .build()
@@ -305,27 +322,24 @@ internal class GuidedPhotoDialog(
             return@setAnalyzer
           }
           lastFrame = now
-          val bitmap = try { LiveTextRecognitionDialog.imageToRotatedBitmap(image) }
+          val input = try { GuidedPhotoImage.read(image) }
             catch (_: RuntimeException) { null }
             finally { image.close() }
-          if (bitmap == null) {
+          if (input == null) {
             processing.set(false)
             return@setAnalyzer
           }
           try {
             val engine = detector ?: GuidedPhotoDetector(activity.applicationContext).also { detector = it }
-            val result = engine.analyze(bitmap)
+            val result = engine.analyze(input.bitmap)
             handler.post {
               if (allowed() && token == generation && !finished && !capturing && guidanceEnabled) {
-                if (SystemClock.elapsedRealtime() - now > GuidedPhotoController.MAX_FRAME_GAP_MS) {
-                  resetGuidance()
-                } else {
-                  try {
-                    process(result, now)
-                  } catch (error: RuntimeException) {
-                    LogUtils.w(TAG, "Camera guidance failed (%s)", error.javaClass.simpleName)
-                    fail(R.string.live_recognition_camera_error)
-                  }
+                try {
+                  val received = SystemClock.elapsedRealtime()
+                  process(result.copy(ageMs = received - now), received, input.transform)
+                } catch (error: RuntimeException) {
+                  LogUtils.w(TAG, "Camera guidance failed (%s)", error.javaClass.simpleName)
+                  fail(R.string.live_recognition_camera_error)
                 }
               }
             }
@@ -344,14 +358,19 @@ internal class GuidedPhotoDialog(
               }
             }
           } finally {
-            bitmap.recycle()
+            input.bitmap.recycle()
             processing.set(false)
           }
         }
         preview = pv
         analysis = frames
         capture = photo
-        camera = p.bindToLifecycle(activity, selector, pv, frames, photo)
+        val portrait = activity.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+        val ratio = if (portrait) Rational(3, 4) else Rational(4, 3)
+        val group = UseCaseGroup.Builder().setViewPort(ViewPort.Builder(ratio, rotation)
+          .setScaleType(ViewPort.FIT).build())
+          .addUseCase(pv).addUseCase(frames).addUseCase(photo).build()
+        camera = p.bindToLifecycle(activity, selector, group)
         cameraState = camera?.cameraInfo?.cameraState
         cameraState?.observe(activity, cameraObserver)
         if (finished || camera == null) return@addListener
@@ -368,9 +387,10 @@ internal class GuidedPhotoDialog(
     }, mainExecutor)
   }
 
-  private fun process(frame: PhotoObservation, now: Long) {
-    val subject = GuidedPhotoController.select(frame.subjects)
-    updateFocus(subject, now)
+  private fun process(frame: PhotoObservation, now: Long, transform: OutputTransform) {
+    val subject = GuidedPhotoController.select(frame.subjects, focusedSubject)
+    focusedSubject = subject
+    updateFocus(subject, frame, transform, now)
     var cancelled = false
     var cancellationSpoken = false
     for (signal in controller.observe(frame.copy(focusReady = focusReady), now, front)) {
@@ -379,19 +399,23 @@ internal class GuidedPhotoDialog(
           if (signal.message == R.string.guided_photo_two || signal.message == R.string.guided_photo_one) {
             haptic(R.array.guided_photo_count_pattern)
           }
-          var text = if (signal.argument == null) activity.getString(signal.message)
-            else activity.getString(signal.message, signal.argument)
+          var text = when {
+            signal.number != null -> activity.getString(signal.message, signal.number)
+            signal.argument != null -> activity.getString(signal.message, signal.argument)
+            else -> activity.getString(signal.message)
+          }
           if (cancelled) {
             text = activity.getString(R.string.guided_photo_cancelled) + " " + text
             cancellationSpoken = true
           }
           val token = generation
-          message(text) { completed ->
+          message(text, started = {
+            if (!dismissed && generation == token) controller.started(signal.ticket, SystemClock.elapsedRealtime())
+          }) { completed ->
             if (!dismissed && generation == token) controller.spoken(signal.ticket, completed)
           }
         }
         is GuidedPhotoController.Signal.Guide -> {
-          stopSpeech()
           val prefix = if (cancelled) activity.getString(R.string.guided_photo_cancelled) + " " else ""
           message(prefix + activity.getString(signal.guidance.message))
           cancellationSpoken = cancelled
@@ -409,21 +433,24 @@ internal class GuidedPhotoDialog(
     if (cancelled && !cancellationSpoken) message(activity.getString(R.string.guided_photo_cancelled))
   }
 
-  private fun updateFocus(subject: PhotoSubject?, now: Long) {
+  private fun updateFocus(subject: PhotoSubject?, frame: PhotoObservation, source: OutputTransform, now: Long) {
     if (subject == null) {
       focusReady = false
       focusKey = null
       return
     }
-    val changed = focusKey != subject.key || focusBox?.let { !it.stableAgainst(subject.box) } != false
+    val box = subject.focusBox
+    val changed = focusKey != subject.key || focusBox?.let { !it.stableAgainst(box) } != false
     if (!changed && (focusReady || now - focusAttemptAt < 2_500L)) return
     val bound = camera ?: return
+    val target = previewView.outputTransform ?: return
     focusReady = false
     focusKey = subject.key
-    focusBox = subject.box
+    focusBox = box
     focusAttemptAt = now
     val request = ++focusRequest
-    val point = previewView.meteringPointFactory.createPoint(previewView.width / 2f, previewView.height / 2f)
+    val coordinates = GuidedPhotoImage.focusPoint(box, frame.imageWidth, frame.imageHeight, source, target)
+    val point = previewView.meteringPointFactory.createPoint(coordinates[0], coordinates[1])
     val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
       .setAutoCancelDuration(5, TimeUnit.SECONDS).build()
     val autofocus = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF).build()
@@ -506,7 +533,7 @@ internal class GuidedPhotoDialog(
     TalkBackService.getInstance()?.feedbackController?.playHaptic(pattern, Performance.EVENT_ID_UNTRACKED)
   }
 
-  private fun message(text: String, completed: ((Boolean) -> Unit)? = null) {
+  private fun message(text: String, started: (() -> Unit)? = null, completed: ((Boolean) -> Unit)? = null) {
     if (dismissed) return
     status.text = text
     val speech = TalkBackService.getInstance()?.speechController ?: return
@@ -514,6 +541,9 @@ internal class GuidedPhotoDialog(
       .setFlags(FeedbackItem.FLAG_FORCE_FEEDBACK_ALL)
       .setUtteranceGroup(SpeechController.UTTERANCE_GROUP_LIVE_RECOGNITION)
       .setQueueMode(SpeechController.QUEUE_MODE_QUEUE)
+      .setStartingAction(SpeechController.UtteranceStartRunnable {
+        handler.post { if (!dismissed) started?.invoke() }
+      })
       .setCompletedAction(SpeechController.UtteranceCompleteRunnable { result ->
         handler.post { if (!dismissed) completed?.invoke(result == SpeechController.STATUS_SPOKEN) }
       }))
@@ -530,7 +560,10 @@ internal class GuidedPhotoDialog(
     unbindCamera()
     stopSpeech()
     captureButton.isEnabled = false
+    cameraButton.isEnabled = true
     againButton.isEnabled = true
+    output?.discard()
+    output = null
     message(activity.getString(resource))
   }
 

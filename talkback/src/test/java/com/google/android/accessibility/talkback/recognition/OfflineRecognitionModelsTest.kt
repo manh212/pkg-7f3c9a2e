@@ -38,6 +38,7 @@ class OfflineRecognitionModelsTest {
     assertFalse(camera.any { it in listOf(OfflineModels.encoder, OfflineModels.decoder, OfflineModels.vocabulary) })
     assertEquals(listOf(OfflineModels.currency), OfflineModels.models(OfflineModels.Group.CURRENCY))
     assertEquals(listOf(OfflineModels.objects), OfflineModels.models(OfflineModels.Group.OBJECTS))
+    assertEquals(listOf(OfflineModels.guidedObjects), OfflineModels.models(OfflineModels.Group.GUIDED_PHOTO))
     OfflineModels.Group.entries.flatMap(OfflineModels::models).forEach { model ->
       assertTrue(model.url.startsWith("https://"))
       assertTrue(model.sha256.matches(Regex("[0-9a-f]{64}")))

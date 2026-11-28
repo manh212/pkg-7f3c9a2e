@@ -2,80 +2,124 @@ package com.google.android.accessibility.talkback.recognition
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Color
+import android.os.SystemClock
 import com.google.android.accessibility.talkback.R
 import com.google.android.accessibility.talkback.imagecaption.OfflineModels
 import com.google.android.gms.tasks.Tasks
+import com.google.android.libraries.accessibility.utils.log.LogUtils
+import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetector
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.nio.ByteBuffer
-import kotlin.math.abs
-import kotlin.math.max
 
 internal class GuidedPhotoDetector(private val context: Context) : AutoCloseable {
-  private val faces = FaceDetection.getClient(FaceDetectorOptions.Builder()
-    .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-    .setMinFaceSize(.08f)
-    .enableTracking()
-    .build())
-  private val objects: ObjectDetector
+  private var faces = faceDetector(false)
+  private var fastFaces = false
+  private var slowFrames = 0
+  private var objects: ObjectDetector? = null
+  private var objectPath: String? = null
+  private val failedModels = mutableSetOf<String>()
   private val frames = GuidedPhotoFrameAnalyzer(context.getString(R.string.guided_photo_document))
 
-  init {
-    objects = try {
-      val bytes = OfflineModels.file(context, OfflineModels.objects).readBytes()
-      val model = ByteBuffer.allocateDirect(bytes.size).apply { put(bytes); rewind() }
-      ObjectDetector.createFromOptions(context, ObjectDetector.ObjectDetectorOptions.builder()
-        .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).build())
-        .setScoreThreshold(.55f)
-        .setMaxResults(10)
-        .build())
-    } catch (error: Exception) {
-      faces.close()
-      throw error
-    } catch (error: LinkageError) {
-      faces.close()
-      throw error
+  private fun faceDetector(fast: Boolean): FaceDetector = FaceDetection.getClient(FaceDetectorOptions.Builder()
+    .setPerformanceMode(if (fast) FaceDetectorOptions.PERFORMANCE_MODE_FAST else FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+    .setMinFaceSize(.04f)
+    .enableTracking()
+    .build())
+
+  private fun objectDetector(): ObjectDetector? {
+    for (asset in listOf(OfflineModels.guidedObjects, OfflineModels.objects)) {
+      val file = OfflineModels.file(context, asset)
+      if (!file.isFile || file.length() != asset.size) continue
+      val signature = "${file.path}:${file.lastModified()}"
+      if (signature in failedModels) continue
+      if (objectPath == signature) return objects
+      try {
+        val bytes = file.readBytes()
+        val model = ByteBuffer.allocateDirect(bytes.size).apply { put(bytes); rewind() }
+        val next = ObjectDetector.createFromOptions(context, ObjectDetector.ObjectDetectorOptions.builder()
+          .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).build())
+          .setScoreThreshold(.5f)
+          .setMaxResults(10)
+          .build())
+        objects?.close()
+        objects = next
+        objectPath = signature
+        return next
+      } catch (error: Exception) {
+        failedModels.add(signature)
+        LogUtils.w("GuidedPhoto", "Object model unavailable (%s)", error.javaClass.simpleName)
+      } catch (error: LinkageError) {
+        failedModels.add(signature)
+        LogUtils.w("GuidedPhoto", "Object library unavailable (%s)", error.javaClass.simpleName)
+      }
     }
+    return objects
   }
 
   fun analyze(bitmap: Bitmap): PhotoObservation {
     val width = bitmap.width.toFloat()
     val height = bitmap.height.toFloat()
+    val started = SystemClock.elapsedRealtime()
     val foundFaces = Tasks.await(faces.process(InputImage.fromBitmap(bitmap, 0)))
       .map { face ->
         val b = face.boundingBox
-        val extraX = b.width() * .18f
-        val extraTop = b.height() * .25f
         PhotoSubject(
           "face:${face.trackingId ?: "untracked"}", context.getString(R.string.guided_photo_face),
-          PhotoBox((b.left - extraX) / width, (b.top - extraTop) / height,
-            (b.right + extraX) / width, (b.bottom + b.height() * .08f) / height),
+          PhotoBox(b.left / width, b.top / height, b.right / width, b.bottom / height),
           PhotoSubjectKind.FACE,
-          facingCamera = abs(face.headEulerAngleY) < 25 && abs(face.headEulerAngleX) < 25,
         )
       }
-    return frames.analyze(bitmap, foundFaces) { image ->
-      objects.detect(image).detections().mapNotNull { detection ->
+    if (!fastFaces) {
+      slowFrames = if (SystemClock.elapsedRealtime() - started > 400L) slowFrames + 1 else 0
+      if (slowFrames >= 3) {
+        val next = faceDetector(true)
+        faces.close()
+        faces = next
+        fastFaces = true
+      }
+    }
+    return frames.analyze(bitmap, foundFaces) { image -> detectObjects(image, width, height) }
+  }
+
+  private fun detectObjects(image: MPImage, width: Float, height: Float): List<PhotoSubject> {
+    val engine = objectDetector() ?: return emptyList()
+    return try {
+      engine.detect(image).detections().mapNotNull { detection ->
         val category = detection.categories().maxByOrNull { it.score() } ?: return@mapNotNull null
         val name = category.categoryName()
         val label = LABELS[name] ?: return@mapNotNull null
         val b = detection.boundingBox()
-        val box = PhotoBox(b.left / width, b.top / height, b.right / width, b.bottom / height)
-        if (name == "person" && foundFaces.any { face ->
-            face.box.cx in box.left..box.right && face.box.cy in box.top..box.bottom
-          }) return@mapNotNull null
-        PhotoSubject("object:$name", label, box, PhotoSubjectKind.OBJECT, category.score())
+        PhotoSubject("object:$name", label,
+          PhotoBox(b.left / width, b.top / height, b.right / width, b.bottom / height),
+          PhotoSubjectKind.OBJECT, category.score())
       }
+    } catch (error: Exception) {
+      disableObjects(error)
+      emptyList()
+    } catch (error: LinkageError) {
+      disableObjects(error)
+      emptyList()
     }
+  }
+
+  private fun disableObjects(error: Throwable) {
+    objectPath?.let { failedModels.add(it) }
+    try { objects?.close() }
+    catch (_: Exception) { Unit }
+    catch (_: LinkageError) { Unit }
+    objects = null
+    objectPath = null
+    LogUtils.w("GuidedPhoto", "Object inference unavailable (%s)", error.javaClass.simpleName)
   }
 
   override fun close() {
     faces.close()
-    objects.close()
+    objects?.close()
   }
 
   companion object {
@@ -103,41 +147,5 @@ internal class GuidedPhotoDetector(private val context: Context) : AutoCloseable
       "refrigerator" to "tủ lạnh", "book" to "quyển sách", "clock" to "đồng hồ", "vase" to "bình hoa",
       "scissors" to "kéo", "teddy bear" to "gấu bông", "hair drier" to "máy sấy tóc", "toothbrush" to "bàn chải",
     )
-  }
-}
-
-internal class PhotoQualityAnalyzer {
-  private var previous: IntArray? = null
-
-  fun analyze(bitmap: Bitmap, subjects: List<PhotoSubject>): PhotoObservation {
-    val width = 160
-    val height = max(3, bitmap.height * width / bitmap.width)
-    val reduced = Bitmap.createScaledBitmap(bitmap, width, height, true)
-    val colors = IntArray(width * height)
-    try {
-      reduced.getPixels(colors, 0, width, 0, 0, width, height)
-    } finally {
-      if (reduced !== bitmap) reduced.recycle()
-    }
-    val gray = IntArray(colors.size) { i ->
-      val c = colors[i]
-      (Color.red(c) * .299f + Color.green(c) * .587f + Color.blue(c) * .114f).toInt()
-    }
-    var sum = 0.0
-    var squares = 0.0
-    for (y in 1 until height - 1) for (x in 1 until width - 1) {
-      val i = y * width + x
-      val laplacian = gray[i - 1] + gray[i + 1] + gray[i - width] + gray[i + width] - 4 * gray[i]
-      sum += laplacian
-      squares += laplacian.toDouble() * laplacian
-    }
-    val count = (width - 2) * (height - 2)
-    val variance = (squares / count - (sum / count) * (sum / count)).coerceAtLeast(0.0)
-    val old = previous
-    val movement = if (old != null && old.size == gray.size) {
-      gray.indices.sumOf { abs(gray[it] - old[it]).toDouble() }.div(gray.size).toFloat()
-    } else 100f
-    previous = gray
-    return PhotoObservation(subjects, gray.average().toFloat(), variance.toFloat(), movement, false)
   }
 }

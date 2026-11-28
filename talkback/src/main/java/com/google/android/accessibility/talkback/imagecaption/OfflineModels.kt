@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 internal object OfflineModels {
-  enum class Group { SCREEN_OCR, CAMERA_OCR, CAMERA_VIETOCR, CURRENCY, OBJECTS }
+  enum class Group { SCREEN_OCR, CAMERA_OCR, CAMERA_VIETOCR, CURRENCY, OBJECTS, GUIDED_PHOTO }
   data class Status(val progress: Int? = null, val failed: Boolean = false)
   data class Model(val path: String, val url: String, val size: Long, val sha256: String)
 
@@ -32,6 +32,9 @@ internal object OfflineModels {
   val objects = Model("recognition-models-v1/objects.tflite",
     "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite",
     4_602_795, "0720bf247bd76e6594ea28fa9c6f7c5242be774818997dbbeffc4da460c723bb")
+  val guidedObjects = Model("recognition-models-v1/guided-objects-lite2.tflite",
+    "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/int8/1/efficientdet_lite2.tflite",
+    7_515_971, "b3f50554cb0ea559e90328845f7d9ba4d13c8bff372914d24e06bc8bb72fa896")
 
   private val executor = Executors.newFixedThreadPool(2)
   private val active = ConcurrentHashMap.newKeySet<Group>()
@@ -47,6 +50,7 @@ internal object OfflineModels {
     Group.CAMERA_VIETOCR -> listOf(detector, encoder, decoder, vocabulary)
     Group.CURRENCY -> listOf(currency)
     Group.OBJECTS -> listOf(objects)
+    Group.GUIDED_PHOTO -> listOf(guidedObjects)
   }
 
   @JvmStatic fun isReady(context: Context, group: Group): Boolean =

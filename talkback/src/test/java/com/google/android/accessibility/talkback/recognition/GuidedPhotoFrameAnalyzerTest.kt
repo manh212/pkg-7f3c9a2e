@@ -30,6 +30,33 @@ class GuidedPhotoFrameAnalyzerTest {
     assertTrue(bitmap.isRecycled)
   }
 
+  @Test fun facesBypassObjectAndDocumentModelsEntirely() {
+    val bitmap = Bitmap.createBitmap(160, 120, Bitmap.Config.ARGB_8888)
+    val face = PhotoSubject("face:1", "khuôn mặt", PhotoBox(.2f, .2f, .8f, .8f), PhotoSubjectKind.FACE)
+    val analyzer = GuidedPhotoFrameAnalyzer("tài liệu") { error("Document model must not run for faces") }
+    val result = analyzer.analyze(bitmap, listOf(face)) { error("Object model must not run for faces") }
+    assertEquals(listOf(face), result.subjects)
+    assertEquals(1, result.regions.size)
+    assertTrue(bitmap.isRecycled)
+  }
+
+  @Test fun recognizedObjectsDoNotWaitForDocumentAnalysis() {
+    val bitmap = Bitmap.createBitmap(160, 120, Bitmap.Config.ARGB_8888)
+    val cup = PhotoSubject("object:cup", "cốc", PhotoBox(.2f, .2f, .8f, .8f), PhotoSubjectKind.OBJECT)
+    val result = GuidedPhotoFrameAnalyzer("tài liệu") { error("Document model must not run for a cup") }
+      .analyze(bitmap, emptyList()) { listOf(cup) }
+    assertEquals(listOf(cup), result.subjects)
+    assertTrue(bitmap.isRecycled)
+  }
+
+  @Test fun unavailableDocumentLibraryDoesNotCloseFacePhotography() {
+    val bitmap = Bitmap.createBitmap(160, 120, Bitmap.Config.ARGB_8888)
+    val result = GuidedPhotoFrameAnalyzer("tài liệu") { throw UnsatisfiedLinkError("OpenCV unavailable") }
+      .analyze(bitmap, emptyList()) { emptyList() }
+    assertTrue(result.subjects.isEmpty())
+    assertTrue(bitmap.isRecycled)
+  }
+
   @Test fun releasesTheImageWhenDetectionFails() {
     val bitmap = Bitmap.createBitmap(160, 120, Bitmap.Config.ARGB_8888)
     assertThrows(IllegalStateException::class.java) {
