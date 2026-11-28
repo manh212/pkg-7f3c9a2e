@@ -31,6 +31,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.google.android.accessibility.talkback.R
+import com.google.android.accessibility.talkback.TalkBackService
 import com.google.android.accessibility.talkback.notifications.AlarmClockIntents
 import com.google.android.accessibility.talkback.notifications.SpokenSchedules
 import com.google.android.accessibility.utils.SharedPreferencesUtils
@@ -55,11 +56,11 @@ class TimerKeepAliveService : Service() {
       }
     ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(), type)
     startPending = false
-    if (wanted == false || !allowed(this) || !anyActiveNow(this)) {
+    if (!TalkBackService.isServiceActive() || wanted == false || !allowed(this) || !anyActiveNow(this)) {
       stopSelfResult(startId)
       return START_NOT_STICKY
     }
-    return START_STICKY
+    return START_NOT_STICKY
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -111,7 +112,7 @@ class TimerKeepAliveService : Service() {
     fun refresh(context: Context) {
       val app = context.applicationContext
       onMain {
-        if (!allowed(app) || !anyActiveNow(app)) {
+        if (!TalkBackService.isServiceActive() || !allowed(app) || !anyActiveNow(app)) {
           stop(app)
         } else {
           wanted = true
