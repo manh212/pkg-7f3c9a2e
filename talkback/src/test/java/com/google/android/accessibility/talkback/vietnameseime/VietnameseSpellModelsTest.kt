@@ -71,6 +71,7 @@ class VietnameseSpellModelsTest {
     val target = directory.resolve(spec.name)
     ModelFiles.partFile(target).writeBytes(content.copyOfRange(0, 1024))
     var range: String? = null
+    val remaining = content.copyOfRange(1024, content.size)
     val download = ModelDownloader { url ->
       object : HttpURLConnection(url) {
         override fun connect() {}
@@ -80,7 +81,7 @@ class VietnameseSpellModelsTest {
           range = getRequestProperty("Range")
           return 206
         }
-        override fun getInputStream() = ByteArrayInputStream(content.copyOfRange(1024, content.size))
+        override fun getInputStream() = ByteArrayInputStream(remaining)
       }
     }
     assertEquals(ModelDownloader.Result.Done,

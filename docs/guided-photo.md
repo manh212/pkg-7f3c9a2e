@@ -19,6 +19,9 @@ before the frame can be released. Camera analysis requests 640 by 480 pixels;
 saved photos retain the separate ImageCapture resolution. Startup, asynchronous
 binding and missing native-library errors are reported inside recognition rather
 than escaping through the settings activity.
+The active-state check retries camera binding after the activity reaches RESUMED,
+including direct command launches with an already installed model. A pending-bind
+flag prevents overlapping provider requests.
 
 After the announcement finishes and the image settles, Meridian says **Hai**, then
 **Một**, and takes one photo after at least two seconds. Both numbers must finish

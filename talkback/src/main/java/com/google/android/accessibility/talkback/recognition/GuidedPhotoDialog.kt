@@ -37,12 +37,19 @@ import com.google.android.accessibility.utils.SharedPreferencesUtils
 import com.google.android.accessibility.utils.output.FeedbackItem
 import com.google.android.accessibility.utils.output.SpeechController
 import com.google.android.libraries.accessibility.utils.log.LogUtils
+import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class GuidedPhotoDialog(
   private val activity: ComponentActivity,
+  private val serviceReady: () -> Boolean = {
+    TalkBackService.isServiceActive() && !PauseController.isPaused()
+  },
+  private val requestProvider: () -> ListenableFuture<ProcessCameraProvider> = {
+    ProcessCameraProvider.getInstance(activity)
+  },
   private val onClosed: () -> Unit,
 ) {
   private val handler = Handler(Looper.getMainLooper())
@@ -68,6 +75,7 @@ internal class GuidedPhotoDialog(
   private var dialog: AlertDialog? = null
   private var provider: ProcessCameraProvider? = null
   private var camera: Camera? = null
+  private var binding = false
   private var cameraState: LiveData<CameraState>? = null
   private val cameraObserver = Observer<CameraState> { state ->
     if (!dismissed && !finished && state.error != null) fail(R.string.live_recognition_camera_error)
@@ -110,6 +118,8 @@ internal class GuidedPhotoDialog(
         dismiss()
         return
       }
+      if (!finished && camera == null && !binding &&
+        OfflineModels.isReady(activity, OfflineModels.Group.OBJECTS)) bindCamera()
       handler.postDelayed(this, 250L)
     }
   }
@@ -175,7 +185,7 @@ internal class GuidedPhotoDialog(
 
   private fun allowed(): Boolean = !dismissed && !activity.isFinishing &&
     activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
-    TalkBackService.isServiceActive() && !PauseController.isPaused() &&
+    serviceReady() &&
     activity.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked != true
 
   private fun beginSpeech(resource: Int) {
@@ -244,10 +254,11 @@ internal class GuidedPhotoDialog(
   }
 
   private fun bindCamera() {
-    if (!allowed() || finished || camera != null) return
+    if (!allowed() || finished || camera != null || binding) return
+    binding = true
     val token = ++generation
     val future = try {
-      ProcessCameraProvider.getInstance(activity)
+      requestProvider()
     } catch (error: RuntimeException) {
       LogUtils.w(TAG, "Camera provider failed (%s)", error.javaClass.simpleName)
       fail(R.string.live_recognition_camera_error)
@@ -258,7 +269,11 @@ internal class GuidedPhotoDialog(
       return
     }
     future.addListener({
-      if (!allowed() || token != generation || finished) return@addListener
+      if (!allowed() || token != generation || finished) {
+        if (token == generation) binding = false
+        return@addListener
+      }
+      binding = false
       try {
         val p = future.get()
         provider = p
@@ -521,6 +536,7 @@ internal class GuidedPhotoDialog(
 
   private fun unbindCamera() {
     generation++
+    binding = false
     focusRequest++
     cameraState?.removeObserver(cameraObserver)
     cameraState = null
