@@ -60,12 +60,16 @@ class SodaWireTest {
   }
 
   @Test fun coreConfigurationUsesLocalModelAndPcmAudio() {
-    val config = SodaWire.fields(SodaWire.coreConfig("/private/models/", "/private/cache/"))
+    val config = SodaWire.fields(SodaWire.coreConfig("/private/models/", "/private/cache/", "Pixel 8"))
     val asr = SodaWire.fields(requireNotNull(config.first { it.number == 3 }.bytes))
     assertEquals("/private/models/", asr.first { it.number == 13 }.bytes?.toString(Charsets.UTF_8))
     val audio = SodaWire.fields(requireNotNull(config.first { it.number == 1 }.bytes))
     val format = SodaWire.fields(requireNotNull(audio.first { it.number == 1 }.bytes))
     assertEquals(16000, format.first { it.number == 3 }.value.toInt())
+    val client = SodaWire.fields(requireNotNull(config.first { it.number == 10 }.bytes))
+    assertEquals("Android", client.first { it.number == 2 }.bytes?.toString(Charsets.UTF_8))
+    assertEquals("Pixel 8", client.first { it.number == 3 }.bytes?.toString(Charsets.UTF_8))
+    assertEquals(6L, client.first { it.number == 6 }.value)
     assertTrue(config.none { it.number == 2 })
   }
 }
