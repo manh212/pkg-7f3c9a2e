@@ -142,7 +142,10 @@ class SpeakerphoneInCallService : InCallService() {
   private fun update() {
     val prefs = SharedPreferencesUtils.getSharedPreferences(this)
     val active =
-      calls.any { it.details.state in AUDIBLE_STATES } && SpeakerphoneSettings.isEnabled(prefs)
+      TalkBackService.isServiceActive() &&
+        !PauseController.isPaused() &&
+        calls.any { it.details.state in AUDIBLE_STATES } &&
+        SpeakerphoneSettings.isEnabled(prefs)
     if (active) startListening() else stopListening()
     // Remember a switch to the speaker while a call is on hold or calls are swapped, so that the
     // call still goes back to the earpiece when the phone is held up.
@@ -178,6 +181,10 @@ class SpeakerphoneInCallService : InCallService() {
     @JvmStatic
     fun refreshAnnouncements() {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+      if (!TalkBackService.isServiceActive()) {
+        instance?.update()
+        return
+      }
       instance?.calls?.forEach {
         CallLimitController.onTelecomCall(it, it.details.state)
         CallAnnouncements.onTelecomCall(it, it.details.state)
