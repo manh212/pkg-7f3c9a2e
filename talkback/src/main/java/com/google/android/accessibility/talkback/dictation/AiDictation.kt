@@ -408,7 +408,7 @@ class AiDictation(
       models.addListener(listener)
     }
     if (models.state is SodaModels.State.Downloading) {
-      speak(service.getString(R.string.dictation_soda_downloading,
+      speak(service.getString(R.string.on_device_ai_announce_progress,
         (models.state as SodaModels.State.Downloading).percent))
     } else {
       models.startDownload()
