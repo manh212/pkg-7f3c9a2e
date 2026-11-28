@@ -4,7 +4,11 @@ import androidx.annotation.Keep
 import java.nio.ByteBuffer
 
 @Keep
-class Soda(private val onEvent: (ByteArray) -> Unit, private val onStopped: () -> Unit) : AutoCloseable {
+class Soda(
+  private val onEvent: (ByteArray) -> Unit,
+  private val onStopped: () -> Unit,
+  private val onStarted: () -> Unit = {},
+) : AutoCloseable {
   private var resources = nativeCreateSharedResources(this)
   private var instance = if (resources != 0L) nativeConstruct(resources) else 0L
 
@@ -32,7 +36,7 @@ class Soda(private val onEvent: (ByteArray) -> Unit, private val onStopped: () -
   }
 
   protected fun handleSodaEvent(event: ByteArray) = onEvent(event)
-  protected fun handleStart() = Unit
+  protected fun handleStart() = onStarted()
   protected fun handleStop(reason: Int) = onStopped()
   protected fun handleShutdown() = Unit
 
