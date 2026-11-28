@@ -441,6 +441,38 @@ class DirectTouchControllerTest {
     assertEquals("region [0,1400][1080,2188] complex=false", transcript.last())
   }
 
+  @Test
+  fun foreignKeyboardOnLockScreenDoesNotGetVietnameseDirectTouch() {
+    val typingKey = service.getString(R.string.pref_typing_confirmation_key)
+    prefs.edit().putString(typingKey, LIFT_TO_TYPE.toString()).commit()
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service, VietnameseKeyboardService::class.java).flattenToString())
+    shadowOf(Looper.getMainLooper()).idle()
+
+    val lockScreen = window(6, AccessibilityWindowInfo.TYPE_APPLICATION,
+      "Màn hình khóa", SCREEN, SYSTEM_UI, layer = 1)
+    val samsungKeyboard = window(9, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Bàn phím Samsung", Rect(0, 1455, 1080, 2340), "com.samsung.android.honeyboard", layer = 4)
+    serviceWindows.onScreen = listOf(lockScreen, samsungKeyboard)
+    controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
+    assertTranscript()
+  }
+
+  @Test
+  fun foreignKeyboardOnLockScreenDoesNotGetBrailleDirectTouch() {
+    Settings.Secure.putString(service.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD,
+      ComponentName(service.packageName, "com.Braille.BrailleKeyboardService").flattenToString())
+    shadowOf(Looper.getMainLooper()).idle()
+
+    val lockScreen = window(6, AccessibilityWindowInfo.TYPE_APPLICATION,
+      "Màn hình khóa", SCREEN, SYSTEM_UI, layer = 1)
+    val samsungKeyboard = window(9, AccessibilityWindowInfo.TYPE_INPUT_METHOD,
+      "Bàn phím Samsung", Rect(0, 1455, 1080, 2340), "com.samsung.android.honeyboard", layer = 4)
+    serviceWindows.onScreen = listOf(lockScreen, samsungKeyboard)
+    controller.onRawAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
+    assertTranscript()
+  }
+
   private fun keyboardEvent(windowId: Int): AccessibilityEvent =
     AccessibilityEvent(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED).also {
       ReflectionHelpers.callInstanceMethod<Any>(it, "setWindowId",
